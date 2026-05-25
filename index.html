@@ -1,0 +1,2000 @@
+<!DOCTYPE html>
+<!--
+  DINING LOG - single-file mobile web app
+  Build: v1.0
+  Stack: React 18 + Babel Standalone (CDN). No build step. Open the file or host it.
+  Data : GitHub repo (3 JSON files under data/) is the source of truth.
+         localStorage holds a cache for instant load and offline reading.
+  OCR  : Anthropic API (Claude vision) digitizes photographed menus.
+  Notes: All console/log output is plain ASCII (no emoji) by design.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Dining Log" />
+  <meta name="theme-color" content="#1b1714" />
+  <title>Dining Log</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,9..144&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#1b1714; --bg-2:#221d18; --surface:#272019; --surface-2:#2f2720;
+      --line:#3a3128; --line-soft:#332b23;
+      --text:#f3ebdd; --text-dim:#b3a591; --text-faint:#80715f;
+      --accent:#e0764a; --accent-dim:#b85f3a;
+      --amber:#e7b24c; --sage:#9aa877; --danger:#d9604e; --ok:#7faa6b;
+      --shadow:0 8px 28px rgba(0,0,0,0.45);
+    }
+    *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+    html,body{margin:0; padding:0; background:var(--bg); color:var(--text);}
+    body{
+      font-family:'Outfit',-apple-system,BlinkMacSystemFont,sans-serif;
+      font-size:16px; line-height:1.5;
+      -webkit-font-smoothing:antialiased;
+      overscroll-behavior-y:none;
+    }
+    input,textarea,select,button{font-family:inherit; font-size:16px;}
+    button{cursor:pointer; border:none; background:none; color:inherit;}
+    h1,h2,h3{font-family:'Fraunces',Georgia,serif; font-weight:500; margin:0; line-height:1.15;}
+
+    /* ---- shell ---- */
+    #app-shell{
+      max-width:540px; margin:0 auto; min-height:100vh;
+      background:var(--bg); position:relative;
+      padding-bottom:calc(78px + env(safe-area-inset-bottom));
+    }
+    .topbar{
+      position:sticky; top:0; z-index:30;
+      background:linear-gradient(180deg,var(--bg) 70%,rgba(27,23,20,0.0));
+      padding:calc(14px + env(safe-area-inset-top)) 20px 12px;
+    }
+    .topbar h1{font-size:30px; letter-spacing:-0.02em;}
+    .topbar .sub{font-size:13px; color:var(--text-faint); margin-top:2px; letter-spacing:0.04em; text-transform:uppercase;}
+    .content{padding:4px 20px 24px;}
+
+    /* ---- sync banner ---- */
+    .syncbar{
+      margin:0 20px 14px; padding:9px 13px; border-radius:11px;
+      font-size:13px; display:flex; align-items:center; gap:9px;
+      border:1px solid var(--line);
+    }
+    .syncbar.busy{background:var(--bg-2); color:var(--text-dim);}
+    .syncbar.err{background:rgba(217,96,78,0.12); color:#eab0a6; border-color:rgba(217,96,78,0.4);}
+    .syncbar.warn{background:rgba(231,178,76,0.1); color:#e7cf9a; border-color:rgba(231,178,76,0.35);}
+    .syncbar button{margin-left:auto; font-size:12px; color:var(--accent); font-weight:600;}
+    .dot{width:7px; height:7px; border-radius:50%; flex:none;}
+    .spin{width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;flex:none;}
+    @keyframes sp{to{transform:rotate(360deg);}}
+
+    /* ---- cards ---- */
+    .card{
+      background:var(--surface); border:1px solid var(--line-soft);
+      border-radius:15px; padding:16px; margin-bottom:13px;
+    }
+    .card.tap{transition:transform 0.08s ease;}
+    .card.tap:active{transform:scale(0.985);}
+
+    .row{display:flex; align-items:center; gap:12px;}
+    .between{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+    .muted{color:var(--text-dim);}
+    .faint{color:var(--text-faint);}
+    .tiny{font-size:12.5px;}
+    .small{font-size:13.5px;}
+
+    /* ---- visit / restaurant cards ---- */
+    .place-name{font-family:'Fraunces',serif; font-size:21px; font-weight:500; letter-spacing:-0.01em;}
+    .meta-line{font-size:12.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em;}
+
+    .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:9px;}
+    .chip{
+      background:var(--surface-2); border:1px solid var(--line);
+      color:var(--text-dim); font-size:12.5px; padding:4px 10px; border-radius:999px;
+    }
+    .chip.dish{background:rgba(224,118,74,0.1); border-color:rgba(224,118,74,0.32); color:#f0bfa3;}
+    .chip.tag{background:rgba(154,168,119,0.12); border-color:rgba(154,168,119,0.3); color:#bcc79c; font-size:11px; padding:2px 8px;}
+    .chip.pick{cursor:pointer;}
+    .chip.pick:active{transform:scale(0.94);}
+    .chip.on{background:var(--accent); border-color:var(--accent); color:#1b1714; font-weight:600;}
+
+    /* ---- stars ---- */
+    .stars{display:inline-flex; gap:3px;}
+    .star{font-size:17px; color:var(--line);}
+    .star.lit{color:var(--amber);}
+    .star.big{font-size:30px;}
+
+    .fav{color:var(--text-faint); font-size:21px; line-height:1;}
+    .fav.on{color:var(--accent);}
+
+    /* ---- buttons ---- */
+    .btn{
+      display:flex; align-items:center; justify-content:center; gap:8px;
+      padding:13px 16px; border-radius:12px; font-weight:600; font-size:15px;
+      width:100%; transition:transform 0.07s ease, opacity 0.15s ease;
+    }
+    .btn:active{transform:scale(0.98);}
+    .btn:disabled{opacity:0.45;}
+    .btn.primary{background:var(--accent); color:#1b1714;}
+    .btn.ghost{background:var(--surface); border:1px solid var(--line); color:var(--text);}
+    .btn.danger{background:rgba(217,96,78,0.14); border:1px solid rgba(217,96,78,0.45); color:#e7a99e;}
+    .btn.sm{padding:9px 13px; font-size:13.5px; width:auto;}
+
+    /* ---- forms ---- */
+    label.fld{display:block; margin-bottom:14px;}
+    label.fld .lbl{
+      display:block; font-size:12px; letter-spacing:0.07em; text-transform:uppercase;
+      color:var(--text-faint); margin-bottom:6px;
+    }
+    .input,textarea.input{
+      width:100%; background:var(--bg-2); border:1px solid var(--line);
+      color:var(--text); padding:12px 13px; border-radius:11px; outline:none;
+    }
+    .input:focus,textarea.input:focus{border-color:var(--accent-dim);}
+    textarea.input{resize:vertical; min-height:74px; line-height:1.45;}
+    .input::placeholder,textarea.input::placeholder{color:var(--text-faint);}
+
+    /* ---- bottom nav ---- */
+    .nav{
+      position:fixed; left:0; right:0; bottom:0; z-index:40;
+      max-width:540px; margin:0 auto;
+      background:rgba(34,29,24,0.96); backdrop-filter:blur(12px);
+      border-top:1px solid var(--line);
+      display:flex; padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+    }
+    .nav button{
+      flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+      padding:6px 0; font-size:10.5px; letter-spacing:0.04em; text-transform:uppercase;
+      color:var(--text-faint);
+    }
+    .nav button.on{color:var(--text);}
+    .nav .navicon{width:23px; height:23px;}
+    .nav .add{
+      background:var(--accent); color:#1b1714; width:46px; height:46px;
+      border-radius:14px; margin-top:-12px; box-shadow:0 6px 16px rgba(224,118,74,0.4);
+      align-items:center; justify-content:center;
+    }
+
+    /* ---- overlay sheets ---- */
+    .overlay{
+      position:fixed; inset:0; z-index:60; background:var(--bg);
+      max-width:540px; margin:0 auto; display:flex; flex-direction:column;
+      animation:slideup 0.22s ease;
+    }
+    @keyframes slideup{from{transform:translateY(22px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+    .ovhead{
+      display:flex; align-items:center; gap:12px;
+      padding:calc(13px + env(safe-area-inset-top)) 18px 13px;
+      border-bottom:1px solid var(--line-soft); position:sticky; top:0; background:var(--bg); z-index:5;
+    }
+    .ovhead h2{font-size:20px; flex:1; letter-spacing:-0.01em;}
+    .ovhead .x{font-size:15px; color:var(--text-dim); padding:6px 4px; font-weight:600;}
+    .ovbody{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:18px;}
+
+    /* ---- action sheet ---- */
+    .sheet-bg{position:fixed; inset:0; z-index:70; background:rgba(0,0,0,0.55); display:flex; align-items:flex-end;}
+    .sheet{
+      width:100%; max-width:540px; margin:0 auto; background:var(--bg-2);
+      border-radius:20px 20px 0 0; padding:10px 16px calc(20px + env(safe-area-inset-bottom));
+      border-top:1px solid var(--line); animation:slideup 0.2s ease;
+    }
+    .sheet .grip{width:38px; height:4px; background:var(--line); border-radius:2px; margin:6px auto 14px;}
+    .sheet-item{
+      display:flex; align-items:center; gap:14px; padding:15px 6px;
+      border-bottom:1px solid var(--line-soft);
+    }
+    .sheet-item:last-child{border-bottom:none;}
+    .sheet-item .ic{
+      width:40px; height:40px; border-radius:11px; background:var(--surface);
+      display:flex; align-items:center; justify-content:center; flex:none;
+    }
+    .sheet-item .t1{font-weight:600; font-size:15px;}
+    .sheet-item .t2{font-size:12.5px; color:var(--text-faint);}
+
+    /* ---- menu sections ---- */
+    .msec{border-bottom:1px solid var(--line-soft); padding:4px 0;}
+    .msec-head{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 2px; cursor:pointer;
+    }
+    .msec-head .nm{font-family:'Fraunces',serif; font-size:16.5px; font-weight:600; letter-spacing:0.01em;}
+    .msec-head .ct{font-size:12px; color:var(--text-faint);}
+    .mitem{padding:9px 2px 11px; border-top:1px dashed var(--line-soft);}
+    .mitem .ihead{display:flex; justify-content:space-between; gap:12px; align-items:baseline;}
+    .mitem .inm{font-weight:500; font-size:15px;}
+    .mitem .ipr{color:var(--amber); font-size:13.5px; white-space:nowrap; font-variant-numeric:tabular-nums;}
+    .mitem .idesc{font-size:13px; color:var(--text-dim); margin-top:3px; line-height:1.45;}
+
+    /* ---- misc ---- */
+    .empty{text-align:center; padding:46px 20px; color:var(--text-faint);}
+    .empty .big{font-family:'Fraunces',serif; font-size:20px; color:var(--text-dim); margin-bottom:6px;}
+    .divider-label{
+      font-size:11.5px; letter-spacing:0.1em; text-transform:uppercase;
+      color:var(--text-faint); margin:22px 2px 9px;
+    }
+    .toast{
+      position:fixed; left:50%; transform:translateX(-50%);
+      bottom:calc(94px + env(safe-area-inset-bottom)); z-index:90;
+      background:var(--surface-2); border:1px solid var(--line);
+      color:var(--text); padding:11px 17px; border-radius:11px; font-size:14px;
+      box-shadow:var(--shadow); max-width:90%; animation:slideup 0.18s ease;
+    }
+    .logbox{
+      background:#100d0b; border:1px solid var(--line); border-radius:10px;
+      padding:11px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:11px; line-height:1.6; color:#a89a86;
+      max-height:240px; overflow-y:auto; white-space:pre-wrap; word-break:break-word;
+    }
+    .photo-grid{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+    .photo-grid .pth{
+      width:72px; height:72px; border-radius:9px; object-fit:cover;
+      border:1px solid var(--line);
+    }
+    a{color:var(--accent);}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+/* ============================================================
+   DINING LOG - application code
+   ============================================================ */
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ---- constants ------------------------------------------------ */
+const APP_VERSION   = "1.0";
+const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
+const GH_API        = "https://api.github.com";
+const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
+const CFG_KEY       = "dininglog_config";
+const DATA_KEY      = "dininglog_data";
+const FILES = {                                     // logical name -> repo path
+  restaurants: "data/restaurants.json",
+  menus:       "data/menus.json",
+  visits:      "data/visits.json",
+};
+
+/* ---- diagnostic log buffer -----------------------------------
+   iPhone Safari has no easy console, so we keep an in-app log
+   that is viewable under Settings > Diagnostics. ASCII only. */
+const LOG_BUFFER = [];
+function logMsg(tag, msg){
+  const stamp = new Date().toTimeString().slice(0,8);
+  const line  = "[" + stamp + "] [" + tag + "] " + msg;
+  LOG_BUFFER.push(line);
+  if (LOG_BUFFER.length > 240) LOG_BUFFER.shift();
+  try { console.log(line); } catch(e){ /* ignore */ }
+}
+
+/* ---- small utilities ----------------------------------------- */
+function uid(prefix){
+  return prefix + "_" + Date.now().toString(36) + "_" +
+         Math.random().toString(36).slice(2,7);
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+function fmtDate(iso){
+  // iso is YYYY-MM-DD ; render as a friendly label
+  if (!iso) return "";
+  const d = new Date(iso + "T12:00:00");
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
+}
+function relDays(iso){
+  if (!iso) return "";
+  const then = new Date(iso + "T12:00:00").getTime();
+  const days = Math.round((Date.now() - then) / 86400000);
+  if (days <= 0)  return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7)   return days + " days ago";
+  if (days < 31)  return Math.round(days/7) + " wk ago";
+  if (days < 365) return Math.round(days/30) + " mo ago";
+  return Math.round(days/365) + " yr ago";
+}
+
+/* UTF-8 safe base64 - GitHub Contents API stores file bodies in base64. */
+function utf8ToB64(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  bytes.forEach(b => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+}
+function b64ToUtf8(b64){
+  const clean = (b64 || "").replace(/\s/g,"");          // GitHub adds line breaks
+  const bin   = atob(clean);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+/* Loose JSON parse - tolerates markdown fences around model output. */
+function parseJsonLoose(text){
+  let t = (text || "").trim();
+  t = t.replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();
+  const first = t.indexOf("{");
+  const last  = t.lastIndexOf("}");
+  if (first === -1 || last === -1) throw new Error("No JSON object found in response");
+  return JSON.parse(t.slice(first, last + 1));
+}
+
+/* Read a File into a data URL. */
+function fileToDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload  = () => resolve(r.result);
+    r.onerror = () => reject(new Error("Could not read file"));
+    r.readAsDataURL(file);
+  });
+}
+function loadImage(src){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload  = () => resolve(img);
+    img.onerror = () => reject(new Error("Could not decode image"));
+    img.src = src;
+  });
+}
+/* Resize a photo down to a sane edge length before sending to the
+   vision API. Keeps OCR legible while controlling token cost. */
+async function resizeForOcr(file, maxEdge){
+  maxEdge = maxEdge || 1568;
+  const dataUrl = await fileToDataUrl(file);
+  const img = await loadImage(dataUrl);
+  let w = img.naturalWidth, h = img.naturalHeight;
+  if (Math.max(w,h) > maxEdge){
+    const scale = maxEdge / Math.max(w,h);
+    w = Math.round(w*scale); h = Math.round(h*scale);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  canvas.getContext("2d").drawImage(img,0,0,w,h);
+  const out = canvas.toDataURL("image/jpeg",0.82);
+  logMsg("IMAGE","Resized photo to " + w + "x" + h + " (" +
+         Math.round(out.length/1365) + " KB approx)");
+  return out;                                          // data:image/jpeg;base64,...
+}
+
+/* ============================================================
+   CARLITA'S SEED DATA
+   Hand-digitized from the photographed menu and written to a
+   brand-new repo on first run only, so the app opens with real
+   data and the exact shape the menu scanner produces.
+   ============================================================ */
+function carlitasSeed(){
+  const day = todayISO();
+  const restaurant = {
+    id:"rest_carlitas",
+    name:"Carlita's",
+    cuisine:"Mexican / Tacos",
+    address:"Pearl District, Portland, OR",
+    phone:"971-352-6991",
+    website:"carlitasttw.com",
+    notes:"Tacos, tequila, whiskey. No reservations unless party of 6+. "+
+          "Minors at outside seating only. 20% gratuity for parties of 6+. "+
+          "Happy hour 4-6pm and 9pm-close (HH cocktails excluded Fri/Sat 9pm-close). "+
+          "Part of Urban Restaurant Group.",
+    favorite:true,
+    added_date:day,
+  };
+  const mk = (name,description,price,tags) => ({
+    name:name, description:description||"", price:price||"",
+    tags:tags||[], notes:""
+  });
+  const menu = {
+    restaurant_id:"rest_carlitas",
+    captured_date:day,
+    last_updated:day,
+    source:"seed",
+    raw_text:"Seeded from photographed Carlita's menu: main food menu, "+
+             "libations menu, May specials and margarita flight insert.",
+    sections:[
+      { name:"Aperitivos", items:[
+        mk("Tortilla Chips & Salsa","Choice of salsas: roasted tomato, chipotle, spicy verde, pineapple, ghost pepper crema, avocado crema","one 3.95 / two 5.95 / three 7.95",["gluten-free"]),
+        mk("Tortilla Chips & Guacamole","House-made with avocado, lime, cilantro","12.95",["gluten-free","vegetarian"]),
+        mk("Chorizo Chili Queso & Tortilla Chips","","13.95",[]),
+        mk("Elote (Street Corn)","Corn on the cob, house aioli, cilantro, cotija, tajin-chili","9.95",["gluten-free","vegetarian"]),
+        mk("Carlita's Skillet","Piedmontese short rib, black beans, chorizo chili queso, chipotle crema, cilantro, cotija, tortilla chips","13.95",[]),
+        mk("Mole Chicken Nachos","Black beans, chorizo chili queso, cilantro, sesame, tomatoes, black olives, cotija","14.95",[]),
+        mk("Cochinita Quesadilla","Cochinita pibil marinated in achiote rub, Oaxacan three cheese blend, flour tortilla, cilantro, sour cream","12.95",[]),
+      ]},
+      { name:"Ensaladas", items:[
+        mk("Ensalada de la Casa","Spring greens, cucumbers, cherry tomatoes, avocado, onions, cotija, tortilla strips, avocado citrus vinaigrette","small 9.95 / large 13.95",["gluten-free","vegetarian"]),
+        mk("Poblano Chicken Salad","Mole chicken, mixed greens, corn, cucumbers, tomatoes, black beans, avocado, sesame, cotija, chipotle vinaigrette","15.95",[]),
+        mk("Seared Ahi Tuna Salad","Jicama, avocado, corn, cucumbers, sesame, tomatoes, cilantro, lime chili vinaigrette","17.95",["raw"]),
+      ]},
+      { name:"Sopa", items:[
+        mk("Chicken Tortilla","Slow-roasted chicken, avocado crema, tortilla strips","8.95",[]),
+        mk("Posole Rojo","Braised pork, hominy, onions, chile de arbol, cabbage, radish, avocado, cotija, lime","8.95",[]),
+      ]},
+      { name:"Ceviche", items:[
+        mk("Pacific Ahi Tuna Ceviche","Avocado, cilantro, tomato, lime, cucumber, onion, chipotle vinaigrette","15.95",["gluten-free","raw"]),
+        mk("Chipotle Grilled Cold Water Shrimp Ceviche","Tomato, cilantro, jicama, chipotle vinaigrette","15.95",["gluten-free","raw"]),
+      ]},
+      { name:"Tacos", items:[
+        mk("Smoked Carlton Farms Pork Belly Taco","Cider and chili cured pork belly, apple jicama cabbage slaw, cilantro crema, cotija","6.25 ea / 2 for 11.50",[]),
+        mk("Blackened Salmon Taco","Chili cumin blackening, arugula greens, roasted tomato vinaigrette, avocado crema, cotija","6.25 ea / 2 for 11.50",["gluten-free"]),
+        mk("Mole Chicken Taco","Local chicken in traditional mole sauce, cabbage slaw, marinated tomato, pickled onions, cilantro crema, cotija","6.25 ea / 2 for 11.50",[]),
+        mk("Piedmontese Short Rib Taco","Ancho chili and garlic braised, demi glace, onion, radish, cabbage slaw, chipotle crema, cotija","6.25 ea / 2 for 11.50",[]),
+        mk("Apple Smoked Carne Asada Taco","Citrus marinated flat iron steak, portobello mushrooms, cabbage slaw, cilantro, marinated tomato, chipotle crema, cotija","6.25 ea / 2 for 11.50",[]),
+        mk("Yucatan Pork Taco","Cochinita pibil marinated in achiote rub, cilantro, black pepper, cabbage, pickled onion slaw, cotija","6.25 ea / 2 for 11.50",["gluten-free"]),
+        mk("Black Kale & Mountain Spinach Taco","Kale, spinach, roasted poblano corn salsa, arugula greens, roasted tomato vinaigrette, chipotle crema, cotija","6.25 ea / 2 for 11.50",["gluten-free","vegetarian"]),
+        mk("Wild Hongos Taco","Portobello, poblano, bell pepper, kale slaw, arugula greens, roasted tomato vinaigrette, chipotle crema, cotija","6.25 ea / 2 for 11.50",["gluten-free","vegetarian"]),
+        mk("Aguacates Taco","Avocado, black beans, cabbage slaw, cilantro, marinated tomatoes, pickled onions, cotija","6.25 ea / 2 for 11.50",["gluten-free","vegetarian"]),
+      ]},
+      { name:"Tostadas", items:[
+        mk("Piedmontese Short Rib Tostada","Ancho chili and garlic braised, black beans, arugula, roasted tomato vinaigrette, cotija","9.95",[]),
+        mk("Mary's Farm Chicken Tostada","Local chicken in traditional mole sauce, black beans, arugula, roasted tomato vinaigrette, cotija","9.95",[]),
+        mk("Walla Walla Papas Tostada","Cajun roasted yukon potatoes, black beans, tomatoes, arugula, roasted tomato vinaigrette, cotija","9.95",["gluten-free","vegetarian"]),
+      ]},
+      { name:"Sides", items:[
+        mk("Black Beans","","4.95",[]),
+        mk("Tortillas (2)","","1.95",[]),
+        mk("Side Salsa","","2.95",[]),
+        mk("Side Avocado","","3.95",[]),
+      ]},
+      { name:"May's Specials", items:[
+        mk("Mexican Mac & Cheese","Chorizo chili queso, macaroni, bacon, cilantro, cotija, tajin","12.95",[]),
+        mk("Guava Margarita","Tequila blanco, triple sec, house-made sour, guava puree","11.50",[]),
+      ]},
+      { name:"House Cocktails", items:[
+        mk("Ay Dios Mio","Tequila blanco, mango puree, lime juice, spicy bitters, house-made hibiscus shrub","12.50",[]),
+        mk("Carlita's Way","Jim Beam bourbon, Falernum, dash of Peychaud's, absinthe rinse","12.50",[]),
+        mk("La Paloma","Tequila blanco, cinnamon-infused Aperol, grapefruit juice, soda","12.50",[]),
+        mk("Tijuana Donkey","Tequila blanco, lime juice, ginger beer, bitters","12.50",[]),
+        mk("Romper","Bourbon, Benedictine, mint, lemon juice, agave","12.50",[]),
+        mk("Avion de Papel","Larceny bourbon, Amaro, Aperol, lemon juice","12.50",[]),
+        mk("Badhoss","Old Crow bourbon, orange curacao, house-made hibiscus shrub, lemon juice, soda","12.50",[]),
+        mk("A Mezcal to Arms","Sombra Mezcal, grapefruit juice, lime juice, Luxardo Maraschino","12.50",[]),
+        mk("Drugstore Cowboy","Tequila blanco, ginger extract, lemon, agave, mezcal float","12.50",[]),
+        mk("Pera Dulce","Effen vodka, pear liqueur, lemon, ginger extract","12.50",[]),
+        mk("Caipirinha","Cachaca, muddled lime, Peche de Vigne, house-made hibiscus shrub","12.50",[]),
+        mk("Mamacita","Aviation gin, Aperol, Lillet Blanc, lemon juice, cava","12.50",[]),
+      ]},
+      { name:"Margaritas & Flight", items:[
+        mk("House Margarita","Tequila, house-made sour, lime, choice of salt, sugar or tajin","10.50 / bottle 42",[]),
+        mk("Fruity Margaritas","Passion fruit, mango, blackberry or strawberry","11.50 / bottle 46",[]),
+        mk("Psychedelic Margarita","Hornitos Blanco, elderflower liqueur, butterfly pea flower, house-made sour","12.50",[]),
+        mk("Margarita Flight - Ancho Basil","Lunazul Blanco tequila, Ancho Reyes Verde (chile poblano) liqueur, house-made sour, fresh basil","flight 22",[]),
+        mk("Margarita Flight - Sweet Carrot","Lunazul Blanco tequila, triple sec, house-made sour, fresh carrot juice","flight 22",[]),
+        mk("Margarita Flight - A Damiana in Thyme","Lunazul Blanco tequila, Damiana liqueur, house-made sour, fresh thyme","flight 22",[]),
+      ]},
+      { name:"Wine by the Glass", items:[
+        mk("J Vineyards Pinot Gris 2023","White","11.50",[]),
+        mk("Matua Sauvignon Blanc 2023","White","10.50",[]),
+        mk("Napa Cellars Chardonnay 2023","White","11.50",[]),
+        mk("Avissi Prosecco NV","Bubbles","10.50",[]),
+        mk("Poema Cava (Spain)","Bubbles","9.50",[]),
+        mk("Rock Point Pinot Noir 2023","Red","10.50",[]),
+        mk("Joel Gott 815 Cabernet Sauvignon 2021","Red","11.50",[]),
+        mk("Unshackled Red Blend 2022","Red","12.50",[]),
+        mk("Willamette Valley Rose 2023","Rose","10.50",[]),
+      ]},
+      { name:"Beer", items:[
+        mk("Draft Beer","Crux Gimme Mo IPA, McKenzie Hazy IPA, McKenzie Mexican Lager, Rogue Pilsner","7.50 pint",[]),
+        mk("Bottled Beer","Blue Moon, Pacifico, Modelo Especial, Modelo Negra, Dos Equis XX, Dos Equis Amber, Coors Light, Schilling London Dry Cider, Topo Chico Strawberry Guava Hard Seltzer","6.50 bottle",[]),
+      ]},
+      { name:"Happy Hour (4-6pm & 9pm-close)", items:[
+        mk("Tortilla Chips & House Salsa","Free with drink purchase during happy hour","free w/ drink",[]),
+        mk("Carlita's Skillet","Happy hour price","10.95",[]),
+        mk("Mole Chicken Nachos","Happy hour price","11.95",[]),
+        mk("Ceviche","Happy hour price (Pacific Ahi Tuna or Chipotle Shrimp)","12.95",[]),
+        mk("Happy Hour Tacos","Pork Belly, Mole Chicken, Carne Asada, Black Kale & Spinach, Wild Hongos, Aguacates","5.25 ea",[]),
+        mk("Ensalada de la Casa","Happy hour price","9.95",[]),
+        mk("Poblano Chicken Salad","Happy hour price","12.95",[]),
+        mk("Sopa","Happy hour price (Chicken Tortilla or Posole Rojo)","6.95",[]),
+        mk("Happy Hour Cocktails","La Margarita de Carlita, La Paloma, Romper, Ay Dios Mio, Tijuana Donkey, Badhoss","9.50",[]),
+      ]},
+    ],
+  };
+  return { restaurant, menu };
+}
+
+/* ============================================================
+   GITHUB DATA LAYER
+   ============================================================ */
+async function ghGetFile(cfg, path){
+  // Returns { found:true, data, sha } or { found:false }.
+  const url = GH_API + "/repos/" + cfg.githubUser + "/" + cfg.githubRepo +
+              "/contents/" + path;
+  logMsg("GITHUB","GET " + path);
+  let res;
+  try {
+    res = await fetch(url, { headers:{
+      "Authorization":"Bearer " + cfg.githubToken,
+      "Accept":"application/vnd.github+json",
+    }});
+  } catch(err){
+    logMsg("ERROR","GitHub GET network failure: " + err.message);
+    throw new Error("Network error reaching GitHub");
+  }
+  if (res.status === 404){ logMsg("GITHUB",path + " not found (404)"); return { found:false }; }
+  if (res.status === 401){ throw new Error("GitHub rejected the token (401). Check your token in Settings."); }
+  if (!res.ok){
+    const body = await res.text().catch(()=> "");
+    logMsg("ERROR","GitHub GET " + path + " -> " + res.status + " " + body.slice(0,120));
+    throw new Error("GitHub GET failed (" + res.status + ")");
+  }
+  const json = await res.json();
+  const text = b64ToUtf8(json.content);
+  let data;
+  try { data = JSON.parse(text); }
+  catch(e){
+    logMsg("ERROR","Could not parse JSON from " + path + ": " + e.message);
+    throw new Error("Stored file " + path + " is not valid JSON");
+  }
+  logMsg("GITHUB","Loaded " + path + " (sha " + json.sha.slice(0,7) + ")");
+  return { found:true, data:data, sha:json.sha };
+}
+
+async function ghPutFile(cfg, path, dataObj, sha){
+  // Creates or updates a file. sha must be supplied when updating.
+  const url = GH_API + "/repos/" + cfg.githubUser + "/" + cfg.githubRepo +
+              "/contents/" + path;
+  const body = {
+    message:"Update " + path + " via Dining Log",
+    content:utf8ToB64(JSON.stringify(dataObj,null,2)),
+  };
+  if (sha) body.sha = sha;
+  logMsg("GITHUB","PUT " + path + (sha ? " (update)" : " (create)"));
+  let res;
+  try {
+    res = await fetch(url, {
+      method:"PUT",
+      headers:{
+        "Authorization":"Bearer " + cfg.githubToken,
+        "Accept":"application/vnd.github+json",
+        "Content-Type":"application/json",
+      },
+      body:JSON.stringify(body),
+    });
+  } catch(err){
+    logMsg("ERROR","GitHub PUT network failure: " + err.message);
+    throw new Error("Network error reaching GitHub");
+  }
+  if (res.status === 409){
+    // sha is stale - signal caller to refetch and retry
+    logMsg("GITHUB","PUT " + path + " conflict (409) - sha is stale");
+    const err = new Error("conflict"); err.conflict = true; throw err;
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    logMsg("ERROR","GitHub PUT " + path + " -> " + res.status + " " + txt.slice(0,140));
+    throw new Error("GitHub PUT failed (" + res.status + ")");
+  }
+  const json = await res.json();
+  logMsg("GITHUB","Saved " + path + " (new sha " + json.content.sha.slice(0,7) + ")");
+  return json.content.sha;
+}
+
+/* ============================================================
+   ANTHROPIC VISION - menu digitization
+   ============================================================ */
+async function digitizeMenu(cfg, dataUrls){
+  // dataUrls: array of "data:image/jpeg;base64,..." strings.
+  const prompt =
+    "You are a menu digitization assistant. Extract the COMPLETE menu from the "+
+    "attached photo(s) into structured JSON. The photos may be multiple pages or "+
+    "sections of the SAME restaurant menu - merge them into one menu.\n\n"+
+    "Return ONLY valid JSON. No markdown, no commentary. Schema:\n"+
+    '{"restaurant_name": string or null, "sections":[{"name":string,'+
+    '"items":[{"name":string,"description":string,"price":string,'+
+    '"tags":[string],"notes":string}]}],"raw_text":string}\n\n'+
+    "Rules:\n"+
+    "- price: a string exactly as printed (e.g. \"$12.95\", \"6.25 ea / 2 for 11.50\", "+
+    "\"MP\"); empty string if none.\n"+
+    "- description: the ingredient or description line; empty string if none.\n"+
+    "- tags: include any of \"gluten-free\",\"vegetarian\",\"vegan\",\"spicy\",\"raw\" "+
+    "that the menu indicates (a 'gf' mark means gluten-free); empty array if none.\n"+
+    "- notes: anything extra about an item; usually empty.\n"+
+    "- Use the section headings printed on the menu.\n"+
+    "- raw_text: a plain-text transcription of everything on the menu as a fallback.\n"+
+    "- If text is unclear, give your best reading.";
+
+  const content = dataUrls.map(u => ({
+    type:"image",
+    source:{ type:"base64", media_type:"image/jpeg", data:u.split(",")[1] },
+  }));
+  content.push({ type:"text", text:prompt });
+
+  logMsg("VISION","Sending " + dataUrls.length + " image(s) to " + VISION_MODEL);
+  let res;
+  try {
+    res = await fetch(ANTHROPIC_API, {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "x-api-key":cfg.anthropicKey,
+        "anthropic-version":"2023-06-01",
+        "anthropic-dangerous-direct-browser-access":"true",
+      },
+      body:JSON.stringify({
+        model:VISION_MODEL,
+        max_tokens:8000,
+        messages:[{ role:"user", content:content }],
+      }),
+    });
+  } catch(err){
+    logMsg("ERROR","Anthropic network failure: " + err.message);
+    throw new Error("Network error reaching the Anthropic API");
+  }
+  if (res.status === 401){ throw new Error("Anthropic rejected the API key (401). Check it in Settings."); }
+  if (res.status === 429){ throw new Error("Anthropic rate limit hit (429). Wait a moment and retry."); }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    logMsg("ERROR","Anthropic -> " + res.status + " " + txt.slice(0,180));
+    throw new Error("Anthropic API error (" + res.status + ")");
+  }
+  const json = await res.json();
+  const text = (json.content || [])
+    .filter(b => b.type === "text").map(b => b.text).join("\n");
+  logMsg("VISION","Received response (" + text.length + " chars)");
+  const parsed = parseJsonLoose(text);
+  if (!Array.isArray(parsed.sections)) throw new Error("Model response had no sections array");
+  // normalize so downstream rendering is safe
+  parsed.sections = parsed.sections.map(s => ({
+    name:String(s.name || "Menu"),
+    items:(s.items || []).map(it => ({
+      name:String(it.name || "").trim(),
+      description:String(it.description || "").trim(),
+      price:String(it.price || "").trim(),
+      tags:Array.isArray(it.tags) ? it.tags.map(String) : [],
+      notes:String(it.notes || "").trim(),
+    })).filter(it => it.name),
+  })).filter(s => s.items.length);
+  parsed.raw_text = String(parsed.raw_text || "");
+  return parsed;
+}
+
+/* ============================================================
+   PERSISTENCE - localStorage cache
+   ============================================================ */
+function loadConfig(){
+  try {
+    const raw = localStorage.getItem(CFG_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){ logMsg("ERROR","loadConfig failed: " + e.message); return null; }
+}
+function saveConfig(cfg){
+  try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); logMsg("CONFIG","Saved configuration"); }
+  catch(e){ logMsg("ERROR","saveConfig failed: " + e.message); }
+}
+function configComplete(cfg){
+  return !!(cfg && cfg.githubUser && cfg.githubRepo && cfg.githubToken && cfg.anthropicKey);
+}
+function loadCache(){
+  try {
+    const raw = localStorage.getItem(DATA_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e){ logMsg("ERROR","loadCache failed: " + e.message); return null; }
+}
+function saveCache(payload){
+  try { localStorage.setItem(DATA_KEY, JSON.stringify(payload)); }
+  catch(e){ logMsg("ERROR","saveCache failed: " + e.message); }
+}
+
+/* ============================================================
+   ICONS - small inline SVG (no emoji, per project rules)
+   ============================================================ */
+function Icon({name, size, color}){
+  const s = size || 22;
+  const c = color || "currentColor";
+  const p = { width:s, height:s, viewBox:"0 0 24 24", fill:"none",
+              stroke:c, strokeWidth:1.7, strokeLinecap:"round", strokeLinejoin:"round" };
+  const paths = {
+    clock:   <g><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>,
+    plate:   <g><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></g>,
+    plus:    <g><path d="M12 5v14M5 12h14"/></g>,
+    gear:    <g><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2l-.4-2.6h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12Z"/></g>,
+    camera:  <g><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L19 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="12.5" r="3.5"/></g>,
+    star:    <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 17.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9Z"/>,
+    chev:    <path d="M9 6l6 6-6 6"/>,
+    chevd:   <path d="M6 9l6 6 6-6"/>,
+    pin:     <g><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></g>,
+    phone:   <path d="M5 4h4l2 5-3 2a14 14 0 0 0 6 6l2-3 5 2v4a2 2 0 0 1-2 2A18 18 0 0 1 3 6a2 2 0 0 1 2-2Z"/>,
+    link:    <g><path d="M9 15l6-6"/><path d="M10.5 6.5l1.8-1.8a4 4 0 0 1 5.7 5.7L16 12.4"/><path d="M13.5 17.5l-1.8 1.8a4 4 0 0 1-5.7-5.7L8 11.6"/></g>,
+    book:    <g><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2Z"/><path d="M18 20a2 2 0 0 1-2-2V4"/></g>,
+    trash:   <g><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></g>,
+    edit:    <g><path d="M4 20h4L19 9l-4-4L4 16Z"/><path d="M14 6l4 4"/></g>,
+    check:   <path d="M5 12l5 5L20 6"/>,
+    back:    <path d="M15 6l-6 6 6 6"/>,
+    image:   <g><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M4 17l5-4 4 3 4-4 4 4"/></g>,
+  };
+  return <svg {...p}>{paths[name] || null}</svg>;
+}
+
+function Stars({value, size}){
+  const v = Number(value) || 0;
+  return (
+    <span className="stars">
+      {[1,2,3,4,5].map(n => (
+        <span key={n} className={"star" + (n<=v ? " lit" : "") + (size==="big" ? " big" : "")}>
+          <Icon name="star" size={size==="big" ? 28 : 15}
+                color={n<=v ? "#e7b24c" : "#3a3128"} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/* ============================================================
+   ROOT COMPONENT
+   ============================================================ */
+function App(){
+  const [config, setConfig]     = useState(() => loadConfig());
+  const [ready, setReady]       = useState(false);
+  const [needSetup, setNeedSetup] = useState(false);
+
+  // data model
+  const [restaurants, setRestaurants] = useState([]);
+  const [menus, setMenus]             = useState({});
+  const [visits, setVisits]           = useState([]);
+  const [shas, setShas]               = useState({});      // path -> sha
+  const [dirty, setDirty]             = useState({});      // logical name -> bool (unpushed)
+
+  // ui
+  const [tab, setTab]         = useState("history");
+  const [overlay, setOverlay] = useState(null);            // {type, ...}
+  const [sheet, setSheet]     = useState(false);
+  const [sync, setSync]       = useState({ status:"idle", msg:"" });
+  const [toast, setToast]     = useState("");
+
+  const toastTimer = useRef(null);
+  function flash(msg){
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(()=> setToast(""), 2600);
+  }
+
+  /* ---- startup --------------------------------------------- */
+  useEffect(()=>{
+    logMsg("INIT","Dining Log v" + APP_VERSION + " starting");
+    const cfg = loadConfig();
+    if (!configComplete(cfg)){
+      logMsg("INIT","Configuration incomplete - showing setup");
+      setNeedSetup(true);
+      setReady(true);
+      return;
+    }
+    logMsg("INIT","Config OK - user=" + cfg.githubUser + " repo=" + cfg.githubRepo +
+                  " anthropicKey=" + (cfg.anthropicKey ? "present" : "MISSING"));
+    // show cached data instantly, then sync
+    const cache = loadCache();
+    if (cache){
+      setRestaurants(cache.restaurants || []);
+      setMenus(cache.menus || {});
+      setVisits(cache.visits || []);
+      setShas(cache.shas || {});
+      setDirty(cache.dirty || {});
+      logMsg("INIT","Loaded cache: " + (cache.restaurants||[]).length +
+                    " restaurants, " + (cache.visits||[]).length + " visits");
+    }
+    setReady(true);
+    syncFromGitHub(cfg, cache);
+    // eslint-disable-next-line
+  },[]);
+
+  /* ---- cache writer ---------------------------------------- */
+  function persist(next){
+    // next may contain any of restaurants/menus/visits/shas/dirty
+    const payload = {
+      restaurants: next.restaurants !== undefined ? next.restaurants : restaurants,
+      menus:       next.menus       !== undefined ? next.menus       : menus,
+      visits:      next.visits      !== undefined ? next.visits      : visits,
+      shas:        next.shas        !== undefined ? next.shas        : shas,
+      dirty:       next.dirty       !== undefined ? next.dirty       : dirty,
+      lastSync:    Date.now(),
+    };
+    saveCache(payload);
+  }
+
+  /* ---- sync from GitHub ------------------------------------ */
+  async function syncFromGitHub(cfg, cache){
+    cfg = cfg || config;
+    if (!configComplete(cfg)) return;
+    setSync({ status:"busy", msg:"Syncing with GitHub..." });
+    logMsg("SYNC","Starting sync");
+
+    const localDirty = (cache && cache.dirty) || dirty;
+    let nextR = (cache && cache.restaurants) || restaurants;
+    let nextM = (cache && cache.menus)       || menus;
+    let nextV = (cache && cache.visits)      || visits;
+    let nextShas = Object.assign({}, (cache && cache.shas) || shas);
+    let missing = { restaurants:false, menus:false, visits:false };
+
+    try {
+      for (const key of ["restaurants","menus","visits"]){
+        if (localDirty[key]){
+          // local has unpushed edits - keep local, do not overwrite from remote
+          logMsg("SYNC",key + " has pending local edits - keeping local copy");
+          continue;
+        }
+        const got = await ghGetFile(cfg, FILES[key]);
+        if (!got.found){ missing[key] = true; continue; }
+        if (key === "restaurants") nextR = got.data;
+        if (key === "menus")       nextM = got.data;
+        if (key === "visits")      nextV = got.data;
+        nextShas[FILES[key]] = got.sha;
+      }
+
+      // brand-new repo: all three files missing -> seed Carlita's
+      if (missing.restaurants && missing.menus && missing.visits){
+        logMsg("SYNC","Empty repo detected - seeding Carlita's starter data");
+        const seed = carlitasSeed();
+        nextR = [seed.restaurant];
+        nextM = { [seed.menu.restaurant_id]: seed.menu };
+        nextV = [];
+        nextShas[FILES.restaurants] = await ghPutFile(cfg, FILES.restaurants, nextR, null);
+        nextShas[FILES.menus]       = await ghPutFile(cfg, FILES.menus, nextM, null);
+        nextShas[FILES.visits]      = await ghPutFile(cfg, FILES.visits, nextV, null);
+        flash("Set up your repo with Carlita's to start");
+      } else {
+        // create any individually-missing files as empty
+        if (missing.restaurants){ nextR = []; nextShas[FILES.restaurants] = await ghPutFile(cfg, FILES.restaurants, [], null); }
+        if (missing.menus){       nextM = {}; nextShas[FILES.menus]       = await ghPutFile(cfg, FILES.menus, {}, null); }
+        if (missing.visits){      nextV = []; nextShas[FILES.visits]      = await ghPutFile(cfg, FILES.visits, [], null); }
+      }
+
+      // push any files that had pending local edits
+      for (const key of ["restaurants","menus","visits"]){
+        if (localDirty[key]){
+          const obj = key==="restaurants" ? nextR : key==="menus" ? nextM : nextV;
+          try {
+            nextShas[FILES[key]] = await ghPutFile(cfg, FILES[key], obj, nextShas[FILES[key]]);
+          } catch(err){
+            if (err.conflict){
+              const fresh = await ghGetFile(cfg, FILES[key]);
+              nextShas[FILES[key]] = await ghPutFile(cfg, FILES[key], obj, fresh.sha);
+            } else throw err;
+          }
+        }
+      }
+
+      setRestaurants(nextR); setMenus(nextM); setVisits(nextV);
+      setShas(nextShas);
+      const cleared = {};
+      setDirty(cleared);
+      persist({ restaurants:nextR, menus:nextM, visits:nextV, shas:nextShas, dirty:cleared });
+      setSync({ status:"ok", msg:"" });
+      logMsg("SYNC","Sync complete");
+    } catch(err){
+      logMsg("ERROR","Sync failed: " + err.message);
+      setSync({ status:"err", msg:err.message });
+    }
+  }
+
+  /* ---- commit a change and push to GitHub ------------------ */
+  async function commit(updates, filesToPush){
+    // updates: {restaurants?, menus?, visits?}; filesToPush: [logical names]
+    const nextR = updates.restaurants !== undefined ? updates.restaurants : restaurants;
+    const nextM = updates.menus       !== undefined ? updates.menus       : menus;
+    const nextV = updates.visits      !== undefined ? updates.visits      : visits;
+    if (updates.restaurants !== undefined) setRestaurants(nextR);
+    if (updates.menus       !== undefined) setMenus(nextM);
+    if (updates.visits      !== undefined) setVisits(nextV);
+
+    // mark dirty and cache immediately (optimistic, survives offline)
+    const nextDirty = Object.assign({}, dirty);
+    filesToPush.forEach(k => { nextDirty[k] = true; });
+    setDirty(nextDirty);
+    persist({ restaurants:nextR, menus:nextM, visits:nextV, dirty:nextDirty });
+
+    if (!configComplete(config)){ setSync({status:"err",msg:"Not configured"}); return; }
+    setSync({ status:"busy", msg:"Saving..." });
+    const nextShas = Object.assign({}, shas);
+    const stillDirty = Object.assign({}, nextDirty);
+    try {
+      for (const key of filesToPush){
+        const obj = key==="restaurants" ? nextR : key==="menus" ? nextM : nextV;
+        try {
+          nextShas[FILES[key]] = await ghPutFile(config, FILES[key], obj, nextShas[FILES[key]]);
+        } catch(err){
+          if (err.conflict){
+            logMsg("SYNC","Resolving conflict on " + key + " by refetching sha");
+            const fresh = await ghGetFile(config, FILES[key]);
+            nextShas[FILES[key]] = await ghPutFile(config, FILES[key], obj, fresh.sha);
+          } else throw err;
+        }
+        delete stillDirty[key];
+      }
+      setShas(nextShas);
+      setDirty(stillDirty);
+      persist({ restaurants:nextR, menus:nextM, visits:nextV, shas:nextShas, dirty:stillDirty });
+      setSync({ status:"ok", msg:"" });
+      logMsg("SAVE","Committed: " + filesToPush.join(", "));
+    } catch(err){
+      logMsg("ERROR","Commit failed (kept locally): " + err.message);
+      setSync({ status:"err", msg:"Not synced - " + err.message });
+    }
+  }
+
+  function retrySync(){ syncFromGitHub(config, loadCache()); }
+
+  /* ---- derived helpers ------------------------------------- */
+  function restaurantById(id){ return restaurants.find(r => r.id === id) || null; }
+  function visitsFor(id){ return visits.filter(v => v.restaurant_id === id); }
+
+  /* ---- render gates ---------------------------------------- */
+  if (!ready){
+    return <div className="empty" style={{paddingTop:"40vh"}}>
+      <div className="spin" style={{margin:"0 auto"}} /></div>;
+  }
+  if (needSetup){
+    return <SetupScreen
+      initial={config}
+      onSave={(cfg)=>{
+        saveConfig(cfg); setConfig(cfg); setNeedSetup(false); setReady(false);
+        logMsg("CONFIG","Setup complete - reloading");
+        setTimeout(()=> window.location.reload(), 200);
+      }} />;
+  }
+
+  const pendingCount = Object.keys(dirty).filter(k => dirty[k]).length;
+
+  return (
+    <div id="app-shell">
+      <TopBar tab={tab} />
+
+      {/* sync status banner */}
+      {sync.status === "busy" && (
+        <div className="syncbar busy"><span className="spin" />{sync.msg || "Working..."}</div>
+      )}
+      {sync.status === "err" && (
+        <div className="syncbar err">
+          <span className="dot" style={{background:"var(--danger)"}} />
+          <span>{sync.msg}</span>
+          <button onClick={retrySync}>Retry</button>
+        </div>
+      )}
+      {sync.status === "ok" && pendingCount > 0 && (
+        <div className="syncbar warn">
+          <span className="dot" style={{background:"var(--amber)"}} />
+          <span>{pendingCount} change(s) not yet synced</span>
+          <button onClick={retrySync}>Sync now</button>
+        </div>
+      )}
+
+      <div className="content">
+        {tab === "history" && (
+          <HistoryView visits={visits} restaurantById={restaurantById}
+            onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
+        )}
+        {tab === "restaurants" && (
+          <RestaurantsView restaurants={restaurants} visits={visits}
+            onOpen={(r)=> setOverlay({ type:"restaurant", id:r.id })} />
+        )}
+        {tab === "settings" && (
+          <SettingsView config={config}
+            onEdit={()=> setOverlay({ type:"settings" })}
+            counts={{ r:restaurants.length, m:Object.keys(menus).length, v:visits.length }}
+            lastSync={(loadCache()||{}).lastSync}
+            onResync={retrySync} />
+        )}
+      </div>
+
+      {/* bottom navigation */}
+      <nav className="nav">
+        <button className={tab==="history" ? "on" : ""} onClick={()=> setTab("history")}>
+          <span className="navicon"><Icon name="clock" size={23} /></span>History
+        </button>
+        <button className={tab==="restaurants" ? "on" : ""} onClick={()=> setTab("restaurants")}>
+          <span className="navicon"><Icon name="plate" size={23} /></span>Places
+        </button>
+        <button onClick={()=> setSheet(true)}>
+          <span className="add"><Icon name="plus" size={24} color="#1b1714" /></span>
+        </button>
+        <button className={tab==="settings" ? "on" : ""} onClick={()=> setTab("settings")}>
+          <span className="navicon"><Icon name="gear" size={23} /></span>Settings
+        </button>
+      </nav>
+
+      {/* add action sheet */}
+      {sheet && (
+        <ActionSheet
+          onClose={()=> setSheet(false)}
+          onPick={(what)=>{ setSheet(false); setOverlay({ type:what }); }} />
+      )}
+
+      {/* overlays */}
+      {overlay && overlay.type === "restaurant" && (
+        <RestaurantDetail
+          restaurant={restaurantById(overlay.id)}
+          menu={menus[overlay.id]}
+          visits={visitsFor(overlay.id)}
+          onClose={()=> setOverlay(null)}
+          onLogVisit={()=> setOverlay({ type:"logVisit", restaurantId:overlay.id })}
+          onEdit={()=> setOverlay({ type:"editRestaurant", id:overlay.id })}
+          onScanMenu={()=> setOverlay({ type:"scanMenu", restaurantId:overlay.id })}
+          onToggleFav={()=>{
+            const next = restaurants.map(r =>
+              r.id===overlay.id ? Object.assign({},r,{favorite:!r.favorite}) : r);
+            commit({ restaurants:next }, ["restaurants"]);
+          }}
+          onDelete={()=>{
+            const nextR = restaurants.filter(r => r.id !== overlay.id);
+            const nextM = Object.assign({}, menus); delete nextM[overlay.id];
+            commit({ restaurants:nextR, menus:nextM }, ["restaurants","menus"]);
+            setOverlay(null); flash("Restaurant removed");
+          }} />
+      )}
+
+      {overlay && (overlay.type === "addRestaurant" || overlay.type === "editRestaurant") && (
+        <RestaurantForm
+          existing={overlay.type==="editRestaurant" ? restaurantById(overlay.id) : null}
+          onClose={()=> setOverlay(null)}
+          onSave={(rec)=>{
+            let next;
+            if (overlay.type === "editRestaurant"){
+              next = restaurants.map(r => r.id===rec.id ? rec : r);
+              flash("Restaurant updated");
+            } else {
+              next = [rec].concat(restaurants);
+              flash("Restaurant added");
+            }
+            commit({ restaurants:next }, ["restaurants"]);
+            setOverlay(overlay.type==="editRestaurant"
+              ? { type:"restaurant", id:rec.id } : null);
+          }} />
+      )}
+
+      {overlay && (overlay.type === "logVisit" || overlay.type === "editVisit") && (
+        <VisitForm
+          restaurants={restaurants}
+          menus={menus}
+          presetRestaurantId={overlay.restaurantId}
+          existing={overlay.type==="editVisit" ? overlay.visit : null}
+          onClose={()=> setOverlay(null)}
+          onSave={(rec)=>{
+            let next;
+            if (overlay.type === "editVisit"){
+              next = visits.map(v => v.id===rec.id ? rec : v);
+              flash("Visit updated");
+            } else {
+              next = [rec].concat(visits);
+              flash("Visit logged");
+            }
+            commit({ visits:next }, ["visits"]);
+            setOverlay(null);
+          }}
+          onDelete={overlay.type==="editVisit" ? ()=>{
+            const next = visits.filter(v => v.id !== overlay.visit.id);
+            commit({ visits:next }, ["visits"]);
+            setOverlay(null); flash("Visit removed");
+          } : null} />
+      )}
+
+      {overlay && overlay.type === "scanMenu" && (
+        <ScanMenuFlow
+          config={config}
+          restaurants={restaurants}
+          presetRestaurantId={overlay.restaurantId}
+          onClose={()=> setOverlay(null)}
+          onSave={(restId, menuObj, newRestaurant)=>{
+            let nextR = restaurants;
+            if (newRestaurant) nextR = [newRestaurant].concat(restaurants);
+            const nextM = Object.assign({}, menus, { [restId]:menuObj });
+            commit({ restaurants:nextR, menus:nextM },
+                   newRestaurant ? ["restaurants","menus"] : ["menus"]);
+            setOverlay({ type:"restaurant", id:restId });
+            flash("Menu saved");
+          }} />
+      )}
+
+      {overlay && overlay.type === "settings" && (
+        <SetupScreen
+          asOverlay
+          initial={config}
+          onClose={()=> setOverlay(null)}
+          onSave={(cfg)=>{
+            saveConfig(cfg); setConfig(cfg); setOverlay(null);
+            flash("Settings saved"); syncFromGitHub(cfg, loadCache());
+          }} />
+      )}
+
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+/* ============================================================
+   TOP BAR
+   ============================================================ */
+function TopBar({tab}){
+  const titles = {
+    history:["Dining Log","Where you have been"],
+    restaurants:["Places","Your restaurants & menus"],
+    settings:["Settings","Sync & configuration"],
+  };
+  const [t,s] = titles[tab] || titles.history;
+  return (
+    <div className="topbar">
+      <h1>{t}</h1>
+      <div className="sub">{s}</div>
+    </div>
+  );
+}
+
+/* ============================================================
+   HISTORY VIEW
+   ============================================================ */
+function HistoryView({visits, restaurantById, onOpen}){
+  if (!visits.length){
+    return (
+      <div className="empty">
+        <div className="big">No visits yet</div>
+        <div>Tap the + button to log your first meal.</div>
+      </div>
+    );
+  }
+  const sorted = visits.slice().sort((a,b)=>
+    (b.date || "").localeCompare(a.date || "") ||
+    (b.logged_at || 0) - (a.logged_at || 0));
+  return (
+    <div>
+      {sorted.map(v => {
+        const r = restaurantById(v.restaurant_id);
+        return (
+          <div key={v.id} className="card tap" onClick={()=> onOpen(v)}>
+            <div className="between">
+              <div className="place-name">{r ? r.name : (v.restaurant_name || "Unknown")}</div>
+              {v.rating ? <Stars value={v.rating} /> : null}
+            </div>
+            <div className="meta-line" style={{marginTop:4}}>
+              {fmtDate(v.date)} &nbsp;&middot;&nbsp; {relDays(v.date)}
+            </div>
+            {v.dishes && v.dishes.length > 0 && (
+              <div className="chips">
+                {v.dishes.map((d,i)=> <span key={i} className="chip dish">{d.name}</span>)}
+              </div>
+            )}
+            {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ============================================================
+   RESTAURANTS VIEW
+   ============================================================ */
+function RestaurantsView({restaurants, visits, onOpen}){
+  if (!restaurants.length){
+    return (
+      <div className="empty">
+        <div className="big">No places yet</div>
+        <div>Add a restaurant or scan a menu from the + button.</div>
+      </div>
+    );
+  }
+  const favs   = restaurants.filter(r => r.favorite);
+  const others = restaurants.filter(r => !r.favorite);
+  const countVisits = (id)=> visits.filter(v => v.restaurant_id === id).length;
+
+  const Card = (r)=> (
+    <div key={r.id} className="card tap" onClick={()=> onOpen(r)}>
+      <div className="between">
+        <div style={{minWidth:0}}>
+          <div className="place-name">{r.name}</div>
+          <div className="meta-line" style={{marginTop:4}}>
+            {r.cuisine || "Restaurant"}
+            {countVisits(r.id) > 0 ? "  \u00b7  " + countVisits(r.id) + " visit(s)" : ""}
+          </div>
+        </div>
+        <span className={"fav" + (r.favorite ? " on" : "")}>
+          <Icon name="star" size={20} color={r.favorite ? "#e0764a" : "#80715f"} />
+        </span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {favs.length > 0 && <div className="divider-label">Favorites</div>}
+      {favs.map(Card)}
+      {others.length > 0 && <div className="divider-label">All places</div>}
+      {others.map(Card)}
+    </div>
+  );
+}
+
+/* ============================================================
+   RESTAURANT DETAIL
+   ============================================================ */
+function RestaurantDetail({restaurant, menu, visits, onClose, onLogVisit,
+                           onEdit, onScanMenu, onToggleFav, onDelete}){
+  const [confirmDel, setConfirmDel] = useState(false);
+  if (!restaurant){
+    return (
+      <div className="overlay">
+        <div className="ovhead"><h2>Not found</h2>
+          <button className="x" onClick={onClose}>Close</button></div>
+      </div>
+    );
+  }
+  const r = restaurant;
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>{r.name}</h2>
+        <button className="x" onClick={onToggleFav}>
+          <Icon name="star" size={22} color={r.favorite ? "#e0764a" : "#80715f"} />
+        </button>
+      </div>
+      <div className="ovbody">
+        <div className="meta-line">{r.cuisine || "Restaurant"}</div>
+
+        {(r.address || r.phone || r.website) && (
+          <div className="card" style={{marginTop:12}}>
+            {r.address && (
+              <div className="row" style={{marginBottom:r.phone||r.website?10:0}}>
+                <Icon name="pin" size={17} color="#b3a591" />
+                <span className="small">{r.address}</span>
+              </div>
+            )}
+            {r.phone && (
+              <div className="row" style={{marginBottom:r.website?10:0}}>
+                <Icon name="phone" size={17} color="#b3a591" />
+                <a className="small" href={"tel:" + r.phone.replace(/[^0-9+]/g,"")}>{r.phone}</a>
+              </div>
+            )}
+            {r.website && (
+              <div className="row">
+                <Icon name="link" size={17} color="#b3a591" />
+                <a className="small" target="_blank" rel="noreferrer"
+                   href={(r.website.indexOf("http")===0 ? r.website : "https://" + r.website)}>
+                  {r.website}
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {r.notes && <div className="card small muted">{r.notes}</div>}
+
+        <button className="btn primary" onClick={onLogVisit} style={{marginTop:4}}>
+          <Icon name="plus" size={18} color="#1b1714" />Log a visit here
+        </button>
+
+        {/* menu */}
+        <div className="divider-label">Menu</div>
+        {menu ? (
+          <MenuView menu={menu} />
+        ) : (
+          <div className="card" style={{textAlign:"center"}}>
+            <div className="small muted" style={{marginBottom:11}}>
+              No menu saved for this place yet.
+            </div>
+            <button className="btn ghost" onClick={onScanMenu}>
+              <Icon name="camera" size={18} />Scan a menu
+            </button>
+          </div>
+        )}
+        {menu && (
+          <button className="btn ghost sm" onClick={onScanMenu}
+                  style={{margin:"4px 0 0",width:"100%"}}>
+            <Icon name="camera" size={16} />Re-scan / replace menu
+          </button>
+        )}
+
+        {/* visits at this place */}
+        <div className="divider-label">Visits here ({visits.length})</div>
+        {visits.length === 0 && (
+          <div className="small faint" style={{padding:"2px 2px 8px"}}>
+            No visits logged here yet.
+          </div>
+        )}
+        {visits.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(v => (
+          <div key={v.id} className="card">
+            <div className="between">
+              <div className="small muted">{fmtDate(v.date)}</div>
+              {v.rating ? <Stars value={v.rating} /> : null}
+            </div>
+            {v.dishes && v.dishes.length > 0 && (
+              <div className="chips">
+                {v.dishes.map((d,i)=> <span key={i} className="chip dish">{d.name}</span>)}
+              </div>
+            )}
+            {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
+          </div>
+        ))}
+
+        {/* manage */}
+        <div className="divider-label">Manage</div>
+        <button className="btn ghost" onClick={onEdit} style={{marginBottom:10}}>
+          <Icon name="edit" size={17} />Edit restaurant
+        </button>
+        {!confirmDel ? (
+          <button className="btn danger" onClick={()=> setConfirmDel(true)}>
+            <Icon name="trash" size={17} />Delete restaurant
+          </button>
+        ) : (
+          <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)"}}>
+            <div className="small" style={{marginBottom:11}}>
+              Delete {r.name} and its saved menu? Logged visits are kept in History.
+            </div>
+            <div className="row" style={{gap:9}}>
+              <button className="btn ghost" onClick={()=> setConfirmDel(false)}>Cancel</button>
+              <button className="btn danger" onClick={onDelete}>Delete</button>
+            </div>
+          </div>
+        )}
+        <div style={{height:30}} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   MENU VIEW - collapsible sections + text filter
+   ============================================================ */
+function MenuView({menu}){
+  const [open, setOpen]   = useState(()=> {
+    const o = {}; (menu.sections||[]).forEach((s,i)=> { o[i] = i < 2; }); return o;
+  });
+  const [filter, setFilter] = useState("");
+  const q = filter.trim().toLowerCase();
+
+  const sections = (menu.sections || []).map((s,i)=>{
+    if (!q) return { s, i, items:s.items };
+    const items = s.items.filter(it =>
+      (it.name + " " + it.description).toLowerCase().indexOf(q) !== -1);
+    return { s, i, items };
+  }).filter(x => !q || x.items.length);
+
+  return (
+    <div className="card" style={{padding:"6px 14px 10px"}}>
+      <input className="input" placeholder="Search this menu..."
+        value={filter} onChange={e=> setFilter(e.target.value)}
+        style={{margin:"10px 0 4px"}} />
+      {menu.captured_date && (
+        <div className="tiny faint" style={{padding:"2px 2px 4px"}}>
+          Captured {fmtDate(menu.captured_date)}
+          {menu.source === "seed" ? " (starter data)" :
+           menu.source === "photo_ocr" ? " (from photo)" : ""}
+        </div>
+      )}
+      {sections.length === 0 && (
+        <div className="small faint" style={{padding:"12px 2px"}}>No items match.</div>
+      )}
+      {sections.map(({s,i,items})=>(
+        <div key={i} className="msec">
+          <div className="msec-head" onClick={()=> setOpen(o=> Object.assign({},o,{[i]:!o[i]}))}>
+            <span className="nm">{s.name}</span>
+            <span className="row" style={{gap:8}}>
+              <span className="ct">{items.length}</span>
+              <Icon name={(open[i]||q) ? "chevd" : "chev"} size={16} color="#80715f" />
+            </span>
+          </div>
+          {(open[i] || q) && items.map((it,j)=>(
+            <div key={j} className="mitem">
+              <div className="ihead">
+                <span className="inm">{it.name}</span>
+                {it.price && <span className="ipr">{it.price}</span>}
+              </div>
+              {it.description && <div className="idesc">{it.description}</div>}
+              {it.tags && it.tags.length > 0 && (
+                <div className="chips" style={{marginTop:6}}>
+                  {it.tags.map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================================
+   ACTION SHEET
+   ============================================================ */
+function ActionSheet({onClose, onPick}){
+  return (
+    <div className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={e=> e.stopPropagation()}>
+        <div className="grip" />
+        <div className="sheet-item" onClick={()=> onPick("logVisit")}>
+          <span className="ic"><Icon name="plate" size={21} color="#e0764a" /></span>
+          <div><div className="t1">Log a visit</div>
+            <div className="t2">Record a meal and rate it</div></div>
+        </div>
+        <div className="sheet-item" onClick={()=> onPick("scanMenu")}>
+          <span className="ic"><Icon name="camera" size={21} color="#e0764a" /></span>
+          <div><div className="t1">Scan a menu</div>
+            <div className="t2">Photograph a menu and digitize it</div></div>
+        </div>
+        <div className="sheet-item" onClick={()=> onPick("addRestaurant")}>
+          <span className="ic"><Icon name="pin" size={21} color="#e0764a" /></span>
+          <div><div className="t1">Add a restaurant</div>
+            <div className="t2">Save a place without a menu yet</div></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   RESTAURANT FORM (add / edit)
+   ============================================================ */
+function RestaurantForm({existing, onClose, onSave}){
+  const [name,setName]       = useState(existing ? existing.name : "");
+  const [cuisine,setCuisine] = useState(existing ? existing.cuisine : "");
+  const [address,setAddress] = useState(existing ? existing.address : "");
+  const [phone,setPhone]     = useState(existing ? existing.phone : "");
+  const [website,setWebsite] = useState(existing ? existing.website : "");
+  const [notes,setNotes]     = useState(existing ? existing.notes : "");
+  const [fav,setFav]         = useState(existing ? !!existing.favorite : false);
+
+  function submit(){
+    if (!name.trim()) return;
+    const rec = {
+      id: existing ? existing.id : uid("rest"),
+      name:name.trim(), cuisine:cuisine.trim(), address:address.trim(),
+      phone:phone.trim(), website:website.trim(), notes:notes.trim(),
+      favorite:fav,
+      added_date: existing ? existing.added_date : todayISO(),
+    };
+    onSave(rec);
+  }
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}>Cancel</button>
+        <h2>{existing ? "Edit restaurant" : "Add restaurant"}</h2>
+        <button className="x" onClick={submit}
+          style={{color:name.trim()?"var(--accent)":"var(--text-faint)"}}>Save</button>
+      </div>
+      <div className="ovbody">
+        <label className="fld"><span className="lbl">Name</span>
+          <input className="input" value={name} onChange={e=>setName(e.target.value)}
+            placeholder="Restaurant name" /></label>
+        <label className="fld"><span className="lbl">Cuisine</span>
+          <input className="input" value={cuisine} onChange={e=>setCuisine(e.target.value)}
+            placeholder="e.g. Mexican / Tacos" /></label>
+        <label className="fld"><span className="lbl">Address</span>
+          <input className="input" value={address} onChange={e=>setAddress(e.target.value)}
+            placeholder="Neighborhood or full address" /></label>
+        <label className="fld"><span className="lbl">Phone</span>
+          <input className="input" type="tel" value={phone} onChange={e=>setPhone(e.target.value)}
+            placeholder="Phone number" /></label>
+        <label className="fld"><span className="lbl">Website</span>
+          <input className="input" value={website} onChange={e=>setWebsite(e.target.value)}
+            placeholder="example.com" /></label>
+        <label className="fld"><span className="lbl">Notes</span>
+          <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
+            placeholder="Hours, reservation policy, anything worth remembering" /></label>
+        <div className="card between" onClick={()=> setFav(f=>!f)} style={{cursor:"pointer"}}>
+          <span>Mark as favorite</span>
+          <span className={"fav" + (fav?" on":"")}>
+            <Icon name="star" size={22} color={fav?"#e0764a":"#80715f"} />
+          </span>
+        </div>
+        <div style={{height:20}} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   VISIT FORM (log / edit)
+   ============================================================ */
+function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, onSave, onDelete}){
+  const [restId,setRestId] = useState(
+    existing ? existing.restaurant_id : (presetRestaurantId || (restaurants[0] && restaurants[0].id) || ""));
+  const [date,setDate]     = useState(existing ? existing.date : todayISO());
+  const [rating,setRating] = useState(existing ? existing.rating : 0);
+  const [notes,setNotes]   = useState(existing ? existing.notes : "");
+  const [dishes,setDishes] = useState(existing ? existing.dishes.slice() : []);
+  const [dishInput,setDishInput] = useState("");
+  const [confirmDel,setConfirmDel] = useState(false);
+
+  const menu = menus[restId];
+  // flat list of menu item names for quick-pick chips
+  const menuItemNames = [];
+  if (menu){
+    (menu.sections||[]).forEach(s => s.items.forEach(it => menuItemNames.push(it.name)));
+  }
+  const dishNames = dishes.map(d => d.name);
+
+  function addDish(name){
+    const n = (name || "").trim();
+    if (!n) return;
+    if (dishNames.indexOf(n) !== -1) return;       // avoid duplicates
+    setDishes(d => d.concat([{ name:n, note:"" }]));
+    setDishInput("");
+  }
+  function removeDish(name){ setDishes(d => d.filter(x => x.name !== name)); }
+
+  function submit(){
+    if (!restId) return;
+    const r = restaurants.find(x => x.id === restId);
+    const rec = {
+      id: existing ? existing.id : uid("visit"),
+      restaurant_id: restId,
+      restaurant_name: r ? r.name : "",          // snapshot, survives restaurant deletion
+      date: date || todayISO(),
+      rating: rating,
+      dishes: dishes,
+      notes: notes.trim(),
+      logged_at: existing ? existing.logged_at : Date.now(),
+    };
+    onSave(rec);
+  }
+
+  if (!restaurants.length){
+    return (
+      <div className="overlay">
+        <div className="ovhead">
+          <button className="x" onClick={onClose}>Close</button>
+          <h2>Log a visit</h2><span style={{width:40}} />
+        </div>
+        <div className="ovbody">
+          <div className="empty">
+            <div className="big">Add a restaurant first</div>
+            <div>You need at least one saved place before logging a visit.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}>Cancel</button>
+        <h2>{existing ? "Edit visit" : "Log a visit"}</h2>
+        <button className="x" onClick={submit}
+          style={{color:restId?"var(--accent)":"var(--text-faint)"}}>Save</button>
+      </div>
+      <div className="ovbody">
+        <label className="fld"><span className="lbl">Restaurant</span>
+          <select className="input" value={restId} onChange={e=>setRestId(e.target.value)}>
+            {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </label>
+
+        <label className="fld"><span className="lbl">Date</span>
+          <input className="input" type="date" value={date}
+            onChange={e=>setDate(e.target.value)} />
+        </label>
+
+        <div className="fld">
+          <span className="lbl">Rating</span>
+          <div className="row" style={{gap:6}}>
+            {[1,2,3,4,5].map(n => (
+              <button key={n} onClick={()=> setRating(n===rating ? 0 : n)}>
+                <Icon name="star" size={32} color={n<=rating ? "#e7b24c" : "#3a3128"} />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="fld">
+          <span className="lbl">What you had</span>
+          <div className="row" style={{gap:8}}>
+            <input className="input" value={dishInput}
+              onChange={e=>setDishInput(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); addDish(dishInput); } }}
+              placeholder="Type a dish, then Add" />
+            <button className="btn ghost sm" onClick={()=> addDish(dishInput)}
+              style={{flex:"none"}}>Add</button>
+          </div>
+          {dishes.length > 0 && (
+            <div className="chips">
+              {dishes.map((d,i)=>(
+                <span key={i} className="chip dish pick" onClick={()=> removeDish(d.name)}>
+                  {d.name} &nbsp;&times;
+                </span>
+              ))}
+            </div>
+          )}
+          {menuItemNames.length > 0 && (
+            <div style={{marginTop:12}}>
+              <div className="tiny faint" style={{marginBottom:6}}>
+                Tap from the saved menu:
+              </div>
+              <div className="chips">
+                {menuItemNames.map((n,i)=>(
+                  <span key={i}
+                    className={"chip pick" + (dishNames.indexOf(n)!==-1 ? " on" : "")}
+                    onClick={()=> dishNames.indexOf(n)!==-1 ? removeDish(n) : addDish(n)}>
+                    {n}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <label className="fld"><span className="lbl">Notes</span>
+          <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
+            placeholder="How was it? Who were you with? Worth returning?" />
+        </label>
+
+        {onDelete && (
+          !confirmDel ? (
+            <button className="btn danger" onClick={()=> setConfirmDel(true)}>
+              <Icon name="trash" size={17} />Delete this visit
+            </button>
+          ) : (
+            <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)"}}>
+              <div className="small" style={{marginBottom:11}}>Delete this visit permanently?</div>
+              <div className="row" style={{gap:9}}>
+                <button className="btn ghost" onClick={()=> setConfirmDel(false)}>Cancel</button>
+                <button className="btn danger" onClick={onDelete}>Delete</button>
+              </div>
+            </div>
+          )
+        )}
+        <div style={{height:24}} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   SCAN MENU FLOW
+   step 1: pick photos  ->  step 2: digitizing  ->  step 3: review/save
+   ============================================================ */
+function ScanMenuFlow({config, restaurants, presetRestaurantId, onClose, onSave}){
+  const [step,setStep]       = useState("pick");      // pick | working | review | error
+  const [previews,setPreviews] = useState([]);        // data URLs for thumbnails
+  const [dataUrls,setDataUrls] = useState([]);        // resized data URLs for API
+  const [errMsg,setErrMsg]   = useState("");
+  const [result,setResult]   = useState(null);        // parsed menu
+  const [restId,setRestId]   = useState(presetRestaurantId || "");
+  const [newName,setNewName] = useState("");
+  const fileRef = useRef(null);
+
+  async function onFiles(e){
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    logMsg("SCAN","Selected " + files.length + " photo(s)");
+    try {
+      const urls = [];
+      for (const f of files){ urls.push(await resizeForOcr(f)); }
+      setDataUrls(d => d.concat(urls));
+      setPreviews(p => p.concat(urls));
+    } catch(err){
+      logMsg("ERROR","Photo processing failed: " + err.message);
+      setErrMsg("Could not process a photo: " + err.message);
+      setStep("error");
+    }
+  }
+
+  async function runOcr(){
+    if (!dataUrls.length) return;
+    setStep("working");
+    try {
+      const parsed = await digitizeMenu(config, dataUrls);
+      parsed.restaurant_id = "";
+      parsed.captured_date = todayISO();
+      parsed.last_updated  = todayISO();
+      parsed.source        = "photo_ocr";
+      setResult(parsed);
+      // pre-fill restaurant name field if the menu showed one
+      if (!presetRestaurantId && parsed.restaurant_name){
+        setNewName(parsed.restaurant_name);
+      }
+      const itemCount = parsed.sections.reduce((n,s)=> n + s.items.length, 0);
+      logMsg("SCAN","Digitized " + parsed.sections.length + " sections, " +
+                    itemCount + " items");
+      setStep("review");
+    } catch(err){
+      logMsg("ERROR","Digitize failed: " + err.message);
+      setErrMsg(err.message);
+      setStep("error");
+    }
+  }
+
+  function save(){
+    let targetId = restId;
+    let newRestaurant = null;
+    if (!targetId){
+      // creating a new restaurant from the scan
+      const nm = (newName || result.restaurant_name || "New restaurant").trim();
+      targetId = uid("rest");
+      newRestaurant = {
+        id:targetId, name:nm, cuisine:"", address:"", phone:"",
+        website:"", notes:"", favorite:false, added_date:todayISO(),
+      };
+      logMsg("SCAN","Creating new restaurant '" + nm + "' for scanned menu");
+    }
+    const menuObj = {
+      restaurant_id:targetId,
+      captured_date:result.captured_date,
+      last_updated:todayISO(),
+      source:"photo_ocr",
+      sections:result.sections,
+      raw_text:result.raw_text || "",
+    };
+    onSave(targetId, menuObj, newRestaurant);
+  }
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}>Cancel</button>
+        <h2>Scan a menu</h2>
+        {step==="review"
+          ? <button className="x" style={{color:"var(--accent)"}} onClick={save}>Save</button>
+          : <span style={{width:40}} />}
+      </div>
+      <div className="ovbody">
+
+        {step === "pick" && (
+          <div>
+            <div className="card small muted">
+              Take clear, straight-on photos of the menu. Multiple pages are fine -
+              add them all and they will be merged into one menu.
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" multiple
+              style={{display:"none"}} onChange={onFiles} />
+            <button className="btn ghost" onClick={()=> fileRef.current.click()}>
+              <Icon name="camera" size={18} />
+              {previews.length ? "Add more photos" : "Choose / take photos"}
+            </button>
+            {previews.length > 0 && (
+              <div className="photo-grid">
+                {previews.map((u,i)=> <img key={i} className="pth" src={u} alt="" />)}
+              </div>
+            )}
+            {previews.length > 0 && (
+              <button className="btn primary" style={{marginTop:16}} onClick={runOcr}>
+                Digitize {previews.length} photo(s)
+              </button>
+            )}
+          </div>
+        )}
+
+        {step === "working" && (
+          <div className="empty" style={{paddingTop:"22vh"}}>
+            <div className="spin" style={{margin:"0 auto 16px"}} />
+            <div className="big">Reading the menu</div>
+            <div>Claude is digitizing your photos. This usually takes 10-30 seconds.</div>
+          </div>
+        )}
+
+        {step === "error" && (
+          <div>
+            <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)"}}>
+              <div style={{fontWeight:600,marginBottom:6}}>Something went wrong</div>
+              <div className="small muted">{errMsg}</div>
+            </div>
+            <button className="btn ghost" onClick={()=> setStep("pick")}>Back to photos</button>
+          </div>
+        )}
+
+        {step === "review" && result && (
+          <div>
+            <div className="card small muted">
+              Review the digitized menu below, choose which restaurant it belongs to,
+              then tap Save. You can edit individual items later from the restaurant.
+            </div>
+
+            <label className="fld"><span className="lbl">Save menu to</span>
+              <select className="input" value={restId}
+                onChange={e=> setRestId(e.target.value)}>
+                <option value="">+ New restaurant from this menu</option>
+                {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </label>
+            {!restId && (
+              <label className="fld"><span className="lbl">New restaurant name</span>
+                <input className="input" value={newName}
+                  onChange={e=> setNewName(e.target.value)}
+                  placeholder="Restaurant name" />
+              </label>
+            )}
+
+            <div className="divider-label">
+              Preview &middot; {result.sections.length} section(s)
+            </div>
+            <MenuView menu={result} />
+            <button className="btn primary" onClick={save} style={{marginTop:8}}>
+              <Icon name="check" size={18} color="#1b1714" />Save this menu
+            </button>
+            <div style={{height:20}} />
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   SETTINGS VIEW
+   ============================================================ */
+function SettingsView({config, onEdit, counts, lastSync, onResync}){
+  const [showLog,setShowLog] = useState(false);
+  const [, force] = useState(0);
+  return (
+    <div>
+      <div className="card">
+        <div className="between">
+          <div>
+            <div style={{fontWeight:600}}>Connection</div>
+            <div className="tiny faint" style={{marginTop:3}}>
+              GitHub repo & API key
+            </div>
+          </div>
+          <button className="btn ghost sm" onClick={onEdit}>Edit</button>
+        </div>
+        <div className="small muted" style={{marginTop:12,lineHeight:1.8}}>
+          GitHub user: <b style={{color:"var(--text)"}}>{config.githubUser}</b><br/>
+          Repository: <b style={{color:"var(--text)"}}>{config.githubRepo}</b><br/>
+          GitHub token: <b style={{color:"var(--text)"}}>
+            {config.githubToken ? "set" : "missing"}</b><br/>
+          Anthropic key: <b style={{color:"var(--text)"}}>
+            {config.anthropicKey ? "set" : "missing"}</b>
+        </div>
+      </div>
+
+      <div className="card">
+        <div style={{fontWeight:600,marginBottom:8}}>Your data</div>
+        <div className="small muted" style={{lineHeight:1.9}}>
+          Restaurants: {counts.r}<br/>
+          Saved menus: {counts.m}<br/>
+          Logged visits: {counts.v}<br/>
+          Last sync: {lastSync ? new Date(lastSync).toLocaleString() : "not yet"}
+        </div>
+        <button className="btn ghost sm" onClick={onResync} style={{marginTop:12}}>
+          Sync now
+        </button>
+      </div>
+
+      <div className="card">
+        <div className="between" onClick={()=> setShowLog(s=>!s)} style={{cursor:"pointer"}}>
+          <div style={{fontWeight:600}}>Diagnostics</div>
+          <Icon name={showLog ? "chevd" : "chev"} size={17} color="#80715f" />
+        </div>
+        {showLog && (
+          <div style={{marginTop:11}}>
+            <div className="row" style={{justifyContent:"flex-end",marginBottom:8}}>
+              <button className="btn ghost sm" onClick={()=> force(x=>x+1)}>Refresh</button>
+            </div>
+            <div className="logbox">
+              {LOG_BUFFER.length
+                ? LOG_BUFFER.slice(-80).join("\n")
+                : "No log entries yet."}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="tiny faint" style={{textAlign:"center",padding:"8px 0 4px"}}>
+        Dining Log v{APP_VERSION}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   SETUP SCREEN  (first run + Settings > Edit)
+   ============================================================ */
+function SetupScreen({initial, onSave, onClose, asOverlay}){
+  const [ghUser,setGhUser]   = useState(initial ? initial.githubUser : "");
+  const [ghRepo,setGhRepo]   = useState(initial ? initial.githubRepo : "");
+  const [ghTok,setGhTok]     = useState(initial ? initial.githubToken : "");
+  const [anKey,setAnKey]     = useState(initial ? initial.anthropicKey : "");
+  const [busy,setBusy]       = useState(false);
+  const [err,setErr]         = useState("");
+
+  async function verifyAndSave(){
+    setErr("");
+    if (!ghUser.trim() || !ghRepo.trim() || !ghTok.trim() || !anKey.trim()){
+      setErr("All four fields are required."); return;
+    }
+    setBusy(true);
+    const cfg = {
+      githubUser:ghUser.trim(), githubRepo:ghRepo.trim(),
+      githubToken:ghTok.trim(), anthropicKey:anKey.trim(),
+    };
+    // quick check: can we reach the repo with this token?
+    try {
+      logMsg("SETUP","Verifying GitHub repo access");
+      const res = await fetch(GH_API + "/repos/" + cfg.githubUser + "/" + cfg.githubRepo,{
+        headers:{ "Authorization":"Bearer " + cfg.githubToken,
+                  "Accept":"application/vnd.github+json" },
+      });
+      if (res.status === 404){
+        setErr("Repo not found. Check the username and repository name.");
+        setBusy(false); return;
+      }
+      if (res.status === 401){
+        setErr("GitHub token rejected. Check the token value and its permissions.");
+        setBusy(false); return;
+      }
+      if (!res.ok){
+        setErr("GitHub check failed (" + res.status + ")."); setBusy(false); return;
+      }
+      logMsg("SETUP","GitHub repo verified");
+    } catch(e){
+      logMsg("ERROR","Setup verification network error: " + e.message);
+      setErr("Network error reaching GitHub. Check your connection.");
+      setBusy(false); return;
+    }
+    setBusy(false);
+    onSave(cfg);
+  }
+
+  const body = (
+    <div className="ovbody">
+      {!asOverlay && (
+        <div style={{marginBottom:18}}>
+          <h2 style={{fontSize:26}}>Welcome</h2>
+          <div className="small muted" style={{marginTop:6}}>
+            Dining Log keeps your restaurants, menus and visits in your own
+            GitHub repo so they sync across devices. Enter your details once.
+          </div>
+        </div>
+      )}
+      <label className="fld"><span className="lbl">GitHub username</span>
+        <input className="input" value={ghUser} onChange={e=>setGhUser(e.target.value)}
+          autoCapitalize="none" placeholder="your-github-username" /></label>
+      <label className="fld"><span className="lbl">Repository name</span>
+        <input className="input" value={ghRepo} onChange={e=>setGhRepo(e.target.value)}
+          autoCapitalize="none" placeholder="dining-log" /></label>
+      <label className="fld"><span className="lbl">GitHub token (fine-grained)</span>
+        <input className="input" type="password" value={ghTok}
+          onChange={e=>setGhTok(e.target.value)} autoCapitalize="none"
+          placeholder="github_pat_..." /></label>
+      <label className="fld"><span className="lbl">Anthropic API key</span>
+        <input className="input" type="password" value={anKey}
+          onChange={e=>setAnKey(e.target.value)} autoCapitalize="none"
+          placeholder="sk-ant-..." /></label>
+
+      <div className="card tiny muted" style={{lineHeight:1.7}}>
+        These values are stored only in this browser (localStorage on this
+        device). They are sent directly to GitHub and Anthropic and nowhere else.
+      </div>
+      {err && (
+        <div className="syncbar err" style={{margin:"0 0 14px"}}>
+          <span className="dot" style={{background:"var(--danger)"}} />{err}
+        </div>
+      )}
+      <button className="btn primary" disabled={busy} onClick={verifyAndSave}>
+        {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
+        {busy ? "Verifying..." : "Verify & save"}
+      </button>
+      <div style={{height:24}} />
+    </div>
+  );
+
+  if (asOverlay){
+    return (
+      <div className="overlay">
+        <div className="ovhead">
+          <button className="x" onClick={onClose}>Cancel</button>
+          <h2>Settings</h2><span style={{width:40}} />
+        </div>
+        {body}
+      </div>
+    );
+  }
+  return (
+    <div id="app-shell">
+      <div className="topbar"><h1>Dining Log</h1>
+        <div className="sub">First-time setup</div></div>
+      {body}
+    </div>
+  );
+}
+
+/* ---- mount --------------------------------------------------- */
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+logMsg("INIT","React mounted");
+  </script>
+</body>
+</html>
