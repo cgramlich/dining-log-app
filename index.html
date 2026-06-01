@@ -251,7 +251,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.1";
+const APP_VERSION   = "1.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -261,6 +261,7 @@ const FILES = {                                     // logical name -> repo path
   restaurants: "data/restaurants.json",
   menus:       "data/menus.json",
   visits:      "data/visits.json",
+  locations:   "data/locations.json",
 };
 
 /* ---- diagnostic log buffer -----------------------------------
@@ -374,6 +375,7 @@ function carlitasSeed(){
     id:"rest_carlitas",
     name:"Carlita's",
     cuisine:"Mexican / Tacos",
+    location:"Portland",
     address:"Pearl District, Portland, OR",
     phone:"971-352-6991",
     website:"carlitasttw.com",
@@ -494,7 +496,7 @@ function carlitasSeed(){
       ]},
     ],
   };
-  return { restaurant, menu };
+  return { restaurant, menu, locations:["Portland"] };
 }
 
 /* ============================================================
@@ -754,6 +756,7 @@ function App(){
   const [restaurants, setRestaurants] = useState([]);
   const [menus, setMenus]             = useState({});
   const [visits, setVisits]           = useState([]);
+  const [locations, setLocations]     = useState([]);      // array of city names
   const [shas, setShas]               = useState({});      // path -> sha
   const [dirty, setDirty]             = useState({});      // logical name -> bool (unpushed)
 
@@ -763,6 +766,7 @@ function App(){
   const [sheet, setSheet]     = useState(false);
   const [sync, setSync]       = useState({ status:"idle", msg:"" });
   const [toast, setToast]     = useState("");
+  const [placesFilter, setPlacesFilter] = useState("All"); // active city filter chip
 
   const toastTimer = useRef(null);
   function flash(msg){
@@ -789,10 +793,12 @@ function App(){
       setRestaurants(cache.restaurants || []);
       setMenus(cache.menus || {});
       setVisits(cache.visits || []);
+      setLocations(cache.locations || []);
       setShas(cache.shas || {});
       setDirty(cache.dirty || {});
       logMsg("INIT","Loaded cache: " + (cache.restaurants||[]).length +
-                    " restaurants, " + (cache.visits||[]).length + " visits");
+                    " restaurants, " + (cache.visits||[]).length + " visits, " +
+                    (cache.locations||[]).length + " locations");
     }
     setReady(true);
     syncFromGitHub(cfg, cache);
@@ -801,11 +807,12 @@ function App(){
 
   /* ---- cache writer ---------------------------------------- */
   function persist(next){
-    // next may contain any of restaurants/menus/visits/shas/dirty
+    // next may contain any of restaurants/menus/visits/locations/shas/dirty
     const payload = {
       restaurants: next.restaurants !== undefined ? next.restaurants : restaurants,
       menus:       next.menus       !== undefined ? next.menus       : menus,
       visits:      next.visits      !== undefined ? next.visits      : visits,
+      locations:   next.locations   !== undefined ? next.locations   : locations,
       shas:        next.shas        !== undefined ? next.shas        : shas,
       dirty:       next.dirty       !== undefined ? next.dirty       : dirty,
       lastSync:    Date.now(),
@@ -824,11 +831,12 @@ function App(){
     let nextR = (cache && cache.restaurants) || restaurants;
     let nextM = (cache && cache.menus)       || menus;
     let nextV = (cache && cache.visits)      || visits;
+    let nextL = (cache && cache.locations)   || locations;
     let nextShas = Object.assign({}, (cache && cache.shas) || shas);
-    let missing = { restaurants:false, menus:false, visits:false };
+    let missing = { restaurants:false, menus:false, visits:false, locations:false };
 
     try {
-      for (const key of ["restaurants","menus","visits"]){
+      for (const key of ["restaurants","menus","visits","locations"]){
         if (localDirty[key]){
           // local has unpushed edits - keep local, do not overwrite from remote
           logMsg("SYNC",key + " has pending local edits - keeping local copy");
@@ -839,31 +847,69 @@ function App(){
         if (key === "restaurants") nextR = got.data;
         if (key === "menus")       nextM = got.data;
         if (key === "visits")      nextV = got.data;
+        if (key === "locations")   nextL = got.data;
         nextShas[FILES[key]] = got.sha;
       }
 
-      // brand-new repo: all three files missing -> seed Carlita's
+      // brand-new repo: core files missing -> seed Carlita's + Portland
+      // (locations may or may not exist - treat the three core files as the signal)
       if (missing.restaurants && missing.menus && missing.visits){
         logMsg("SYNC","Empty repo detected - seeding Carlita's starter data");
         const seed = carlitasSeed();
         nextR = [seed.restaurant];
         nextM = { [seed.menu.restaurant_id]: seed.menu };
         nextV = [];
+        nextL = seed.locations;
         nextShas[FILES.restaurants] = await ghPutFile(cfg, FILES.restaurants, nextR, null);
         nextShas[FILES.menus]       = await ghPutFile(cfg, FILES.menus, nextM, null);
         nextShas[FILES.visits]      = await ghPutFile(cfg, FILES.visits, nextV, null);
+        nextShas[FILES.locations]   = await ghPutFile(cfg, FILES.locations, nextL, null);
+        missing.locations = false;
         flash("Set up your repo with Carlita's to start");
       } else {
-        // create any individually-missing files as empty
+        // create any individually-missing files as empty / sensible defaults
         if (missing.restaurants){ nextR = []; nextShas[FILES.restaurants] = await ghPutFile(cfg, FILES.restaurants, [], null); }
         if (missing.menus){       nextM = {}; nextShas[FILES.menus]       = await ghPutFile(cfg, FILES.menus, {}, null); }
         if (missing.visits){      nextV = []; nextShas[FILES.visits]      = await ghPutFile(cfg, FILES.visits, [], null); }
+        if (missing.locations){
+          // existing data repo from an older app version - back-fill locations.
+          // collect any location values already present on restaurants
+          let derived = Array.from(new Set(
+            (nextR || []).map(r => (r.location || "").trim()).filter(Boolean)
+          ));
+          // one-time migration: if the original Carlita's seed exists with no
+          // location, restore its Portland tag and push restaurants too
+          const seedIdx = (nextR || []).findIndex(r =>
+            r.id === "rest_carlitas" && !(r.location && r.location.trim()));
+          if (seedIdx >= 0){
+            const migratedR = nextR.map((r, i) =>
+              i === seedIdx ? Object.assign({}, r, { location:"Portland" }) : r);
+            try {
+              nextShas[FILES.restaurants] = await ghPutFile(
+                cfg, FILES.restaurants, migratedR, nextShas[FILES.restaurants]);
+            } catch(err){
+              if (err.conflict){
+                const fresh = await ghGetFile(cfg, FILES.restaurants);
+                nextShas[FILES.restaurants] = await ghPutFile(
+                  cfg, FILES.restaurants, migratedR, fresh.sha);
+              } else throw err;
+            }
+            nextR = migratedR;
+            if (!derived.includes("Portland")) derived.push("Portland");
+            logMsg("SYNC","Migrated Carlita's to location=Portland");
+          }
+          derived.sort((a,b)=> a.localeCompare(b));
+          nextL = derived;
+          nextShas[FILES.locations] = await ghPutFile(cfg, FILES.locations, nextL, null);
+          logMsg("SYNC","Back-filled locations file with " + nextL.length + " value(s)");
+        }
       }
 
       // push any files that had pending local edits
-      for (const key of ["restaurants","menus","visits"]){
+      for (const key of ["restaurants","menus","visits","locations"]){
         if (localDirty[key]){
-          const obj = key==="restaurants" ? nextR : key==="menus" ? nextM : nextV;
+          const obj = key==="restaurants" ? nextR : key==="menus" ? nextM
+                    : key==="visits"      ? nextV : nextL;
           try {
             nextShas[FILES[key]] = await ghPutFile(cfg, FILES[key], obj, nextShas[FILES[key]]);
           } catch(err){
@@ -875,11 +921,11 @@ function App(){
         }
       }
 
-      setRestaurants(nextR); setMenus(nextM); setVisits(nextV);
+      setRestaurants(nextR); setMenus(nextM); setVisits(nextV); setLocations(nextL);
       setShas(nextShas);
       const cleared = {};
       setDirty(cleared);
-      persist({ restaurants:nextR, menus:nextM, visits:nextV, shas:nextShas, dirty:cleared });
+      persist({ restaurants:nextR, menus:nextM, visits:nextV, locations:nextL, shas:nextShas, dirty:cleared });
       setSync({ status:"ok", msg:"" });
       logMsg("SYNC","Sync complete");
     } catch(err){
@@ -890,19 +936,21 @@ function App(){
 
   /* ---- commit a change and push to GitHub ------------------ */
   async function commit(updates, filesToPush){
-    // updates: {restaurants?, menus?, visits?}; filesToPush: [logical names]
+    // updates: {restaurants?, menus?, visits?, locations?}; filesToPush: [logical names]
     const nextR = updates.restaurants !== undefined ? updates.restaurants : restaurants;
     const nextM = updates.menus       !== undefined ? updates.menus       : menus;
     const nextV = updates.visits      !== undefined ? updates.visits      : visits;
+    const nextL = updates.locations   !== undefined ? updates.locations   : locations;
     if (updates.restaurants !== undefined) setRestaurants(nextR);
     if (updates.menus       !== undefined) setMenus(nextM);
     if (updates.visits      !== undefined) setVisits(nextV);
+    if (updates.locations   !== undefined) setLocations(nextL);
 
     // mark dirty and cache immediately (optimistic, survives offline)
     const nextDirty = Object.assign({}, dirty);
     filesToPush.forEach(k => { nextDirty[k] = true; });
     setDirty(nextDirty);
-    persist({ restaurants:nextR, menus:nextM, visits:nextV, dirty:nextDirty });
+    persist({ restaurants:nextR, menus:nextM, visits:nextV, locations:nextL, dirty:nextDirty });
 
     if (!configComplete(config)){ setSync({status:"err",msg:"Not configured"}); return; }
     setSync({ status:"busy", msg:"Saving..." });
@@ -910,7 +958,8 @@ function App(){
     const stillDirty = Object.assign({}, nextDirty);
     try {
       for (const key of filesToPush){
-        const obj = key==="restaurants" ? nextR : key==="menus" ? nextM : nextV;
+        const obj = key==="restaurants" ? nextR : key==="menus" ? nextM
+                  : key==="visits"      ? nextV : nextL;
         try {
           nextShas[FILES[key]] = await ghPutFile(config, FILES[key], obj, nextShas[FILES[key]]);
         } catch(err){
@@ -924,7 +973,7 @@ function App(){
       }
       setShas(nextShas);
       setDirty(stillDirty);
-      persist({ restaurants:nextR, menus:nextM, visits:nextV, shas:nextShas, dirty:stillDirty });
+      persist({ restaurants:nextR, menus:nextM, visits:nextV, locations:nextL, shas:nextShas, dirty:stillDirty });
       setSync({ status:"ok", msg:"" });
       logMsg("SAVE","Committed: " + filesToPush.join(", "));
     } catch(err){
@@ -986,6 +1035,9 @@ function App(){
         )}
         {tab === "restaurants" && (
           <RestaurantsView restaurants={restaurants} visits={visits}
+            locations={locations}
+            activeFilter={placesFilter}
+            onFilterChange={setPlacesFilter}
             onOpen={(r)=> setOverlay({ type:"restaurant", id:r.id })} />
         )}
         {tab === "settings" && (
@@ -993,7 +1045,51 @@ function App(){
             onEdit={()=> setOverlay({ type:"settings" })}
             counts={{ r:restaurants.length, m:Object.keys(menus).length, v:visits.length }}
             lastSync={(loadCache()||{}).lastSync}
-            onResync={retrySync} />
+            onResync={retrySync}
+            locations={locations}
+            restaurants={restaurants}
+            onAddLocation={(name)=>{
+              const trimmed = (name || "").trim();
+              if (!trimmed) return;
+              const exists = locations.some(l => l.toLowerCase() === trimmed.toLowerCase());
+              if (exists){ flash("That location already exists"); return; }
+              const next = locations.concat([trimmed]).sort((a,b)=> a.localeCompare(b));
+              commit({ locations:next }, ["locations"]);
+              flash("Location added");
+            }}
+            onRenameLocation={(oldName, newName)=>{
+              const trimmed = (newName || "").trim();
+              if (!trimmed || trimmed === oldName) return;
+              const clash = locations.some(l =>
+                l !== oldName && l.toLowerCase() === trimmed.toLowerCase());
+              if (clash){ flash("That location already exists"); return; }
+              const nextL = locations.map(l => l === oldName ? trimmed : l)
+                .sort((a,b)=> a.localeCompare(b));
+              // cascade the rename onto every restaurant that pointed at the old name
+              const affected = restaurants.filter(r => r.location === oldName);
+              const nextR = affected.length
+                ? restaurants.map(r => r.location === oldName
+                    ? Object.assign({}, r, { location:trimmed }) : r)
+                : restaurants;
+              const files = affected.length ? ["locations","restaurants"] : ["locations"];
+              commit({ locations:nextL, restaurants:nextR }, files);
+              // if the filter was on the renamed value, follow it
+              if (placesFilter === oldName) setPlacesFilter(trimmed);
+              flash(affected.length
+                ? "Renamed and updated " + affected.length + " restaurant(s)"
+                : "Location renamed");
+            }}
+            onDeleteLocation={(name)=>{
+              const inUse = restaurants.filter(r => r.location === name).length;
+              if (inUse > 0){
+                flash(inUse + " restaurant(s) use this - move them first");
+                return;
+              }
+              const next = locations.filter(l => l !== name);
+              commit({ locations:next }, ["locations"]);
+              if (placesFilter === name) setPlacesFilter("All");
+              flash("Location removed");
+            }} />
         )}
       </div>
 
@@ -1046,6 +1142,7 @@ function App(){
       {overlay && (overlay.type === "addRestaurant" || overlay.type === "editRestaurant") && (
         <RestaurantForm
           existing={overlay.type==="editRestaurant" ? restaurantById(overlay.id) : null}
+          locations={locations}
           onClose={()=> setOverlay(null)}
           onSave={(rec)=>{
             let next;
@@ -1059,7 +1156,7 @@ function App(){
             commit({ restaurants:next }, ["restaurants"]);
             setOverlay(overlay.type==="editRestaurant"
               ? { type:"restaurant", id:rec.id } : null);
-          }} />
+          }} /> 
       )}
 
       {overlay && (overlay.type === "logVisit" || overlay.type === "editVisit") && (
@@ -1183,7 +1280,7 @@ function HistoryView({visits, restaurantById, onOpen}){
 /* ============================================================
    RESTAURANTS VIEW
    ============================================================ */
-function RestaurantsView({restaurants, visits, onOpen}){
+function RestaurantsView({restaurants, visits, locations, activeFilter, onFilterChange, onOpen}){
   if (!restaurants.length){
     return (
       <div className="empty">
@@ -1192,9 +1289,23 @@ function RestaurantsView({restaurants, visits, onOpen}){
       </div>
     );
   }
-  const favs   = restaurants.filter(r => r.favorite);
-  const others = restaurants.filter(r => !r.favorite);
   const countVisits = (id)=> visits.filter(v => v.restaurant_id === id).length;
+
+  // collect all city values actually in use (in case a restaurant has a
+  // location that was deleted from the master list), plus the master list
+  const inUse = Array.from(new Set(restaurants.map(r => (r.location || "").trim()).filter(Boolean)));
+  const cityChips = Array.from(new Set([].concat(locations || []).concat(inUse)))
+    .sort((a,b)=> a.localeCompare(b));
+
+  const filter = activeFilter || "All";
+  const visible = filter === "All"
+    ? restaurants
+    : filter === "(no location)"
+      ? restaurants.filter(r => !r.location)
+      : restaurants.filter(r => r.location === filter);
+
+  const favs   = visible.filter(r => r.favorite);
+  const others = visible.filter(r => !r.favorite);
 
   const Card = (r)=> (
     <div key={r.id} className="card tap" onClick={()=> onOpen(r)}>
@@ -1203,6 +1314,7 @@ function RestaurantsView({restaurants, visits, onOpen}){
           <div className="place-name">{r.name}</div>
           <div className="meta-line" style={{marginTop:4}}>
             {r.cuisine || "Restaurant"}
+            {r.location ? "  \u00b7  " + r.location : ""}
             {countVisits(r.id) > 0 ? "  \u00b7  " + countVisits(r.id) + " visit(s)" : ""}
           </div>
         </div>
@@ -1213,8 +1325,37 @@ function RestaurantsView({restaurants, visits, onOpen}){
     </div>
   );
 
+  // only show chips if there is something worth filtering by
+  const showChips = cityChips.length > 0;
+  const hasUnplaced = restaurants.some(r => !r.location);
+
   return (
     <div>
+      {showChips && (
+        <div className="chips" style={{margin:"2px 0 14px"}}>
+          <span
+            className={"chip pick" + (filter === "All" ? " on" : "")}
+            onClick={()=> onFilterChange("All")}>All</span>
+          {cityChips.map(c => (
+            <span key={c}
+              className={"chip pick" + (filter === c ? " on" : "")}
+              onClick={()=> onFilterChange(c)}>{c}</span>
+          ))}
+          {hasUnplaced && (
+            <span
+              className={"chip pick" + (filter === "(no location)" ? " on" : "")}
+              onClick={()=> onFilterChange("(no location)")}>No location</span>
+          )}
+        </div>
+      )}
+
+      {visible.length === 0 && (
+        <div className="empty" style={{padding:"30px 20px"}}>
+          <div className="big">Nothing in {filter}</div>
+          <div>Add a restaurant in this location, or pick a different filter.</div>
+        </div>
+      )}
+
       {favs.length > 0 && <div className="divider-label">Favorites</div>}
       {favs.map(Card)}
       {others.length > 0 && <div className="divider-label">All places</div>}
@@ -1248,7 +1389,10 @@ function RestaurantDetail({restaurant, menu, visits, onClose, onLogVisit,
         </button>
       </div>
       <div className="ovbody">
-        <div className="meta-line">{r.cuisine || "Restaurant"}</div>
+        <div className="meta-line">
+          {r.cuisine || "Restaurant"}
+          {r.location ? "  \u00b7  " + r.location : ""}
+        </div>
 
         {(r.address || r.phone || r.website) && (
           <div className="card" style={{marginTop:12}}>
@@ -1443,22 +1587,29 @@ function ActionSheet({onClose, onPick}){
 /* ============================================================
    RESTAURANT FORM (add / edit)
    ============================================================ */
-function RestaurantForm({existing, onClose, onSave}){
-  const [name,setName]       = useState(existing ? existing.name : "");
-  const [cuisine,setCuisine] = useState(existing ? existing.cuisine : "");
-  const [address,setAddress] = useState(existing ? existing.address : "");
-  const [phone,setPhone]     = useState(existing ? existing.phone : "");
-  const [website,setWebsite] = useState(existing ? existing.website : "");
-  const [notes,setNotes]     = useState(existing ? existing.notes : "");
-  const [fav,setFav]         = useState(existing ? !!existing.favorite : false);
+function RestaurantForm({existing, locations, onClose, onSave}){
+  const [name,setName]         = useState(existing ? existing.name : "");
+  const [cuisine,setCuisine]   = useState(existing ? existing.cuisine : "");
+  const [location,setLocation] = useState(existing ? (existing.location || "") : "");
+  const [address,setAddress]   = useState(existing ? existing.address : "");
+  const [phone,setPhone]       = useState(existing ? existing.phone : "");
+  const [website,setWebsite]   = useState(existing ? existing.website : "");
+  const [notes,setNotes]       = useState(existing ? existing.notes : "");
+  const [fav,setFav]           = useState(existing ? !!existing.favorite : false);
+
+  // if the restaurant carries a location that has been removed from the
+  // master list, still offer it in the dropdown so we don't silently drop it
+  const opts = Array.from(new Set(
+    (locations || []).concat(location && location.trim() ? [location] : [])
+  )).sort((a,b)=> a.localeCompare(b));
 
   function submit(){
     if (!name.trim()) return;
     const rec = {
       id: existing ? existing.id : uid("rest"),
-      name:name.trim(), cuisine:cuisine.trim(), address:address.trim(),
-      phone:phone.trim(), website:website.trim(), notes:notes.trim(),
-      favorite:fav,
+      name:name.trim(), cuisine:cuisine.trim(), location:location.trim(),
+      address:address.trim(), phone:phone.trim(), website:website.trim(),
+      notes:notes.trim(), favorite:fav,
       added_date: existing ? existing.added_date : todayISO(),
     };
     onSave(rec);
@@ -1478,6 +1629,18 @@ function RestaurantForm({existing, onClose, onSave}){
         <label className="fld"><span className="lbl">Cuisine</span>
           <input className="input" value={cuisine} onChange={e=>setCuisine(e.target.value)}
             placeholder="e.g. Mexican / Tacos" /></label>
+        <label className="fld"><span className="lbl">Location</span>
+          <select className="input" value={location}
+            onChange={e=> setLocation(e.target.value)}>
+            <option value="">(none)</option>
+            {opts.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+          {opts.length === 0 && (
+            <div className="tiny faint" style={{marginTop:6}}>
+              Add cities in Settings to enable this dropdown.
+            </div>
+          )}
+        </label>
         <label className="fld"><span className="lbl">Address</span>
           <input className="input" value={address} onChange={e=>setAddress(e.target.value)}
             placeholder="Neighborhood or full address" /></label>
@@ -1833,9 +1996,15 @@ function ScanMenuFlow({config, restaurants, presetRestaurantId, onClose, onSave}
 /* ============================================================
    SETTINGS VIEW
    ============================================================ */
-function SettingsView({config, onEdit, counts, lastSync, onResync}){
+function SettingsView({config, onEdit, counts, lastSync, onResync,
+                       locations, restaurants,
+                       onAddLocation, onRenameLocation, onDeleteLocation}){
   const [showLog,setShowLog] = useState(false);
   const [, force] = useState(0);
+  const [newLoc,setNewLoc] = useState("");
+  const [editing,setEditing] = useState(null);    // {name, draft}
+  const usageCount = (name)=> (restaurants || []).filter(r => r.location === name).length;
+
   return (
     <div>
       <div className="card">
@@ -1859,11 +2028,88 @@ function SettingsView({config, onEdit, counts, lastSync, onResync}){
       </div>
 
       <div className="card">
+        <div style={{fontWeight:600,marginBottom:4}}>Locations</div>
+        <div className="tiny faint" style={{marginBottom:12}}>
+          Cities you visit. Used to tag and filter restaurants.
+        </div>
+        {(locations || []).length === 0 ? (
+          <div className="small faint" style={{padding:"2px 2px 12px"}}>
+            No locations yet - add your first city below.
+          </div>
+        ) : (
+          <div style={{marginBottom:10}}>
+            {locations.map(loc => {
+              const isEditing = editing && editing.name === loc;
+              const used = usageCount(loc);
+              return (
+                <div key={loc} style={{
+                  display:"flex", alignItems:"center", gap:8,
+                  padding:"8px 0", borderBottom:"1px solid var(--line-soft)"
+                }}>
+                  {isEditing ? (
+                    <input className="input" value={editing.draft}
+                      onChange={e=> setEditing({name:loc, draft:e.target.value})}
+                      style={{flex:1}} autoFocus />
+                  ) : (
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:500}}>{loc}</div>
+                      <div className="tiny faint" style={{marginTop:2}}>
+                        {used} restaurant(s)
+                      </div>
+                    </div>
+                  )}
+                  {isEditing ? (
+                    <React.Fragment>
+                      <button className="btn ghost sm" onClick={()=> setEditing(null)}
+                        style={{flex:"none"}}>Cancel</button>
+                      <button className="btn primary sm" style={{flex:"none"}}
+                        onClick={()=>{ onRenameLocation(loc, editing.draft); setEditing(null); }}>
+                        Save
+                      </button>
+                    </React.Fragment>
+                  ) : (
+                    <React.Fragment>
+                      <button className="btn ghost sm" style={{flex:"none"}}
+                        onClick={()=> setEditing({name:loc, draft:loc})}>
+                        <Icon name="edit" size={15} />
+                      </button>
+                      <button className="btn ghost sm" style={{flex:"none",
+                        opacity: used > 0 ? 0.4 : 1}}
+                        onClick={()=> onDeleteLocation(loc)}
+                        title={used > 0 ? "In use - move restaurants first" : "Delete"}>
+                        <Icon name="trash" size={15} color={used>0 ? "#80715f" : "#d9604e"} />
+                      </button>
+                    </React.Fragment>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="row" style={{gap:8,marginTop:6}}>
+          <input className="input" value={newLoc}
+            onChange={e=> setNewLoc(e.target.value)}
+            onKeyDown={e=>{
+              if (e.key === "Enter"){
+                e.preventDefault();
+                if (newLoc.trim()){ onAddLocation(newLoc); setNewLoc(""); }
+              }
+            }}
+            placeholder="Add a city (e.g. Dallas)" />
+          <button className="btn ghost sm" style={{flex:"none"}}
+            onClick={()=>{ if (newLoc.trim()){ onAddLocation(newLoc); setNewLoc(""); } }}>
+            Add
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
         <div style={{fontWeight:600,marginBottom:8}}>Your data</div>
         <div className="small muted" style={{lineHeight:1.9}}>
           Restaurants: {counts.r}<br/>
           Saved menus: {counts.m}<br/>
           Logged visits: {counts.v}<br/>
+          Locations: {(locations || []).length}<br/>
           Last sync: {lastSync ? new Date(lastSync).toLocaleString() : "not yet"}
         </div>
         <button className="btn ghost sm" onClick={onResync} style={{marginTop:12}}>
