@@ -251,7 +251,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.2";
+const APP_VERSION   = "1.3.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -364,6 +364,46 @@ async function resizeForOcr(file, maxEdge){
 }
 
 /* ============================================================
+   MENUS MIGRATION
+   Older versions stored one menu per restaurant as an object:
+     menus[rid] = { sections, ... }
+   v1.3+ supports multiple menus per restaurant as an array:
+     menus[rid] = [ { menu_id, label, sections, ... }, ... ]
+   This walks the menus map, wraps any single-menu objects in arrays,
+   and assigns menu_id/label defaults so the data is uniform.
+   Returns { menus: migratedMap, changed: bool }.
+   ============================================================ */
+function migrateMenusShape(menusObj){
+  const next = {};
+  let changed = false;
+  for (const rid in (menusObj || {})){
+    const m = menusObj[rid];
+    if (Array.isArray(m)){
+      // already new format - just ensure each menu has menu_id + label
+      next[rid] = m.map(item => {
+        if (!item || typeof item !== "object") return item;
+        if (item.menu_id && item.label) return item;
+        changed = true;
+        return Object.assign({}, item, {
+          menu_id: item.menu_id || uid("menu"),
+          label:   item.label   || "Main",
+        });
+      });
+    } else if (m && typeof m === "object"){
+      // legacy single-menu object - wrap in an array
+      changed = true;
+      next[rid] = [Object.assign({}, m, {
+        menu_id: m.menu_id || uid("menu"),
+        label:   m.label   || "Main",
+      })];
+    } else {
+      next[rid] = [];
+    }
+  }
+  return { menus: next, changed: changed };
+}
+
+/* ============================================================
    CARLITA'S SEED DATA
    Hand-digitized from the photographed menu and written to a
    brand-new repo on first run only, so the app opens with real
@@ -391,6 +431,8 @@ function carlitasSeed(){
     tags:tags||[], notes:""
   });
   const menu = {
+    menu_id:"menu_carlitas_main",
+    label:"Main",
     restaurant_id:"rest_carlitas",
     captured_date:day,
     last_updated:day,
@@ -598,6 +640,12 @@ async function digitizeMenu(cfg, dataUrls){
     "that the menu indicates (a 'gf' mark means gluten-free); empty array if none.\n"+
     "- notes: anything extra about an item; usually empty.\n"+
     "- Use the section headings printed on the menu.\n"+
+    "- An ITEM is something the customer orders (a dish, a board, a drink). "+
+    "Do NOT promote individual ingredients or components into their own items. "+
+    "If a charcuterie board lists \"goat cheese, prosciutto, olives\" as its "+
+    "components, those go in the parent item's description - they are NOT "+
+    "separate items. The same ingredient may legitimately appear inside the "+
+    "descriptions of multiple dishes; that is fine and expected.\n"+
     "- Only digitize actual food and drink menus. Ignore unrelated pages such "+
     "as advertisements, brochures, or directories of other businesses.\n"+
     "- If text is unclear, give your best reading.";
@@ -621,7 +669,7 @@ async function digitizeMenu(cfg, dataUrls){
       },
       body:JSON.stringify({
         model:VISION_MODEL,
-        max_tokens:16000,
+        max_tokens:32000,
         messages:[{ role:"user", content:content }],
       }),
     });
@@ -642,7 +690,10 @@ async function digitizeMenu(cfg, dataUrls){
   if (json.stop_reason === "max_tokens"){
     logMsg("ERROR","Vision response stopped at max_tokens - menu too large for one pass");
     throw new Error("This menu was too large to digitize in one pass. " +
-                    "Scan fewer pages at a time - one section per scan works well.");
+                    "Try splitting it into separate labeled menus - for example, " +
+                    "scan the food pages as one menu, cocktails as another, the " +
+                    "whiskey list as a third. Use 'Add another menu' on the " +
+                    "restaurant's page.");
   }
   const text = (json.content || [])
     .filter(b => b.type === "text").map(b => b.text).join("\n");
@@ -857,7 +908,7 @@ function App(){
         logMsg("SYNC","Empty repo detected - seeding Carlita's starter data");
         const seed = carlitasSeed();
         nextR = [seed.restaurant];
-        nextM = { [seed.menu.restaurant_id]: seed.menu };
+        nextM = { [seed.menu.restaurant_id]: [seed.menu] };  // v1.3: array of menus
         nextV = [];
         nextL = seed.locations;
         nextShas[FILES.restaurants] = await ghPutFile(cfg, FILES.restaurants, nextR, null);
@@ -902,6 +953,26 @@ function App(){
           nextL = derived;
           nextShas[FILES.locations] = await ghPutFile(cfg, FILES.locations, nextL, null);
           logMsg("SYNC","Back-filled locations file with " + nextL.length + " value(s)");
+        }
+      }
+
+      // v1.3 shape migration: convert legacy single-menu objects to arrays.
+      // Runs every sync but only writes back if something actually changed.
+      {
+        const mig = migrateMenusShape(nextM);
+        if (mig.changed){
+          nextM = mig.menus;
+          try {
+            nextShas[FILES.menus] = await ghPutFile(
+              cfg, FILES.menus, nextM, nextShas[FILES.menus]);
+          } catch(err){
+            if (err.conflict){
+              const fresh = await ghGetFile(cfg, FILES.menus);
+              nextShas[FILES.menus] = await ghPutFile(
+                cfg, FILES.menus, nextM, fresh.sha);
+            } else throw err;
+          }
+          logMsg("SYNC","Migrated menus to v1.3 multi-menu shape");
         }
       }
 
@@ -1043,7 +1114,11 @@ function App(){
         {tab === "settings" && (
           <SettingsView config={config}
             onEdit={()=> setOverlay({ type:"settings" })}
-            counts={{ r:restaurants.length, m:Object.keys(menus).length, v:visits.length }}
+            counts={{
+              r: restaurants.length,
+              m: Object.keys(menus).reduce((n,rid)=> n + (menus[rid] || []).length, 0),
+              v: visits.length,
+            }}
             lastSync={(loadCache()||{}).lastSync}
             onResync={retrySync}
             locations={locations}
@@ -1120,12 +1195,20 @@ function App(){
       {overlay && overlay.type === "restaurant" && (
         <RestaurantDetail
           restaurant={restaurantById(overlay.id)}
-          menu={menus[overlay.id]}
+          menus={menus[overlay.id] || []}
           visits={visitsFor(overlay.id)}
           onClose={()=> setOverlay(null)}
           onLogVisit={()=> setOverlay({ type:"logVisit", restaurantId:overlay.id })}
           onEdit={()=> setOverlay({ type:"editRestaurant", id:overlay.id })}
-          onScanMenu={()=> setOverlay({ type:"scanMenu", restaurantId:overlay.id })}
+          onAddMenu={()=> setOverlay({ type:"scanMenu", restaurantId:overlay.id })}
+          onReScanMenu={(menuId)=> setOverlay({
+            type:"scanMenu", restaurantId:overlay.id, menuId:menuId })}
+          onDeleteMenu={(menuId)=>{
+            const restMenus = (menus[overlay.id] || []).filter(m => m.menu_id !== menuId);
+            const nextM = Object.assign({}, menus, { [overlay.id]:restMenus });
+            commit({ menus:nextM }, ["menus"]);
+            flash("Menu removed");
+          }}
           onToggleFav={()=>{
             const next = restaurants.map(r =>
               r.id===overlay.id ? Object.assign({},r,{favorite:!r.favorite}) : r);
@@ -1189,16 +1272,22 @@ function App(){
         <ScanMenuFlow
           config={config}
           restaurants={restaurants}
+          menus={menus}
           presetRestaurantId={overlay.restaurantId}
+          presetMenuId={overlay.menuId}
           onClose={()=> setOverlay(null)}
-          onSave={(restId, menuObj, newRestaurant)=>{
+          onSave={(restId, menuObj, newRestaurant, isReplace)=>{
             let nextR = restaurants;
             if (newRestaurant) nextR = [newRestaurant].concat(restaurants);
-            const nextM = Object.assign({}, menus, { [restId]:menuObj });
+            const existingForRest = menus[restId] || [];
+            const newRestMenus = isReplace
+              ? existingForRest.map(m => m.menu_id === menuObj.menu_id ? menuObj : m)
+              : existingForRest.concat([menuObj]);
+            const nextM = Object.assign({}, menus, { [restId]:newRestMenus });
             commit({ restaurants:nextR, menus:nextM },
                    newRestaurant ? ["restaurants","menus"] : ["menus"]);
             setOverlay({ type:"restaurant", id:restId });
-            flash("Menu saved");
+            flash(isReplace ? "Menu replaced" : "Menu saved");
           }} />
       )}
 
@@ -1367,9 +1456,11 @@ function RestaurantsView({restaurants, visits, locations, activeFilter, onFilter
 /* ============================================================
    RESTAURANT DETAIL
    ============================================================ */
-function RestaurantDetail({restaurant, menu, visits, onClose, onLogVisit,
-                           onEdit, onScanMenu, onToggleFav, onDelete}){
+function RestaurantDetail({restaurant, menus, visits, onClose, onLogVisit,
+                           onEdit, onAddMenu, onReScanMenu, onDeleteMenu,
+                           onToggleFav, onDelete}){
   const [confirmDel, setConfirmDel] = useState(false);
+  const [confirmDelMenu, setConfirmDelMenu] = useState(null);  // menu_id or null
   if (!restaurant){
     return (
       <div className="overlay">
@@ -1379,6 +1470,7 @@ function RestaurantDetail({restaurant, menu, visits, onClose, onLogVisit,
     );
   }
   const r = restaurant;
+  const menuList = menus || [];
   return (
     <div className="overlay">
       <div className="ovhead">
@@ -1426,24 +1518,76 @@ function RestaurantDetail({restaurant, menu, visits, onClose, onLogVisit,
           <Icon name="plus" size={18} color="#1b1714" />Log a visit here
         </button>
 
-        {/* menu */}
-        <div className="divider-label">Menu</div>
-        {menu ? (
-          <MenuView menu={menu} />
-        ) : (
+        {/* menus - each one is its own card with header + actions */}
+        <div className="divider-label">
+          {menuList.length === 0 ? "Menu" : "Menus (" + menuList.length + ")"}
+        </div>
+
+        {menuList.length === 0 && (
           <div className="card" style={{textAlign:"center"}}>
             <div className="small muted" style={{marginBottom:11}}>
-              No menu saved for this place yet.
+              No menus saved for this place yet.
             </div>
-            <button className="btn ghost" onClick={onScanMenu}>
+            <button className="btn ghost" onClick={onAddMenu}>
               <Icon name="camera" size={18} />Scan a menu
             </button>
           </div>
         )}
-        {menu && (
-          <button className="btn ghost sm" onClick={onScanMenu}
-                  style={{margin:"4px 0 0",width:"100%"}}>
-            <Icon name="camera" size={16} />Re-scan / replace menu
+
+        {menuList.map(m => (
+          <div key={m.menu_id} className="card" style={{padding:"12px 14px"}}>
+            <div className="between" style={{marginBottom:8}}>
+              <div style={{minWidth:0}}>
+                <div className="place-name" style={{fontSize:18}}>{m.label || "Menu"}</div>
+                <div className="tiny faint" style={{marginTop:2}}>
+                  Captured {fmtDate(m.captured_date)}
+                  {m.source === "seed" ? " (starter data)" : ""}
+                </div>
+              </div>
+              <div className="row" style={{gap:6,flex:"none"}}>
+                <button className="btn ghost sm" style={{flex:"none"}}
+                  onClick={()=> onReScanMenu(m.menu_id)}
+                  title="Re-scan this menu">
+                  <Icon name="camera" size={15} />
+                </button>
+                <button className="btn ghost sm" style={{flex:"none"}}
+                  onClick={()=> setConfirmDelMenu(
+                    confirmDelMenu === m.menu_id ? null : m.menu_id)}
+                  title="Delete this menu">
+                  <Icon name="trash" size={15}
+                    color={confirmDelMenu === m.menu_id ? "#d9604e" : "#80715f"} />
+                </button>
+              </div>
+            </div>
+
+            {confirmDelMenu === m.menu_id && (
+              <div className="small" style={{
+                padding:"10px 12px", marginBottom:10, borderRadius:9,
+                background:"rgba(217,96,78,0.1)",
+                border:"1px solid rgba(217,96,78,0.4)"
+              }}>
+                <div style={{marginBottom:9}}>
+                  Delete the {m.label || "menu"} menu? This cannot be undone.
+                </div>
+                <div className="row" style={{gap:8}}>
+                  <button className="btn ghost sm"
+                    onClick={()=> setConfirmDelMenu(null)}>Cancel</button>
+                  <button className="btn danger sm"
+                    onClick={()=>{ onDeleteMenu(m.menu_id); setConfirmDelMenu(null); }}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <MenuView menu={m} />
+          </div>
+        ))}
+
+        {menuList.length > 0 && (
+          <button className="btn ghost" onClick={onAddMenu}
+            style={{margin:"4px 0 0", width:"100%"}}>
+            <Icon name="plus" size={16} />Add another menu (dessert, drinks, etc.)
           </button>
         )}
 
@@ -1481,7 +1625,7 @@ function RestaurantDetail({restaurant, menu, visits, onClose, onLogVisit,
         ) : (
           <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)"}}>
             <div className="small" style={{marginBottom:11}}>
-              Delete {r.name} and its saved menu? Logged visits are kept in History.
+              Delete {r.name} and its saved menu(s)? Logged visits are kept in History.
             </div>
             <div className="row" style={{gap:9}}>
               <button className="btn ghost" onClick={()=> setConfirmDel(false)}>Cancel</button>
@@ -1513,17 +1657,10 @@ function MenuView({menu}){
   }).filter(x => !q || x.items.length);
 
   return (
-    <div className="card" style={{padding:"6px 14px 10px"}}>
+    <div>
       <input className="input" placeholder="Search this menu..."
         value={filter} onChange={e=> setFilter(e.target.value)}
-        style={{margin:"10px 0 4px"}} />
-      {menu.captured_date && (
-        <div className="tiny faint" style={{padding:"2px 2px 4px"}}>
-          Captured {fmtDate(menu.captured_date)}
-          {menu.source === "seed" ? " (starter data)" :
-           menu.source === "photo_ocr" ? " (from photo)" : ""}
-        </div>
-      )}
+        style={{margin:"4px 0 6px"}} />
       {sections.length === 0 && (
         <div className="small faint" style={{padding:"12px 2px"}}>No items match.</div>
       )}
@@ -1678,12 +1815,25 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, o
   const [dishInput,setDishInput] = useState("");
   const [confirmDel,setConfirmDel] = useState(false);
 
-  const menu = menus[restId];
-  // flat list of menu item names for quick-pick chips
-  const menuItemNames = [];
-  if (menu){
-    (menu.sections||[]).forEach(s => s.items.forEach(it => menuItemNames.push(it.name)));
-  }
+  // multi-menu support: menus[restId] is now an array of menus.
+  // build a list of pick-groups, one per menu, deduping item names within
+  // each menu so an ingredient mentioned in two sections of the same menu
+  // only renders once. (Cross-menu duplicates are kept so e.g. a dessert
+  // menu item with the same name as a main can still both be tapped.)
+  const menusForRest = menus[restId] || [];
+  const menuGroups = menusForRest.map(m => {
+    const seen = new Set();
+    const items = [];
+    (m.sections || []).forEach(s => {
+      (s.items || []).forEach(it => {
+        const key = (it.name || "").trim().toLowerCase();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        items.push(it.name);
+      });
+    });
+    return { label: m.label || "Menu", items: items };
+  }).filter(g => g.items.length > 0);
   const dishNames = dishes.map(d => d.name);
 
   function addDish(name){
@@ -1778,20 +1928,24 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, o
               ))}
             </div>
           )}
-          {menuItemNames.length > 0 && (
+          {menuGroups.length > 0 && (
             <div style={{marginTop:12}}>
-              <div className="tiny faint" style={{marginBottom:6}}>
-                Tap from the saved menu:
-              </div>
-              <div className="chips">
-                {menuItemNames.map((n,i)=>(
-                  <span key={i}
-                    className={"chip pick" + (dishNames.indexOf(n)!==-1 ? " on" : "")}
-                    onClick={()=> dishNames.indexOf(n)!==-1 ? removeDish(n) : addDish(n)}>
-                    {n}
-                  </span>
-                ))}
-              </div>
+              {menuGroups.map((g, gi) => (
+                <div key={gi} style={{marginBottom: gi === menuGroups.length - 1 ? 0 : 12}}>
+                  <div className="tiny faint" style={{marginBottom:6}}>
+                    Tap from {g.label}:
+                  </div>
+                  <div className="chips">
+                    {g.items.map((n,i)=>(
+                      <span key={i}
+                        className={"chip pick" + (dishNames.indexOf(n)!==-1 ? " on" : "")}
+                        onClick={()=> dishNames.indexOf(n)!==-1 ? removeDish(n) : addDish(n)}>
+                        {n}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -1825,16 +1979,39 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, o
 /* ============================================================
    SCAN MENU FLOW
    step 1: pick photos  ->  step 2: digitizing  ->  step 3: review/save
+
+   Three entry modes:
+   - presetRestaurantId + presetMenuId : re-scan an existing menu (replace by id)
+   - presetRestaurantId only           : add a new menu to that restaurant
+   - neither                           : new restaurant OR pick existing, new menu
    ============================================================ */
-function ScanMenuFlow({config, restaurants, presetRestaurantId, onClose, onSave}){
-  const [step,setStep]       = useState("pick");      // pick | working | review | error
-  const [previews,setPreviews] = useState([]);        // data URLs for thumbnails
-  const [dataUrls,setDataUrls] = useState([]);        // resized data URLs for API
-  const [errMsg,setErrMsg]   = useState("");
-  const [result,setResult]   = useState(null);        // parsed menu
-  const [restId,setRestId]   = useState(presetRestaurantId || "");
-  const [newName,setNewName] = useState("");
+const LABEL_SUGGESTIONS = ["Main","Dessert","Drinks","Cocktails","Wine","Brunch","Happy Hour"];
+
+function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMenuId,
+                       onClose, onSave}){
+  // find the existing menu we're re-scanning (if any), to lock its label
+  const presetMenu = (presetRestaurantId && presetMenuId)
+    ? (menus[presetRestaurantId] || []).find(m => m.menu_id === presetMenuId)
+    : null;
+
+  const [step,setStep]         = useState("pick");      // pick | working | review | error
+  const [previews,setPreviews] = useState([]);          // data URLs for thumbnails
+  const [dataUrls,setDataUrls] = useState([]);          // resized data URLs for API
+  const [errMsg,setErrMsg]     = useState("");
+  const [result,setResult]     = useState(null);        // parsed menu
+  const [restId,setRestId]     = useState(presetRestaurantId || "");
+  const [newName,setNewName]   = useState("");
+  const [label,setLabel]       = useState(presetMenu ? (presetMenu.label || "Main") : "");
   const fileRef = useRef(null);
+
+  // when the chosen restaurant changes, suggest a default label if it has no menus
+  // yet (i.e. this is its first menu - "Main" makes sense)
+  useEffect(()=>{
+    if (presetMenu) return;                              // re-scan: label is fixed
+    const targetMenus = restId ? (menus[restId] || []) : [];
+    if (!label && targetMenus.length === 0) setLabel("Main");
+    // eslint-disable-next-line
+  },[restId]);
 
   async function onFiles(e){
     const files = Array.from(e.target.files || []);
@@ -1857,7 +2034,6 @@ function ScanMenuFlow({config, restaurants, presetRestaurantId, onClose, onSave}
     setStep("working");
     try {
       const parsed = await digitizeMenu(config, dataUrls);
-      parsed.restaurant_id = "";
       parsed.captured_date = todayISO();
       parsed.last_updated  = todayISO();
       parsed.source        = "photo_ocr";
@@ -1878,36 +2054,53 @@ function ScanMenuFlow({config, restaurants, presetRestaurantId, onClose, onSave}
   }
 
   function save(){
-    let targetId = restId;
+    let targetRestId  = restId;
     let newRestaurant = null;
-    if (!targetId){
+    if (!targetRestId){
       // creating a new restaurant from the scan
       const nm = (newName || result.restaurant_name || "New restaurant").trim();
-      targetId = uid("rest");
+      targetRestId = uid("rest");
       newRestaurant = {
-        id:targetId, name:nm, cuisine:"", address:"", phone:"",
-        website:"", notes:"", favorite:false, added_date:todayISO(),
+        id:targetRestId, name:nm, cuisine:"", location:"",
+        address:"", phone:"", website:"", notes:"",
+        favorite:false, added_date:todayISO(),
       };
       logMsg("SCAN","Creating new restaurant '" + nm + "' for scanned menu");
     }
+    const isReplace   = !!presetMenu;
+    const targetMenuId = isReplace ? presetMenu.menu_id : uid("menu");
+    const finalLabel  = (label || "").trim() || (isReplace ? presetMenu.label : "Main");
+
     const menuObj = {
-      restaurant_id:targetId,
-      captured_date:result.captured_date,
-      last_updated:todayISO(),
-      source:"photo_ocr",
-      sections:result.sections,
-      raw_text:result.raw_text || "",
+      menu_id:       targetMenuId,
+      label:         finalLabel,
+      restaurant_id: targetRestId,
+      captured_date: isReplace ? presetMenu.captured_date : result.captured_date,
+      last_updated:  todayISO(),
+      source:        "photo_ocr",
+      sections:      result.sections,
+      raw_text:      result.raw_text || "",
     };
-    onSave(targetId, menuObj, newRestaurant);
+    logMsg("SCAN", (isReplace ? "Replacing menu " : "Adding menu ") +
+                   targetMenuId + " (" + finalLabel + ")");
+    onSave(targetRestId, menuObj, newRestaurant, isReplace);
   }
+
+  // for the review step: how many menus does the chosen restaurant already have?
+  // used to nudge label-picking when this would be the 2nd+ menu.
+  const existingMenuCount = (presetMenu ? 0 :
+    (restId ? (menus[restId] || []).length : 0));
+  const canSave = !!result && (presetMenu || !!label.trim()) &&
+    (restId || newName.trim() || (result && result.restaurant_name));
 
   return (
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}>Cancel</button>
-        <h2>Scan a menu</h2>
-        {step==="review"
-          ? <button className="x" style={{color:"var(--accent)"}} onClick={save}>Save</button>
+        <h2>{presetMenu ? "Re-scan " + (presetMenu.label || "menu") : "Scan a menu"}</h2>
+        {step === "review"
+          ? <button className="x" onClick={save}
+              style={{color: canSave ? "var(--accent)" : "var(--text-faint)"}}>Save</button>
           : <span style={{width:40}} />}
       </div>
       <div className="ovbody">
@@ -1915,8 +2108,11 @@ function ScanMenuFlow({config, restaurants, presetRestaurantId, onClose, onSave}
         {step === "pick" && (
           <div>
             <div className="card small muted">
-              Take clear, straight-on photos of the menu. Multiple pages are fine -
-              add them all and they will be merged into one menu.
+              {presetMenu
+                ? "Photograph the menu - the new scan will replace the current " +
+                  presetMenu.label + " menu for this restaurant."
+                : "Take clear, straight-on photos of the menu. Multiple pages of " +
+                  "the same menu are fine - add them all and they merge."}
             </div>
             <input ref={fileRef} type="file" accept="image/*" multiple
               style={{display:"none"}} onChange={onFiles} />
@@ -1958,13 +2154,14 @@ function ScanMenuFlow({config, restaurants, presetRestaurantId, onClose, onSave}
         {step === "review" && result && (
           <div>
             <div className="card small muted">
-              Review the digitized menu below, choose which restaurant it belongs to,
-              then tap Save. You can edit individual items later from the restaurant.
+              Review the digitized menu, choose which restaurant and menu name it belongs
+              to, then tap Save. You can edit items later from the restaurant.
             </div>
 
             <label className="fld"><span className="lbl">Save menu to</span>
               <select className="input" value={restId}
-                onChange={e=> setRestId(e.target.value)}>
+                onChange={e=> setRestId(e.target.value)}
+                disabled={!!presetRestaurantId}>
                 <option value="">+ New restaurant from this menu</option>
                 {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
@@ -1977,12 +2174,41 @@ function ScanMenuFlow({config, restaurants, presetRestaurantId, onClose, onSave}
               </label>
             )}
 
+            <label className="fld">
+              <span className="lbl">
+                Menu name {presetMenu && <span className="faint">(locked - re-scanning)</span>}
+              </span>
+              <input className="input" value={label}
+                onChange={e=> setLabel(e.target.value)}
+                placeholder="e.g. Main, Dessert, Drinks"
+                disabled={!!presetMenu} />
+              {!presetMenu && (
+                <div className="chips" style={{marginTop:8}}>
+                  {LABEL_SUGGESTIONS.map(s => (
+                    <span key={s}
+                      className={"chip pick" + (label === s ? " on" : "")}
+                      onClick={()=> setLabel(s)}>{s}</span>
+                  ))}
+                </div>
+              )}
+              {!presetMenu && existingMenuCount > 0 && !label.trim() && (
+                <div className="tiny faint" style={{marginTop:6}}>
+                  This restaurant already has {existingMenuCount} menu(s) - pick a
+                  name for this one so they don't collide.
+                </div>
+              )}
+            </label>
+
             <div className="divider-label">
               Preview &middot; {result.sections.length} section(s)
             </div>
-            <MenuView menu={result} />
-            <button className="btn primary" onClick={save} style={{marginTop:8}}>
-              <Icon name="check" size={18} color="#1b1714" />Save this menu
+            <div className="card" style={{padding:"6px 14px 10px"}}>
+              <MenuView menu={result} />
+            </div>
+            <button className="btn primary" onClick={save} disabled={!canSave}
+              style={{marginTop:8}}>
+              <Icon name="check" size={18} color="#1b1714" />
+              {presetMenu ? "Replace " + presetMenu.label + " menu" : "Save this menu"}
             </button>
             <div style={{height:20}} />
           </div>
