@@ -220,6 +220,25 @@
       font-size:11.5px; letter-spacing:0.1em; text-transform:uppercase;
       color:var(--text-faint); margin:22px 2px 9px;
     }
+    /* Drill-in row for a menu on the restaurant page */
+    .menu-row{
+      display:flex; align-items:center; gap:10px;
+      padding:14px 16px; margin-bottom:8px;
+      background:var(--surface); border:1px solid var(--line); border-radius:12px;
+      cursor:pointer; transition:background 0.12s ease, border-color 0.12s ease;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .menu-row:active{ background:var(--surface-2); border-color:rgba(224,118,74,0.35); }
+    .menu-row-label{
+      font-family:'Fraunces',serif; font-size:18px; color:var(--text);
+      line-height:1.2;
+    }
+    /* Section subheader inside the visit-form chip picker, between section's chips */
+    .section-subhead{
+      font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase;
+      color:var(--text-faint); font-weight:600;
+      margin:10px 0 5px;
+    }
     .toast{
       position:fixed; left:50%; transform:translateX(-50%);
       bottom:calc(94px + env(safe-area-inset-bottom)); z-index:90;
@@ -251,7 +270,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.3.1";
+const APP_VERSION   = "1.4";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1201,14 +1220,8 @@ function App(){
           onLogVisit={()=> setOverlay({ type:"logVisit", restaurantId:overlay.id })}
           onEdit={()=> setOverlay({ type:"editRestaurant", id:overlay.id })}
           onAddMenu={()=> setOverlay({ type:"scanMenu", restaurantId:overlay.id })}
-          onReScanMenu={(menuId)=> setOverlay({
-            type:"scanMenu", restaurantId:overlay.id, menuId:menuId })}
-          onDeleteMenu={(menuId)=>{
-            const restMenus = (menus[overlay.id] || []).filter(m => m.menu_id !== menuId);
-            const nextM = Object.assign({}, menus, { [overlay.id]:restMenus });
-            commit({ menus:nextM }, ["menus"]);
-            flash("Menu removed");
-          }}
+          onOpenMenu={(menuId)=> setOverlay({
+            type:"menuDetail", restaurantId:overlay.id, menuId:menuId })}
           onToggleFav={()=>{
             const next = restaurants.map(r =>
               r.id===overlay.id ? Object.assign({},r,{favorite:!r.favorite}) : r);
@@ -1219,6 +1232,27 @@ function App(){
             const nextM = Object.assign({}, menus); delete nextM[overlay.id];
             commit({ restaurants:nextR, menus:nextM }, ["restaurants","menus"]);
             setOverlay(null); flash("Restaurant removed");
+          }} />
+      )}
+
+      {overlay && overlay.type === "menuDetail" && (
+        <MenuDetail
+          restaurant={restaurantById(overlay.restaurantId)}
+          menu={(menus[overlay.restaurantId] || []).find(m => m.menu_id === overlay.menuId)}
+          onClose={()=> setOverlay({ type:"restaurant", id:overlay.restaurantId })}
+          onReScan={()=> setOverlay({
+            type:"scanMenu",
+            restaurantId:overlay.restaurantId,
+            menuId:overlay.menuId,
+          })}
+          onDeleteMenu={()=>{
+            const restMenus = (menus[overlay.restaurantId] || [])
+              .filter(m => m.menu_id !== overlay.menuId);
+            const nextM = Object.assign({}, menus,
+              { [overlay.restaurantId]:restMenus });
+            commit({ menus:nextM }, ["menus"]);
+            setOverlay({ type:"restaurant", id:overlay.restaurantId });
+            flash("Menu removed");
           }} />
       )}
 
@@ -1276,18 +1310,35 @@ function App(){
           presetRestaurantId={overlay.restaurantId}
           presetMenuId={overlay.menuId}
           onClose={()=> setOverlay(null)}
-          onSave={(restId, menuObj, newRestaurant, isReplace)=>{
+          onSave={(restId, menusToSave, newRestaurant, isReplace)=>{
             let nextR = restaurants;
             if (newRestaurant) nextR = [newRestaurant].concat(restaurants);
             const existingForRest = menus[restId] || [];
-            const newRestMenus = isReplace
-              ? existingForRest.map(m => m.menu_id === menuObj.menu_id ? menuObj : m)
-              : existingForRest.concat([menuObj]);
+            let newRestMenus;
+            if (isReplace){
+              // re-scan: menusToSave has exactly one menu, replace by menu_id
+              const replacement = menusToSave[0];
+              newRestMenus = existingForRest.map(m =>
+                m.menu_id === replacement.menu_id ? replacement : m);
+            } else {
+              // append all - works for single (1 menu) or split (N menus)
+              newRestMenus = existingForRest.concat(menusToSave);
+            }
             const nextM = Object.assign({}, menus, { [restId]:newRestMenus });
             commit({ restaurants:nextR, menus:nextM },
                    newRestaurant ? ["restaurants","menus"] : ["menus"]);
-            setOverlay({ type:"restaurant", id:restId });
-            flash(isReplace ? "Menu replaced" : "Menu saved");
+            // re-scan returns to the menu detail (where the user came from);
+            // a fresh scan returns to the restaurant page so they can see the
+            // new menu in the list
+            setOverlay(isReplace
+              ? { type:"menuDetail", restaurantId:restId,
+                  menuId:menusToSave[0].menu_id }
+              : { type:"restaurant", id:restId });
+            flash(isReplace
+              ? "Menu replaced"
+              : menusToSave.length > 1
+                ? menusToSave.length + " menus saved"
+                : "Menu saved");
           }} />
       )}
 
@@ -1457,10 +1508,9 @@ function RestaurantsView({restaurants, visits, locations, activeFilter, onFilter
    RESTAURANT DETAIL
    ============================================================ */
 function RestaurantDetail({restaurant, menus, visits, onClose, onLogVisit,
-                           onEdit, onAddMenu, onReScanMenu, onDeleteMenu,
+                           onEdit, onAddMenu, onOpenMenu,
                            onToggleFav, onDelete}){
   const [confirmDel, setConfirmDel] = useState(false);
-  const [confirmDelMenu, setConfirmDelMenu] = useState(null);  // menu_id or null
   if (!restaurant){
     return (
       <div className="overlay">
@@ -1518,78 +1568,46 @@ function RestaurantDetail({restaurant, menus, visits, onClose, onLogVisit,
           <Icon name="plus" size={18} color="#1b1714" />Log a visit here
         </button>
 
-        {/* menus - each one is its own card with header + actions */}
-        <div className="divider-label">
-          {menuList.length === 0 ? "Menu" : "Menus (" + menuList.length + ")"}
+        {/* menus list - drill in to each */}
+        <div className="row between" style={{margin:"22px 0 10px",alignItems:"center"}}>
+          <div className="divider-label" style={{margin:0,flex:1}}>
+            {menuList.length === 0
+              ? "Menus"
+              : "Menus (" + menuList.length + ")"}
+          </div>
+          <button className="btn ghost sm" onClick={onAddMenu}
+            style={{flex:"none",padding:"6px 12px",margin:0}}>
+            <Icon name="plus" size={15} />Add menu
+          </button>
         </div>
 
         {menuList.length === 0 && (
           <div className="card" style={{textAlign:"center"}}>
             <div className="small muted" style={{marginBottom:11}}>
-              No menus saved for this place yet.
+              No menus saved for this place yet. Tap <strong>Add menu</strong> above to
+              scan one.
             </div>
-            <button className="btn ghost" onClick={onAddMenu}>
-              <Icon name="camera" size={18} />Scan a menu
-            </button>
           </div>
         )}
 
-        {menuList.map(m => (
-          <div key={m.menu_id} className="card" style={{padding:"12px 14px"}}>
-            <div className="between" style={{marginBottom:8}}>
-              <div style={{minWidth:0}}>
-                <div className="place-name" style={{fontSize:18}}>{m.label || "Menu"}</div>
-                <div className="tiny faint" style={{marginTop:2}}>
-                  Captured {fmtDate(m.captured_date)}
-                  {m.source === "seed" ? " (starter data)" : ""}
+        {menuList.map(m => {
+          const itemCount = (m.sections || []).reduce(
+            (n,s) => n + ((s.items || []).length), 0);
+          return (
+            <div key={m.menu_id} className="menu-row"
+              onClick={()=> onOpenMenu(m.menu_id)}>
+              <div style={{flex:1, minWidth:0}}>
+                <div className="menu-row-label">{m.label || "Menu"}</div>
+                <div className="tiny faint" style={{marginTop:3}}>
+                  {itemCount} item{itemCount === 1 ? "" : "s"}
+                  {"  \u00b7  Captured " + fmtDate(m.captured_date)}
+                  {m.source === "seed" ? " (starter)" : ""}
                 </div>
               </div>
-              <div className="row" style={{gap:6,flex:"none"}}>
-                <button className="btn ghost sm" style={{flex:"none"}}
-                  onClick={()=> onReScanMenu(m.menu_id)}
-                  title="Re-scan this menu">
-                  <Icon name="camera" size={15} />
-                </button>
-                <button className="btn ghost sm" style={{flex:"none"}}
-                  onClick={()=> setConfirmDelMenu(
-                    confirmDelMenu === m.menu_id ? null : m.menu_id)}
-                  title="Delete this menu">
-                  <Icon name="trash" size={15}
-                    color={confirmDelMenu === m.menu_id ? "#d9604e" : "#80715f"} />
-                </button>
-              </div>
+              <Icon name="chev" size={18} color="#80715f" />
             </div>
-
-            {confirmDelMenu === m.menu_id && (
-              <div className="small" style={{
-                padding:"10px 12px", marginBottom:10, borderRadius:9,
-                background:"rgba(217,96,78,0.1)",
-                border:"1px solid rgba(217,96,78,0.4)"
-              }}>
-                <div style={{marginBottom:9}}>
-                  Delete the {m.label || "menu"} menu? This cannot be undone.
-                </div>
-                <div className="row" style={{gap:8}}>
-                  <button className="btn ghost sm"
-                    onClick={()=> setConfirmDelMenu(null)}>Cancel</button>
-                  <button className="btn danger sm"
-                    onClick={()=>{ onDeleteMenu(m.menu_id); setConfirmDelMenu(null); }}>
-                    Delete
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <MenuView menu={m} />
-          </div>
-        ))}
-
-        {menuList.length > 0 && (
-          <button className="btn ghost" onClick={onAddMenu}
-            style={{margin:"4px 0 0", width:"100%"}}>
-            <Icon name="plus" size={16} />Add another menu (dessert, drinks, etc.)
-          </button>
-        )}
+          );
+        })}
 
         {/* visits at this place */}
         <div className="divider-label">Visits here ({visits.length})</div>
@@ -1634,6 +1652,85 @@ function RestaurantDetail({restaurant, menus, visits, onClose, onLogVisit,
           </div>
         )}
         <div style={{height:30}} />
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   MENU DETAIL - the drilled-in view of a single menu, with its
+   own back button, inline re-scan/delete row, search, and sections
+   ============================================================ */
+function MenuDetail({restaurant, menu, onClose, onReScan, onDeleteMenu}){
+  const [confirmDel, setConfirmDel] = useState(false);
+  if (!menu){
+    return (
+      <div className="overlay">
+        <div className="ovhead">
+          <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+          <h2>Menu</h2><span style={{width:40}} />
+        </div>
+        <div className="ovbody">
+          <div className="small faint" style={{padding:16}}>
+            This menu no longer exists.
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>{menu.label || "Menu"}</h2>
+        <span style={{width:40}} />
+      </div>
+      <div className="ovbody">
+        <div className="tiny faint" style={{marginBottom:4}}>
+          {restaurant ? restaurant.name : ""}
+        </div>
+
+        {/* inline action row: captured date + rescan + delete */}
+        <div className="row between" style={{alignItems:"center",marginBottom:10}}>
+          <div className="tiny faint">
+            Captured {fmtDate(menu.captured_date)}
+            {menu.source === "seed" ? " (starter data)" : ""}
+          </div>
+          <div className="row" style={{gap:6,flex:"none"}}>
+            <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+              onClick={onReScan} title="Re-scan this menu">
+              <Icon name="camera" size={15} />
+            </button>
+            <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+              onClick={()=> setConfirmDel(c => !c)} title="Delete this menu">
+              <Icon name="trash" size={15}
+                color={confirmDel ? "#d9604e" : "#80715f"} />
+            </button>
+          </div>
+        </div>
+
+        {confirmDel && (
+          <div className="small" style={{
+            padding:"10px 12px",marginBottom:10,borderRadius:9,
+            background:"rgba(217,96,78,0.1)",
+            border:"1px solid rgba(217,96,78,0.4)"
+          }}>
+            <div style={{marginBottom:9}}>
+              Delete the {menu.label || "menu"} menu? This cannot be undone.
+            </div>
+            <div className="row" style={{gap:8}}>
+              <button className="btn ghost sm"
+                onClick={()=> setConfirmDel(false)}>Cancel</button>
+              <button className="btn danger sm"
+                onClick={()=>{ setConfirmDel(false); onDeleteMenu(); }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
+
+        <MenuView menu={menu} />
+        <div style={{height:20}} />
       </div>
     </div>
   );
@@ -1815,25 +1912,30 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, o
   const [dishInput,setDishInput] = useState("");
   const [confirmDel,setConfirmDel] = useState(false);
 
-  // multi-menu support: menus[restId] is now an array of menus.
-  // build a list of pick-groups, one per menu, deduping item names within
-  // each menu so an ingredient mentioned in two sections of the same menu
-  // only renders once. (Cross-menu duplicates are kept so e.g. a dessert
-  // menu item with the same name as a main can still both be tapped.)
+  // multi-menu picker: build [{label, sections:[{name,items}]}] groups.
+  // Dedup item names within each menu (so an ingredient that appears in
+  // two sections of the same menu only renders once - first occurrence wins).
+  // Cross-menu duplicates are kept so e.g. a dessert and a main with the
+  // same name can both be tapped independently.
   const menusForRest = menus[restId] || [];
   const menuGroups = menusForRest.map(m => {
     const seen = new Set();
-    const items = [];
+    const sectionGroups = [];
     (m.sections || []).forEach(s => {
+      const items = [];
       (s.items || []).forEach(it => {
         const key = (it.name || "").trim().toLowerCase();
         if (!key || seen.has(key)) return;
         seen.add(key);
         items.push(it.name);
       });
+      if (items.length > 0){
+        sectionGroups.push({ name:s.name || "", items:items });
+      }
     });
-    return { label: m.label || "Menu", items: items };
-  }).filter(g => g.items.length > 0);
+    const total = sectionGroups.reduce((n,s)=> n + s.items.length, 0);
+    return { label:m.label || "Menu", sections:sectionGroups, total:total };
+  }).filter(g => g.total > 0);
   const dishNames = dishes.map(d => d.name);
 
   function addDish(name){
@@ -1931,19 +2033,30 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, o
           {menuGroups.length > 0 && (
             <div style={{marginTop:12}}>
               {menuGroups.map((g, gi) => (
-                <div key={gi} style={{marginBottom: gi === menuGroups.length - 1 ? 0 : 12}}>
+                <div key={gi} style={{marginBottom: gi === menuGroups.length - 1 ? 0 : 14}}>
                   <div className="tiny faint" style={{marginBottom:6}}>
                     Tap from {g.label}:
                   </div>
-                  <div className="chips">
-                    {g.items.map((n,i)=>(
-                      <span key={i}
-                        className={"chip pick" + (dishNames.indexOf(n)!==-1 ? " on" : "")}
-                        onClick={()=> dishNames.indexOf(n)!==-1 ? removeDish(n) : addDish(n)}>
-                        {n}
-                      </span>
-                    ))}
-                  </div>
+                  {g.sections.map((s, si) => (
+                    <div key={si}>
+                      {/* show section header only when there are 2+ sections in
+                          this menu - otherwise the menu label alone is context */}
+                      {g.sections.length > 1 && (
+                        <div className="section-subhead">{s.name || "Other"}</div>
+                      )}
+                      <div className="chips">
+                        {s.items.map((n,i)=>(
+                          <span key={i}
+                            className={"chip pick" +
+                              (dishNames.indexOf(n)!==-1 ? " on" : "")}
+                            onClick={()=> dishNames.indexOf(n)!==-1
+                              ? removeDish(n) : addDish(n)}>
+                            {n}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -1985,7 +2098,14 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, o
    - presetRestaurantId only           : add a new menu to that restaurant
    - neither                           : new restaurant OR pick existing, new menu
    ============================================================ */
-const LABEL_SUGGESTIONS = ["Main","Dessert","Drinks","Cocktails","Wine","Brunch","Happy Hour"];
+// Menu-label pills shown on the scan-review screen. "Other..." is rendered
+// separately at the end and focuses the text input rather than filling a value.
+const LABEL_SUGGESTIONS = [
+  // food side - catchall, then time-progressed, then post-meal, then promotional
+  "Food","Breakfast","Brunch","Lunch","Dinner","Late Night","Dessert","Happy Hour",
+  // drinks side - catchall, then categories
+  "Drinks","Cocktails","Beer","Wine","Whiskey","Spirits",
+];
 
 function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMenuId,
                        onClose, onSave}){
@@ -2001,17 +2121,19 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [result,setResult]     = useState(null);        // parsed menu
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
-  const [label,setLabel]       = useState(presetMenu ? (presetMenu.label || "Main") : "");
-  const fileRef = useRef(null);
+  const [label,setLabel]       = useState(presetMenu ? (presetMenu.label || "") : "");
+  // split mode: each detected section becomes its own menu, with per-section labels
+  const [splitMode,setSplitMode] = useState(false);
+  const [sectionLabels,setSectionLabels] = useState([]);  // string[] aligned to result.sections
+  const fileRef  = useRef(null);
+  const labelRef = useRef(null);
 
-  // when the chosen restaurant changes, suggest a default label if it has no menus
-  // yet (i.e. this is its first menu - "Main" makes sense)
+  // when OCR completes, pre-fill per-section labels with the detected section names
+  // (used only when the user flips to Split mode)
   useEffect(()=>{
-    if (presetMenu) return;                              // re-scan: label is fixed
-    const targetMenus = restId ? (menus[restId] || []) : [];
-    if (!label && targetMenus.length === 0) setLabel("Main");
-    // eslint-disable-next-line
-  },[restId]);
+    if (!result) return;
+    setSectionLabels((result.sections || []).map(s => s.name || ""));
+  },[result]);
 
   async function onFiles(e){
     const files = Array.from(e.target.files || []);
@@ -2053,6 +2175,12 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     }
   }
 
+  // focus the freeform label input (used by the "Other..." pill)
+  function focusOtherLabel(){
+    setLabel("");
+    setTimeout(()=> { if (labelRef.current) labelRef.current.focus(); }, 0);
+  }
+
   function save(){
     let targetRestId  = restId;
     let newRestaurant = null;
@@ -2067,31 +2195,82 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       };
       logMsg("SCAN","Creating new restaurant '" + nm + "' for scanned menu");
     }
-    const isReplace   = !!presetMenu;
-    const targetMenuId = isReplace ? presetMenu.menu_id : uid("menu");
-    const finalLabel  = (label || "").trim() || (isReplace ? presetMenu.label : "Main");
 
-    const menuObj = {
-      menu_id:       targetMenuId,
-      label:         finalLabel,
-      restaurant_id: targetRestId,
-      captured_date: isReplace ? presetMenu.captured_date : result.captured_date,
-      last_updated:  todayISO(),
-      source:        "photo_ocr",
-      sections:      result.sections,
-      raw_text:      result.raw_text || "",
-    };
-    logMsg("SCAN", (isReplace ? "Replacing menu " : "Adding menu ") +
-                   targetMenuId + " (" + finalLabel + ")");
-    onSave(targetRestId, menuObj, newRestaurant, isReplace);
+    const isReplace = !!presetMenu;
+
+    // ---- build the menus to save ----
+    let menusToSave;
+    if (isReplace){
+      // re-scan: always single menu, replace existing by menu_id
+      menusToSave = [{
+        menu_id:       presetMenu.menu_id,
+        label:         (label || "").trim() || presetMenu.label,
+        restaurant_id: targetRestId,
+        captured_date: presetMenu.captured_date,
+        last_updated:  todayISO(),
+        source:        "photo_ocr",
+        sections:      result.sections,
+        raw_text:      result.raw_text || "",
+      }];
+    } else if (splitMode){
+      // split: one menu per detected section, each with its own label
+      menusToSave = (result.sections || []).map((s,i) => ({
+        menu_id:       uid("menu"),
+        label:         (sectionLabels[i] || s.name || "Menu").trim(),
+        restaurant_id: targetRestId,
+        captured_date: result.captured_date,
+        last_updated:  todayISO(),
+        source:        "photo_ocr",
+        sections:      [s],                          // single section, this menu's worth
+        raw_text:      "",
+      }));
+    } else {
+      // single new menu containing all detected sections
+      menusToSave = [{
+        menu_id:       uid("menu"),
+        label:         (label || "").trim() || "Menu",
+        restaurant_id: targetRestId,
+        captured_date: result.captured_date,
+        last_updated:  todayISO(),
+        source:        "photo_ocr",
+        sections:      result.sections,
+        raw_text:      result.raw_text || "",
+      }];
+    }
+
+    logMsg("SCAN", (isReplace ? "Replacing menu (re-scan)" :
+                   splitMode  ? "Adding " + menusToSave.length + " split menus" :
+                                "Adding 1 menu") +
+                  " to restaurant " + targetRestId);
+    onSave(targetRestId, menusToSave, newRestaurant, isReplace);
   }
 
-  // for the review step: how many menus does the chosen restaurant already have?
-  // used to nudge label-picking when this would be the 2nd+ menu.
-  const existingMenuCount = (presetMenu ? 0 :
-    (restId ? (menus[restId] || []).length : 0));
-  const canSave = !!result && (presetMenu || !!label.trim()) &&
+  // canSave logic - the rules differ by mode
+  const sectionCount = result ? (result.sections || []).length : 0;
+  const splitAvailable = !isReplaceMode() && sectionCount >= 2;
+  function isReplaceMode(){ return !!presetMenu; }
+  // validate split labels: all non-empty
+  const splitLabelsOk = !splitMode || sectionLabels.every(l => (l || "").trim().length > 0);
+  // detect duplicate split labels (case-insensitive) - merging warning
+  const splitDuplicate = splitMode && (()=>{
+    const seen = new Set();
+    for (const l of sectionLabels){
+      const k = (l || "").trim().toLowerCase();
+      if (!k) continue;
+      if (seen.has(k)) return true;
+      seen.add(k);
+    }
+    return false;
+  })();
+  const canSave = !!result &&
+    (isReplaceMode() || splitMode || !!label.trim()) &&
+    (splitMode ? splitLabelsOk : true) &&
     (restId || newName.trim() || (result && result.restaurant_name));
+
+  // "Other..." pill is active when the typed label doesn't match any predefined pill
+  const trimmedLabel = label.trim();
+  const otherActive = !!trimmedLabel &&
+    LABEL_SUGGESTIONS.indexOf(trimmedLabel) === -1;
 
   return (
     <div className="overlay">
@@ -2155,7 +2334,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           <div>
             <div className="card small muted">
               Review the digitized menu, choose which restaurant and menu name it belongs
-              to, then tap Save. You can edit items later from the restaurant.
+              to, then tap Save.
             </div>
 
             <label className="fld"><span className="lbl">Save menu to</span>
@@ -2174,33 +2353,108 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               </label>
             )}
 
-            <label className="fld">
-              <span className="lbl">
-                Menu name {presetMenu && <span className="faint">(locked - re-scanning)</span>}
-              </span>
-              <input className="input" value={label}
-                onChange={e=> setLabel(e.target.value)}
-                placeholder="e.g. Main, Dessert, Drinks"
-                disabled={!!presetMenu} />
-              {!presetMenu && (
-                <div className="chips" style={{marginTop:8}}>
-                  {LABEL_SUGGESTIONS.map(s => (
-                    <span key={s}
-                      className={"chip pick" + (label === s ? " on" : "")}
-                      onClick={()=> setLabel(s)}>{s}</span>
-                  ))}
+            {/* split-on-save toggle: only when 2+ sections and not a re-scan */}
+            {splitAvailable && (
+              <div className="card" style={{padding:"12px 14px",marginTop:4}}>
+                <div className="small" style={{fontWeight:600,marginBottom:8}}>
+                  How to save
                 </div>
-              )}
-              {!presetMenu && existingMenuCount > 0 && !label.trim() && (
-                <div className="tiny faint" style={{marginTop:6}}>
-                  This restaurant already has {existingMenuCount} menu(s) - pick a
-                  name for this one so they don't collide.
+                <label className="row" style={{gap:10,marginBottom:8,alignItems:"flex-start"}}>
+                  <input type="radio" checked={!splitMode}
+                    onChange={()=> setSplitMode(false)}
+                    style={{marginTop:3}} />
+                  <span className="small">
+                    <strong>One menu with sections</strong> (default) -
+                    save all {sectionCount} detected sections as subsections of a
+                    single menu.
+                  </span>
+                </label>
+                <label className="row" style={{gap:10,alignItems:"flex-start"}}>
+                  <input type="radio" checked={splitMode}
+                    onChange={()=> setSplitMode(true)}
+                    style={{marginTop:3}} />
+                  <span className="small">
+                    <strong>Split into separate menus</strong> -
+                    each detected section becomes its own menu so you can
+                    browse them independently.
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {/* single-menu mode: one label input + suggestion pills + Other */}
+            {!splitMode && (
+              <label className="fld">
+                <span className="lbl">
+                  Menu name {presetMenu &&
+                    <span className="faint">(re-scanning {presetMenu.label})</span>}
+                </span>
+                <input ref={labelRef} className="input" value={label}
+                  onChange={e=> setLabel(e.target.value)}
+                  placeholder={presetMenu
+                    ? presetMenu.label
+                    : "e.g. Food, Cocktails, Whiskey..."}
+                  disabled={!!presetMenu} />
+                {!presetMenu && (
+                  <div className="chips" style={{marginTop:8}}>
+                    {LABEL_SUGGESTIONS.map(s => (
+                      <span key={s}
+                        className={"chip pick" + (label === s ? " on" : "")}
+                        onClick={()=> setLabel(s)}>{s}</span>
+                    ))}
+                    <span
+                      className={"chip pick" + (otherActive ? " on" : "")}
+                      onClick={focusOtherLabel}>
+                      Other...
+                    </span>
+                  </div>
+                )}
+              </label>
+            )}
+
+            {/* split mode: one label input per detected section */}
+            {splitMode && (
+              <div className="fld">
+                <div className="lbl" style={{marginBottom:6}}>
+                  Name each menu ({sectionCount} sections detected)
                 </div>
-              )}
-            </label>
+                {(result.sections || []).map((s,i) => (
+                  <div key={i} className="row"
+                    style={{gap:8,marginBottom:8,alignItems:"center"}}>
+                    <input className="input" value={sectionLabels[i] || ""}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setSectionLabels(prev => {
+                          const next = prev.slice();
+                          next[i] = v;
+                          return next;
+                        });
+                      }}
+                      placeholder={s.name || "Menu name"}
+                      style={{flex:1}} />
+                    <span className="tiny faint" style={{flex:"none",minWidth:55}}>
+                      {(s.items || []).length} items
+                    </span>
+                  </div>
+                ))}
+                {splitDuplicate && (
+                  <div className="tiny" style={{
+                    color:"#d9604e",marginTop:4
+                  }}>
+                    Two menus have the same name - they will appear separately but
+                    may be confusing. Consider differentiating them.
+                  </div>
+                )}
+                {!splitLabelsOk && (
+                  <div className="tiny faint" style={{marginTop:4}}>
+                    Every menu needs a name before you can save.
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="divider-label">
-              Preview &middot; {result.sections.length} section(s)
+              Preview &middot; {sectionCount} section(s)
             </div>
             <div className="card" style={{padding:"6px 14px 10px"}}>
               <MenuView menu={result} />
@@ -2208,7 +2462,11 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             <button className="btn primary" onClick={save} disabled={!canSave}
               style={{marginTop:8}}>
               <Icon name="check" size={18} color="#1b1714" />
-              {presetMenu ? "Replace " + presetMenu.label + " menu" : "Save this menu"}
+              {presetMenu
+                ? "Replace " + presetMenu.label + " menu"
+                : splitMode
+                  ? "Save " + sectionCount + " menus"
+                  : "Save this menu"}
             </button>
             <div style={{height:20}} />
           </div>
