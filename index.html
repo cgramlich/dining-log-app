@@ -270,7 +270,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.4.3";
+const APP_VERSION   = "1.4.4";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -301,6 +301,14 @@ function uid(prefix){
          Math.random().toString(36).slice(2,7);
 }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+// Convert any string ("COCKTAILS", "irish favorites", "Late Night MENU")
+// to consistent Title Case. Used to normalize OCR-detected section names
+// so they match the pill labels (Title Case) and merge correctly with them.
+function toTitleCase(str){
+  if (!str) return "";
+  return String(str).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
 
 function fmtDate(iso){
   // iso is YYYY-MM-DD ; render as a friendly label
@@ -1261,18 +1269,60 @@ function App(){
           existing={overlay.type==="editRestaurant" ? restaurantById(overlay.id) : null}
           locations={locations}
           onClose={()=> setOverlay(null)}
-          onSave={(rec)=>{
+          onSave={(rec, newLocationsToAdd)=>{
+            // resolve new location additions case-insensitively against the
+            // master locations list. If the user typed "boston" but we already
+            // have "Boston" saved, use the existing casing on the restaurant
+            // and skip adding a duplicate.
+            let nextLocations = locations;
+            let recOut = rec;
+            const additions = newLocationsToAdd || [];
+            if (additions.length){
+              const lcMap = new Map();
+              locations.forEach(l => lcMap.set(l.toLowerCase(), l));
+              const trueNew = [];
+              additions.forEach(loc => {
+                const trimmed = (loc || "").trim();
+                if (!trimmed) return;
+                const existingCasing = lcMap.get(trimmed.toLowerCase());
+                if (existingCasing){
+                  // match found - reuse existing casing on the restaurant record
+                  if (recOut.location === trimmed){
+                    recOut = Object.assign({}, recOut, { location: existingCasing });
+                  }
+                } else {
+                  trueNew.push(trimmed);
+                  lcMap.set(trimmed.toLowerCase(), trimmed);
+                }
+              });
+              if (trueNew.length){
+                nextLocations = locations.concat(trueNew)
+                  .sort((a,b)=> a.localeCompare(b));
+                logMsg("SAVE","Added " + trueNew.length +
+                              " new location(s) from restaurant form: " +
+                              trueNew.join(", "));
+              }
+            }
+
             let next;
             if (overlay.type === "editRestaurant"){
-              next = restaurants.map(r => r.id===rec.id ? rec : r);
+              next = restaurants.map(r => r.id===recOut.id ? recOut : r);
               flash("Restaurant updated");
             } else {
-              next = [rec].concat(restaurants);
+              next = [recOut].concat(restaurants);
               flash("Restaurant added");
             }
-            commit({ restaurants:next }, ["restaurants"]);
+
+            // commit restaurants always; commit locations only if changed
+            const updates = { restaurants:next };
+            const files   = ["restaurants"];
+            if (nextLocations !== locations){
+              updates.locations = nextLocations;
+              files.push("locations");
+            }
+            commit(updates, files);
             setOverlay(overlay.type==="editRestaurant"
-              ? { type:"restaurant", id:rec.id } : null);
+              ? { type:"restaurant", id:recOut.id } : null);
           }} /> 
       )}
 
@@ -1831,22 +1881,52 @@ function RestaurantForm({existing, locations, onClose, onSave}){
   const [notes,setNotes]       = useState(existing ? existing.notes : "");
   const [fav,setFav]           = useState(existing ? !!existing.favorite : false);
 
+  // inline "add new location" state. When true, the dropdown reads
+  // "+ Add new location..." and an inline input below it lets the user
+  // type a one-off location. On save the new value becomes the restaurant's
+  // location AND (if not already present case-insensitively) is added to
+  // the master locations list via the second arg of onSave().
+  const [addingNew,setAddingNew] = useState(false);
+  const [newLoc,setNewLoc]       = useState("");
+  const newLocRef = useRef(null);
+
   // if the restaurant carries a location that has been removed from the
   // master list, still offer it in the dropdown so we don't silently drop it
   const opts = Array.from(new Set(
     (locations || []).concat(location && location.trim() ? [location] : [])
   )).sort((a,b)=> a.localeCompare(b));
 
+  // handle dropdown change: the special sentinel "__ADD_NEW__" toggles
+  // into "type a new location" mode; everything else picks an existing one
+  function pickLocation(v){
+    if (v === "__ADD_NEW__"){
+      setAddingNew(true);
+      setNewLoc("");
+      // focus the new-location input so the user can type immediately
+      setTimeout(()=> { if (newLocRef.current) newLocRef.current.focus(); }, 0);
+    } else {
+      setAddingNew(false);
+      setNewLoc("");
+      setLocation(v);
+    }
+  }
+
   function submit(){
     if (!name.trim()) return;
+    // resolve the final location string based on which input is active
+    const finalLoc = addingNew ? newLoc.trim() : location.trim();
+    // if user typed a new location, pass it up so the parent can add to master
+    const newLocationsToAdd = (addingNew && newLoc.trim())
+      ? [newLoc.trim()] : [];
     const rec = {
       id: existing ? existing.id : uid("rest"),
-      name:name.trim(), cuisine:cuisine.trim(), location:location.trim(),
+      name:name.trim(), cuisine:cuisine.trim(),
+      location: finalLoc,
       address:address.trim(), phone:phone.trim(), website:website.trim(),
       notes:notes.trim(), favorite:fav,
       added_date: existing ? existing.added_date : todayISO(),
     };
-    onSave(rec);
+    onSave(rec, newLocationsToAdd);
   }
   return (
     <div className="overlay">
@@ -1864,14 +1944,29 @@ function RestaurantForm({existing, locations, onClose, onSave}){
           <input className="input" value={cuisine} onChange={e=>setCuisine(e.target.value)}
             placeholder="e.g. Mexican / Tacos" /></label>
         <label className="fld"><span className="lbl">Location</span>
-          <select className="input" value={location}
-            onChange={e=> setLocation(e.target.value)}>
+          <select className="input"
+            value={addingNew ? "__ADD_NEW__" : location}
+            onChange={e=> pickLocation(e.target.value)}>
             <option value="">(none)</option>
             {opts.map(o => <option key={o} value={o}>{o}</option>)}
+            <option value="__ADD_NEW__">+ Add new location...</option>
           </select>
-          {opts.length === 0 && (
+          {addingNew && (
+            <input ref={newLocRef} className="input"
+              value={newLoc}
+              onChange={e=> setNewLoc(e.target.value)}
+              placeholder="City name (e.g. Boston, New York)"
+              style={{marginTop:8}} />
+          )}
+          {addingNew && (
             <div className="tiny faint" style={{marginTop:6}}>
-              Add cities in Settings to enable this dropdown.
+              This city will be saved to your locations list.
+            </div>
+          )}
+          {!addingNew && opts.length === 0 && (
+            <div className="tiny faint" style={{marginTop:6}}>
+              No saved cities yet &mdash; pick <strong>+ Add new location...</strong>
+              {" "}to add one.
             </div>
           )}
         </label>
@@ -2140,7 +2235,11 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   // and reset save mode to the simple "one menu" default
   useEffect(()=>{
     if (!result) return;
-    setSectionExtracts((result.sections || []).map(s => s.name || ""));
+    // Title-case the OCR-detected section names so they match the pill
+    // labels (which are Title Case). Without this, "COCKTAILS" pre-filled
+    // from OCR wouldn't merge with a section where the user tapped the
+    // "Cocktails" pill, even though they mean the same destination.
+    setSectionExtracts((result.sections || []).map(s => toTitleCase(s.name || "")));
     setSaveMode("one");
   },[result]);
 
@@ -2225,21 +2324,26 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     } else if (sections.length >= 2 && saveMode === "custom"){
       // customize mode: group sections by destination label.
       // Same-label sections merge into one menu with multiple subsections.
-      const groups = new Map();           // destLabel -> sections[]
+      // Grouping is case-insensitive ("Cocktails" and "COCKTAILS" merge),
+      // and the first-seen casing wins for the displayed menu label.
+      const groups = new Map();           // lowercased label -> { label, sections[] }
       sections.forEach((s, i) => {
         const dest = (sectionExtracts[i] || "").trim();
         if (!dest) return;                // safety: blocked by canSave
-        if (!groups.has(dest)) groups.set(dest, []);
-        groups.get(dest).push(s);
+        const key = dest.toLowerCase();
+        if (!groups.has(key)){
+          groups.set(key, { label: dest, sections: [] });
+        }
+        groups.get(key).sections.push(s);
       });
-      menusToSave = Array.from(groups.entries()).map(([destLabel, secs]) => ({
+      menusToSave = Array.from(groups.values()).map(g => ({
         menu_id:       uid("menu"),
-        label:         destLabel,
+        label:         g.label,
         restaurant_id: targetRestId,
         captured_date: result.captured_date,
         last_updated:  todayISO(),
         source:        "photo_ocr",
-        sections:      secs,
+        sections:      g.sections,
         raw_text:      "",
       }));
     } else {
@@ -2285,16 +2389,19 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       return [{ label: (label || "").trim() || "Menu",
                 sectionCount: sectionCount }];
     }
-    const groups = new Map();
+    // case-insensitive grouping (same logic as save()): the lowercased
+    // label is the merge key; the first-seen casing wins for display
+    const groups = new Map();    // lowercased label -> { label, sectionCount }
     (result.sections || []).forEach((s, i) => {
       const dest = (sectionExtracts[i] || "").trim();
       if (!dest) return;
-      if (!groups.has(dest)) groups.set(dest, 0);
-      groups.set(dest, groups.get(dest) + 1);
+      const key = dest.toLowerCase();
+      if (!groups.has(key)){
+        groups.set(key, { label: dest, sectionCount: 0 });
+      }
+      groups.get(key).sectionCount++;
     });
-    return Array.from(groups.entries()).map(([label, count]) => ({
-      label: label, sectionCount: count,
-    }));
+    return Array.from(groups.values());
   }
   const previewMenus = previewDestinations();
 
