@@ -100,14 +100,15 @@
       background:var(--surface-2); border:1px solid var(--line);
       color:var(--text-dim); font-size:12.5px; padding:4px 10px; border-radius:999px;
     }
-    .chip.dish{background:rgba(224,118,74,0.1); border-color:rgba(224,118,74,0.32); color:#f0bfa3;}
+    /* un-rated dish chips are neutral; the verdict modifiers below add the color/meaning */
+    .chip.dish{background:var(--surface-2); border-color:var(--line); color:var(--text-dim);}
     .chip.tag{background:rgba(154,168,119,0.12); border-color:rgba(154,168,119,0.3); color:#bcc79c; font-size:11px; padding:2px 8px;}
     .chip.pick{cursor:pointer;}
     .chip.pick:active{transform:scale(0.94);}
     .chip.on{background:var(--accent); border-color:var(--accent); color:#1b1714; font-weight:600;}
     /* ---- per-dish verdict (Again / Skip) ---- */
     /* verdict chip variants used in read-only displays (history, picks card) */
-    .chip.dish.again{background:rgba(224,118,74,0.18); border-color:rgba(224,118,74,0.5); color:#f6c5a6;}
+    .chip.dish.again{background:rgba(224,118,74,0.22); border-color:var(--accent); color:#f7c9ab; font-weight:600;}
     .chip.dish.skip{opacity:0.5; text-decoration:line-through;}
     /* editable dish rows inside the visit form */
     .dish-row{
@@ -365,7 +366,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.6.1";
+const APP_VERSION   = "1.6.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
