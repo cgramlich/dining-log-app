@@ -105,6 +105,30 @@
     .chip.pick{cursor:pointer;}
     .chip.pick:active{transform:scale(0.94);}
     .chip.on{background:var(--accent); border-color:var(--accent); color:#1b1714; font-weight:600;}
+    /* ---- per-dish verdict (Again / Skip) ---- */
+    /* verdict chip variants used in read-only displays (history, picks card) */
+    .chip.dish.again{background:rgba(224,118,74,0.18); border-color:rgba(224,118,74,0.5); color:#f6c5a6;}
+    .chip.dish.skip{opacity:0.5; text-decoration:line-through;}
+    /* editable dish rows inside the visit form */
+    .dish-row{
+      display:flex; align-items:center; gap:8px;
+      padding:8px 6px 8px 11px; margin-bottom:6px;
+      background:var(--surface); border:1px solid var(--line); border-radius:11px;
+    }
+    .dish-row-name{flex:1; min-width:0; font-size:14px; color:var(--text); word-break:break-word;}
+    .dish-verdict{display:flex; gap:5px; flex:none;}
+    .verdict-btn{
+      font-size:11px; padding:5px 11px; border-radius:999px;
+      border:1px solid var(--line); background:transparent; color:var(--text-dim);
+      cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform 0.08s;
+    }
+    .verdict-btn:active{transform:scale(0.92);}
+    .verdict-btn.again.on{background:rgba(224,118,74,0.2); border-color:var(--accent); color:var(--accent); font-weight:600;}
+    .verdict-btn.skip.on{background:rgba(179,165,145,0.16); border-color:var(--text-faint); color:var(--text-dim); font-weight:600;}
+    .dish-row-x{flex:none; padding:5px; background:transparent; border:none; cursor:pointer; line-height:0;}
+    /* "your picks here" card on restaurant detail */
+    .card.picks{border:1px solid rgba(224,118,74,0.3);}
+    .picks-head{font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-faint); font-weight:600; margin-bottom:8px;}
 
     /* ---- stars ---- */
     .stars{display:inline-flex; gap:3px;}
@@ -341,7 +365,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.5.2";
+const APP_VERSION   = "1.6.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1955,7 +1979,12 @@ function HistoryView({visits, restaurantById, cfg, onOpen}){
             </div>
             {v.dishes && v.dishes.length > 0 && (
               <div className="chips">
-                {v.dishes.map((d,i)=> <span key={i} className="chip dish">{d.name}</span>)}
+                {v.dishes.map((d,i)=> (
+                  <span key={i} className={"chip dish" +
+                    (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
+                    {d.name}
+                  </span>
+                ))}
               </div>
             )}
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
@@ -2080,6 +2109,37 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   }
   const r = restaurant;
   const menuList = menus || [];
+
+  // ---- dish memory: what to order again here -------------------------
+  // For each distinct dish (case-insensitive), we go by its MOST RECENT
+  // verdict - the verdict from the latest visit where you actually rated it.
+  // A later "skip" overrides an earlier "again" (and vice-versa); simply not
+  // ordering a dish on a later visit does NOT count against it.
+  //   lovedDishes: dishes whose most-recent verdict is "again", with a count
+  //     of how many times you've marked that dish "again".
+  //   lastVisit / lastVisitDishes: the single most recent visit's plate.
+  const byDate = (visits || []).slice().sort((a,b)=>
+    (b.date || "").localeCompare(a.date || "") ||
+    ((b.logged_at || 0) - (a.logged_at || 0))
+  );
+  // walk newest -> oldest; the FIRST time we meet a dish is its latest verdict
+  const dishMemo = new Map();   // key -> { name, latestVerdict, againCount }
+  byDate.forEach(v => (v.dishes || []).forEach(d => {
+    if (!d || !d.name || !d.verdict) return;        // only verdict-bearing dishes
+    const k = d.name.trim().toLowerCase();
+    if (!dishMemo.has(k)){
+      dishMemo.set(k, { name:d.name, latestVerdict:d.verdict, againCount:0 });
+    }
+    if (d.verdict === "again") dishMemo.get(k).againCount++;
+  }));
+  const lovedDishes = Array.from(dishMemo.values())
+    .filter(x => x.latestVerdict === "again")
+    .map(x => ({ name:x.name, count:x.againCount }))
+    .sort((a,b)=> b.count - a.count || a.name.localeCompare(b.name));
+  const lastVisit = byDate[0] || null;
+  const lastVisitDishes = (lastVisit && lastVisit.dishes) ? lastVisit.dishes : [];
+  const showPicks = lovedDishes.length > 0 || lastVisitDishes.length > 0;
+
   return (
     <div className="overlay">
       <div className="ovhead">
@@ -2127,6 +2187,36 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         )}
 
         {r.notes && <div className="card small muted">{r.notes}</div>}
+
+        {showPicks && (
+          <div className="card picks">
+            {lovedDishes.length > 0 && (
+              <div style={{marginBottom: lastVisitDishes.length ? 14 : 0}}>
+                <div className="picks-head">You've loved these here</div>
+                <div className="chips">
+                  {lovedDishes.map((d,i)=>(
+                    <span key={i} className="chip dish again">
+                      {d.name}{d.count > 1 ? "  \u00d7" + d.count : ""}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {lastVisitDishes.length > 0 && (
+              <div>
+                <div className="picks-head">Last time &middot; {fmtDate(lastVisit.date)}</div>
+                <div className="chips">
+                  {lastVisitDishes.map((d,i)=>(
+                    <span key={i} className={"chip dish" +
+                      (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
+                      {d.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <button className="btn primary" onClick={onLogVisit} style={{marginTop:4}}>
           <Icon name="plus" size={18} color="#1b1714" />Log a visit here
@@ -2199,7 +2289,12 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               </div>
               {v.dishes && v.dishes.length > 0 && (
                 <div className="chips">
-                  {v.dishes.map((d,i)=> <span key={i} className="chip dish">{d.name}</span>)}
+                  {v.dishes.map((d,i)=> (
+                    <span key={i} className={"chip dish" +
+                      (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
+                      {d.name}
+                    </span>
+                  ))}
                 </div>
               )}
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
@@ -2748,10 +2843,18 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     const n = (name || "").trim();
     if (!n) return;
     if (dishNames.indexOf(n) !== -1) return;       // avoid duplicates
-    setDishes(d => d.concat([{ name:n, note:"" }]));
+    // verdict: per-dish memory for "should I order this again?"
+    //   null (unset) | "again" (loved it) | "skip" (not again)
+    setDishes(d => d.concat([{ name:n, note:"", verdict:null }]));
     setDishInput("");
   }
   function removeDish(name){ setDishes(d => d.filter(x => x.name !== name)); }
+  // toggle a dish's verdict; tapping the active verdict again clears it
+  function setVerdict(name, v){
+    setDishes(d => d.map(x => x.name === name
+      ? Object.assign({}, x, { verdict: x.verdict === v ? null : v })
+      : x));
+  }
 
   function submit(){
     if (!restId) return;
@@ -2892,12 +2995,27 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
               style={{flex:"none"}}>Add</button>
           </div>
           {dishes.length > 0 && (
-            <div className="chips">
+            <div style={{marginTop:6}}>
               {dishes.map((d,i)=>(
-                <span key={i} className="chip dish pick" onClick={()=> removeDish(d.name)}>
-                  {d.name} &nbsp;&times;
-                </span>
+                <div key={i} className="dish-row">
+                  <span className="dish-row-name">{d.name}</span>
+                  <div className="dish-verdict">
+                    <button
+                      className={"verdict-btn again" + (d.verdict==="again" ? " on" : "")}
+                      onClick={()=> setVerdict(d.name, "again")}>Again</button>
+                    <button
+                      className={"verdict-btn skip" + (d.verdict==="skip" ? " on" : "")}
+                      onClick={()=> setVerdict(d.name, "skip")}>Skip</button>
+                  </div>
+                  <button className="dish-row-x" onClick={()=> removeDish(d.name)}>
+                    <Icon name="close" size={14} color="#80715f" />
+                  </button>
+                </div>
               ))}
+              <div className="tiny faint" style={{marginTop:2,padding:"0 2px"}}>
+                Tap <strong>Again</strong> or <strong>Skip</strong> to remember what
+                to order next time.
+              </div>
             </div>
           )}
           {menuGroups.length > 0 && (
