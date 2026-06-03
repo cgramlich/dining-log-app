@@ -341,7 +341,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.5.1";
+const APP_VERSION   = "1.5.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -544,6 +544,36 @@ async function resizeForOcr(file, maxEdge){
    private repo. The Contents API uses base64 for ALL file payloads
    (binary or text), so the binary helpers are nearly identical to the
    JSON ones - they just take/return raw base64 instead of JSON. */
+
+/* Fetch a file's RAW bytes (no base64) using the raw media type.
+   This is meaningfully faster than ghGetBinaryFile for photos:
+     - payload is ~25% smaller (no base64 inflation)
+     - no client-side atob + Uint8Array decode (real CPU on a phone)
+     - response.blob() is native
+   Returns a Blob. Throws on 404/!ok. */
+async function ghGetRawFile(cfg, path){
+  const url = GH_API + "/repos/" + cfg.githubUser + "/" + cfg.githubRepo +
+              "/contents/" + path;
+  logMsg("GITHUB","GET raw " + path);
+  let res;
+  try {
+    res = await fetch(url, { headers:{
+      "Authorization":"Bearer " + cfg.githubToken,
+      "Accept":"application/vnd.github.raw",
+    }});
+  } catch(err){
+    logMsg("ERROR","GitHub GET raw network failure: " + err.message);
+    throw new Error("Network error reaching GitHub");
+  }
+  if (res.status === 404){ throw new Error("Photo not found: " + path); }
+  if (res.status === 401){ throw new Error("GitHub rejected the token (401)."); }
+  if (!res.ok){
+    logMsg("ERROR","GitHub GET raw " + path + " -> " + res.status);
+    throw new Error("GitHub GET failed (" + res.status + ")");
+  }
+  return await res.blob();
+}
+
 async function ghGetBinaryFile(cfg, path){
   // Returns { found:true, base64, sha, mime } or { found:false }
   const url = GH_API + "/repos/" + cfg.githubUser + "/" + cfg.githubRepo +
@@ -617,47 +647,109 @@ async function ghPutBinaryFile(cfg, path, blob, sha){
 }
 
 /* ============================================================
-   PHOTO CACHE
+   PHOTO CACHE  (two tiers)
    ============================================================
-   Photos are fetched lazily on demand and cached for the session
-   as object URLs (created via URL.createObjectURL). We never revoke
-   the URLs - they live until the page reloads - but the cache is
-   bounded by the number of unique photo paths the user views, so
-   this stays well under a few MB of memory.
+   Tier 1 - in-memory Map (PHOTO_CACHE): path -> Promise<blobUrl>.
+            Survives only the current session; dedupes concurrent
+            requests for the same path.
+   Tier 2 - IndexedDB (idb*): path -> Blob, persisted to disk.
+            Survives app restarts and works OFFLINE for photos
+            already viewed once. This is the big win for "slow
+            loading" - after the first view, a photo loads instantly
+            from local disk instead of round-tripping to GitHub.
 
-   Cache value is a Promise<string> (blob URL) so concurrent callers
-   for the same path share a single fetch. */
-const PHOTO_CACHE = new Map();
+   Lookup order on display: memory -> IndexedDB -> GitHub (raw bytes).
+   On a GitHub fetch we write the blob into IndexedDB for next time.
+   Object URLs are never revoked (bounded by unique paths viewed),
+   keeping a few MB of URLs alive for the session. */
+
+const IDB_NAME  = "dininglog";
+const IDB_STORE = "photos";
+let _idbPromise = null;
+function idbOpen(){
+  if (_idbPromise) return _idbPromise;
+  _idbPromise = new Promise((resolve) => {
+    if (!("indexedDB" in window)){ resolve(null); return; }
+    let req;
+    try { req = indexedDB.open(IDB_NAME, 1); }
+    catch(e){ logMsg("ERROR","IndexedDB open threw: " + e.message); resolve(null); return; }
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)){
+        db.createObjectStore(IDB_STORE, { keyPath:"path" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => { logMsg("ERROR","IndexedDB open failed"); resolve(null); };
+  });
+  return _idbPromise;
+}
+async function idbGetBlob(path){
+  const db = await idbOpen();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx  = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get(path);
+      req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+      req.onerror   = () => resolve(null);
+    } catch(e){ resolve(null); }
+  });
+}
+async function idbPutBlob(path, blob){
+  const db = await idbOpen();
+  if (!db) return;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put({ path:path, blob:blob, cachedAt:Date.now() });
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => resolve();
+    } catch(e){ resolve(); }
+  });
+}
+
+const PHOTO_CACHE = new Map();   // path -> Promise<blobUrl>
 function getPhotoBlobUrl(cfg, path){
   if (!path) return Promise.resolve(null);
   if (PHOTO_CACHE.has(path)) return PHOTO_CACHE.get(path);
-  if (!cfg || !cfg.githubToken){
-    return Promise.reject(new Error("Not connected to GitHub"));
-  }
-  const p = ghGetBinaryFile(cfg, path).then(res => {
-    if (!res.found) throw new Error("Photo not found: " + path);
-    const mime = path.match(/\.png$/i) ? "image/png" : "image/jpeg";
-    const blob = base64ToBlob(res.base64, mime);
+  const p = (async () => {
+    // Tier 2: persistent disk cache (instant, offline-friendly)
+    try {
+      const cached = await idbGetBlob(path);
+      if (cached){
+        logMsg("IMAGE","Photo from local cache: " + path);
+        return URL.createObjectURL(cached);
+      }
+    } catch(e){ /* fall through to network */ }
+    // Tier 3: fetch raw bytes from GitHub
+    if (!cfg || !cfg.githubToken) throw new Error("Not connected to GitHub");
+    const blob = await ghGetRawFile(cfg, path);
+    // persist for next time (fire and forget - don't block render)
+    idbPutBlob(path, blob).catch(()=>{});
     return URL.createObjectURL(blob);
-  }).catch(err => {
-    // remove from cache so the next view retries
+  })().catch(err => {
+    // drop from memory cache so a later view retries
     PHOTO_CACHE.delete(path);
     throw err;
   });
   PHOTO_CACHE.set(path, p);
   return p;
 }
-/* Drop a path from the cache (e.g. after re-uploading a restaurant
-   photo so the next render fetches the new bytes). */
+/* Drop a path from the in-memory cache (e.g. after re-uploading a
+   restaurant photo so the next render uses the new object URL). The
+   IndexedDB copy is overwritten by seedPhoto's put, so no delete needed. */
 function invalidatePhoto(path){
   if (path && PHOTO_CACHE.has(path)) PHOTO_CACHE.delete(path);
 }
-/* Pre-seed the cache with a freshly resized blob - lets the UI show
-   a just-uploaded photo instantly without round-tripping to GitHub. */
+/* Pre-seed both cache tiers with a freshly resized blob - lets the UI
+   show a just-uploaded photo instantly, and persists it so it stays
+   instant on later sessions without ever fetching from GitHub. */
 function seedPhoto(path, blob){
   if (!path || !blob) return;
   const url = URL.createObjectURL(blob);
   PHOTO_CACHE.set(path, Promise.resolve(url));
+  idbPutBlob(path, blob).catch(()=>{});
 }
 
 /* ============================================================
@@ -2744,6 +2836,51 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
           </div>
         </div>
 
+        {/* Photos - up to 3 per visit. Placed high in the form (right after
+            rating) so it isn't buried under the long dish picker. */}
+        <div className="fld">
+          <span className="lbl">
+            Photos <span className="faint" style={{fontWeight:400}}>
+              ({photoSlots.length} / {MAX_PHOTOS})
+            </span>
+          </span>
+          <input ref={photoFileRef} type="file" accept="image/*" multiple
+            style={{display:"none"}} onChange={onVisitPhotoFiles} />
+          <div className="visit-photos">
+            {photoSlots.map((s, i) => (
+              <div key={i} className="visit-photo">
+                {s.kind === "pending" && s.previewUrl && (
+                  <img className="photo-img" src={s.previewUrl} alt="" />
+                )}
+                {s.kind === "existing" && cfg && (
+                  <PhotoImg cfg={cfg} path={s.path} />
+                )}
+                <div className="photo-remove" onClick={()=> removePhotoSlot(i)}>
+                  <Icon name="close" size={14} color="#e8dac6" />
+                </div>
+              </div>
+            ))}
+            {photoSlots.length < MAX_PHOTOS && (
+              <div className="photo-slot"
+                onClick={()=> { if (!photoBusy) photoFileRef.current.click(); }}>
+                <div>
+                  <div className="ic"><Icon name="plus" size={20} color="#80715f" /></div>
+                  <div>{photoSlots.length ? "Add" : "Add photos"}</div>
+                </div>
+              </div>
+            )}
+          </div>
+          {photoBusy && (
+            <div className="tiny faint" style={{marginTop:6}}>Preparing photo&hellip;</div>
+          )}
+          {!photoBusy && photoSlots.some(s => s.kind === "pending") && (
+            <div className="tiny faint" style={{marginTop:6}}>
+              {photoSlots.filter(s => s.kind === "pending").length} new photo(s) will
+              upload when you tap Save.
+            </div>
+          )}
+        </div>
+
         <div className="fld">
           <span className="lbl">What you had</span>
           <div className="row" style={{gap:8}}>
@@ -2800,50 +2937,6 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
           <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
             placeholder="How was it? Who were you with? Worth returning?" />
         </label>
-
-        {/* Photos - up to 3 per visit */}
-        <div className="fld">
-          <span className="lbl">
-            Photos <span className="faint" style={{fontWeight:400}}>
-              ({photoSlots.length} / {MAX_PHOTOS})
-            </span>
-          </span>
-          <input ref={photoFileRef} type="file" accept="image/*" multiple
-            style={{display:"none"}} onChange={onVisitPhotoFiles} />
-          <div className="visit-photos">
-            {photoSlots.map((s, i) => (
-              <div key={i} className="visit-photo">
-                {s.kind === "pending" && s.previewUrl && (
-                  <img className="photo-img" src={s.previewUrl} alt="" />
-                )}
-                {s.kind === "existing" && cfg && (
-                  <PhotoImg cfg={cfg} path={s.path} />
-                )}
-                <div className="photo-remove" onClick={()=> removePhotoSlot(i)}>
-                  <Icon name="close" size={14} color="#e8dac6" />
-                </div>
-              </div>
-            ))}
-            {photoSlots.length < MAX_PHOTOS && (
-              <div className="photo-slot"
-                onClick={()=> { if (!photoBusy) photoFileRef.current.click(); }}>
-                <div>
-                  <div className="ic"><Icon name="plus" size={20} color="#80715f" /></div>
-                  <div>{photoSlots.length ? "Add" : "Add photos"}</div>
-                </div>
-              </div>
-            )}
-          </div>
-          {photoBusy && (
-            <div className="tiny faint" style={{marginTop:6}}>Preparing photo&hellip;</div>
-          )}
-          {!photoBusy && photoSlots.some(s => s.kind === "pending") && (
-            <div className="tiny faint" style={{marginTop:6}}>
-              {photoSlots.filter(s => s.kind === "pending").length} new photo(s) will
-              upload when you tap Save.
-            </div>
-          )}
-        </div>
 
         {onDelete && (
           !confirmDel ? (
