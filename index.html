@@ -270,7 +270,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.4.2";
+const APP_VERSION   = "1.4.3";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2123,31 +2123,25 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
   const [label,setLabel]       = useState(presetMenu ? (presetMenu.label || "") : "");
-  // Per-section disposition for multi-section new scans.
-  // Each entry: { extract: string, folded: boolean }.
-  //   folded=false  -> section is its own menu named `extract`
-  //   folded=true   -> section is rolled into the "main menu" (mainLabel)
-  // Defaults: every section is its own menu, extract = OCR-detected section name.
-  // Same `extract` value across multiple sections means those sections merge
-  // into one menu with that label and multiple subsections.
-  const [sectionStates,setSectionStates] = useState([]);
-  const [mainLabel,setMainLabel]         = useState("");
+  // Top-level save mode for multi-section new scans:
+  //   "one"    -> save all sections as subsections of one menu named `label`
+  //   "custom" -> per-section: each section has its own destination label;
+  //               sections with the same label merge into one menu.
+  // Re-scans and single-section scans always use `label` (no mode toggle).
+  const [saveMode,setSaveMode]         = useState("one");
+  // string[] aligned to result.sections, used only in "custom" mode
+  const [sectionExtracts,setSectionExtracts] = useState([]);
   const fileRef     = useRef(null);
   const labelRef    = useRef(null);
-  const mainLabelRef = useRef(null);
-  // refs for each section's "own menu" input, keyed by section index;
-  // used by the per-section "Other..." pill to focus the right input
+  // refs for each section's input in custom mode (for the per-section Other... pill)
   const sectionInputRefs = useRef({});
 
-  // when OCR completes, initialize per-section disposition: each section is its
-  // own menu by default, named after the OCR-detected section
+  // when OCR completes, initialize per-section labels to the OCR-detected names
+  // and reset save mode to the simple "one menu" default
   useEffect(()=>{
     if (!result) return;
-    setSectionStates((result.sections || []).map(s => ({
-      extract: s.name || "",
-      folded:  false,
-    })));
-    setMainLabel("");
+    setSectionExtracts((result.sections || []).map(s => s.name || ""));
+    setSaveMode("one");
   },[result]);
 
   async function onFiles(e){
@@ -2228,16 +2222,13 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         sections:      sections,
         raw_text:      result.raw_text || "",
       }];
-    } else if (sections.length >= 2){
-      // multi-section new scan: group sections by destination label.
-      // Folded sections share the mainLabel; non-folded use their extract name.
+    } else if (sections.length >= 2 && saveMode === "custom"){
+      // customize mode: group sections by destination label.
       // Same-label sections merge into one menu with multiple subsections.
       const groups = new Map();           // destLabel -> sections[]
-      const mainTrim = (mainLabel || "").trim();
       sections.forEach((s, i) => {
-        const st = sectionStates[i] || { extract: s.name || "", folded: false };
-        const dest = st.folded ? mainTrim : (st.extract || "").trim();
-        if (!dest) return;                // safety: should be blocked by canSave
+        const dest = (sectionExtracts[i] || "").trim();
+        if (!dest) return;                // safety: blocked by canSave
         if (!groups.has(dest)) groups.set(dest, []);
         groups.get(dest).push(s);
       });
@@ -2252,7 +2243,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         raw_text:      "",
       }));
     } else {
-      // single-section new scan: just one menu, label from the main label input
+      // "one menu" mode (or single-section): one menu containing all sections
       menusToSave = [{
         menu_id:       uid("menu"),
         label:         (label || "").trim() || "Menu",
@@ -2274,32 +2265,29 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
   // ---- review-step helpers ----
   const sectionCount = result ? (result.sections || []).length : 0;
-  const showExtractionUI = !presetMenu && sectionCount >= 2;
-  const foldedCount  = sectionStates.filter(st => st && st.folded).length;
-  const needsMain    = foldedCount > 0;
+  // top-level toggle is only shown for multi-section new scans
+  const showModeToggle = !presetMenu && sectionCount >= 2;
+  const inCustomMode   = showModeToggle && saveMode === "custom";
 
-  // for the extraction UI: every non-folded section needs a non-empty extract label
-  const allOwnMenusLabeled = sectionStates.every(st =>
-    !st || st.folded || (st.extract || "").trim().length > 0);
-  const mainLabelOk = !needsMain || (mainLabel || "").trim().length > 0;
+  // in custom mode every section needs a non-empty destination
+  const allCustomLabeled = !inCustomMode || sectionExtracts.every(v =>
+    (v || "").trim().length > 0);
 
-  // build a live preview of the destination menus so we can show counts + the
-  // save-button label without re-running the full save() logic
+  // build a live preview of the destination menus
   function previewDestinations(){
     if (!result) return [];
     if (presetMenu){
       return [{ label: (label || "").trim() || presetMenu.label || "Menu",
                 sectionCount: sectionCount }];
     }
-    if (sectionCount < 2){
+    if (!inCustomMode){
+      // one-menu mode (or single-section): preview is just the one menu
       return [{ label: (label || "").trim() || "Menu",
                 sectionCount: sectionCount }];
     }
     const groups = new Map();
-    const mainTrim = (mainLabel || "").trim();
     (result.sections || []).forEach((s, i) => {
-      const st = sectionStates[i] || { extract: s.name || "", folded: false };
-      const dest = st.folded ? mainTrim : (st.extract || "").trim();
+      const dest = (sectionExtracts[i] || "").trim();
       if (!dest) return;
       if (!groups.has(dest)) groups.set(dest, 0);
       groups.set(dest, groups.get(dest) + 1);
@@ -2312,39 +2300,30 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
   const canSave = !!result &&
     (restId || newName.trim() || (result && result.restaurant_name)) &&
-    (showExtractionUI
-      ? allOwnMenusLabeled && mainLabelOk && previewMenus.length > 0
+    (inCustomMode
+      ? allCustomLabeled && previewMenus.length > 0
       : !!(label || "").trim() || !!presetMenu);
 
-  // "Other..." pill is active when the typed label doesn't match any predefined pill
+  // "Other..." pill state for the single label input (one-menu / re-scan / 1-section)
   const trimmedLabel = label.trim();
   const otherActive = !!trimmedLabel &&
     LABEL_SUGGESTIONS.indexOf(trimmedLabel) === -1;
-  const trimmedMain = mainLabel.trim();
-  const mainOtherActive = !!trimmedMain &&
-    LABEL_SUGGESTIONS.indexOf(trimmedMain) === -1;
 
-  // per-section actions
-  function toggleFold(idx){
-    setSectionStates(prev => prev.map((st, i) =>
-      i === idx ? Object.assign({}, st, { folded: !st.folded }) : st));
-  }
-  function setExtractName(idx, v){
-    setSectionStates(prev => prev.map((st, i) =>
-      i === idx ? Object.assign({}, st, { extract: v }) : st));
-  }
-  function focusMainOther(){
-    setMainLabel("");
-    setTimeout(()=> { if (mainLabelRef.current) mainLabelRef.current.focus(); }, 0);
+  // per-section helpers (custom mode)
+  function setExtractAt(idx, v){
+    setSectionExtracts(prev => {
+      const next = prev.slice();
+      next[idx] = v;
+      return next;
+    });
   }
   function focusSectionOther(idx){
-    setExtractName(idx, "");
+    setExtractAt(idx, "");
     setTimeout(()=> {
       const el = sectionInputRefs.current[idx];
       if (el) el.focus();
     }, 0);
   }
-  // returns true when an extract value is non-empty AND not one of the predefined pills
   function isSectionOtherActive(v){
     const t = (v || "").trim();
     return !!t && LABEL_SUGGESTIONS.indexOf(t) === -1;
@@ -2412,8 +2391,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           <div>
             <div className="card small muted">
               Review the digitized menu, choose which restaurant it belongs to,
-              then name it. You can save each detected section as its own menu
-              or fold them into one.
+              then name it.
             </div>
 
             <label className="fld"><span className="lbl">Save menu to</span>
@@ -2432,8 +2410,37 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               </label>
             )}
 
-            {/* ===== single-label path: re-scan OR 1-section new scan ===== */}
-            {!showExtractionUI && (
+            {/* ===== top-level toggle, only for multi-section new scans ===== */}
+            {showModeToggle && (
+              <div className="card" style={{padding:"12px 14px",marginTop:4}}>
+                <div className="small" style={{fontWeight:600,marginBottom:8}}>
+                  How to save
+                </div>
+                <label className="row" style={{gap:10,marginBottom:8,alignItems:"flex-start"}}>
+                  <input type="radio" checked={saveMode === "one"}
+                    onChange={()=> setSaveMode("one")}
+                    style={{marginTop:3}} />
+                  <span className="small">
+                    <strong>One menu</strong> &mdash; save all {sectionCount} detected
+                    sections as subsections of a single menu.
+                  </span>
+                </label>
+                <label className="row" style={{gap:10,alignItems:"flex-start"}}>
+                  <input type="radio" checked={saveMode === "custom"}
+                    onChange={()=> setSaveMode("custom")}
+                    style={{marginTop:3}} />
+                  <span className="small">
+                    <strong>Customize each section</strong> &mdash; assign each section
+                    its own destination. Sections sharing the same name merge into
+                    one menu with multiple subsections.
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {/* ===== ONE-MENU PATH: single label input ===== */}
+            {/* (covers: re-scan, 1-section new scan, and 2+ sections in "one" mode) */}
+            {(!showModeToggle || saveMode === "one") && (
               <label className="fld">
                 <span className="lbl">
                   Menu name {presetMenu &&
@@ -2462,115 +2469,15 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               </label>
             )}
 
-            {/* ===== multi-section new scan: per-section disposition ===== */}
-            {showExtractionUI && (
+            {/* ===== CUSTOMIZE PATH: per-section labels (no fold button) ===== */}
+            {inCustomMode && (
               <div>
-                <div className="divider-label" style={{marginTop:16}}>
-                  Sections detected ({sectionCount})
-                </div>
-                <div className="small muted" style={{marginBottom:10,padding:"0 2px"}}>
-                  By default each section is saved as its own menu. Tap
-                  <strong> Fold into main</strong> on a section to roll it into
-                  one larger menu instead. Sections that share the same name
-                  merge into one menu.
-                </div>
-
-                {(result.sections || []).map((s,i) => {
-                  const st = sectionStates[i] || { extract: s.name || "", folded: false };
-                  const itemCount = (s.items || []).length;
-                  return (
-                    <div key={i} className="card"
-                      style={{
-                        padding:"12px 14px",
-                        marginBottom:8,
-                        opacity: st.folded ? 0.85 : 1,
-                        borderColor: st.folded ? "var(--line)" : "rgba(224,118,74,0.25)"
-                      }}>
-                      <div className="between" style={{marginBottom:8,alignItems:"flex-start"}}>
-                        <div style={{minWidth:0,flex:1}}>
-                          <div className="small" style={{
-                            fontWeight:600,
-                            color: st.folded ? "var(--text-dim)" : "var(--text)"
-                          }}>
-                            {s.name || "Section"}
-                          </div>
-                          <div className="tiny faint" style={{marginTop:2}}>
-                            {itemCount} item{itemCount === 1 ? "" : "s"}
-                            {st.folded ? "  \u00b7  In main menu" : "  \u00b7  Own menu"}
-                          </div>
-                        </div>
-                        <button className="btn ghost sm"
-                          onClick={()=> toggleFold(i)}
-                          style={{flex:"none",padding:"6px 10px",fontSize:12}}>
-                          {st.folded ? "Make own menu" : "Fold into main"}
-                        </button>
-                      </div>
-                      {!st.folded && (
-                        <div>
-                          <input
-                            ref={el => { sectionInputRefs.current[i] = el; }}
-                            className="input"
-                            value={st.extract}
-                            onChange={e=> setExtractName(i, e.target.value)}
-                            placeholder={s.name || "Menu name"} />
-                          <div className="chips" style={{marginTop:8}}>
-                            {LABEL_SUGGESTIONS.map(p => (
-                              <span key={p}
-                                className={"chip pick" + (st.extract === p ? " on" : "")}
-                                onClick={()=> setExtractName(i, p)}>{p}</span>
-                            ))}
-                            <span
-                              className={"chip pick" +
-                                (isSectionOtherActive(st.extract) ? " on" : "")}
-                              onClick={()=> focusSectionOther(i)}>
-                              Other...
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* main menu name appears only when at least one section is folded */}
-                {needsMain && (
-                  <label className="fld" style={{marginTop:14}}>
-                    <span className="lbl">
-                      Main menu name &middot; {foldedCount} section{foldedCount === 1 ? "" : "s"}
-                    </span>
-                    <input ref={mainLabelRef} className="input"
-                      value={mainLabel}
-                      onChange={e=> setMainLabel(e.target.value)}
-                      placeholder="e.g. Food, Drinks..." />
-                    <div className="chips" style={{marginTop:8}}>
-                      {LABEL_SUGGESTIONS.map(s => (
-                        <span key={s}
-                          className={"chip pick" + (mainLabel === s ? " on" : "")}
-                          onClick={()=> setMainLabel(s)}>{s}</span>
-                      ))}
-                      <span
-                        className={"chip pick" + (mainOtherActive ? " on" : "")}
-                        onClick={focusMainOther}>
-                        Other...
-                      </span>
-                    </div>
-                  </label>
-                )}
-
-                {!allOwnMenusLabeled && (
-                  <div className="tiny faint" style={{marginTop:6,padding:"0 2px"}}>
-                    Every "own menu" section needs a name before you can save.
-                  </div>
-                )}
-                {needsMain && !mainLabelOk && (
-                  <div className="tiny faint" style={{marginTop:6,padding:"0 2px"}}>
-                    The main menu needs a name before you can save.
-                  </div>
-                )}
-
-                {/* live preview of what will be saved */}
+                {/* live preview at TOP so merges are visible as you make them */}
                 {previewMenus.length > 0 && (
-                  <div className="card" style={{marginTop:12,padding:"10px 14px"}}>
+                  <div className="card" style={{
+                    padding:"10px 14px",marginTop:4,
+                    border:"1px solid rgba(224,118,74,0.35)"
+                  }}>
                     <div className="tiny faint" style={{
                       textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6
                     }}>
@@ -2584,6 +2491,60 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                         </span>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                <div className="divider-label" style={{marginTop:16}}>
+                  Sections detected ({sectionCount})
+                </div>
+                <div className="small muted" style={{marginBottom:10,padding:"0 2px"}}>
+                  Give each section a destination name. Sections sharing the same
+                  name (e.g. tap <strong>Cocktails</strong> on two sections) merge
+                  into one menu with multiple subsections.
+                </div>
+
+                {(result.sections || []).map((s,i) => {
+                  const ext = sectionExtracts[i] || "";
+                  const itemCount = (s.items || []).length;
+                  return (
+                    <div key={i} className="card" style={{
+                      padding:"12px 14px",marginBottom:8,
+                      borderColor:"rgba(224,118,74,0.25)"
+                    }}>
+                      <div style={{marginBottom:8}}>
+                        <div className="small" style={{fontWeight:600}}>
+                          {s.name || "Section"}
+                        </div>
+                        <div className="tiny faint" style={{marginTop:2}}>
+                          {itemCount} item{itemCount === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                      <input
+                        ref={el => { sectionInputRefs.current[i] = el; }}
+                        className="input"
+                        value={ext}
+                        onChange={e=> setExtractAt(i, e.target.value)}
+                        placeholder={s.name || "Menu name"} />
+                      <div className="chips" style={{marginTop:8}}>
+                        {LABEL_SUGGESTIONS.map(p => (
+                          <span key={p}
+                            className={"chip pick" + (ext === p ? " on" : "")}
+                            onClick={()=> setExtractAt(i, p)}>{p}</span>
+                        ))}
+                        <span
+                          className={"chip pick" +
+                            (isSectionOtherActive(ext) ? " on" : "")}
+                          onClick={()=> focusSectionOther(i)}>
+                          Other...
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {!allCustomLabeled && (
+                  <div className="tiny faint" style={{marginTop:6,padding:"0 2px"}}>
+                    Every section needs a destination name before you can save.
                   </div>
                 )}
               </div>
