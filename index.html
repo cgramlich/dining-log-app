@@ -257,6 +257,77 @@
       width:72px; height:72px; border-radius:9px; object-fit:cover;
       border:1px solid var(--line);
     }
+
+    /* ===== Restaurant + visit photos ===== */
+    .photo-img{display:block; object-fit:cover; max-width:100%;}
+    .photo-shell{
+      display:flex; align-items:center; justify-content:center;
+      background:var(--surface-2); border:1px solid var(--line);
+      color:var(--text-faint);
+    }
+    .photo-shell.loading{
+      background:linear-gradient(90deg, var(--surface-2) 0%, #2a221d 50%, var(--surface-2) 100%);
+      background-size:200% 100%; animation:photoshimmer 1.4s ease-in-out infinite;
+      border:1px solid var(--line);
+    }
+    @keyframes photoshimmer{
+      0%{background-position:200% 0;} 100%{background-position:-200% 0;}
+    }
+    /* Restaurant hero photo on the detail page */
+    .rest-hero{
+      width:100%; height:200px; border-radius:13px;
+      margin-bottom:14px; overflow:hidden;
+    }
+    .rest-hero .photo-img, .rest-hero.photo-shell{
+      width:100%; height:200px; border-radius:13px;
+    }
+    /* Small restaurant thumbnail on the Places-tab list cards */
+    .rest-thumb{
+      width:56px; height:56px; border-radius:10px; flex:none;
+      overflow:hidden; margin-right:12px;
+    }
+    .rest-thumb .photo-img, .rest-thumb.photo-shell{
+      width:56px; height:56px; border-radius:10px;
+    }
+    /* Visit photo strip inside a visit card */
+    .visit-photos{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+    .visit-photo{
+      width:88px; height:88px; border-radius:10px; overflow:hidden;
+      position:relative; flex:none;
+    }
+    .visit-photo .photo-img, .visit-photo.photo-shell{
+      width:88px; height:88px; border-radius:10px;
+    }
+
+    /* Photo editor (in restaurant + visit forms) */
+    .photo-editor{
+      display:flex; align-items:center; gap:12px;
+      padding:12px; background:var(--surface); border:1px solid var(--line);
+      border-radius:12px; margin-bottom:13px;
+    }
+    .photo-editor .photo-img, .photo-editor .photo-shell{
+      width:72px; height:72px; border-radius:10px; flex:none;
+    }
+    .photo-slot{
+      width:88px; height:88px; border-radius:10px; flex:none;
+      background:var(--surface); border:1px dashed var(--line);
+      display:flex; align-items:center; justify-content:center;
+      color:var(--text-faint); font-size:11px; text-align:center; cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .photo-slot:active{ background:var(--surface-2); border-color:var(--accent); }
+    .photo-slot .ic{ display:block; margin-bottom:3px; }
+    .photo-remove{
+      position:absolute; top:4px; right:4px; width:22px; height:22px;
+      border-radius:50%; background:rgba(20,17,14,0.85);
+      border:1px solid var(--line);
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; -webkit-tap-highlight-color:transparent;
+    }
+    .photo-progress{
+      font-size:11px; color:var(--text-faint); margin-top:6px;
+      padding:0 2px; font-style:italic;
+    }
     a{color:var(--accent);}
   </style>
 </head>
@@ -270,7 +341,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.4.4";
+const APP_VERSION   = "1.5.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -370,28 +441,239 @@ function loadImage(src){
     img.src = src;
   });
 }
-/* Resize a photo down to a sane edge length before sending to the
-   vision API. Keeps OCR legible while controlling token cost. */
-async function resizeForOcr(file, maxEdge){
-  maxEdge = maxEdge || 1568;
-  const dataUrl = await fileToDataUrl(file);
-  const img = await loadImage(dataUrl);
-  let w = img.naturalWidth, h = img.naturalHeight;
+
+/* ============================================================
+   IMAGE RESIZE PIPELINE (faster, iOS-friendly)
+   ============================================================
+   Decode via createImageBitmap when available - skips FileReader
+   entirely and uses native image decoders, which on iOS is
+   meaningfully faster and uses less memory than FileReader +
+   <img> + canvas.
+
+   Returns a Blob (not a data URL) so callers don't pay the base64
+   inflation cost twice. dataUrlFromBlob() converts when a data URL
+   is actually needed (e.g. for the Anthropic vision API). */
+async function decodeImage(file){
+  if (typeof createImageBitmap === "function"){
+    try {
+      // EXIF orientation honored automatically on modern Safari
+      return await createImageBitmap(file, { imageOrientation:"from-image" });
+    } catch(e){
+      // some Safari versions choke on the options bag - retry without it
+      try { return await createImageBitmap(file); }
+      catch(e2){ /* fall through to FileReader path */ }
+    }
+  }
+  // legacy fallback - slower but works everywhere
+  const url = await fileToDataUrl(file);
+  return await loadImage(url);
+}
+
+async function resizeImageToBlob(file, maxEdge, quality){
+  maxEdge = maxEdge || 1200;
+  quality = quality || 0.82;
+  const src = await decodeImage(file);
+  const sw = src.width  || src.naturalWidth  || 0;
+  const sh = src.height || src.naturalHeight || 0;
+  if (!sw || !sh) throw new Error("Decoded image has zero size");
+  let w = sw, h = sh;
   if (Math.max(w,h) > maxEdge){
     const scale = maxEdge / Math.max(w,h);
     w = Math.round(w*scale); h = Math.round(h*scale);
   }
   const canvas = document.createElement("canvas");
   canvas.width = w; canvas.height = h;
-  canvas.getContext("2d").drawImage(img,0,0,w,h);
-  const out = canvas.toDataURL("image/jpeg",0.82);
-  logMsg("IMAGE","Resized photo to " + w + "x" + h + " (" +
-         Math.round(out.length/1365) + " KB approx)");
-  return out;                                          // data:image/jpeg;base64,...
+  canvas.getContext("2d").drawImage(src,0,0,w,h);
+  // free the ImageBitmap so the GC reclaims memory promptly on iOS
+  if (src.close) try { src.close(); } catch(e){}
+  const blob = await new Promise((resolve,reject)=>{
+    canvas.toBlob(b => b ? resolve(b) : reject(new Error("Canvas encode failed")),
+                  "image/jpeg", quality);
+  });
+  logMsg("IMAGE","Resized photo to " + w + "x" + h +
+                  " (" + Math.round(blob.size/1024) + " KB)");
+  return blob;
+}
+
+/* Convert a Blob into a data URL. Used when we need a data URL
+   (e.g. Anthropic vision API needs base64 strings). */
+function blobToDataUrl(blob){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload  = () => resolve(r.result);
+    r.onerror = () => reject(new Error("Could not read blob"));
+    r.readAsDataURL(blob);
+  });
+}
+/* Convert a Blob into raw base64 (no data URL prefix). Used to
+   stage binary file payloads for the GitHub Contents API. */
+function blobToBase64(blob){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload  = () => {
+      // result is "data:<mime>;base64,<b64>" - strip the prefix
+      const s = r.result || "";
+      const comma = s.indexOf(",");
+      resolve(comma >= 0 ? s.slice(comma+1) : s);
+    };
+    r.onerror = () => reject(new Error("Could not read blob"));
+    r.readAsDataURL(blob);
+  });
+}
+/* Convert base64 (no prefix) into a Blob of the given mime type. */
+function base64ToBlob(b64, mime){
+  const clean = (b64 || "").replace(/\s/g,"");
+  const bin   = atob(clean);
+  const arr   = new Uint8Array(bin.length);
+  for (let i=0; i<bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime || "application/octet-stream" });
+}
+
+/* Resize a photo down to a sane edge length before sending to the
+   vision API. Keeps OCR legible while controlling token cost.
+   Returns a data URL (the vision API needs base64 strings). */
+async function resizeForOcr(file, maxEdge){
+  // Slightly smaller default (1200) than the legacy 1568 - still legible
+  // for OCR, much faster to encode, and noticeably easier on iOS memory.
+  const blob = await resizeImageToBlob(file, maxEdge || 1200, 0.82);
+  return await blobToDataUrl(blob);
+}
+
+/* Binary variants of the GitHub Contents API helpers for photo files.
+   Photos are stored as JPEGs alongside the JSON data files in the same
+   private repo. The Contents API uses base64 for ALL file payloads
+   (binary or text), so the binary helpers are nearly identical to the
+   JSON ones - they just take/return raw base64 instead of JSON. */
+async function ghGetBinaryFile(cfg, path){
+  // Returns { found:true, base64, sha, mime } or { found:false }
+  const url = GH_API + "/repos/" + cfg.githubUser + "/" + cfg.githubRepo +
+              "/contents/" + path;
+  logMsg("GITHUB","GET binary " + path);
+  let res;
+  try {
+    res = await fetch(url, { headers:{
+      "Authorization":"Bearer " + cfg.githubToken,
+      "Accept":"application/vnd.github+json",
+    }});
+  } catch(err){
+    logMsg("ERROR","GitHub GET binary network failure: " + err.message);
+    throw new Error("Network error reaching GitHub");
+  }
+  if (res.status === 404){
+    logMsg("GITHUB",path + " not found (404)");
+    return { found:false };
+  }
+  if (res.status === 401){
+    throw new Error("GitHub rejected the token (401). Check your token in Settings.");
+  }
+  if (!res.ok){
+    const body = await res.text().catch(()=> "");
+    logMsg("ERROR","GitHub GET binary " + path + " -> " + res.status + " " + body.slice(0,120));
+    throw new Error("GitHub GET failed (" + res.status + ")");
+  }
+  const json = await res.json();
+  return { found:true, base64:(json.content || "").replace(/\s/g,""), sha:json.sha };
+}
+
+async function ghPutBinaryFile(cfg, path, blob, sha){
+  // Uploads a Blob (jpeg/png/etc) to the given path. sha required when updating.
+  const url = GH_API + "/repos/" + cfg.githubUser + "/" + cfg.githubRepo +
+              "/contents/" + path;
+  const b64 = await blobToBase64(blob);
+  const body = {
+    message:"Update " + path + " via Dining Log",
+    content: b64,
+  };
+  if (sha) body.sha = sha;
+  logMsg("GITHUB","PUT binary " + path + " (" + Math.round(blob.size/1024) + " KB)" +
+                  (sha ? " (update)" : " (create)"));
+  let res;
+  try {
+    res = await fetch(url, {
+      method:"PUT",
+      headers:{
+        "Authorization":"Bearer " + cfg.githubToken,
+        "Accept":"application/vnd.github+json",
+        "Content-Type":"application/json",
+      },
+      body:JSON.stringify(body),
+    });
+  } catch(err){
+    logMsg("ERROR","GitHub PUT binary network failure: " + err.message);
+    throw new Error("Network error reaching GitHub");
+  }
+  if (res.status === 409){
+    logMsg("GITHUB","PUT binary " + path + " conflict (409)");
+    const err = new Error("conflict"); err.conflict = true; throw err;
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    logMsg("ERROR","GitHub PUT binary " + path + " -> " + res.status + " " + txt.slice(0,140));
+    throw new Error("GitHub PUT failed (" + res.status + ")");
+  }
+  const json = await res.json();
+  logMsg("GITHUB","Saved binary " + path + " (new sha " + json.content.sha.slice(0,7) + ")");
+  return json.content.sha;
 }
 
 /* ============================================================
+   PHOTO CACHE
+   ============================================================
+   Photos are fetched lazily on demand and cached for the session
+   as object URLs (created via URL.createObjectURL). We never revoke
+   the URLs - they live until the page reloads - but the cache is
+   bounded by the number of unique photo paths the user views, so
+   this stays well under a few MB of memory.
+
+   Cache value is a Promise<string> (blob URL) so concurrent callers
+   for the same path share a single fetch. */
+const PHOTO_CACHE = new Map();
+function getPhotoBlobUrl(cfg, path){
+  if (!path) return Promise.resolve(null);
+  if (PHOTO_CACHE.has(path)) return PHOTO_CACHE.get(path);
+  if (!cfg || !cfg.githubToken){
+    return Promise.reject(new Error("Not connected to GitHub"));
+  }
+  const p = ghGetBinaryFile(cfg, path).then(res => {
+    if (!res.found) throw new Error("Photo not found: " + path);
+    const mime = path.match(/\.png$/i) ? "image/png" : "image/jpeg";
+    const blob = base64ToBlob(res.base64, mime);
+    return URL.createObjectURL(blob);
+  }).catch(err => {
+    // remove from cache so the next view retries
+    PHOTO_CACHE.delete(path);
+    throw err;
+  });
+  PHOTO_CACHE.set(path, p);
+  return p;
+}
+/* Drop a path from the cache (e.g. after re-uploading a restaurant
+   photo so the next render fetches the new bytes). */
+function invalidatePhoto(path){
+  if (path && PHOTO_CACHE.has(path)) PHOTO_CACHE.delete(path);
+}
+/* Pre-seed the cache with a freshly resized blob - lets the UI show
+   a just-uploaded photo instantly without round-tripping to GitHub. */
+function seedPhoto(path, blob){
+  if (!path || !blob) return;
+  const url = URL.createObjectURL(blob);
+  PHOTO_CACHE.set(path, Promise.resolve(url));
+}
+
+/* ============================================================
+   PHOTO PATHS
+   ============================================================ */
+function restaurantPhotoPath(rid){
+  return "photos/restaurants/" + rid + ".jpg";
+}
+function visitPhotoPath(vid, idx){
+  return "photos/visits/" + vid + "_" + idx + ".jpg";
+}
+
+
+/* ============================================================
    MENUS MIGRATION
+   ============================================================
    Older versions stored one menu per restaurant as an object:
      menus[rid] = { sections, ... }
    v1.3+ supports multiple menus per restaurant as an array:
@@ -804,6 +1086,7 @@ function Icon({name, size, color}){
     check:   <path d="M5 12l5 5L20 6"/>,
     back:    <path d="M15 6l-6 6 6 6"/>,
     image:   <g><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M4 17l5-4 4 3 4-4 4 4"/></g>,
+    close:   <g><path d="M6 6l12 12M18 6 6 18"/></g>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
 }
@@ -820,6 +1103,46 @@ function Stars({value, size}){
       ))}
     </span>
   );
+}
+
+/* PhotoImg - lazy-loads a photo by path from the data repo and renders
+   it as an <img>. Shows a soft placeholder while loading, and a small
+   icon if the fetch fails. Uses the module-level PHOTO_CACHE so the
+   same path is only fetched once per session. */
+function PhotoImg({cfg, path, alt, className, style, onClick}){
+  const [url, setUrl] = useState(null);
+  const [err, setErr] = useState(false);
+  useEffect(()=>{
+    if (!path || !cfg){ setUrl(null); setErr(false); return; }
+    let mounted = true;
+    setErr(false); setUrl(null);
+    getPhotoBlobUrl(cfg, path).then(u => {
+      if (mounted) setUrl(u);
+    }).catch(e => {
+      if (mounted){
+        logMsg("ERROR","Photo load failed for " + path + ": " + e.message);
+        setErr(true);
+      }
+    });
+    return ()=> { mounted = false; };
+  },[path, cfg && cfg.githubToken]);
+  if (err){
+    return (
+      <div className={"photo-shell err " + (className || "")} style={style}
+           onClick={onClick}>
+        <Icon name="image" size={20} color="#5a5045" />
+      </div>
+    );
+  }
+  if (!url){
+    return (
+      <div className={"photo-shell loading " + (className || "")} style={style}
+           onClick={onClick} />
+    );
+  }
+  return <img src={url} alt={alt || ""}
+              className={"photo-img " + (className || "")} style={style}
+              onClick={onClick} />;
 }
 
 /* ============================================================
@@ -1033,6 +1356,40 @@ function App(){
   }
 
   /* ---- commit a change and push to GitHub ------------------ */
+  /* ---- photo uploads ---------------------------------------
+     Uploads a batch of photo blobs to their paths in the data repo,
+     then folds the new SHAs into the shas state map and persists
+     them to localStorage. Photo files live alongside the JSON files
+     in the same private repo, so they share the same auth path. */
+  async function uploadPhotoBatch(uploads){
+    // uploads: array of { path, blob }
+    // returns: same array shape (rejects on first failure)
+    if (!uploads || !uploads.length) return [];
+    if (!configComplete(config)) throw new Error("Not configured");
+    const nextShas = Object.assign({}, shas);
+    for (const u of uploads){
+      let newSha;
+      try {
+        newSha = await ghPutBinaryFile(config, u.path, u.blob, nextShas[u.path]);
+      } catch(err){
+        if (err.conflict){
+          // file moved under us - refetch sha and retry once
+          logMsg("SYNC","Resolving photo conflict on " + u.path);
+          const fresh = await ghGetBinaryFile(config, u.path);
+          newSha = await ghPutBinaryFile(config, u.path, u.blob, fresh.sha);
+        } else throw err;
+      }
+      nextShas[u.path] = newSha;
+      // bust any stale cache entry and seed the new bytes so the UI
+      // can render the upload immediately without a round-trip
+      invalidatePhoto(u.path);
+      seedPhoto(u.path, u.blob);
+    }
+    setShas(nextShas);
+    persist({ shas:nextShas });
+    return uploads;
+  }
+
   async function commit(updates, filesToPush){
     // updates: {restaurants?, menus?, visits?, locations?}; filesToPush: [logical names]
     const nextR = updates.restaurants !== undefined ? updates.restaurants : restaurants;
@@ -1129,11 +1486,13 @@ function App(){
       <div className="content">
         {tab === "history" && (
           <HistoryView visits={visits} restaurantById={restaurantById}
+            cfg={config}
             onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
         )}
         {tab === "restaurants" && (
           <RestaurantsView restaurants={restaurants} visits={visits}
             locations={locations}
+            cfg={config}
             activeFilter={placesFilter}
             onFilterChange={setPlacesFilter}
             onOpen={(r)=> setOverlay({ type:"restaurant", id:r.id })} />
@@ -1224,6 +1583,7 @@ function App(){
           restaurant={restaurantById(overlay.id)}
           menus={menus[overlay.id] || []}
           visits={visitsFor(overlay.id)}
+          cfg={config}
           onClose={()=> setOverlay(null)}
           onLogVisit={()=> setOverlay({ type:"logVisit", restaurantId:overlay.id })}
           onEdit={()=> setOverlay({ type:"editRestaurant", id:overlay.id })}
@@ -1268,15 +1628,33 @@ function App(){
         <RestaurantForm
           existing={overlay.type==="editRestaurant" ? restaurantById(overlay.id) : null}
           locations={locations}
+          cfg={config}
           onClose={()=> setOverlay(null)}
-          onSave={(rec, newLocationsToAdd)=>{
+          onSave={async (rec, extras)=>{
+            const newLocationsToAdd = (extras && extras.newLocationsToAdd) || [];
+            const photoBlob = extras && extras.photoBlob;
+            const photoPath = extras && extras.photoPath;
+
+            // Step 1: upload the photo first (if any) so we don't write a
+            // photo path into the JSON that doesn't actually exist in repo.
+            if (photoBlob && photoPath){
+              try {
+                await uploadPhotoBatch([{ path: photoPath, blob: photoBlob }]);
+                logMsg("SAVE","Uploaded restaurant photo to " + photoPath);
+              } catch(err){
+                logMsg("ERROR","Restaurant photo upload failed: " + err.message);
+                flash("Photo upload failed - " + err.message);
+                return;  // abort save; user can retry
+              }
+            }
+
             // resolve new location additions case-insensitively against the
             // master locations list. If the user typed "boston" but we already
             // have "Boston" saved, use the existing casing on the restaurant
             // and skip adding a duplicate.
             let nextLocations = locations;
             let recOut = rec;
-            const additions = newLocationsToAdd || [];
+            const additions = newLocationsToAdd;
             if (additions.length){
               const lcMap = new Map();
               locations.forEach(l => lcMap.set(l.toLowerCase(), l));
@@ -1332,8 +1710,24 @@ function App(){
           menus={menus}
           presetRestaurantId={overlay.restaurantId}
           existing={overlay.type==="editVisit" ? overlay.visit : null}
+          cfg={config}
           onClose={()=> setOverlay(null)}
-          onSave={(rec)=>{
+          onSave={async (rec, extras)=>{
+            const pendingUploads = (extras && extras.pendingUploads) || [];
+
+            // Step 1: upload any new photo blobs first so the JSON we commit
+            // doesn't reference paths that don't exist in the repo yet.
+            if (pendingUploads.length){
+              try {
+                await uploadPhotoBatch(pendingUploads);
+                logMsg("SAVE","Uploaded " + pendingUploads.length + " visit photo(s)");
+              } catch(err){
+                logMsg("ERROR","Visit photo upload failed: " + err.message);
+                flash("Photo upload failed - " + err.message);
+                return;  // abort save; user can retry
+              }
+            }
+
             let next;
             if (overlay.type === "editVisit"){
               next = visits.map(v => v.id===rec.id ? rec : v);
@@ -1429,7 +1823,7 @@ function TopBar({tab}){
 /* ============================================================
    HISTORY VIEW
    ============================================================ */
-function HistoryView({visits, restaurantById, onOpen}){
+function HistoryView({visits, restaurantById, cfg, onOpen}){
   if (!visits.length){
     return (
       <div className="empty">
@@ -1445,6 +1839,7 @@ function HistoryView({visits, restaurantById, onOpen}){
     <div>
       {sorted.map(v => {
         const r = restaurantById(v.restaurant_id);
+        const photos = Array.isArray(v.photos) ? v.photos.filter(Boolean) : [];
         return (
           <div key={v.id} className="card tap" onClick={()=> onOpen(v)}>
             <div className="between">
@@ -1459,6 +1854,15 @@ function HistoryView({visits, restaurantById, onOpen}){
                 {v.dishes.map((d,i)=> <span key={i} className="chip dish">{d.name}</span>)}
               </div>
             )}
+            {photos.length > 0 && (
+              <div className="visit-photos">
+                {photos.map((p,i)=> (
+                  <div key={i} className="visit-photo">
+                    <PhotoImg cfg={cfg} path={p} />
+                  </div>
+                ))}
+              </div>
+            )}
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
           </div>
         );
@@ -1470,7 +1874,7 @@ function HistoryView({visits, restaurantById, onOpen}){
 /* ============================================================
    RESTAURANTS VIEW
    ============================================================ */
-function RestaurantsView({restaurants, visits, locations, activeFilter, onFilterChange, onOpen}){
+function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpen}){
   if (!restaurants.length){
     return (
       <div className="empty">
@@ -1498,8 +1902,18 @@ function RestaurantsView({restaurants, visits, locations, activeFilter, onFilter
   const others = visible.filter(r => !r.favorite);
 
   const Card = (r)=> (
-    <div key={r.id} className="card tap" onClick={()=> onOpen(r)}>
-      <div className="between">
+    <div key={r.id} className="card tap" onClick={()=> onOpen(r)}
+      style={{display:"flex",alignItems:"center",gap:0}}>
+      {r.photo ? (
+        <div className="rest-thumb">
+          <PhotoImg cfg={cfg} path={r.photo} />
+        </div>
+      ) : (
+        <div className="rest-thumb photo-shell">
+          <Icon name="image" size={18} color="#5a5045" />
+        </div>
+      )}
+      <div className="between" style={{flex:1,minWidth:0}}>
         <div style={{minWidth:0}}>
           <div className="place-name">{r.name}</div>
           <div className="meta-line" style={{marginTop:4}}>
@@ -1557,7 +1971,7 @@ function RestaurantsView({restaurants, visits, locations, activeFilter, onFilter
 /* ============================================================
    RESTAURANT DETAIL
    ============================================================ */
-function RestaurantDetail({restaurant, menus, visits, onClose, onLogVisit,
+function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onOpenMenu,
                            onToggleFav, onDelete}){
   const [confirmDel, setConfirmDel] = useState(false);
@@ -1581,6 +1995,11 @@ function RestaurantDetail({restaurant, menus, visits, onClose, onLogVisit,
         </button>
       </div>
       <div className="ovbody">
+        {r.photo && cfg && (
+          <div className="rest-hero">
+            <PhotoImg cfg={cfg} path={r.photo} />
+          </div>
+        )}
         <div className="meta-line">
           {r.cuisine || "Restaurant"}
           {r.location ? "  \u00b7  " + r.location : ""}
@@ -1666,20 +2085,32 @@ function RestaurantDetail({restaurant, menus, visits, onClose, onLogVisit,
             No visits logged here yet.
           </div>
         )}
-        {visits.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(v => (
-          <div key={v.id} className="card">
-            <div className="between">
-              <div className="small muted">{fmtDate(v.date)}</div>
-              {v.rating ? <Stars value={v.rating} /> : null}
-            </div>
-            {v.dishes && v.dishes.length > 0 && (
-              <div className="chips">
-                {v.dishes.map((d,i)=> <span key={i} className="chip dish">{d.name}</span>)}
+        {visits.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(v => {
+          const vphotos = Array.isArray(v.photos) ? v.photos.filter(Boolean) : [];
+          return (
+            <div key={v.id} className="card">
+              <div className="between">
+                <div className="small muted">{fmtDate(v.date)}</div>
+                {v.rating ? <Stars value={v.rating} /> : null}
               </div>
-            )}
-            {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
-          </div>
-        ))}
+              {v.dishes && v.dishes.length > 0 && (
+                <div className="chips">
+                  {v.dishes.map((d,i)=> <span key={i} className="chip dish">{d.name}</span>)}
+                </div>
+              )}
+              {vphotos.length > 0 && (
+                <div className="visit-photos">
+                  {vphotos.map((p,i)=> (
+                    <div key={i} className="visit-photo">
+                      <PhotoImg cfg={cfg} path={p} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
+            </div>
+          );
+        })}
 
         {/* manage */}
         <div className="divider-label">Manage</div>
@@ -1871,7 +2302,7 @@ function ActionSheet({onClose, onPick}){
 /* ============================================================
    RESTAURANT FORM (add / edit)
    ============================================================ */
-function RestaurantForm({existing, locations, onClose, onSave}){
+function RestaurantForm({existing, locations, cfg, onClose, onSave}){
   const [name,setName]         = useState(existing ? existing.name : "");
   const [cuisine,setCuisine]   = useState(existing ? existing.cuisine : "");
   const [location,setLocation] = useState(existing ? (existing.location || "") : "");
@@ -1880,6 +2311,60 @@ function RestaurantForm({existing, locations, onClose, onSave}){
   const [website,setWebsite]   = useState(existing ? existing.website : "");
   const [notes,setNotes]       = useState(existing ? existing.notes : "");
   const [fav,setFav]           = useState(existing ? !!existing.favorite : false);
+
+  // Photo state - one photo per restaurant, acts as the visual identity.
+  //   existingPhotoPath -> already saved in repo (if any)
+  //   pendingBlob       -> a freshly picked photo waiting to upload on Save
+  //   pendingPreviewUrl -> blob URL just for preview while editing
+  //   removeExisting    -> user explicitly cleared the saved photo
+  const [existingPhotoPath] = useState(existing ? (existing.photo || null) : null);
+  const [pendingBlob, setPendingBlob]           = useState(null);
+  const [pendingPreviewUrl, setPendingPreviewUrl] = useState(null);
+  const [removeExisting, setRemoveExisting]     = useState(false);
+  const [photoBusy, setPhotoBusy]               = useState(false);
+  const photoFileRef = useRef(null);
+
+  // clean up the pending preview blob URL when it changes or unmounts
+  useEffect(()=> {
+    return ()=> { if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl); };
+  },[pendingPreviewUrl]);
+
+  async function onPhotoFiles(e){
+    const file = (e.target.files || [])[0];
+    if (!file) return;
+    setPhotoBusy(true);
+    try {
+      // Resize to a max 1200px - same target as menu OCR but kept as a real
+      // image we'll display, not just send to an API. Quality 0.86 looks great
+      // on the iPhone screen and keeps files well under 400 KB.
+      const blob = await resizeImageToBlob(file, 1200, 0.86);
+      const url  = URL.createObjectURL(blob);
+      // free the previous preview if any
+      if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
+      setPendingBlob(blob);
+      setPendingPreviewUrl(url);
+      setRemoveExisting(false);   // picking a new one overrides any prior remove
+    } catch(err){
+      logMsg("ERROR","Restaurant photo resize failed: " + err.message);
+      alert("Could not load that photo: " + err.message);
+    } finally {
+      setPhotoBusy(false);
+      if (photoFileRef.current) photoFileRef.current.value = "";
+    }
+  }
+  function clearPendingPhoto(){
+    if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
+    setPendingBlob(null);
+    setPendingPreviewUrl(null);
+  }
+  function clearAllPhotos(){
+    clearPendingPhoto();
+    if (existingPhotoPath) setRemoveExisting(true);
+  }
+  // which preview to show in the editor
+  const showingPendingPreview = !!pendingPreviewUrl;
+  const showingExistingPhoto  = !showingPendingPreview && !!existingPhotoPath && !removeExisting;
+  const hasAnyPhoto           = showingPendingPreview || showingExistingPhoto;
 
   // inline "add new location" state. When true, the dropdown reads
   // "+ Add new location..." and an inline input below it lets the user
@@ -1918,15 +2403,34 @@ function RestaurantForm({existing, locations, onClose, onSave}){
     // if user typed a new location, pass it up so the parent can add to master
     const newLocationsToAdd = (addingNew && newLoc.trim())
       ? [newLoc.trim()] : [];
+    const rid = existing ? existing.id : uid("rest");
+    // Compute the photo path that should be on the saved record:
+    //   - new photo pending -> path will be the restaurant photo path
+    //     (parent uploads the blob to that path before committing JSON)
+    //   - removing existing -> null
+    //   - no change -> keep the existing path
+    let finalPhotoPath;
+    if (pendingBlob){
+      finalPhotoPath = restaurantPhotoPath(rid);
+    } else if (removeExisting){
+      finalPhotoPath = null;
+    } else {
+      finalPhotoPath = existingPhotoPath || null;
+    }
     const rec = {
-      id: existing ? existing.id : uid("rest"),
+      id: rid,
       name:name.trim(), cuisine:cuisine.trim(),
       location: finalLoc,
       address:address.trim(), phone:phone.trim(), website:website.trim(),
       notes:notes.trim(), favorite:fav,
+      photo: finalPhotoPath,
       added_date: existing ? existing.added_date : todayISO(),
     };
-    onSave(rec, newLocationsToAdd);
+    onSave(rec, {
+      newLocationsToAdd: newLocationsToAdd,
+      photoBlob: pendingBlob,
+      photoPath: pendingBlob ? finalPhotoPath : null,
+    });
   }
   return (
     <div className="overlay">
@@ -1937,6 +2441,51 @@ function RestaurantForm({existing, locations, onClose, onSave}){
           style={{color:name.trim()?"var(--accent)":"var(--text-faint)"}}>Save</button>
       </div>
       <div className="ovbody">
+
+        {/* Photo editor - one icon photo per restaurant */}
+        <div className="photo-editor">
+          {showingPendingPreview && (
+            <img className="photo-img" src={pendingPreviewUrl} alt=""
+              style={{width:72,height:72,borderRadius:10,objectFit:"cover"}} />
+          )}
+          {showingExistingPhoto && cfg && (
+            <PhotoImg cfg={cfg} path={existingPhotoPath}
+              style={{width:72,height:72,borderRadius:10,objectFit:"cover"}} />
+          )}
+          {!hasAnyPhoto && (
+            <div className="photo-shell"
+              style={{width:72,height:72,borderRadius:10}}>
+              <Icon name="image" size={24} color="#5a5045" />
+            </div>
+          )}
+          <div style={{flex:1,minWidth:0}}>
+            <input ref={photoFileRef} type="file" accept="image/*"
+              style={{display:"none"}} onChange={onPhotoFiles} />
+            <button className="btn ghost sm"
+              onClick={()=> photoFileRef.current.click()}
+              disabled={photoBusy}
+              style={{padding:"7px 11px",fontSize:13,margin:0}}>
+              <Icon name="camera" size={15} />
+              {hasAnyPhoto ? "Change" : "Add photo"}
+            </button>
+            {hasAnyPhoto && (
+              <button className="btn ghost sm" onClick={clearAllPhotos}
+                disabled={photoBusy}
+                style={{padding:"7px 11px",fontSize:13,marginLeft:6,marginTop:6}}>
+                Remove
+              </button>
+            )}
+            {photoBusy && (
+              <div className="tiny faint" style={{marginTop:6}}>Preparing photo&hellip;</div>
+            )}
+            {!photoBusy && pendingBlob && (
+              <div className="tiny faint" style={{marginTop:6}}>
+                Photo uploads when you tap Save.
+              </div>
+            )}
+          </div>
+        </div>
+
         <label className="fld"><span className="lbl">Name</span>
           <input className="input" value={name} onChange={e=>setName(e.target.value)}
             placeholder="Restaurant name" /></label>
@@ -1997,7 +2546,7 @@ function RestaurantForm({existing, locations, onClose, onSave}){
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, onSave, onDelete}){
+function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClose, onSave, onDelete}){
   const [restId,setRestId] = useState(
     existing ? existing.restaurant_id : (presetRestaurantId || (restaurants[0] && restaurants[0].id) || ""));
   const [date,setDate]     = useState(existing ? existing.date : todayISO());
@@ -2006,6 +2555,73 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, o
   const [dishes,setDishes] = useState(existing ? existing.dishes.slice() : []);
   const [dishInput,setDishInput] = useState("");
   const [confirmDel,setConfirmDel] = useState(false);
+
+  // ---- photo state -----------------------------------------------------
+  // photoSlots: ordered array (max length 3) of either:
+  //   { kind:"existing", path:"<repo path>" }                 (already saved)
+  //   { kind:"pending",  blob:<Blob>, previewUrl:"blob:..." } (new, awaiting upload)
+  // On Save, "pending" slots are uploaded first, then the visit record's
+  // .photos array is built from the final paths in slot order.
+  const MAX_PHOTOS = 3;
+  const [photoSlots, setPhotoSlots] = useState(()=> {
+    if (existing && Array.isArray(existing.photos)){
+      return existing.photos.filter(Boolean).slice(0,MAX_PHOTOS).map(p => ({
+        kind:"existing", path:p,
+      }));
+    }
+    return [];
+  });
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photoFileRef = useRef(null);
+
+  // revoke any pending blob URLs when the form unmounts (memory hygiene)
+  useEffect(()=> {
+    return ()=> {
+      photoSlots.forEach(s => {
+        if (s.kind === "pending" && s.previewUrl) URL.revokeObjectURL(s.previewUrl);
+      });
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  async function onVisitPhotoFiles(e){
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    // cap how many we can accept right now based on remaining slots
+    const room  = Math.max(0, MAX_PHOTOS - photoSlots.length);
+    const take  = files.slice(0, room);
+    if (!take.length){
+      if (photoFileRef.current) photoFileRef.current.value = "";
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      const newSlots = [];
+      for (const f of take){
+        const blob = await resizeImageToBlob(f, 1200, 0.86);
+        const url  = URL.createObjectURL(blob);
+        newSlots.push({ kind:"pending", blob:blob, previewUrl:url });
+        // push each one into state as it finishes so the UI shows progress
+        setPhotoSlots(prev => prev.concat([{ kind:"pending", blob:blob, previewUrl:url }]));
+      }
+      logMsg("VISIT","Prepared " + newSlots.length + " visit photo(s) for upload");
+    } catch(err){
+      logMsg("ERROR","Visit photo resize failed: " + err.message);
+      alert("Could not load that photo: " + err.message);
+    } finally {
+      setPhotoBusy(false);
+      if (photoFileRef.current) photoFileRef.current.value = "";
+    }
+  }
+  function removePhotoSlot(idx){
+    setPhotoSlots(prev => {
+      const removed = prev[idx];
+      if (removed && removed.kind === "pending" && removed.previewUrl){
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+      return prev.filter((_,i)=> i !== idx);
+    });
+  }
 
   // multi-menu picker: build [{label, sections:[{name,items}]}] groups.
   // Dedup item names within each menu (so an ingredient that appears in
@@ -2045,17 +2661,36 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, o
   function submit(){
     if (!restId) return;
     const r = restaurants.find(x => x.id === restId);
+    const vid = existing ? existing.id : uid("visit");
+
+    // Compute final paths and pending uploads. Pending blobs each get a
+    // fresh short photo_id so deletes don't shift any other photo's path
+    // (every photo file is at a unique stable path for its lifetime).
+    const finalPaths = [];
+    const pendingUploads = [];
+    photoSlots.forEach(s => {
+      if (s.kind === "existing"){
+        finalPaths.push(s.path);
+      } else if (s.kind === "pending"){
+        const photoId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+        const path = visitPhotoPath(vid, photoId);
+        finalPaths.push(path);
+        pendingUploads.push({ path:path, blob:s.blob });
+      }
+    });
+
     const rec = {
-      id: existing ? existing.id : uid("visit"),
+      id: vid,
       restaurant_id: restId,
       restaurant_name: r ? r.name : "",          // snapshot, survives restaurant deletion
       date: date || todayISO(),
       rating: rating,
       dishes: dishes,
       notes: notes.trim(),
+      photos: finalPaths,
       logged_at: existing ? existing.logged_at : Date.now(),
     };
-    onSave(rec);
+    onSave(rec, { pendingUploads: pendingUploads });
   }
 
   if (!restaurants.length){
@@ -2163,6 +2798,50 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, o
             placeholder="How was it? Who were you with? Worth returning?" />
         </label>
 
+        {/* Photos - up to 3 per visit */}
+        <div className="fld">
+          <span className="lbl">
+            Photos <span className="faint" style={{fontWeight:400}}>
+              ({photoSlots.length} / {MAX_PHOTOS})
+            </span>
+          </span>
+          <input ref={photoFileRef} type="file" accept="image/*" multiple
+            style={{display:"none"}} onChange={onVisitPhotoFiles} />
+          <div className="visit-photos">
+            {photoSlots.map((s, i) => (
+              <div key={i} className="visit-photo">
+                {s.kind === "pending" && s.previewUrl && (
+                  <img className="photo-img" src={s.previewUrl} alt="" />
+                )}
+                {s.kind === "existing" && cfg && (
+                  <PhotoImg cfg={cfg} path={s.path} />
+                )}
+                <div className="photo-remove" onClick={()=> removePhotoSlot(i)}>
+                  <Icon name="close" size={14} color="#e8dac6" />
+                </div>
+              </div>
+            ))}
+            {photoSlots.length < MAX_PHOTOS && (
+              <div className="photo-slot"
+                onClick={()=> { if (!photoBusy) photoFileRef.current.click(); }}>
+                <div>
+                  <div className="ic"><Icon name="plus" size={20} color="#80715f" /></div>
+                  <div>{photoSlots.length ? "Add" : "Add photos"}</div>
+                </div>
+              </div>
+            )}
+          </div>
+          {photoBusy && (
+            <div className="tiny faint" style={{marginTop:6}}>Preparing photo&hellip;</div>
+          )}
+          {!photoBusy && photoSlots.some(s => s.kind === "pending") && (
+            <div className="tiny faint" style={{marginTop:6}}>
+              {photoSlots.filter(s => s.kind === "pending").length} new photo(s) will
+              upload when you tap Save.
+            </div>
+          )}
+        </div>
+
         {onDelete && (
           !confirmDel ? (
             <button className="btn danger" onClick={()=> setConfirmDel(true)}>
@@ -2243,16 +2922,32 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     setSaveMode("one");
   },[result]);
 
+  // tracks "processing M of N" status during onFiles so the UI can show
+  // visible feedback while photos are being resized after iOS hands them over
+  const [processing, setProcessing] = useState(null);  // {done, total} | null
+
   async function onFiles(e){
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     logMsg("SCAN","Selected " + files.length + " photo(s)");
+    setProcessing({done:0, total:files.length});
     try {
-      const urls = [];
-      for (const f of files){ urls.push(await resizeForOcr(f)); }
-      setDataUrls(d => d.concat(urls));
-      setPreviews(p => p.concat(urls));
+      // Resize each file serially. After every file, push its thumbnail into
+      // state - users see thumbnails populate one by one instead of all at the
+      // end. This is the most visible part of the iOS post-conversion delay.
+      for (let i=0; i<files.length; i++){
+        const blob = await resizeImageToBlob(files[i], 1200, 0.82);
+        const url  = await blobToDataUrl(blob);
+        setDataUrls(d => d.concat([url]));
+        setPreviews(p => p.concat([url]));
+        setProcessing({done:i+1, total:files.length});
+      }
+      // small delay so the user sees the "done" state briefly before it clears
+      setTimeout(()=> setProcessing(null), 350);
+      // reset the input so the same file can be picked again if needed
+      if (fileRef.current) fileRef.current.value = "";
     } catch(err){
+      setProcessing(null);
       logMsg("ERROR","Photo processing failed: " + err.message);
       setErrMsg("Could not process a photo: " + err.message);
       setStep("error");
@@ -2459,17 +3154,40 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             </div>
             <input ref={fileRef} type="file" accept="image/*" multiple
               style={{display:"none"}} onChange={onFiles} />
-            <button className="btn ghost" onClick={()=> fileRef.current.click()}>
+            <button className="btn ghost" onClick={()=> fileRef.current.click()}
+              disabled={!!processing}>
               <Icon name="camera" size={18} />
               {previews.length ? "Add more photos" : "Choose / take photos"}
             </button>
-            {previews.length > 0 && (
-              <div className="photo-grid">
-                {previews.map((u,i)=> <img key={i} className="pth" src={u} alt="" />)}
+            <div className="tiny faint" style={{marginTop:6,padding:"0 2px"}}>
+              On iPhone, picking many photos at once can pause for several
+              seconds while iOS converts them &mdash; this is normal. If it
+              hangs, cancel and pick 1&ndash;2 at a time.
+            </div>
+            {processing && (
+              <div className="photo-progress">
+                Processing photo {processing.done} of {processing.total}&hellip;
               </div>
             )}
             {previews.length > 0 && (
-              <button className="btn primary" style={{marginTop:16}} onClick={runOcr}>
+              <div className="photo-grid">
+                {previews.map((u,i)=> (
+                  <div key={i} style={{position:"relative",display:"inline-block"}}>
+                    <img className="pth" src={u} alt="" />
+                    <div className="photo-remove"
+                      onClick={()=>{
+                        setPreviews(p => p.filter((_,j)=> j !== i));
+                        setDataUrls(d => d.filter((_,j)=> j !== i));
+                      }}>
+                      <Icon name="close" size={14} color="#e8dac6" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {previews.length > 0 && (
+              <button className="btn primary" style={{marginTop:16}} onClick={runOcr}
+                disabled={!!processing}>
                 Digitize {previews.length} photo(s)
               </button>
             )}
