@@ -270,7 +270,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.4.1";
+const APP_VERSION   = "1.4.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2101,7 +2101,8 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, onClose, o
 // Menu-label pills shown on the scan-review screen. "Other..." is rendered
 // separately at the end and focuses the text input rather than filling a value.
 const LABEL_SUGGESTIONS = [
-  // food side - catchall, then time-progressed, then post-meal, then promotional
+  "Main",
+  // food side - time-progressed, then post-meal, then promotional
   "Food","Breakfast","Brunch","Lunch","Dinner","Late Night","Dessert","Happy Hour",
   // drinks side - catchall, then categories
   "Drinks","Cocktails","Beer","Wine","Whiskey","Spirits",
@@ -2134,6 +2135,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const fileRef     = useRef(null);
   const labelRef    = useRef(null);
   const mainLabelRef = useRef(null);
+  // refs for each section's "own menu" input, keyed by section index;
+  // used by the per-section "Other..." pill to focus the right input
+  const sectionInputRefs = useRef({});
 
   // when OCR completes, initialize per-section disposition: each section is its
   // own menu by default, named after the OCR-detected section
@@ -2333,6 +2337,18 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     setMainLabel("");
     setTimeout(()=> { if (mainLabelRef.current) mainLabelRef.current.focus(); }, 0);
   }
+  function focusSectionOther(idx){
+    setExtractName(idx, "");
+    setTimeout(()=> {
+      const el = sectionInputRefs.current[idx];
+      if (el) el.focus();
+    }, 0);
+  }
+  // returns true when an extract value is non-empty AND not one of the predefined pills
+  function isSectionOtherActive(v){
+    const t = (v || "").trim();
+    return !!t && LABEL_SUGGESTIONS.indexOf(t) === -1;
+  }
 
   return (
     <div className="overlay">
@@ -2490,10 +2506,27 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                         </button>
                       </div>
                       {!st.folded && (
-                        <input className="input"
-                          value={st.extract}
-                          onChange={e=> setExtractName(i, e.target.value)}
-                          placeholder={s.name || "Menu name"} />
+                        <div>
+                          <input
+                            ref={el => { sectionInputRefs.current[i] = el; }}
+                            className="input"
+                            value={st.extract}
+                            onChange={e=> setExtractName(i, e.target.value)}
+                            placeholder={s.name || "Menu name"} />
+                          <div className="chips" style={{marginTop:8}}>
+                            {LABEL_SUGGESTIONS.map(p => (
+                              <span key={p}
+                                className={"chip pick" + (st.extract === p ? " on" : "")}
+                                onClick={()=> setExtractName(i, p)}>{p}</span>
+                            ))}
+                            <span
+                              className={"chip pick" +
+                                (isSectionOtherActive(st.extract) ? " on" : "")}
+                              onClick={()=> focusSectionOther(i)}>
+                              Other...
+                            </span>
+                          </div>
+                        </div>
                       )}
                     </div>
                   );
