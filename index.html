@@ -130,6 +130,17 @@
     /* "your picks here" card on restaurant detail */
     .card.picks{border:1px solid rgba(224,118,74,0.3);}
     .picks-head{font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-faint); font-weight:600; margin-bottom:8px;}
+    /* ---- help me order (AI menu Q&A) ---- */
+    .card.ask{border:1px solid rgba(224,118,74,0.3); margin-bottom:14px;}
+    .ask-head{display:flex; align-items:center; gap:7px; font-family:'Fraunces',serif; font-size:16px; color:var(--text); margin-bottom:9px;}
+    .ask-input{width:100%; resize:none; line-height:1.4; margin-bottom:8px;}
+    .ask-egs{margin-bottom:10px;}
+    .ask-go{width:auto; padding:8px 16px;}
+    .ask-err{margin-top:10px; padding:9px 11px; border-radius:9px; font-size:13px;
+      background:rgba(217,96,78,0.1); border:1px solid rgba(217,96,78,0.4); color:#eab0a6;}
+    .ask-answer{margin-top:12px; padding:12px 13px; border-radius:10px;
+      background:rgba(224,118,74,0.08); border:1px solid rgba(224,118,74,0.22);
+      color:var(--text); font-size:14px; line-height:1.5;}
 
     /* ---- stars ---- */
     .stars{display:inline-flex; gap:3px;}
@@ -366,8 +377,9 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.6.2";
+const APP_VERSION   = "1.7.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
+const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const CFG_KEY       = "dininglog_config";
@@ -1150,6 +1162,125 @@ async function digitizeMenu(cfg, dataUrls){
 }
 
 /* ============================================================
+   "HELP ME ORDER" - text Q&A against a digitized menu
+   ============================================================ */
+
+// Compact, readable serialization of a menu for the prompt. Text (not raw
+// JSON) keeps the token count down and is easy for the model to read.
+function menuToText(menu){
+  const lines = [];
+  (menu.sections || []).forEach(s => {
+    lines.push("## " + (s.name || "Menu"));
+    (s.items || []).forEach(it => {
+      let line = "- " + it.name;
+      if (it.price)       line += " (" + it.price + ")";
+      if (it.description) line += ": " + it.description;
+      if (it.tags && it.tags.length) line += " [tags: " + it.tags.join(", ") + "]";
+      lines.push(line);
+    });
+  });
+  return lines.join("\n");
+}
+
+// Recency-aware loved / disliked dish lists for ONE restaurant's visits.
+// Mirrors the picks-card logic: a dish's MOST RECENT verdict wins. Returns
+// empty lists when there is no history, so the caller degrades to menu-only.
+function dishHistory(visits){
+  const byDate = (visits || []).slice().sort((a,b)=>
+    (b.date || "").localeCompare(a.date || "") ||
+    ((b.logged_at || 0) - (a.logged_at || 0)));
+  const memo = new Map();                  // key -> { name, latest }
+  byDate.forEach(v => (v.dishes || []).forEach(d => {
+    if (!d || !d.name || !d.verdict) return;
+    const k = d.name.trim().toLowerCase();
+    if (!memo.has(k)) memo.set(k, { name:d.name, latest:d.verdict }); // newest-first
+  }));
+  const loved = [], disliked = [];
+  memo.forEach(x => {
+    if (x.latest === "again") loved.push(x.name);
+    else if (x.latest === "skip") disliked.push(x.name);
+  });
+  return { loved, disliked };
+}
+
+// Ask Claude to recommend from THIS menu. `question` may be a question, a
+// command ("give me something healthy"), or a mood ("craving something rich").
+async function askMenu(cfg, restaurant, menu, visits, question){
+  const rName    = (restaurant && restaurant.name) ? restaurant.name : "this restaurant";
+  const menuText = menuToText(menu);
+  const hist     = dishHistory(visits);
+  const hasHist  = hist.loved.length > 0 || hist.disliked.length > 0;
+
+  let prompt =
+    "You are a warm, knowledgeable dining companion helping someone decide what "+
+    "to order at " + rName + ". They will tell you what they want - it might be "+
+    "a question (\"what's light here?\"), a request (\"give me something healthy\"), "+
+    "or just a mood (\"I'm craving something rich\"). Recommend specific dishes "+
+    "from THE MENU BELOW that fit.\n\n"+
+    "Rules:\n"+
+    "- Only recommend items that actually appear on the menu. Never invent dishes "+
+    "or guess at things that are not listed.\n"+
+    "- Suggest 2-3 options, each with a short reason. If nothing on the menu fits, "+
+    "say so honestly and point to the closest thing.\n"+
+    "- Be concise and conversational - a few sentences, not an essay. No headings, "+
+    "no markdown.\n";
+
+  if (hasHist){
+    prompt +=
+      "- Personal history at this restaurant (use only as a LIGHT hint, and only "+
+      "if it is relevant to what they asked - do not force it in):\n";
+    if (hist.loved.length)
+      prompt += "    Dishes they previously LOVED: " + hist.loved.join("; ") + "\n";
+    if (hist.disliked.length)
+      prompt += "    Dishes they previously did NOT like: " + hist.disliked.join("; ") + "\n";
+    prompt +=
+      "  If one of their loved dishes genuinely fits their request, you may note "+
+      "they enjoyed it before. Do not recommend a disliked dish unless they "+
+      "explicitly ask for it. Always answer their actual request first.\n";
+  }
+
+  prompt +=
+    "\nMENU:\n" + menuText +
+    "\n\nTHE DINER SAYS: \"" + question + "\"";
+
+  logMsg("ASK","Asking " + ASK_MODEL + " (menu " + menuText.length +
+         " chars, history=" + (hasHist ? "yes" : "none") + ")");
+  let res;
+  try {
+    res = await fetch(ANTHROPIC_API, {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "x-api-key":cfg.anthropicKey,
+        "anthropic-version":"2023-06-01",
+        "anthropic-dangerous-direct-browser-access":"true",
+      },
+      body:JSON.stringify({
+        model:ASK_MODEL,
+        max_tokens:700,
+        messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
+      }),
+    });
+  } catch(err){
+    logMsg("ERROR","Ask network failure: " + err.message);
+    throw new Error("Network error reaching the Anthropic API");
+  }
+  if (res.status === 401){ throw new Error("Anthropic rejected the API key (401). Check it in Settings."); }
+  if (res.status === 429){ throw new Error("Anthropic rate limit hit (429). Wait a moment and retry."); }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    logMsg("ERROR","Ask -> " + res.status + " " + txt.slice(0,180));
+    throw new Error("Anthropic API error (" + res.status + ")");
+  }
+  const json = await res.json();
+  const text = (json.content || [])
+    .filter(b => b.type === "text").map(b => b.text).join("\n").trim();
+  logMsg("ASK","Received answer (" + text.length + " chars)");
+  if (!text) throw new Error("The model returned an empty answer. Try rephrasing.");
+  return text;
+}
+
+/* ============================================================
    PERSISTENCE - localStorage cache
    ============================================================ */
 function loadConfig(){
@@ -1204,6 +1335,7 @@ function Icon({name, size, color}){
     back:    <path d="M15 6l-6 6 6 6"/>,
     image:   <g><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M4 17l5-4 4 3 4-4 4 4"/></g>,
     close:   <g><path d="M6 6l12 12M18 6 6 18"/></g>,
+    sparkle: <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
 }
@@ -1727,6 +1859,8 @@ function App(){
         <MenuDetail
           restaurant={restaurantById(overlay.restaurantId)}
           menu={(menus[overlay.restaurantId] || []).find(m => m.menu_id === overlay.menuId)}
+          visits={visitsFor(overlay.restaurantId)}
+          cfg={config}
           onClose={()=> setOverlay({ type:"restaurant", id:overlay.restaurantId })}
           onReScan={()=> setOverlay({
             type:"scanMenu",
@@ -2333,8 +2467,33 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, onClose, onReScan, onDeleteMenu}){
+function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteMenu}){
   const [confirmDel, setConfirmDel] = useState(false);
+  // "help me order" state
+  const [askInput, setAskInput] = useState("");
+  const [asking,   setAsking]   = useState(false);
+  const [answer,   setAnswer]   = useState(null);
+  const [askErr,   setAskErr]   = useState(null);
+  const hasKey = !!(cfg && cfg.anthropicKey);
+  const hasHistory = dishHistory(visits).loved.length > 0 ||
+                     dishHistory(visits).disliked.length > 0;
+
+  async function runAsk(override){
+    const q = ((override != null ? override : askInput) || "").trim();
+    if (!q) return;
+    if (override != null) setAskInput(override);
+    if (!hasKey){ setAskErr("Add your Anthropic key in Settings first."); return; }
+    setAsking(true); setAskErr(null); setAnswer(null);
+    try {
+      const a = await askMenu(cfg, restaurant, menu, visits, q);
+      setAnswer(a);
+    } catch(err){
+      setAskErr(err.message || "Something went wrong. Try again.");
+    } finally {
+      setAsking(false);
+    }
+  }
+
   if (!menu){
     return (
       <div className="overlay">
@@ -2400,6 +2559,45 @@ function MenuDetail({restaurant, menu, onClose, onReScan, onDeleteMenu}){
             </div>
           </div>
         )}
+
+        {/* ---- help me order (AI) ---- */}
+        <div className="card ask">
+          <div className="ask-head">
+            <Icon name="sparkle" size={15} color="#e0764a" />
+            <span>Help me order</span>
+          </div>
+          <textarea className="input ask-input" rows={2}
+            placeholder={"What are you in the mood for?  e.g. something light, no pork, best value"}
+            value={askInput}
+            onChange={e=> setAskInput(e.target.value)}
+            onKeyDown={e=>{ if (e.key === "Enter" && (e.metaKey || e.ctrlKey)){ e.preventDefault(); runAsk(); } }} />
+          <div className="chips ask-egs">
+            {["Something healthy","Not too heavy","Something for sharing","Best value"]
+              .concat(hasHistory ? ["What did I love here?"] : [])
+              .map((eg,i)=>(
+                <span key={i} className="chip pick" onClick={()=> runAsk(eg)}>{eg}</span>
+              ))}
+          </div>
+          <button className="btn primary sm ask-go"
+            disabled={asking || !askInput.trim()}
+            onClick={()=> runAsk()}>
+            {asking ? <span className="spin" /> : <Icon name="sparkle" size={16} color="#1b1714" />}
+            {asking ? "Thinking..." : "Ask"}
+          </button>
+          {!hasKey && (
+            <div className="tiny faint" style={{marginTop:8}}>
+              Add your Anthropic key in Settings to use this.
+            </div>
+          )}
+          {askErr && <div className="ask-err">{askErr}</div>}
+          {answer && (
+            <div className="ask-answer">
+              {answer.split("\n").filter(Boolean).map((line,i)=>(
+                <p key={i} style={{margin:i ? "8px 0 0" : 0}}>{line}</p>
+              ))}
+            </div>
+          )}
+        </div>
 
         <MenuView menu={menu} />
         <div style={{height:20}} />
