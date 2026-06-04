@@ -141,6 +141,20 @@
     .ask-answer{margin-top:12px; padding:12px 13px; border-radius:10px;
       background:rgba(224,118,74,0.08); border:1px solid rgba(224,118,74,0.22);
       color:var(--text); font-size:14px; line-height:1.5;}
+    /* ---- meal-photo nutrition (informative, never alarming) ---- */
+    .card.nutri{border:1px solid rgba(224,118,74,0.22); margin-top:4px;}
+    .nutri-kcal{font-family:'Fraunces',serif; font-size:30px; font-weight:600; color:var(--text); line-height:1;}
+    .nutri-kcal-u{font-size:14px; font-weight:400; color:var(--text-faint);}
+    .nutri-macros{display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:13px; color:var(--text-dim);}
+    .nutri-macros b{color:var(--text); font-weight:600;}
+    .nutri-foot{margin-top:11px; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint);}
+    .nutri-edit{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:10px;}
+    .nutri-edit label{display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+    .nutri-edit label.wide{grid-column:1 / -1;}
+    .nutri-edit .input{padding:7px 9px;}
+    .nutri-line{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-top:9px; font-size:12.5px; color:var(--text-dim);}
+    .nutri-line .kc{color:var(--text); font-weight:600;}
+    .nutri-line .tg{font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); border:1px solid var(--line); border-radius:999px; padding:1px 7px;}
 
     /* ---- stars ---- */
     .stars{display:inline-flex; gap:3px;}
@@ -377,7 +391,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.7.0";
+const APP_VERSION   = "1.8.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -1281,6 +1295,111 @@ async function askMenu(cfg, restaurant, menu, visits, question){
 }
 
 /* ============================================================
+   MEAL PHOTO -> NUTRITION ESTIMATE
+   ============================================================
+   One vision call per photo. The result is stored on the visit so
+   the same photo is never re-estimated (no recurring cost). The
+   estimate is explicitly an ESTIMATE - shown labelled, editable,
+   and never used to nag or score the user. */
+
+function clampNum(v, min, max){
+  let n = Number(v);
+  if (!isFinite(n) || n < 0) n = 0;
+  if (typeof min === "number" && n < min) n = min;
+  if (typeof max === "number" && n > max) n = max;
+  return Math.round(n);
+}
+
+// Normalize whatever the model returns into our stable nutrition shape.
+// source / estimated_at are stamped by the caller, not the model.
+function normalizeNutrition(raw){
+  const conf = String(raw.confidence || "").toLowerCase();
+  return {
+    kcal:      clampNum(raw.kcal, 0, 20000),
+    protein_g: clampNum(raw.protein_g, 0, 2000),
+    carbs_g:   clampNum(raw.carbs_g, 0, 2000),
+    fat_g:     clampNum(raw.fat_g, 0, 2000),
+    ingredients: Array.isArray(raw.ingredients)
+      ? raw.ingredients.map(s => String(s).trim()).filter(Boolean).slice(0,30) : [],
+    foods: Array.isArray(raw.foods)
+      ? raw.foods.map(s => String(s).trim()).filter(Boolean).slice(0,12) : [],
+    confidence: (conf === "high" || conf === "medium" || conf === "low") ? conf : "medium",
+    note: String(raw.note || "").trim().slice(0, 400),
+  };
+}
+
+// Estimate nutrition from a photo File. Returns a normalized nutrition
+// object WITHOUT source/estimated_at (the caller stamps those).
+async function estimateNutrition(cfg, file){
+  const dataUrl = await resizeForOcr(file, 1200);   // reuse the proven resize path
+  const prompt =
+    "You are estimating the nutrition of a single meal from a photo, to help "+
+    "someone remember and stay curious about what they ate. This is for interest "+
+    "and memory, not dieting - be helpful and realistic, not judgmental.\n\n"+
+    "Look at the plate and estimate it as a whole. Return ONLY a JSON object, no "+
+    "prose, no markdown, with exactly these keys:\n"+
+    "{\n"+
+    '  "foods": [short names of the distinct dishes/items you see],\n'+
+    '  "kcal": total estimated calories for the whole plate (integer),\n'+
+    '  "protein_g": grams of protein (integer),\n'+
+    '  "carbs_g": grams of carbohydrate (integer),\n'+
+    '  "fat_g": grams of fat (integer),\n'+
+    '  "ingredients": [likely ingredients you can infer],\n'+
+    '  "confidence": "low" | "medium" | "high",\n'+
+    '  "note": one short sentence on the portion assumptions you made\n'+
+    "}\n\n"+
+    "Estimate realistic restaurant portions. If the photo is unclear, blurry, or "+
+    "only partly shows the food, lower the confidence and say so in the note. If "+
+    "the image does not appear to be food at all, return kcal 0, empty arrays, "+
+    "confidence \"low\", and say so in the note.";
+
+  logMsg("NUTRI","Estimating nutrition from photo via " + VISION_MODEL);
+  let res;
+  try {
+    res = await fetch(ANTHROPIC_API, {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "x-api-key":cfg.anthropicKey,
+        "anthropic-version":"2023-06-01",
+        "anthropic-dangerous-direct-browser-access":"true",
+      },
+      body:JSON.stringify({
+        model:VISION_MODEL,
+        max_tokens:1500,
+        messages:[{ role:"user", content:[
+          { type:"image", source:{ type:"base64", media_type:"image/jpeg",
+            data:dataUrl.split(",")[1] } },
+          { type:"text", text:prompt },
+        ]}],
+      }),
+    });
+  } catch(err){
+    logMsg("ERROR","Nutrition network failure: " + err.message);
+    throw new Error("Network error reaching the Anthropic API");
+  }
+  if (res.status === 401){ throw new Error("Anthropic rejected the API key (401). Check it in Settings."); }
+  if (res.status === 429){ throw new Error("Anthropic rate limit hit (429). Wait a moment and retry."); }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    logMsg("ERROR","Nutrition -> " + res.status + " " + txt.slice(0,180));
+    throw new Error("Anthropic API error (" + res.status + ")");
+  }
+  const json = await res.json();
+  const text = (json.content || [])
+    .filter(b => b.type === "text").map(b => b.text).join("\n");
+  let parsed;
+  try { parsed = parseJsonLoose(text); }
+  catch(err){
+    logMsg("ERROR","Could not parse nutrition JSON: " + err.message);
+    throw new Error("The estimate came back unreadable. Try another photo.");
+  }
+  const out = normalizeNutrition(parsed);
+  logMsg("NUTRI","Estimate: " + out.kcal + " kcal, conf=" + out.confidence);
+  return out;
+}
+
+/* ============================================================
    PERSISTENCE - localStorage cache
    ============================================================ */
 function loadConfig(){
@@ -1351,6 +1470,23 @@ function Stars({value, size}){
         </span>
       ))}
     </span>
+  );
+}
+
+/* NutriLine - compact one-line nutrition summary for visit cards.
+   Neutral and non-judgmental: a number for memory, never a verdict. */
+function NutriLine({n}){
+  if (!n || !n.kcal) return null;
+  const approx = (n.source === "photo_estimate" || n.source === "menu_estimate") ? "~" : "";
+  const tag = n.source === "menu_stated" ? "per menu"
+            : n.source === "manual"      ? "edited"
+            : "est";
+  return (
+    <div className="nutri-line">
+      <span className="kc">{approx}{n.kcal} cal</span>
+      <span className="mc">{n.protein_g}P / {n.carbs_g}C / {n.fat_g}F</span>
+      <span className="tg">{tag}</span>
+    </div>
   );
 }
 
@@ -2122,6 +2258,7 @@ function HistoryView({visits, restaurantById, cfg, onOpen}){
                 ))}
               </div>
             )}
+            <NutriLine n={v.nutrition} />
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
           </div>
         );
@@ -2432,6 +2569,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   ))}
                 </div>
               )}
+              <NutriLine n={v.nutrition} />
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
             </div>
           );
@@ -2963,6 +3101,51 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
   const [photoBusy, setPhotoBusy] = useState(false);
   const photoFileRef = useRef(null);
 
+  // ---- meal-photo nutrition estimate -----------------------------------
+  // visit.nutrition is a single estimate for the meal (visit-level). It is
+  // computed once from a photo and stored on the visit, so it never re-runs.
+  const [nutrition, setNutrition] = useState(
+    existing && existing.nutrition ? existing.nutrition : null);
+  const [nutBusy, setNutBusy]   = useState(false);
+  const [nutErr,  setNutErr]    = useState(null);
+  const [nutEdit, setNutEdit]   = useState(false);
+  const [nutIngStr, setNutIngStr] = useState("");   // comma-separated editor buffer
+  const nutFileRef = useRef(null);
+
+  async function onPickNutritionPhoto(e){
+    const file = e.target.files && e.target.files[0];
+    if (nutFileRef.current) nutFileRef.current.value = "";   // allow re-picking same file
+    if (!file) return;
+    if (!cfg || !cfg.anthropicKey){ setNutErr("Add your Anthropic key in Settings first."); return; }
+    setNutBusy(true); setNutErr(null);
+    try {
+      const est = await estimateNutrition(cfg, file);
+      est.source = "photo_estimate";
+      est.estimated_at = todayISO();
+      setNutrition(est);
+      setNutEdit(false);
+    } catch(err){
+      setNutErr(err.message || "Could not estimate. Try again.");
+    } finally {
+      setNutBusy(false);
+    }
+  }
+  function setNutNum(field, value){
+    setNutrition(n => Object.assign({}, n,
+      { [field]: clampNum(value, 0, 20000), source:"manual" }));
+  }
+  function startNutEdit(){
+    setNutIngStr(((nutrition && nutrition.ingredients) || []).join(", "));
+    setNutEdit(true);
+  }
+  function commitNutEdit(){
+    const ings = nutIngStr.split(",").map(s=> s.trim()).filter(Boolean).slice(0,30);
+    setNutrition(n => Object.assign({}, n,
+      { ingredients:ings, source:"manual", estimated_at:todayISO() }));
+    setNutEdit(false);
+  }
+  function removeNutrition(){ setNutrition(null); setNutEdit(false); setNutErr(null); }
+
   // revoke any pending blob URLs when the form unmounts (memory hygiene)
   useEffect(()=> {
     return ()=> {
@@ -3085,6 +3268,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
       dishes: dishes,
       notes: notes.trim(),
       photos: finalPaths,
+      nutrition: nutrition || null,              // meal-photo estimate (or null)
       logged_at: existing ? existing.logged_at : Date.now(),
     };
     onSave(rec, { pendingUploads: pendingUploads });
@@ -3179,6 +3363,99 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
             <div className="tiny faint" style={{marginTop:6}}>
               {photoSlots.filter(s => s.kind === "pending").length} new photo(s) will
               upload when you tap Save.
+            </div>
+          )}
+        </div>
+
+        {/* Meal nutrition - estimate from a photo. Informative & celebratory,
+            never restrictive: no targets, no budgets, no warnings. */}
+        <div className="fld">
+          <span className="lbl">
+            Nutrition <span className="faint" style={{fontWeight:400}}>(estimate from a photo)</span>
+          </span>
+          <input ref={nutFileRef} type="file" accept="image/*"
+            style={{display:"none"}} onChange={onPickNutritionPhoto} />
+
+          {!nutrition && (
+            <div>
+              <button className="btn ghost" disabled={nutBusy}
+                onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
+                {nutBusy ? <span className="spin" /> : <Icon name="sparkle" size={16} />}
+                {nutBusy ? "Estimating..." : "Estimate from a photo"}
+              </button>
+              <div className="tiny faint" style={{marginTop:6}}>
+                Snap your plate and Claude estimates calories and macros - just for
+                memory and curiosity.
+              </div>
+            </div>
+          )}
+
+          {nutErr && <div className="ask-err" style={{marginTop:8}}>{nutErr}</div>}
+
+          {nutrition && (
+            <div className="card nutri">
+              <div className="row between" style={{alignItems:"baseline"}}>
+                <div className="nutri-kcal">
+                  {(nutrition.source==="photo_estimate"||nutrition.source==="menu_estimate") ? "~" : ""}
+                  {nutrition.kcal}<span className="nutri-kcal-u"> cal</span>
+                </div>
+                <div className="row" style={{gap:6,flex:"none"}}>
+                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                    title="Re-estimate from a new photo"
+                    onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
+                    {nutBusy ? <span className="spin" /> : <Icon name="camera" size={15} />}
+                  </button>
+                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                    title={nutEdit ? "Done" : "Edit numbers"}
+                    onClick={()=> nutEdit ? commitNutEdit() : startNutEdit()}>
+                    <Icon name={nutEdit ? "check" : "edit"} size={15} />
+                  </button>
+                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                    title="Remove" onClick={removeNutrition}>
+                    <Icon name="trash" size={15} color="#80715f" />
+                  </button>
+                </div>
+              </div>
+
+              {!nutEdit && (
+                <div className="nutri-macros">
+                  <span><b>{nutrition.protein_g}g</b> protein</span>
+                  <span><b>{nutrition.carbs_g}g</b> carbs</span>
+                  <span><b>{nutrition.fat_g}g</b> fat</span>
+                </div>
+              )}
+
+              {nutEdit && (
+                <div className="nutri-edit">
+                  <label>cal<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.kcal} onChange={e=> setNutNum("kcal", e.target.value)} /></label>
+                  <label>protein (g)<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.protein_g} onChange={e=> setNutNum("protein_g", e.target.value)} /></label>
+                  <label>carbs (g)<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.carbs_g} onChange={e=> setNutNum("carbs_g", e.target.value)} /></label>
+                  <label>fat (g)<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.fat_g} onChange={e=> setNutNum("fat_g", e.target.value)} /></label>
+                  <label className="wide">ingredients
+                    <input className="input" value={nutIngStr}
+                      onChange={e=> setNutIngStr(e.target.value)}
+                      placeholder="comma, separated, list" /></label>
+                </div>
+              )}
+
+              {!nutEdit && nutrition.ingredients && nutrition.ingredients.length > 0 && (
+                <div className="chips" style={{marginTop:10}}>
+                  {nutrition.ingredients.map((ing,i)=> <span key={i} className="chip">{ing}</span>)}
+                </div>
+              )}
+
+              <div className="nutri-foot">
+                {nutrition.source === "manual" ? "Edited by you" : "Estimated from photo"}
+                {nutrition.source !== "manual" && nutrition.confidence
+                  ? " - " + nutrition.confidence + " confidence" : ""}
+              </div>
+              {nutrition.note && !nutEdit && (
+                <div className="tiny faint" style={{marginTop:4}}>{nutrition.note}</div>
+              )}
             </div>
           )}
         </div>
