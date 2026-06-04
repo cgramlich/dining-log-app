@@ -129,6 +129,22 @@
     .verdict-btn.again.on{background:rgba(224,118,74,0.2); border-color:var(--accent); color:var(--accent); font-weight:600;}
     .verdict-btn.skip.on{background:rgba(179,165,145,0.16); border-color:var(--text-faint); color:var(--text-dim); font-weight:600;}
     .dish-row-x{flex:none; padding:5px; background:transparent; border:none; cursor:pointer; line-height:0;}
+    .dish-item{margin-bottom:8px;}
+    .dish-item .dish-row{margin-bottom:0;}
+    .dish-sub{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:5px 0 0 4px;}
+    .dish-cam{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--accent);
+      background:none; border:none; padding:2px 0; cursor:pointer; -webkit-tap-highlight-color:transparent;}
+    .dish-cam:disabled{opacity:0.6;}
+    .dish-cam-err{font-size:12px; color:#eab0a6;}
+    /* conflict modal (photo estimate vs existing menu estimate) */
+    .modal-bg{position:fixed; inset:0; z-index:80; background:rgba(15,12,10,0.62);
+      display:flex; align-items:center; justify-content:center; padding:24px;}
+    .modal{background:var(--surface); border:1px solid var(--line); border-radius:16px;
+      padding:20px; max-width:380px; width:100%; box-shadow:0 18px 50px rgba(0,0,0,0.45);}
+    .modal-title{font-family:'Fraunces',serif; font-size:18px; color:var(--text); margin-bottom:9px;}
+    .modal-body{font-size:14px; line-height:1.5; color:var(--text-dim); margin-bottom:18px;}
+    .modal-body strong{color:var(--text); font-weight:600;}
+    .modal-actions{display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;}
     /* "your picks here" card on restaurant detail */
     .card.picks{border:1px solid rgba(224,118,74,0.3);}
     .picks-head{font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-faint); font-weight:600; margin-bottom:8px;}
@@ -163,6 +179,10 @@
       padding:4px 11px; cursor:pointer; -webkit-tap-highlight-color:transparent;}
     .iest-btn:disabled{opacity:0.6;}
     .iest-err{font-size:12px; color:#eab0a6;}
+    .mitem-nut{display:flex; align-items:center; gap:10px; margin-top:9px;}
+    .mitem-nut .nutri-line{margin-top:0;}
+    .mitem-thumb{width:46px; height:46px; border-radius:9px; overflow:hidden; flex:none; background:var(--surface-2);}
+    .mitem-thumb .photo-img, .mitem-thumb .photo-shell{width:46px; height:46px; border-radius:9px;}
 
     /* ---- stars ---- */
     .stars{display:inline-flex; gap:3px;}
@@ -399,7 +419,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.10.0";
+const APP_VERSION   = "1.11.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -819,6 +839,9 @@ function restaurantPhotoPath(rid){
 }
 function visitPhotoPath(vid, idx){
   return "photos/visits/" + vid + "_" + idx + ".jpg";
+}
+function menuItemPhotoPath(menuId, photoId){
+  return "photos/menu-items/" + menuId + "_" + photoId + ".jpg";
 }
 
 
@@ -2331,7 +2354,31 @@ function App(){
             const next = visits.filter(v => v.id !== overlay.visit.id);
             commit({ visits:next }, ["visits"]);
             setOverlay(overlay.returnTo || null); flash("Visit removed");
-          } : null} />
+          } : null}
+          onPropagateDishNutrition={async (match, est, photoPath, blob)=>{
+            // upload the dish thumbnail, then write numbers + thumbnail onto the
+            // matched menu item so it shows on the menu page on the return trip.
+            let finalPhoto = photoPath;
+            if (blob && photoPath){
+              try { await uploadPhotoBatch([{ path:photoPath, blob:blob }]); }
+              catch(err){
+                logMsg("ERROR","Menu thumbnail upload failed: " + err.message);
+                finalPhoto = null;   // still save the numbers
+              }
+            }
+            const rid = match.restId, mid = match.menuId;
+            const list = menus[rid] || [];
+            const nextList = list.map(m => {
+              if (m.menu_id !== mid) return m;
+              const sections = (m.sections || []).map((s, sidx) =>
+                sidx !== match.si ? s : Object.assign({}, s, {
+                  items: s.items.map((it, iidx) => iidx !== match.ii ? it
+                    : Object.assign({}, it, { nutrition:est, photo:finalPhoto || it.photo || null })),
+                }));
+              return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
+            });
+            commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
+          }} />
       )}
 
       {overlay && overlay.type === "scanMenu" && (
@@ -2451,7 +2498,7 @@ function HistoryView({visits, restaurantById, cfg, onOpen}){
                 {v.dishes.map((d,i)=> (
                   <span key={i} className={"chip dish" +
                     (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
-                    {d.name}
+                    {d.name}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + d.nutrition.kcal : ""}
                   </span>
                 ))}
               </div>
@@ -2762,7 +2809,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   {v.dishes.map((d,i)=> (
                     <span key={i} className={"chip dish" +
                       (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
-                      {d.name}
+                      {d.name}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + d.nutrition.kcal : ""}
                     </span>
                   ))}
                 </div>
@@ -3018,7 +3065,12 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition}){
                   </div>
                 )}
                 {it.nutrition
-                  ? <NutriLine n={it.nutrition} />
+                  ? <div className="mitem-nut">
+                      {it.photo && cfg && (
+                        <div className="mitem-thumb"><PhotoImg cfg={cfg} path={it.photo} /></div>
+                      )}
+                      <NutriLine n={it.nutrition} />
+                    </div>
                   : canEstimate && (
                       <div className="iest">
                         <button className="iest-btn" disabled={itemBusy[key]}
@@ -3315,7 +3367,7 @@ function RestaurantForm({existing, locations, cfg, onClose, onSave}){
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClose, onSave, onDelete}){
+function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition}){
   const [restId,setRestId] = useState(
     existing ? existing.restaurant_id : (presetRestaurantId || (restaurants[0] && restaurants[0].id) || ""));
   const [date,setDate]     = useState(existing ? existing.date : todayISO());
@@ -3387,6 +3439,96 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     setNutEdit(false);
   }
   function removeNutrition(){ setNutrition(null); setNutEdit(false); setNutErr(null); }
+
+  // ---- per-dish photo estimate (captured at log time, propagates to menu) ----
+  const [dishNutBusy, setDishNutBusy] = useState({});   // dishName -> bool
+  const [dishNutErr,  setDishNutErr]  = useState({});    // dishName -> message
+  const [conflict, setConflict]       = useState(null);  // {dishName, incoming, photoBlob, existing, match}
+  const dishPhotoRef = useRef(null);
+  const pendingDishRef = useRef(null);                   // which dish a picked file is for
+
+  // find a menu item (in THIS restaurant's menus) whose name matches a dish
+  function findMenuItem(dishName){
+    const list = menus[restId] || [];
+    const target = (dishName || "").trim().toLowerCase();
+    if (!target) return null;
+    for (const m of list){
+      const secs = m.sections || [];
+      for (let si=0; si<secs.length; si++){
+        const items = secs[si].items || [];
+        for (let ii=0; ii<items.length; ii++){
+          if (((items[ii].name || "").trim().toLowerCase()) === target){
+            return { restId:restId, menuId:m.menu_id, si:si, ii:ii, item:items[ii] };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function startDishPhoto(dishName){
+    pendingDishRef.current = dishName;
+    if (dishPhotoRef.current){ dishPhotoRef.current.value = ""; dishPhotoRef.current.click(); }
+  }
+
+  // apply an estimate to a dish, and (if it maps to a menu item) propagate the
+  // numbers + photo thumbnail up to that menu item so it shows on the menu page
+  function applyDishEstimate(dishName, est, blob, match){
+    let photoPath = null;
+    if (match && blob){
+      photoPath = menuItemPhotoPath(match.menuId,
+        "d" + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+      if (onPropagateDishNutrition) onPropagateDishNutrition(match, est, photoPath, blob);
+    }
+    setDishes(d => d.map(x => x.name === dishName
+      ? Object.assign({}, x, { nutrition:est, photo:photoPath }) : x));
+  }
+
+  async function onDishPhotoPicked(e){
+    const file = e.target.files && e.target.files[0];
+    const dishName = pendingDishRef.current;
+    if (dishPhotoRef.current) dishPhotoRef.current.value = "";
+    if (!file || !dishName) return;
+    if (!cfg || !cfg.anthropicKey){
+      setDishNutErr(x => Object.assign({}, x, { [dishName]:"Add your Anthropic key in Settings." }));
+      return;
+    }
+    setDishNutErr(x => Object.assign({}, x, { [dishName]:null }));
+    setDishNutBusy(x => Object.assign({}, x, { [dishName]:true }));
+    try {
+      const est = await estimateNutrition(cfg, file);
+      est.source = "photo_estimate";
+      est.estimated_at = todayISO();
+      const blob = await resizeImageToBlob(file, 1200, 0.82);   // thumbnail bytes
+      const match = findMenuItem(dishName);
+      if (match && match.item.nutrition && match.item.nutrition.kcal){
+        // existing estimate on the menu item -> ask which to keep
+        setConflict({ dishName:dishName, incoming:est, photoBlob:blob,
+          existing:match.item.nutrition, match:match });
+      } else {
+        applyDishEstimate(dishName, est, blob, match);
+      }
+    } catch(err){
+      setDishNutErr(x => Object.assign({}, x, { [dishName]:err.message || "Could not estimate." }));
+    } finally {
+      setDishNutBusy(x => Object.assign({}, x, { [dishName]:false }));
+    }
+  }
+
+  function resolveConflictUsePhoto(){
+    if (!conflict) return;
+    applyDishEstimate(conflict.dishName, conflict.incoming, conflict.photoBlob, conflict.match);
+    setConflict(null);
+  }
+  function resolveConflictKeepCurrent(){
+    if (!conflict) return;
+    // keep the menu item's current numbers; just copy them onto the visit dish
+    const keep = conflict.existing;
+    const photo = (conflict.match && conflict.match.item.photo) || null;
+    setDishes(d => d.map(x => x.name === conflict.dishName
+      ? Object.assign({}, x, { nutrition:keep, photo:photo }) : x));
+    setConflict(null);
+  }
 
   // revoke any pending blob URLs when the form unmounts (memory hygiene)
   useEffect(()=> {
@@ -3535,6 +3677,26 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
 
   return (
     <div className="overlay">
+      {conflict && (
+        <div className="modal-bg" onClick={()=> setConflict(null)}>
+          <div className="modal" onClick={e=> e.stopPropagation()}>
+            <div className="modal-title">"{conflict.dishName}" already has an estimate</div>
+            <div className="modal-body">
+              On the menu it's currently <strong>
+              {(conflict.existing.source==="photo_estimate"||conflict.existing.source==="menu_estimate") ? "~" : ""}
+              {conflict.existing.kcal} cal</strong>
+              {conflict.existing.source==="menu_stated" ? " (per menu)"
+                : conflict.existing.source==="manual" ? " (entered by you)"
+                : conflict.existing.source==="photo_estimate" ? " (from a photo)"
+                : " (estimated)"}. Your new photo estimate is <strong>~{conflict.incoming.kcal} cal</strong>.
+            </div>
+            <div className="modal-actions">
+              <button className="btn ghost" onClick={resolveConflictKeepCurrent}>Keep current</button>
+              <button className="btn primary" onClick={resolveConflictUsePhoto}>Use photo estimate</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="ovhead">
         <button className="x" onClick={onClose}>Cancel</button>
         <h2>{existing ? "Edit visit" : "Log a visit"}</h2>
@@ -3714,25 +3876,43 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
           </div>
           {dishes.length > 0 && (
             <div style={{marginTop:6}}>
+              <input ref={dishPhotoRef} type="file" accept="image/*"
+                style={{display:"none"}} onChange={onDishPhotoPicked} />
               {dishes.map((d,i)=>(
-                <div key={i} className="dish-row">
-                  <span className="dish-row-name">{d.name}</span>
-                  <div className="dish-verdict">
-                    <button
-                      className={"verdict-btn again" + (d.verdict==="again" ? " on" : "")}
-                      onClick={()=> setVerdict(d.name, "again")}>Again</button>
-                    <button
-                      className={"verdict-btn skip" + (d.verdict==="skip" ? " on" : "")}
-                      onClick={()=> setVerdict(d.name, "skip")}>Skip</button>
+                <div key={i} className="dish-item">
+                  <div className="dish-row">
+                    <span className="dish-row-name">{d.name}</span>
+                    <div className="dish-verdict">
+                      <button
+                        className={"verdict-btn again" + (d.verdict==="again" ? " on" : "")}
+                        onClick={()=> setVerdict(d.name, "again")}>Again</button>
+                      <button
+                        className={"verdict-btn skip" + (d.verdict==="skip" ? " on" : "")}
+                        onClick={()=> setVerdict(d.name, "skip")}>Skip</button>
+                    </div>
+                    <button className="dish-row-x" onClick={()=> removeDish(d.name)}>
+                      <Icon name="close" size={14} color="#80715f" />
+                    </button>
                   </div>
-                  <button className="dish-row-x" onClick={()=> removeDish(d.name)}>
-                    <Icon name="close" size={14} color="#80715f" />
-                  </button>
+                  <div className="dish-sub">
+                    <button className="dish-cam" disabled={dishNutBusy[d.name]}
+                      onClick={()=> startDishPhoto(d.name)}>
+                      {dishNutBusy[d.name]
+                        ? <span className="spin" />
+                        : <Icon name="camera" size={13} color="#e0764a" />}
+                      {dishNutBusy[d.name]
+                        ? "Estimating..."
+                        : (d.nutrition && d.nutrition.kcal
+                            ? "~" + d.nutrition.kcal + " cal  -  retake"
+                            : "Estimate from a photo")}
+                    </button>
+                    {dishNutErr[d.name] && <span className="dish-cam-err">{dishNutErr[d.name]}</span>}
+                  </div>
                 </div>
               ))}
               <div className="tiny faint" style={{marginTop:2,padding:"0 2px"}}>
                 Tap <strong>Again</strong> or <strong>Skip</strong> to remember what
-                to order next time.
+                to order next time. The camera estimates that dish from a photo.
               </div>
             </div>
           )}
