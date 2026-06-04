@@ -157,6 +157,12 @@
     .nutri-line{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-top:9px; font-size:12.5px; color:var(--text-dim);}
     .nutri-line .kc{color:var(--text); font-weight:600;}
     .nutri-line .tg{font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); border:1px solid var(--line); border-radius:999px; padding:1px 7px;}
+    .iest{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:9px;}
+    .iest-btn{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--accent);
+      background:transparent; border:1px dashed rgba(224,118,74,0.5); border-radius:999px;
+      padding:4px 11px; cursor:pointer; -webkit-tap-highlight-color:transparent;}
+    .iest-btn:disabled{opacity:0.6;}
+    .iest-err{font-size:12px; color:#eab0a6;}
 
     /* ---- stars ---- */
     .stars{display:inline-flex; gap:3px;}
@@ -393,7 +399,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.9.0";
+const APP_VERSION   = "1.10.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -1085,7 +1091,7 @@ async function digitizeMenu(cfg, dataUrls){
     "compact so it is not truncated. Schema:\n"+
     '{"restaurant_name": string or null, "sections":[{"name":string,'+
     '"items":[{"name":string,"description":string,"price":string,'+
-    '"tags":[string],"notes":string}]}]}\n\n'+
+    '"tags":[string],"notes":string,"calories":number or null}]}]}\n\n'+
     "Rules:\n"+
     "- price: a string exactly as printed (e.g. \"$12.95\", \"6.25 ea / 2 for 11.50\", "+
     "\"MP\"); empty string if none.\n"+
@@ -1093,6 +1099,9 @@ async function digitizeMenu(cfg, dataUrls){
     "- tags: include any of \"gluten-free\",\"vegetarian\",\"vegan\",\"spicy\",\"raw\" "+
     "that the menu indicates (a 'gf' mark means gluten-free); empty array if none.\n"+
     "- notes: anything extra about an item; usually empty.\n"+
+    "- calories: ONLY if the menu explicitly prints a calorie number for THIS "+
+    "item (e.g. \"850 cal\", \"850 Cal\", \"850 kcal\"); otherwise null. Never "+
+    "guess or estimate a calorie count yourself.\n"+
     "- Use the section headings printed on the menu.\n"+
     "- An ITEM is something the customer orders (a dish, a board, a drink). "+
     "Do NOT promote individual ingredients or components into their own items. "+
@@ -1165,13 +1174,25 @@ async function digitizeMenu(cfg, dataUrls){
   // normalize so downstream rendering is safe
   parsed.sections = parsed.sections.map(s => ({
     name:String(s.name || "Menu"),
-    items:(s.items || []).map(it => ({
-      name:String(it.name || "").trim(),
-      description:String(it.description || "").trim(),
-      price:String(it.price || "").trim(),
-      tags:Array.isArray(it.tags) ? it.tags.map(String) : [],
-      notes:String(it.notes || "").trim(),
-    })).filter(it => it.name),
+    items:(s.items || []).map(it => {
+      const item = {
+        name:String(it.name || "").trim(),
+        description:String(it.description || "").trim(),
+        price:String(it.price || "").trim(),
+        tags:Array.isArray(it.tags) ? it.tags.map(String) : [],
+        notes:String(it.notes || "").trim(),
+      };
+      // stated calories printed on the menu -> treat as ACTUAL (menu_stated)
+      const kc = Number(it.calories);
+      if (isFinite(kc) && kc > 0){
+        item.nutrition = {
+          kcal:Math.round(kc), protein_g:0, carbs_g:0, fat_g:0,
+          ingredients:[], foods:[], source:"menu_stated",
+          confidence:"high", estimated_at:todayISO(), note:"",
+        };
+      }
+      return item;
+    }).filter(it => it.name),
   })).filter(s => s.items.length);
   parsed.raw_text = String(parsed.raw_text || "");
   return parsed;
@@ -1401,6 +1422,73 @@ async function estimateNutrition(cfg, file){
   return out;
 }
 
+// Estimate nutrition for a single MENU ITEM (text, grounded by its
+// description). Cheaper than the photo path and cached per item by the
+// caller. Returns normalized nutrition WITHOUT source/estimated_at.
+async function estimateItemNutrition(cfg, restaurantName, item){
+  const desc = item.description ? (" - " + item.description) : "";
+  const tags = (item.tags && item.tags.length) ? (" (" + item.tags.join(", ") + ")") : "";
+  const prompt =
+    "Estimate the nutrition of a single restaurant menu item, for someone's "+
+    "curiosity and memory - not dieting, so be realistic and non-judgmental.\n\n"+
+    "Restaurant: " + (restaurantName || "a restaurant") + "\n"+
+    "Item: " + item.name + desc + tags + "\n\n"+
+    "Lean on the description to ground the estimate as much as you can. Return "+
+    "ONLY a JSON object, no prose, no markdown, with exactly these keys:\n"+
+    "{\n"+
+    '  "kcal": estimated calories for one standard order (integer),\n'+
+    '  "protein_g": grams of protein (integer),\n'+
+    '  "carbs_g": grams of carbohydrate (integer),\n'+
+    '  "fat_g": grams of fat (integer),\n'+
+    '  "ingredients": [likely ingredients],\n'+
+    '  "confidence": "low" | "medium" | "high",\n'+
+    '  "note": one short sentence on the assumptions you made\n'+
+    "}\n\n"+
+    "If the description is sparse, estimate from the dish name and lower the "+
+    "confidence. Base it on a typical single restaurant portion.";
+
+  logMsg("NUTRI","Estimating item '" + item.name + "' via " + ASK_MODEL);
+  let res;
+  try {
+    res = await fetch(ANTHROPIC_API, {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "x-api-key":cfg.anthropicKey,
+        "anthropic-version":"2023-06-01",
+        "anthropic-dangerous-direct-browser-access":"true",
+      },
+      body:JSON.stringify({
+        model:ASK_MODEL,
+        max_tokens:700,
+        messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
+      }),
+    });
+  } catch(err){
+    logMsg("ERROR","Item nutrition network failure: " + err.message);
+    throw new Error("Network error reaching the Anthropic API");
+  }
+  if (res.status === 401){ throw new Error("Anthropic rejected the API key (401). Check it in Settings."); }
+  if (res.status === 429){ throw new Error("Rate limit hit (429). Wait a moment and retry."); }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    logMsg("ERROR","Item nutrition -> " + res.status + " " + txt.slice(0,180));
+    throw new Error("Anthropic API error (" + res.status + ")");
+  }
+  const json = await res.json();
+  const text = (json.content || [])
+    .filter(b => b.type === "text").map(b => b.text).join("\n");
+  let parsed;
+  try { parsed = parseJsonLoose(text); }
+  catch(err){
+    logMsg("ERROR","Could not parse item nutrition JSON: " + err.message);
+    throw new Error("The estimate came back unreadable. Try again.");
+  }
+  const out = normalizeNutrition(parsed);
+  logMsg("NUTRI","Item estimate: " + out.kcal + " kcal, conf=" + out.confidence);
+  return out;
+}
+
 /* ============================================================
    PERSISTENCE - localStorage cache
    ============================================================ */
@@ -1483,10 +1571,11 @@ function NutriLine({n}){
   const tag = n.source === "menu_stated" ? "per menu"
             : n.source === "manual"      ? "edited"
             : "est";
+  const hasMacros = (n.protein_g || 0) + (n.carbs_g || 0) + (n.fat_g || 0) > 0;
   return (
     <div className="nutri-line">
       <span className="kc">{approx}{n.kcal} cal</span>
-      <span className="mc">{n.protein_g}P / {n.carbs_g}C / {n.fat_g}F</span>
+      {hasMacros && <span className="mc">{n.protein_g}P / {n.carbs_g}C / {n.fat_g}F</span>}
       <span className="tg">{tag}</span>
     </div>
   );
@@ -2103,6 +2192,23 @@ function App(){
             commit({ menus:nextM }, ["menus"]);
             setOverlay({ type:"restaurant", id:overlay.restaurantId });
             flash("Menu removed");
+          }}
+          onSaveItemNutrition={(si, ii, nutrition)=>{
+            // cache the per-item estimate onto the menu item in the repo so it
+            // computes only once. Identify the item by section + item index.
+            const rid = overlay.restaurantId, mid = overlay.menuId;
+            const list = menus[rid] || [];
+            const nextList = list.map(m => {
+              if (m.menu_id !== mid) return m;
+              const sections = (m.sections || []).map((s, sidx) =>
+                sidx !== si ? s : Object.assign({}, s, {
+                  items: s.items.map((it, iidx) =>
+                    iidx !== ii ? it : Object.assign({}, it, { nutrition:nutrition })),
+                }));
+              return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
+            });
+            const nextM = Object.assign({}, menus, { [rid]:nextList });
+            commit({ menus:nextM }, ["menus"]);
           }} />
       )}
 
@@ -2697,7 +2803,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteMenu}){
+function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition}){
   const [confirmDel, setConfirmDel] = useState(false);
   // "help me order" state
   const [askInput, setAskInput] = useState("");
@@ -2829,7 +2935,9 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
           )}
         </div>
 
-        <MenuView menu={menu} />
+        <MenuView menu={menu} cfg={cfg}
+          restaurantName={restaurant ? restaurant.name : ""}
+          onSaveItemNutrition={onSaveItemNutrition} />
         <div style={{height:20}} />
       </div>
     </div>
@@ -2839,19 +2947,44 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu}){
+function MenuView({menu, cfg, restaurantName, onSaveItemNutrition}){
   const [open, setOpen]   = useState(()=> {
     const o = {}; (menu.sections||[]).forEach((s,i)=> { o[i] = i < 2; }); return o;
   });
   const [filter, setFilter] = useState("");
+  const [itemBusy, setItemBusy] = useState({});   // "si:ii" -> bool
+  const [itemErr,  setItemErr]  = useState({});    // "si:ii" -> message
   const q = filter.trim().toLowerCase();
+  const canEstimate = !!(cfg && onSaveItemNutrition);
 
+  // carry each item's ORIGINAL index so estimates write back to the right item
   const sections = (menu.sections || []).map((s,i)=>{
-    if (!q) return { s, i, items:s.items };
-    const items = s.items.filter(it =>
+    const withIdx = (s.items || []).map((it,oj)=> ({ it, oj }));
+    if (!q) return { s, i, items:withIdx };
+    const items = withIdx.filter(({it}) =>
       (it.name + " " + it.description).toLowerCase().indexOf(q) !== -1);
     return { s, i, items };
   }).filter(x => !q || x.items.length);
+
+  async function estimateOne(si, ii, it){
+    const key = si + ":" + ii;
+    if (!cfg || !cfg.anthropicKey){
+      setItemErr(e => Object.assign({}, e, { [key]:"Add your Anthropic key in Settings." }));
+      return;
+    }
+    setItemErr(e => Object.assign({}, e, { [key]:null }));
+    setItemBusy(b => Object.assign({}, b, { [key]:true }));
+    try {
+      const est = await estimateItemNutrition(cfg, restaurantName, it);
+      est.source = "menu_estimate";
+      est.estimated_at = todayISO();
+      onSaveItemNutrition(si, ii, est);   // parent updates menus + commits to GitHub
+    } catch(err){
+      setItemErr(e => Object.assign({}, e, { [key]:err.message || "Could not estimate." }));
+    } finally {
+      setItemBusy(b => Object.assign({}, b, { [key]:false }));
+    }
+  }
 
   return (
     <div>
@@ -2870,20 +3003,37 @@ function MenuView({menu}){
               <Icon name={(open[i]||q) ? "chevd" : "chev"} size={16} color="#80715f" />
             </span>
           </div>
-          {(open[i] || q) && items.map((it,j)=>(
-            <div key={j} className="mitem">
-              <div className="ihead">
-                <span className="inm">{it.name}</span>
-                {it.price && <span className="ipr">{it.price}</span>}
-              </div>
-              {it.description && <div className="idesc">{it.description}</div>}
-              {it.tags && it.tags.length > 0 && (
-                <div className="chips" style={{marginTop:6}}>
-                  {it.tags.map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
+          {(open[i] || q) && items.map(({it,oj})=>{
+            const key = i + ":" + oj;
+            return (
+              <div key={oj} className="mitem">
+                <div className="ihead">
+                  <span className="inm">{it.name}</span>
+                  {it.price && <span className="ipr">{it.price}</span>}
                 </div>
-              )}
-            </div>
-          ))}
+                {it.description && <div className="idesc">{it.description}</div>}
+                {it.tags && it.tags.length > 0 && (
+                  <div className="chips" style={{marginTop:6}}>
+                    {it.tags.map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
+                  </div>
+                )}
+                {it.nutrition
+                  ? <NutriLine n={it.nutrition} />
+                  : canEstimate && (
+                      <div className="iest">
+                        <button className="iest-btn" disabled={itemBusy[key]}
+                          onClick={()=> estimateOne(i, oj, it)}>
+                          {itemBusy[key]
+                            ? <span className="spin" />
+                            : <Icon name="sparkle" size={12} color="#e0764a" />}
+                          {itemBusy[key] ? "Estimating..." : "Estimate calories"}
+                        </button>
+                        {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
+                      </div>
+                    )}
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>
