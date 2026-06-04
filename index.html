@@ -135,6 +135,11 @@
     .dish-cam{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--accent);
       background:none; border:none; padding:2px 0; cursor:pointer; -webkit-tap-highlight-color:transparent;}
     .dish-cam:disabled{opacity:0.6;}
+    .dish-est{display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; color:var(--text-dim);}
+    .dish-est-num{color:var(--text); font-weight:600;}
+    .dish-est-mac{color:var(--text-faint);}
+    .dish-redo{background:none; border:none; padding:0; margin-left:2px; font-size:12px;
+      color:var(--text-faint); text-decoration:underline; cursor:pointer; -webkit-tap-highlight-color:transparent;}
     .dish-cam-err{font-size:12px; color:#eab0a6;}
     /* conflict modal (photo estimate vs existing menu estimate) */
     .modal-bg{position:fixed; inset:0; z-index:80; background:rgba(15,12,10,0.62);
@@ -419,7 +424,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.11.0";
+const APP_VERSION   = "1.11.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -3895,17 +3900,26 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                     </button>
                   </div>
                   <div className="dish-sub">
-                    <button className="dish-cam" disabled={dishNutBusy[d.name]}
-                      onClick={()=> startDishPhoto(d.name)}>
-                      {dishNutBusy[d.name]
-                        ? <span className="spin" />
-                        : <Icon name="camera" size={13} color="#e0764a" />}
-                      {dishNutBusy[d.name]
-                        ? "Estimating..."
-                        : (d.nutrition && d.nutrition.kcal
-                            ? "~" + d.nutrition.kcal + " cal  -  retake"
-                            : "Estimate from a photo")}
-                    </button>
+                    {dishNutBusy[d.name] ? (
+                      <span className="dish-cam" style={{cursor:"default"}}>
+                        <span className="spin" />Estimating...
+                      </span>
+                    ) : (d.nutrition && d.nutrition.kcal) ? (
+                      <span className="dish-est">
+                        <Icon name="check" size={13} color="#8fb08a" />
+                        <span className="dish-est-num">~{d.nutrition.kcal} cal</span>
+                        {(d.nutrition.protein_g || d.nutrition.carbs_g || d.nutrition.fat_g) ? (
+                          <span className="dish-est-mac">
+                            {d.nutrition.protein_g}P / {d.nutrition.carbs_g}C / {d.nutrition.fat_g}F
+                          </span>
+                        ) : null}
+                        <button className="dish-redo" onClick={()=> startDishPhoto(d.name)}>Redo</button>
+                      </span>
+                    ) : (
+                      <button className="dish-cam" onClick={()=> startDishPhoto(d.name)}>
+                        <Icon name="camera" size={13} color="#e0764a" />Estimate from a photo
+                      </button>
+                    )}
                     {dishNutErr[d.name] && <span className="dish-cam-err">{dishNutErr[d.name]}</span>}
                   </div>
                 </div>
