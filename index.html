@@ -71,6 +71,8 @@
     .syncbar.busy{background:var(--bg-2); color:var(--text-dim);}
     .syncbar.err{background:rgba(217,96,78,0.12); color:#eab0a6; border-color:rgba(217,96,78,0.4);}
     .syncbar.warn{background:rgba(231,178,76,0.1); color:#e7cf9a; border-color:rgba(231,178,76,0.35);}
+    .syncbar.update{background:rgba(224,118,74,0.14); color:#f0bfa3; border-color:rgba(224,118,74,0.45);}
+    .updrow{display:flex; align-items:center; gap:10px; justify-content:center; padding:14px 0 2px; flex-wrap:wrap;}
     .syncbar button{margin-left:auto; font-size:12px; color:var(--accent); font-weight:600;}
     .dot{width:7px; height:7px; border-radius:50%; flex:none;}
     .spin{width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;flex:none;}
@@ -391,7 +393,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.8.0";
+const APP_VERSION   = "1.9.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -1533,6 +1535,51 @@ function PhotoImg({cfg, path, alt, className, style, onClick}){
 /* ============================================================
    ROOT COMPONENT
    ============================================================ */
+/* ============================================================
+   IN-APP UPDATER
+   ============================================================
+   GitHub Pages and the iOS Home Screen app both cache index.html,
+   so a fresh upload can linger. On launch we re-fetch our own file
+   (cache-busted), read the deployed APP_VERSION, and if it is newer
+   than what is running we offer a one-tap cache-busting reload.
+   No service worker, nothing extra to deploy. */
+
+// Compare dot-separated versions; true if `a` is strictly newer than `b`.
+function isNewer(a, b){
+  const pa = String(a || "").split(".").map(n => parseInt(n,10) || 0);
+  const pb = String(b || "").split(".").map(n => parseInt(n,10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i=0; i<len; i++){
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x > y) return true;
+    if (x < y) return false;
+  }
+  return false;
+}
+
+// Fetch our own page fresh (bypassing caches) and read the deployed
+// version string. Returns the version, or null on any failure/offline.
+async function fetchDeployedVersion(){
+  const url = location.pathname + "?vcheck=" + Date.now();
+  try {
+    const res = await fetch(url, { cache:"no-store" });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const m = html.match(/APP_VERSION\s*=\s*"([^"]+)"/);
+    return m ? m[1] : null;
+  } catch(e){
+    logMsg("UPDATE","Version check failed: " + e.message);
+    return null;
+  }
+}
+
+// Reload onto a cache-busting URL so the CDN and the app cache both
+// fetch the new file instead of serving the stale one.
+function applyUpdate(version){
+  const base = location.origin + location.pathname;
+  location.replace(base + "?v=" + encodeURIComponent(version || Date.now()));
+}
+
 function App(){
   const [config, setConfig]     = useState(() => loadConfig());
   const [ready, setReady]       = useState(false);
@@ -1553,6 +1600,8 @@ function App(){
   const [sync, setSync]       = useState({ status:"idle", msg:"" });
   const [toast, setToast]     = useState("");
   const [placesFilter, setPlacesFilter] = useState("All"); // active city filter chip
+  const [update, setUpdate]   = useState(null);            // {version} when a newer build is live
+  const [updMsg, setUpdMsg]   = useState("");              // transient text for manual check
 
   const toastTimer = useRef(null);
   function flash(msg){
@@ -1560,6 +1609,33 @@ function App(){
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(()=> setToast(""), 2600);
   }
+
+  /* ---- update check ---------------------------------------- */
+  // manual=true surfaces a result message (for the Settings button);
+  // on launch we check quietly and only speak up if there's an update.
+  async function checkForUpdate(manual){
+    if (manual) setUpdMsg("Checking...");
+    const v = await fetchDeployedVersion();
+    if (v && isNewer(v, APP_VERSION)){
+      setUpdate({ version:v });
+      if (manual) setUpdMsg("");
+      logMsg("UPDATE","Newer version live: " + v + " (running " + APP_VERSION + ")");
+    } else {
+      setUpdate(null);
+      if (manual){
+        setUpdMsg(v ? ("You're on the latest (" + APP_VERSION + ")")
+                    : "Couldn't check - are you online?");
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+        setTimeout(()=> setUpdMsg(""), 3500);
+      }
+    }
+  }
+  // check once on launch (slight delay so it doesn't compete with first sync)
+  useEffect(()=>{
+    const t = setTimeout(()=> checkForUpdate(false), 1500);
+    return ()=> clearTimeout(t);
+    // eslint-disable-next-line
+  },[]);
 
   /* ---- startup --------------------------------------------- */
   useEffect(()=>{
@@ -1849,6 +1925,18 @@ function App(){
     <div id="app-shell">
       <TopBar tab={tab} />
 
+      {/* update available - tap to cache-bust reload */}
+      {update && (
+        <div className="syncbar update" onClick={()=> applyUpdate(update.version)}
+          style={{cursor:"pointer"}}>
+          <span className="dot" style={{background:"var(--accent)"}} />
+          <span>Update available (v{update.version})</span>
+          <button onClick={(e)=>{ e.stopPropagation(); applyUpdate(update.version); }}>
+            Refresh
+          </button>
+        </div>
+      )}
+
       {/* sync status banner */}
       {sync.status === "busy" && (
         <div className="syncbar busy"><span className="spin" />{sync.msg || "Working..."}</div>
@@ -1935,7 +2023,11 @@ function App(){
               commit({ locations:next }, ["locations"]);
               if (placesFilter === name) setPlacesFilter("All");
               flash("Location removed");
-            }} />
+            }}
+            onCheckUpdate={()=> checkForUpdate(true)}
+            updMsg={updMsg}
+            updateVersion={update ? update.version : null}
+            onApplyUpdate={()=> applyUpdate(update ? update.version : null)} />
         )}
       </div>
 
@@ -4094,7 +4186,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
    ============================================================ */
 function SettingsView({config, onEdit, counts, lastSync, onResync,
                        locations, restaurants,
-                       onAddLocation, onRenameLocation, onDeleteLocation}){
+                       onAddLocation, onRenameLocation, onDeleteLocation,
+                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate}){
   const [showLog,setShowLog] = useState(false);
   const [, force] = useState(0);
   const [newLoc,setNewLoc] = useState("");
@@ -4230,6 +4323,20 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
             </div>
           </div>
         )}
+      </div>
+
+      <div className="updrow">
+        {updateVersion ? (
+          <button className="btn primary sm" onClick={onApplyUpdate}>
+            <Icon name="check" size={15} color="#1b1714" />
+            Update to v{updateVersion}
+          </button>
+        ) : (
+          <button className="btn ghost sm" onClick={onCheckUpdate}>
+            Check for updates
+          </button>
+        )}
+        {updMsg && <span className="tiny faint">{updMsg}</span>}
       </div>
 
       <div className="tiny faint" style={{textAlign:"center",padding:"8px 0 4px"}}>
