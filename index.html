@@ -207,6 +207,23 @@
     .search-input::placeholder{color:var(--text-faint);}
     .search-x{flex:none; background:none; border:none; padding:3px; cursor:pointer;
       line-height:0; -webkit-tap-highlight-color:transparent;}
+    /* (i) call-out popovers */
+    .hist-legend{display:flex; justify-content:flex-start; margin:-4px 0 12px 2px;}
+    .infodot-wrap{position:relative; display:inline-flex; align-items:center; vertical-align:middle;}
+    .infodot{display:inline-flex; align-items:center; gap:5px; background:none; border:none;
+      padding:2px; cursor:pointer; line-height:0; -webkit-tap-highlight-color:transparent;}
+    .infodot.labeled{padding:3px 4px;}
+    .infodot-label{font-size:12px; color:var(--text-faint); line-height:1;}
+    .infodot-scrim{position:fixed; inset:0; z-index:74;}
+    .infodot-pop{position:absolute; z-index:75; top:calc(100% + 6px); left:0;
+      width:min(290px,82vw); background:var(--surface-2); border:1px solid var(--line);
+      border-radius:12px; padding:12px 14px; box-shadow:0 14px 36px rgba(0,0,0,0.45); cursor:default;}
+    .infodot-poptitle{display:block; font-family:'Fraunces',serif; font-size:15px;
+      color:var(--text); margin-bottom:7px;}
+    .infodot-popbody{display:block; font-size:12.5px; line-height:1.5; color:var(--text-dim);}
+    .infodot-popbody strong{color:var(--text); font-weight:600;}
+    .idl{display:block; margin-bottom:6px;}
+    .idl:last-child{margin-bottom:0;}
 
     /* ---- stars ---- */
     .stars{display:inline-flex; gap:3px;}
@@ -443,7 +460,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.13.0";
+const APP_VERSION   = "1.14.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -2718,6 +2735,30 @@ function TopBar({tab}){
 /* ============================================================
    HISTORY VIEW
    ============================================================ */
+function InfoDot({title, label, children}){
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="infodot-wrap">
+      <button className={"infodot" + (label ? " labeled" : "")}
+        onClick={(e)=>{ e.stopPropagation(); setOpen(o=>!o); }}
+        aria-label={title || "More info"}>
+        <Icon name="info" size={14} color="#80715f" />
+        {label ? <span className="infodot-label">{label}</span> : null}
+      </button>
+      {open ? (
+        <>
+          <span className="infodot-scrim"
+            onClick={(e)=>{ e.stopPropagation(); setOpen(false); }} />
+          <span className="infodot-pop" onClick={e=> e.stopPropagation()}>
+            {title ? <span className="infodot-poptitle">{title}</span> : null}
+            <span className="infodot-popbody">{children}</span>
+          </span>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 function SearchBar({value, onChange, placeholder}){
   return (
     <div className="searchbar">
@@ -2759,6 +2800,14 @@ function HistoryView({visits, restaurantById, cfg, onOpen}){
     <div>
       <SearchBar value={query} onChange={setQuery}
         placeholder="Search visits, dishes, notes" />
+      <div className="hist-legend">
+        <InfoDot title="Calorie labels" label="Calorie labels">
+          <span className="idl"><strong>~320 cal</strong> &mdash; an estimate (the ~ means estimated).</span>
+          <span className="idl"><strong>850 cal, per menu</strong> &mdash; a real number printed on the menu.</span>
+          <span className="idl"><strong>EST</strong> &mdash; estimated. <strong>9P / 22C / 22F</strong> &mdash; grams of protein, carbs, and fat.</span>
+          <span className="idl">These numbers are here for memory and curiosity &mdash; never a budget.</span>
+        </InfoDot>
+      </div>
       {filtered.length === 0 ? (
         <div className="empty" style={{padding:"30px 20px"}}>
           <div className="big">No matches</div>
@@ -4662,8 +4711,14 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             {/* ===== top-level toggle, only for multi-section new scans ===== */}
             {showModeToggle && (
               <div className="card" style={{padding:"12px 14px",marginTop:4}}>
-                <div className="small" style={{fontWeight:600,marginBottom:8}}>
+                <div className="small" style={{fontWeight:600,marginBottom:8,
+                  display:"flex",alignItems:"center",gap:6}}>
                   How to save
+                  <InfoDot title="How to save">
+                    <span className="idl"><strong>One menu</strong> keeps every detected section together in a single menu.</span>
+                    <span className="idl"><strong>Customize each section</strong> lets you split the sections into separate menus &mdash; give two sections the same name and they merge into one.</span>
+                    <span className="idl">Use Customize to turn one long scan into tidy menus (Food, Cocktails, ...).</span>
+                  </InfoDot>
                 </div>
                 <label className="row" style={{gap:10,marginBottom:8,alignItems:"flex-start"}}>
                   <input type="radio" checked={saveMode === "one"}
