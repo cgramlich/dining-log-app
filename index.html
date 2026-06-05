@@ -188,6 +188,25 @@
     .mitem-nut .nutri-line{margin-top:0;}
     .mitem-thumb{width:46px; height:46px; border-radius:9px; overflow:hidden; flex:none; background:var(--surface-2);}
     .mitem-thumb .photo-img, .mitem-thumb .photo-shell{width:46px; height:46px; border-radius:9px;}
+    /* in-app help / user guide */
+    .help-body{padding-bottom:40px;}
+    .help-h1{font-family:'Fraunces',serif; font-size:25px; color:var(--text); margin:6px 0 4px;}
+    .help-h2{font-family:'Fraunces',serif; font-size:19px; color:var(--text); margin:24px 0 8px;}
+    .help-h3{font-size:14px; font-weight:600; color:var(--text); margin:16px 0 6px; text-transform:uppercase; letter-spacing:0.04em;}
+    .help-p{font-size:14.5px; line-height:1.62; color:var(--text-dim); margin:0 0 12px;}
+    .help-p strong, .help-ul strong{color:var(--text); font-weight:600;}
+    .help-p em, .help-ul em{color:var(--text); font-style:italic;}
+    .help-ul{margin:0 0 14px; padding-left:20px;}
+    .help-ul li{font-size:14.5px; line-height:1.6; color:var(--text-dim); margin-bottom:7px;}
+    .help-hr{border:none; border-top:1px solid var(--line); margin:22px 0;}
+    /* search bar (History + Places) */
+    .searchbar{display:flex; align-items:center; gap:9px; background:var(--surface);
+      border:1px solid var(--line); border-radius:11px; padding:9px 12px; margin:2px 0 14px;}
+    .search-input{flex:1; min-width:0; background:none; border:none; outline:none;
+      color:var(--text); font-size:15px; font-family:inherit;}
+    .search-input::placeholder{color:var(--text-faint);}
+    .search-x{flex:none; background:none; border:none; padding:3px; cursor:pointer;
+      line-height:0; -webkit-tap-highlight-color:transparent;}
 
     /* ---- stars ---- */
     .stars{display:inline-flex; gap:3px;}
@@ -424,11 +443,240 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.11.1";
+const APP_VERSION   = "1.13.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
+
+// In-app user guide (source of truth: dining-log-help.md). Re-sync this when the .md changes.
+const HELP_DOC = `# Dining Log - User Guide
+
+Dining Log is your private notebook for eating out. You log the places you go,
+scan their menus, remember which dishes you loved, and - if you want - get a
+rough idea of the calories on your plate. It is built to help you *remember and
+enjoy* what you eat, not to police it.
+
+Everything you save lives in your own private storage, separate from everyone
+else's. You, and anyone you set up, each have a completely separate world even
+though you all open the same app.
+
+-----
+
+## Getting set up
+
+The first time you use the app you enter four things on the Settings screen:
+your GitHub username, your repository name, an access token, and an Anthropic
+key (which powers the AI features). The app then creates your data files
+automatically on your first save.
+
+If you are setting up a new person from scratch, follow the separate
+"Private Repo Setup" guide - it walks through creating the account, the repo,
+and the token step by step. You only do this once.
+
+-----
+
+## Getting around
+
+There is a bar across the bottom of the screen with four spots:
+
+- **History** - everything you have logged, newest first.
+- **Places** - your list of restaurants.
+- **The plus (+) button** - the quick-action button. Tap it to log a visit,
+  add a restaurant, or scan a menu.
+- **Settings** - your account details, the update check, this user guide, and
+  app info.
+
+-----
+
+## Places (your restaurants)
+
+**Adding a place.** Add a restaurant with its name, cuisine, city, address,
+phone, website, and any notes. You can mark it as a favorite and give it a
+photo. Only the name is required - everything else is optional.
+
+**The restaurant page.** Opening a restaurant shows its details, its menus,
+every visit you have logged there, and a picks card once you have rated some
+dishes (see "Your picks" below).
+
+-----
+
+## Menus
+
+**Scanning a menu.** Use "Scan a menu" and take or pick photos of the physical
+menu. The app reads it and turns it into a clean, digital menu - sections,
+dish names, descriptions, prices, and tags. This is what powers "Help me order"
+and the calorie estimates.
+
+**More than one menu.** A place can have several menus (for example Dinner,
+Brunch, and Drinks). When you scan a menu that has more than one section, the
+app asks how to save it: **One menu** keeps every section together in a single
+menu, or **Customize each section** lets you split the sections into separate
+menus (any sections you give the same name merge back together). That is how
+one long scan can become a few tidy menus.
+
+**Re-scanning and deleting.** You can re-scan a menu to replace it with a fresh
+version, or delete a menu you no longer want. Re-scanning replaces the old
+copy, so any estimates saved on the old items are not carried over.
+
+**Calories on a menu.** If the menu itself prints calories, the app captures
+those and shows them as a real number labeled "per menu." If it does not, you
+can tap "Estimate calories" on an item and the app will estimate it from the
+dish description. Estimated numbers are always shown with a "~" and marked EST
+so you can tell them apart from real ones.
+
+-----
+
+## Help me order
+
+On any digitized menu you can ask a plain-English question - things like
+"something healthy," "not too heavy," "best value," or "what did I love here?"
+The app answers using that restaurant's actual menu, and it takes your own
+dish ratings into account, so the more you log the more personal the answers
+get.
+
+-----
+
+## Logging a visit
+
+Tap the plus button and choose "Log a visit." You can fill in as much or as
+little as you like:
+
+**Date and rating.** Pick the date and give the visit a star rating.
+
+**What you had (dishes).** Add the dishes you ordered, either by typing them or
+by tapping them straight from that restaurant's digitized menu. Tapping from
+the menu is the better habit - it makes the rest of the features line up
+correctly (see the photo estimate below).
+
+**Again or Skip.** Each dish has an "Again" and a "Skip" button. Tap Again for
+something you would order again, Skip for something you would not. This is the
+heart of the app - it is how you remember what is worth getting next time. The
+most recent verdict always wins, so you can change your mind later.
+
+**Estimate a dish from a photo.** Under each dish is an "Estimate from a photo"
+button. When the food arrives, tap it and snap a picture of that dish. The app
+estimates the calories and macros for it. If that dish is on the restaurant's
+digitized menu, the estimate (and a thumbnail of your photo) is saved onto the
+menu item too - so the next time you open that menu, the picture and the
+numbers are already there. If that menu item already had an estimate, the app
+asks whether to keep the old one or use your new photo. Estimating works best
+when you added the dish by tapping it from the menu, so the names match.
+
+**Estimate the whole plate.** If your meal is not on a menu, there is also a
+"Estimate from a photo" option for the whole plate, which gives one set of
+numbers for the meal. You can edit any estimate by hand if you know the real
+figures.
+
+**Photos and notes.** Attach photos of the visit and jot down any notes.
+
+-----
+
+## History
+
+History is the running list of everywhere you have eaten, newest first. Each
+entry shows the rating, the dishes (color-coded by your Again/Skip verdict,
+with the estimated calories beside each one when you have them), any nutrition
+summary, your notes, and your photos.
+
+-----
+
+## Searching
+
+As your lists grow you can filter them quickly:
+
+- On **History**, the search box at the top filters your visits by restaurant
+  name, by dish, or by anything in your notes.
+- On **Places**, the search box filters your restaurants by name, cuisine, or
+  city, and works alongside the city filter chips.
+
+Type to filter instantly; tap the (x) to clear it and see the whole list again.
+
+-----
+
+## Your picks (what you loved)
+
+Once you have rated a few dishes at a place, its restaurant page shows a
+picks card with two parts:
+
+- **You've loved these here** - the dishes you have marked Again, so you can
+  reorder your favorites without thinking.
+- **Last time** - a quick reminder of your most recent visit.
+
+Marking a dish Skip just keeps it off the loved list. Not ordering something
+again does not count against it.
+
+-----
+
+## Understanding the calorie labels
+
+A few small labels show up wherever calories appear:
+
+- **~320 cal** - the "~" means this is an estimate.
+- **850 cal, per menu** - a real number printed on the menu (no "~").
+- **EST** - short for estimated.
+- **9P / 22C / 22F** - grams of protein, carbs, and fat.
+
+Where an estimate came from:
+- **from a photo** - estimated from a picture of the actual plate.
+- **estimated** - estimated from the menu description (no photo).
+- **per menu** - taken straight from the printed menu.
+- **entered by you** - a number you typed in by hand.
+
+A photo of the real plate is treated as a better guess than one from the
+description, which is why the app offers to replace a description-based
+estimate when you add a photo.
+
+-----
+
+## Keeping the app up to date
+
+When a new version is published, the app notices on its own and shows an
+"Update available" banner - tap it to refresh to the latest version. You can
+also check any time from Settings with "Check for updates." This is what spares
+you from the usual home-screen app trick of having to clear it and re-add it to
+get the newest changes.
+
+-----
+
+## Your data, privacy, and cost
+
+Your logs, menus, and photos are stored in your own private storage - they are
+not shared with anyone else, and each person you set up has a separate world.
+
+The AI features (menu scanning, Help me order, and the photo estimates) run
+through your own Anthropic key, so those requests are yours. Personal-scale use
+costs only pennies. The photo estimate is the most involved AI step, since it
+has to look at a picture; everyday use is still very cheap.
+
+-----
+
+## If something stops working
+
+- **Nothing is saving / it says it can't sync.** Your access token has most
+  likely expired. Generate a fresh token and paste it into Settings - that is
+  the usual fix. (Tokens are set to expire on a schedule for safety.)
+- **A photo is slow to appear or won't load.** Photos load from your storage
+  the first time, so the very first view can be slow; it is quick after that.
+  If one refuses to load, it may not have finished uploading - try again on a
+  good connection.
+- **An AI feature says to add your key.** The Anthropic key in Settings is
+  missing or wrong. Re-enter it.
+- **A dish photo estimate didn't show up on the menu.** The dish name has to
+  match a menu item exactly. Adding the dish by tapping it from the menu
+  guarantees the match; a free-typed name that doesn't match will still get an
+  estimate on the visit, it just won't attach to the menu item.
+
+-----
+
+## The spirit of the app
+
+The calorie and macro numbers are here for curiosity and memory - a record of
+what you ate, not a budget to stay under. The app will never scold you, warn
+you, or tell you that you "blew" anything. If the numbers ever start to feel
+like pressure rather than interest, ignore them - the dish ratings and the
+memories are the real point.
+`;
 const CFG_KEY       = "dininglog_config";
 const DATA_KEY      = "dininglog_data";
 const FILES = {                                     // logical name -> repo path
@@ -1572,6 +1820,8 @@ function Icon({name, size, color}){
     back:    <path d="M15 6l-6 6 6 6"/>,
     image:   <g><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M4 17l5-4 4 3 4-4 4 4"/></g>,
     close:   <g><path d="M6 6l12 12M18 6 6 18"/></g>,
+    info:    <g><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></g>,
+    search:  <g><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.2-4.2"/></g>,
     sparkle: <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
@@ -2090,6 +2340,7 @@ function App(){
         {tab === "settings" && (
           <SettingsView config={config}
             onEdit={()=> setOverlay({ type:"settings" })}
+            onOpenHelp={()=> setOverlay({ type:"help" })}
             counts={{
               r: restaurants.length,
               m: Object.keys(menus).reduce((n,rid)=> n + (menus[rid] || []).length, 0),
@@ -2437,6 +2688,10 @@ function App(){
           }} />
       )}
 
+      {overlay && overlay.type === "help" && (
+        <HelpView onClose={()=> setOverlay(null)} />
+      )}
+
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
@@ -2463,7 +2718,24 @@ function TopBar({tab}){
 /* ============================================================
    HISTORY VIEW
    ============================================================ */
+function SearchBar({value, onChange, placeholder}){
+  return (
+    <div className="searchbar">
+      <Icon name="search" size={16} color="#80715f" />
+      <input className="search-input" type="text" value={value}
+        placeholder={placeholder || "Search"}
+        onChange={e=> onChange(e.target.value)} />
+      {value ? (
+        <button className="search-x" onClick={()=> onChange("")} aria-label="Clear search">
+          <Icon name="close" size={14} color="#80715f" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function HistoryView({visits, restaurantById, cfg, onOpen}){
+  const [query, setQuery] = useState("");
   if (!visits.length){
     return (
       <div className="empty">
@@ -2475,9 +2747,24 @@ function HistoryView({visits, restaurantById, cfg, onOpen}){
   const sorted = visits.slice().sort((a,b)=>
     (b.date || "").localeCompare(a.date || "") ||
     (b.logged_at || 0) - (a.logged_at || 0));
+  const q = query.trim().toLowerCase();
+  const filtered = q ? sorted.filter(v => {
+    const rr = restaurantById(v.restaurant_id);
+    const hay = ((rr ? rr.name : (v.restaurant_name || "")) + " " +
+      (v.dishes || []).map(d => d.name || "").join(" ") + " " +
+      (v.notes || "")).toLowerCase();
+    return hay.includes(q);
+  }) : sorted;
   return (
     <div>
-      {sorted.map(v => {
+      <SearchBar value={query} onChange={setQuery}
+        placeholder="Search visits, dishes, notes" />
+      {filtered.length === 0 ? (
+        <div className="empty" style={{padding:"30px 20px"}}>
+          <div className="big">No matches</div>
+          <div>Nothing logged matches that search.</div>
+        </div>
+      ) : filtered.map(v => {
         const r = restaurantById(v.restaurant_id);
         const photos = Array.isArray(v.photos) ? v.photos.filter(Boolean) : [];
         return (
@@ -2521,6 +2808,7 @@ function HistoryView({visits, restaurantById, cfg, onOpen}){
    RESTAURANTS VIEW
    ============================================================ */
 function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpen}){
+  const [query, setQuery] = useState("");
   if (!restaurants.length){
     return (
       <div className="empty">
@@ -2544,8 +2832,14 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       ? restaurants.filter(r => !r.location)
       : restaurants.filter(r => r.location === filter);
 
-  const favs   = visible.filter(r => r.favorite);
-  const others = visible.filter(r => !r.favorite);
+  const q = query.trim().toLowerCase();
+  const searched = q ? visible.filter(r =>
+    ((r.name || "") + " " + (r.cuisine || "") + " " + (r.location || ""))
+      .toLowerCase().includes(q)
+  ) : visible;
+
+  const favs   = searched.filter(r => r.favorite);
+  const others = searched.filter(r => !r.favorite);
 
   const Card = (r)=> (
     <div key={r.id} className="card tap" onClick={()=> onOpen(r)}
@@ -2581,6 +2875,8 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
 
   return (
     <div>
+      <SearchBar value={query} onChange={setQuery}
+        placeholder="Search places, cuisine, city" />
       {showChips && (
         <div className="chips" style={{margin:"2px 0 14px"}}>
           <span
@@ -2599,10 +2895,12 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         </div>
       )}
 
-      {visible.length === 0 && (
+      {searched.length === 0 && (
         <div className="empty" style={{padding:"30px 20px"}}>
-          <div className="big">Nothing in {filter}</div>
-          <div>Add a restaurant in this location, or pick a different filter.</div>
+          <div className="big">{q ? "No matches" : "Nothing in " + filter}</div>
+          <div>{q
+            ? "No places match that search."
+            : "Add a restaurant in this location, or pick a different filter."}</div>
         </div>
       )}
 
@@ -4528,10 +4826,58 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 /* ============================================================
    SETTINGS VIEW
    ============================================================ */
+/* ============================================================
+   IN-APP HELP  (renders HELP_DOC; source of truth: dining-log-help.md)
+   ============================================================ */
+function renderHelpInline(text, kp){
+  const nodes=[]; const re=/\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+  let last=0, m, k=0;
+  while((m=re.exec(text))){
+    if(m.index>last) nodes.push(text.slice(last,m.index));
+    if(m[1]!=null) nodes.push(<strong key={kp+"b"+(k++)}>{m[1]}</strong>);
+    else nodes.push(<em key={kp+"i"+(k++)}>{m[2]}</em>);
+    last=re.lastIndex;
+  }
+  if(last<text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+function renderHelpMarkdown(doc){
+  const lines=(doc||"").split("\n");
+  const out=[]; let key=0; let para=[]; let bullets=null;
+  const flushPara=()=>{ if(para.length){ out.push(<p key={"p"+(key++)} className="help-p">{renderHelpInline(para.join(" "),"p"+key)}</p>); para=[]; } };
+  const flushBullets=()=>{ if(bullets){ const b=bullets; out.push(<ul key={"u"+(key++)} className="help-ul">{b.map((t,bi)=><li key={bi}>{renderHelpInline(t,"u"+key+"_"+bi)}</li>)}</ul>); bullets=null; } };
+  for(const raw of lines){
+    const line=raw.replace(/\s+$/,"");
+    if(/^-{3,}$/.test(line.trim())){ flushPara(); flushBullets(); out.push(<hr key={"h"+(key++)} className="help-hr" />); continue; }
+    if(/^#\s+/.test(line)){ flushPara(); flushBullets(); out.push(<h1 key={"t"+(key++)} className="help-h1">{line.replace(/^#\s+/,"")}</h1>); continue; }
+    if(/^##\s+/.test(line)){ flushPara(); flushBullets(); out.push(<h2 key={"s"+(key++)} className="help-h2">{line.replace(/^##\s+/,"")}</h2>); continue; }
+    if(/^###\s+/.test(line)){ flushPara(); flushBullets(); out.push(<h3 key={"x"+(key++)} className="help-h3">{line.replace(/^###\s+/,"")}</h3>); continue; }
+    if(/^-\s+/.test(line)){ flushPara(); (bullets=bullets||[]).push(line.replace(/^-\s+/,"")); continue; }
+    if(/^\s+\S/.test(raw) && bullets && bullets.length){ bullets[bullets.length-1]+=" "+line.trim(); continue; }
+    if(line.trim()===""){ flushPara(); flushBullets(); continue; }
+    flushBullets(); para.push(line.trim());
+  }
+  flushPara(); flushBullets();
+  return out;
+}
+function HelpView({onClose}){
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}>Close</button>
+        <h2>Help &amp; Guide</h2><span style={{width:40}} />
+      </div>
+      <div className="ovbody help-body">
+        {renderHelpMarkdown(HELP_DOC)}
+      </div>
+    </div>
+  );
+}
+
 function SettingsView({config, onEdit, counts, lastSync, onResync,
                        locations, restaurants,
                        onAddLocation, onRenameLocation, onDeleteLocation,
-                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate}){
+                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp}){
   const [showLog,setShowLog] = useState(false);
   const [, force] = useState(0);
   const [newLoc,setNewLoc] = useState("");
@@ -4667,6 +5013,13 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
             </div>
           </div>
         )}
+      </div>
+
+      <div className="updrow" style={{marginBottom:10}}>
+        <button className="btn ghost sm" onClick={onOpenHelp}>
+          <Icon name="info" size={15} color="var(--text-dim)" />
+          User guide
+        </button>
       </div>
 
       <div className="updrow">
