@@ -14,9 +14,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Dining Log" />
+  <meta name="apple-mobile-web-app-title" content="DiningCaptain" />
   <meta name="theme-color" content="#1b1714" />
-  <title>Dining Log</title>
+  <!-- Home-screen icon: DiningCaptain wheel. iOS reads this tag (and also
+       probes the site root for this exact filename as a fallback). -->
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <title>DiningCaptain</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -499,16 +502,16 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.15.1";
+const APP_VERSION   = "1.15.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 
 // In-app user guide (source of truth: dining-log-help.md). Re-sync this when the .md changes.
-const HELP_DOC = `# Dining Log - User Guide
+const HELP_DOC = `# DiningCaptain - User Guide
 
-Dining Log is your private notebook for eating out. You log the places you go,
+DiningCaptain is your private notebook for eating out. You log the places you go,
 scan their menus, remember which dishes you loved, and - if you want - get a
 rough idea of the calories on your plate. It is built to help you *remember and
 enjoy* what you eat, not to police it.
@@ -1135,7 +1138,7 @@ async function ghPutBinaryFile(cfg, path, blob, sha){
               "/contents/" + path;
   const b64 = await blobToBase64(blob);
   const body = {
-    message:"Update " + path + " via Dining Log",
+    message:"Update " + path + " via DiningCaptain",
     content: b64,
   };
   if (sha) body.sha = sha;
@@ -1511,7 +1514,7 @@ async function ghPutFile(cfg, path, dataObj, sha){
   const url = GH_API + "/repos/" + cfg.githubUser + "/" + cfg.githubRepo +
               "/contents/" + path;
   const body = {
-    message:"Update " + path + " via Dining Log",
+    message:"Update " + path + " via DiningCaptain",
     content:utf8ToB64(JSON.stringify(dataObj,null,2)),
   };
   if (sha) body.sha = sha;
@@ -2198,7 +2201,7 @@ function App(){
 
   /* ---- startup --------------------------------------------- */
   useEffect(()=>{
-    logMsg("INIT","Dining Log v" + APP_VERSION + " starting");
+    logMsg("INIT","DiningCaptain v" + APP_VERSION + " starting");
     const cfg = loadConfig();
     if (!configComplete(cfg)){
       logMsg("INIT","Configuration incomplete - showing setup");
@@ -2911,7 +2914,7 @@ function App(){
    ============================================================ */
 function TopBar({tab}){
   const titles = {
-    history:["Dining Log","Where you have been"],
+    history:["DiningCaptain","Where you have been"],
     restaurants:["Places","Your restaurants & menus"],
     settings:["Settings","Sync & configuration"],
   };
@@ -5513,7 +5516,7 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
       </div>
 
       <div className="tiny faint" style={{textAlign:"center",padding:"8px 0 4px"}}>
-        Dining Log v{APP_VERSION}
+        DiningCaptain v{APP_VERSION}
       </div>
     </div>
   );
@@ -5574,7 +5577,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         <div style={{marginBottom:18}}>
           <h2 style={{fontSize:26}}>Welcome</h2>
           <div className="small muted" style={{marginTop:6}}>
-            Dining Log keeps your restaurants, menus and visits in your own
+            DiningCaptain keeps your restaurants, menus and visits in your own
             GitHub repo so they sync across devices. Enter your details once.
           </div>
         </div>
@@ -5624,7 +5627,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   }
   return (
     <div id="app-shell">
-      <div className="topbar"><h1>Dining Log</h1>
+      <div className="topbar"><h1>DiningCaptain</h1>
         <div className="sub">First-time setup</div></div>
       {body}
     </div>
