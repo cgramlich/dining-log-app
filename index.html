@@ -499,7 +499,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.15.0";
+const APP_VERSION   = "1.15.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -553,9 +553,12 @@ photo. Only the name is required - everything else is optional.
 
 **Find address.** When adding or editing a place, tap **Find address** under
 the address field and the app looks it up by name and city, fills in the
-address, and remembers its location for the map. It finds chains and
-well-mapped spots reliably; for a brand-new or tiny place it may come up
-empty, in which case just type the address yourself.
+address, and remembers its location for the map. When the place is well listed
+on the map, it also fills in any details it can find - phone, website, cuisine,
+and hours - but only for fields you have left blank, so it never overwrites
+what you typed. It finds chains and well-mapped spots reliably; for a brand-new
+or tiny place it may come up empty (or with just the address), in which case
+just fill in the rest yourself.
 
 **The restaurant page.** Opening a restaurant shows its details, its menus,
 every visit you have logged there, and a picks card once you have rated some
@@ -816,13 +819,45 @@ function composeAddress(a){
   return parts.join(", ");
 }
 
+// OSM stores cuisine as lowercase, ";"-separated, underscored
+// (e.g. "coffee_shop;cafe"). Make it human: "Coffee Shop, Cafe".
+function prettifyCuisine(s){
+  return String(s || "").split(";").map(function(x){
+    return x.trim().replace(/_/g, " ").replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  }).filter(Boolean).join(", ");
+}
+
+// Make sure a website has a scheme so it works as a tappable link.
+function normalizeWebsite(u){
+  u = (u || "").trim();
+  if (!u) return "";
+  if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+  return u;
+}
+
+// Pull the optional contact fields out of a Nominatim "extratags" object.
+// Anything missing comes back as "" - OSM coverage of these is partial.
+function extractDetails(et){
+  et = et || {};
+  var phone   = et.phone   || et["contact:phone"]   || et["contact:mobile"] || "";
+  var website = et.website || et["contact:website"] || et.url || et["contact:url"] || "";
+  var cuisine = et.cuisine ? prettifyCuisine(et.cuisine) : "";
+  var hours   = et.opening_hours || "";
+  return {
+    phone:   String(phone   || "").trim(),
+    website: normalizeWebsite(website),
+    cuisine: cuisine,
+    hours:   String(hours   || "").trim()
+  };
+}
+
 // Returns {lat,lng,display,addr} or null. detail=true also returns a composed
 // concise address string (used by the "Find address" button).
 async function geocodeAddress(query, detail){
   var q = (query || "").trim();
   if (!q) return null;
   var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1"
-    + (detail ? "&addressdetails=1" : "")
+    + (detail ? "&addressdetails=1&extratags=1&namedetails=1" : "")
     + "&q=" + encodeURIComponent(q);
   logMsg("GEO", "Lookup -> " + q);
   var res;
@@ -844,7 +879,8 @@ async function geocodeAddress(query, detail){
   return {
     lat: lat, lng: lng,
     display: h.display_name || "",
-    addr: detail ? composeAddress(h.address) : ""
+    addr: detail ? composeAddress(h.address) : "",
+    details: detail ? extractDetails(h.extratags) : null
   };
 }
 
@@ -3914,11 +3950,20 @@ function RestaurantForm({existing, locations, cfg, onClose, onSave}){
       if (!hit){
         setFindMsg("No match - type the address yourself.");
       } else {
+        const filled = [];
         const addr = hit.addr || hit.display || "";
-        if (addr) setAddress(addr);
+        if (addr){ setAddress(addr); filled.push("address"); }
         setGeo({ lat:hit.lat, lng:hit.lng, geo_addr: addr || q });
-        setFindMsg("Found it - double-check it looks right.");
-        logMsg("GEO","Find address matched: " + (addr || hit.display));
+        // Fill the extra fields ONLY when blank - never overwrite what you typed.
+        const d = hit.details || {};
+        if (d.cuisine && !cuisine.trim()){ setCuisine(d.cuisine); filled.push("cuisine"); }
+        if (d.phone   && !phone.trim())  { setPhone(d.phone);     filled.push("phone"); }
+        if (d.website && !website.trim()){ setWebsite(d.website); filled.push("website"); }
+        if (d.hours   && !notes.trim())  { setNotes("Hours: " + d.hours); filled.push("hours"); }
+        setFindMsg(filled.length > 1
+          ? "Found it - added " + filled.join(", ") + ". Double-check it."
+          : "Found it - double-check it looks right.");
+        logMsg("GEO","Find address filled: " + (filled.join(", ") || "none"));
       }
     } catch(e){
       setFindMsg("Lookup failed - try again, or just type it.");
