@@ -502,7 +502,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.16.1";
+const APP_VERSION   = "1.17.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -601,9 +601,15 @@ menu, or **Customize each section** lets you split the sections into separate
 menus (any sections you give the same name merge back together). That is how
 one long scan can become a few tidy menus.
 
+**Where menus show.** On a restaurant page, if there is only one menu it is
+shown expanded right there, so you can browse and estimate items without
+tapping in. With two or more menus, each appears as a card you tap to open.
+
 **Re-scanning and deleting.** You can re-scan a menu to replace it with a fresh
-version, or delete a menu you no longer want. Re-scanning replaces the old
-copy, so any estimates saved on the old items are not carried over.
+version, or delete a menu you no longer want. (For a single inline menu, use
+the **Manage** button by the Menus heading to reach those options.) Re-scanning
+replaces the old copy, so any estimates saved on the old items are not carried
+over.
 
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, you
@@ -648,6 +654,16 @@ menu item too - so the next time you open that menu, the picture and the
 numbers are already there. If that menu item already had an estimate, the app
 asks whether to keep the old one or use your new photo. Estimating works best
 when you added the dish by tapping it from the menu, so the names match.
+
+**Estimate without a photo.** Did not snap a picture? Each dish also has an
+"Estimate without a photo" option that estimates from the dish name - grounded
+by the menu description when you tapped the dish from the menu, so it is a
+better guess than the name alone. Tap "Redo" on any estimate to clear it and
+choose either method again.
+
+**Running total.** Once you have estimated a dish, a calm total appears in the
+visit ("~610 cal total - 31P / 63C / 22F across 2 dishes") so you can watch it
+add up as you log - a number for memory, never a budget.
 
 **Estimate the whole plate.** If your meal is not on a menu, there is also a
 "Estimate from a photo" option for the whole plate, which gives one set of
@@ -2179,9 +2195,10 @@ function NutriLine({n}){
 /* DishTotal - sums the per-dish estimates on a visit into one calm line.
    Shown only when 2+ dishes are estimated (a single dish's total just
    repeats the chip). Informative, never a budget: no colors, no verdicts. */
-function DishTotal({dishes}){
+function DishTotal({dishes, min}){
+  const floor = min || 2;
   const est = (dishes || []).filter(d => d && d.nutrition && d.nutrition.kcal);
-  if (est.length < 2) return null;
+  if (est.length < floor) return null;
   const sum = (k)=> est.reduce((s,d)=> s + (d.nutrition[k] || 0), 0);
   const kcal = sum("kcal");
   const p = sum("protein_g"), c = sum("carbs_g"), f = sum("fat_g");
@@ -2190,7 +2207,7 @@ function DishTotal({dishes}){
     <div className="dish-total">
       <span className="dt-kc">~{kcal} cal total</span>
       {hasMacros && <span className="dt-mc">{p}P / {c}C / {f}F</span>}
-      <span className="dt-note">across {est.length} dishes</span>
+      {est.length >= 2 && <span className="dt-note">across {est.length} dishes</span>}
     </div>
   );
 }
@@ -2785,6 +2802,21 @@ function App(){
             const nextM = Object.assign({}, menus); delete nextM[overlay.id];
             commit({ restaurants:nextR, menus:nextM }, ["restaurants","menus"]);
             setOverlay(null); flash("Restaurant removed");
+          }}
+          onSaveItemNutrition={(menuId, si, ii, nutrition)=>{
+            // same write path as the menu overlay, but the inline menu passes its id
+            const rid = overlay.id;
+            const list = menus[rid] || [];
+            const nextList = list.map(m => {
+              if (m.menu_id !== menuId) return m;
+              const sections = (m.sections || []).map((s, sidx) =>
+                sidx !== si ? s : Object.assign({}, s, {
+                  items: s.items.map((it, iidx) =>
+                    iidx !== ii ? it : Object.assign({}, it, { nutrition:nutrition })),
+                }));
+              return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
+            });
+            commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
           }} />
       )}
 
@@ -3467,7 +3499,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
    ============================================================ */
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onOpenMenu, onOpenVisit,
-                           onToggleFav, onDelete}){
+                           onToggleFav, onDelete, onSaveItemNutrition}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   if (!restaurant){
@@ -3649,13 +3681,19 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <Icon name="plus" size={18} color="#1b1714" />Log a visit here
         </button>
 
-        {/* menus list - drill in to each */}
+        {/* menus list - one menu shows expanded inline; 2+ stay as cards */}
         <div className="row between" style={{margin:"22px 0 10px",alignItems:"center"}}>
           <div className="divider-label" style={{margin:0,flex:1}}>
             {menuList.length === 0
               ? "Menus"
               : "Menus (" + menuList.length + ")"}
           </div>
+          {menuList.length === 1 && (
+            <button className="btn ghost sm" onClick={()=> onOpenMenu(menuList[0].menu_id)}
+              style={{flex:"none",padding:"6px 12px",margin:0,marginRight:8}}>
+              Manage
+            </button>
+          )}
           <button className="btn ghost sm" onClick={onAddMenu}
             style={{flex:"none",padding:"6px 12px",margin:0}}>
             <Icon name="plus" size={15} />Add menu
@@ -3671,7 +3709,13 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           </div>
         )}
 
-        {menuList.map(m => {
+        {menuList.length === 1 && (
+          <MenuView menu={menuList[0]} cfg={cfg} restaurantName={r.name}
+            onSaveItemNutrition={(si,ii,est)=>
+              onSaveItemNutrition && onSaveItemNutrition(menuList[0].menu_id, si, ii, est)} />
+        )}
+
+        {menuList.length > 1 && menuList.map(m => {
           const itemCount = (m.sections || []).reduce(
             (n,s) => n + ((s.items || []).length), 0);
           return (
@@ -4460,6 +4504,39 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
       ? Object.assign({}, x, { nutrition:est, photo:photoPath }) : x));
   }
 
+  // Estimate a dish WITHOUT a photo (you ate there but didn't snap it).
+  // Grounded by the matching menu item's description when the dish came from
+  // the menu; otherwise estimated from the name alone (lower confidence).
+  async function estimateDishNoPhoto(dishName){
+    if (!cfg || !cfg.anthropicKey){
+      setDishNutErr(x => Object.assign({}, x, { [dishName]:"Add your Anthropic key in Settings." }));
+      return;
+    }
+    const restObj = (restaurants || []).find(r => r.id === restId);
+    const restName = restObj ? restObj.name : "";
+    setDishNutErr(x => Object.assign({}, x, { [dishName]:null }));
+    setDishNutBusy(x => Object.assign({}, x, { [dishName]:true }));
+    try {
+      const match = findMenuItem(dishName);
+      const item = match ? match.item : { name: dishName };
+      const est = await estimateItemNutrition(cfg, restName, item);
+      est.source = "menu_estimate";        // description/name-based, no photo
+      est.estimated_at = todayISO();
+      applyDishEstimate(dishName, est, null, null);   // dish only - no photo, no propagate
+    } catch(err){
+      setDishNutErr(x => Object.assign({}, x, { [dishName]:err.message || "Could not estimate." }));
+    } finally {
+      setDishNutBusy(x => Object.assign({}, x, { [dishName]:false }));
+    }
+  }
+
+  // Clear a dish's estimate so the user can re-estimate (photo or no-photo).
+  function clearDishEstimate(dishName){
+    setDishNutErr(x => Object.assign({}, x, { [dishName]:null }));
+    setDishes(d => d.map(x => x.name === dishName
+      ? Object.assign({}, x, { nutrition:null, photo:null }) : x));
+  }
+
   async function onDishPhotoPicked(e){
     const file = e.target.files && e.target.files[0];
     const dishName = pendingDishRef.current;
@@ -4884,12 +4961,17 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                             {d.nutrition.protein_g}P / {d.nutrition.carbs_g}C / {d.nutrition.fat_g}F
                           </span>
                         ) : null}
-                        <button className="dish-redo" onClick={()=> startDishPhoto(d.name)}>Redo</button>
+                        <button className="dish-redo" onClick={()=> clearDishEstimate(d.name)}>Redo</button>
                       </span>
                     ) : (
-                      <button className="dish-cam" onClick={()=> startDishPhoto(d.name)}>
-                        <Icon name="camera" size={13} color="#e0764a" />Estimate from a photo
-                      </button>
+                      <>
+                        <button className="dish-cam" onClick={()=> startDishPhoto(d.name)}>
+                          <Icon name="camera" size={13} color="#e0764a" />Estimate from a photo
+                        </button>
+                        <button className="dish-cam" onClick={()=> estimateDishNoPhoto(d.name)}>
+                          <Icon name="sparkle" size={13} color="#e0764a" />Estimate without a photo
+                        </button>
+                      </>
                     )}
                     {dishNutErr[d.name] && <span className="dish-cam-err">{dishNutErr[d.name]}</span>}
                   </div>
@@ -4900,8 +4982,9 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                 {" "}<strong>Skip</strong> for something you wouldn't &mdash; it's how
                 you remember what's worth getting next time. Your most recent verdict
                 wins, so you can change your mind later, and skipping a dish just keeps
-                it off your loved list. The camera estimates that dish from a photo.
+                it off your loved list. Estimate a dish from a photo, or without one.
               </div>
+              <DishTotal dishes={dishes} min={1} />
             </div>
           )}
           {menuGroups.length > 0 && (
