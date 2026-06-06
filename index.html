@@ -562,7 +562,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.21.0";
+const APP_VERSION   = "1.22.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -832,6 +832,8 @@ photo yet, the card uses a colored header instead.
 Want to send someone your favorites? On the **Places** tab tap **Publish a
 list**, give it a title, and tick the restaurants to include (your favorites and
 highest-rated are listed first). Tap **Create link**, then **Copy** or **Share**.
+If the link looks long, tap **Shorten** to swap in a short link; if shortening is
+not available it simply keeps the full link, which always works.
 
 The whole list travels inside the link itself, so whoever you send it to just
 taps it and sees your picks - each place with its city, cuisine, your rating, and
@@ -6036,6 +6038,8 @@ function PublishBuilder({restaurants, visits, onClose}){
   const [q,setQ] = useState("");
   const [link,setLink] = useState("");
   const [copied,setCopied] = useState(false);
+  const [shortBusy,setShortBusy] = useState(false);
+  const [shortMsg,setShortMsg] = useState("");
 
   const avgById = React.useMemo(()=>{
     const by = {};
@@ -6069,19 +6073,43 @@ function PublishBuilder({restaurants, visits, onClose}){
     : sorted;
 
   const selCount = Object.keys(sel).filter(k => sel[k]).length;
-  const toggle = (id)=>{ setSel(s => { const n = Object.assign({}, s); if (n[id]) delete n[id]; else n[id] = true; return n; }); setLink(""); setCopied(false); };
-  const onTitle = (e)=>{ setTitle(e.target.value); setLink(""); setCopied(false); };
+  const toggle = (id)=>{ setSel(s => { const n = Object.assign({}, s); if (n[id]) delete n[id]; else n[id] = true; return n; }); setLink(""); setCopied(false); setShortMsg(""); };
+  const onTitle = (e)=>{ setTitle(e.target.value); setLink(""); setCopied(false); setShortMsg(""); };
 
   const make = ()=>{
     const selected = (restaurants || []).filter(r => sel[r.id]);
     const payload = buildListPayload(title.trim(), selected, visits);
-    setLink(location.origin + location.pathname + "#list=" + encodeListPayload(payload));
-    setCopied(false);
+    // ?list= (query) survives URL shorteners; the viewer also still reads #list=
+    setLink(location.origin + location.pathname + "?list=" + encodeListPayload(payload));
+    setCopied(false); setShortMsg("");
   };
   const copy = async ()=>{ try { await navigator.clipboard.writeText(link); setCopied(true); } catch(e){ logMsg("WARN","Clipboard copy failed: " + e.message); } };
   const share = async ()=>{
     try { if (navigator.share){ await navigator.share({ title: title.trim() || "My list", text:"A few places I love:", url:link }); } else { copy(); } }
     catch(e){ /* user cancelled or unsupported */ }
+  };
+  // Optional shortener (is.gd). Graceful: any failure keeps the working long link.
+  const shorten = async ()=>{
+    if (!link || shortBusy) return;
+    setShortBusy(true); setShortMsg("");
+    try {
+      const api = "https://is.gd/create.php?format=json&url=" + encodeURIComponent(link);
+      const res = await fetch(api);
+      const data = await res.json();
+      if (data && data.shorturl){
+        setLink(data.shorturl); setCopied(false);
+        setShortMsg("Shortened. Open it once to confirm it works.");
+        logMsg("PUBLISH","Shortened via is.gd");
+      } else {
+        setShortMsg("Could not shorten - using the full link.");
+        logMsg("PUBLISH","is.gd returned no shorturl: " + JSON.stringify(data));
+      }
+    } catch(e){
+      // most likely CORS or network - the long link still works
+      setShortMsg("Could not shorten (blocked or offline) - using the full link.");
+      logMsg("PUBLISH","Shorten failed: " + e.message);
+    }
+    setShortBusy(false);
   };
 
   return (
@@ -6110,7 +6138,11 @@ function PublishBuilder({restaurants, visits, onClose}){
               <button className="btn primary sm" onClick={share}>
                 <Icon name="share" size={15} color="#1b1714" /> Share
               </button>
+              <button className="btn ghost sm" onClick={shorten} disabled={shortBusy}>
+                {shortBusy ? "Shortening..." : "Shorten"}
+              </button>
             </div>
+            {shortMsg && <div className="tiny faint" style={{marginTop:8}}>{shortMsg}</div>}
             {link.length > 6000 && (
               <div className="tiny faint" style={{marginTop:8}}>This link is long; some apps may shorten it. Fewer places will help.</div>
             )}
@@ -6642,8 +6674,12 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
 (function bootDiningCaptain(){
   let published = null;
   try {
-    const h = location.hash || "";
-    if (h.indexOf("#list=") === 0) published = decodeListPayload(h.slice(6));
+    // new links use ?list= (survives URL shorteners); old links used #list=
+    let raw = null;
+    const qm = (location.search || "").match(/[?&]list=([^&]+)/);
+    if (qm) raw = qm[1];
+    else { const h = location.hash || ""; if (h.indexOf("#list=") === 0) raw = h.slice(6); }
+    if (raw) published = decodeListPayload(raw);
   } catch(e){ published = null; }
   const root = ReactDOM.createRoot(document.getElementById("root"));
   root.render(published ? <PublishedList data={published} /> : <App />);
