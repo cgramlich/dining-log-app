@@ -562,7 +562,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.22.0";
+const APP_VERSION   = "1.23.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -6088,26 +6088,38 @@ function PublishBuilder({restaurants, visits, onClose}){
     try { if (navigator.share){ await navigator.share({ title: title.trim() || "My list", text:"A few places I love:", url:link }); } else { copy(); } }
     catch(e){ /* user cancelled or unsupported */ }
   };
-  // Optional shortener (is.gd). Graceful: any failure keeps the working long link.
+  // Optional shortener. is.gd has no browser CORS, so we use CORS-friendly,
+  // keyless providers and try them in order. Any total failure keeps the long link.
   const shorten = async ()=>{
     if (!link || shortBusy) return;
     setShortBusy(true); setShortMsg("");
-    try {
-      const api = "https://is.gd/create.php?format=json&url=" + encodeURIComponent(link);
-      const res = await fetch(api);
-      const data = await res.json();
-      if (data && data.shorturl){
-        setLink(data.shorturl); setCopied(false);
-        setShortMsg("Shortened. Open it once to confirm it works.");
-        logMsg("PUBLISH","Shortened via is.gd");
-      } else {
-        setShortMsg("Could not shorten - using the full link.");
-        logMsg("PUBLISH","is.gd returned no shorturl: " + JSON.stringify(data));
+    const longUrl = link;
+    const providers = [
+      { name:"cleanuri", url:"https://cleanuri.com/api/v1/shorten",
+        headers:{ "Content-Type":"application/x-www-form-urlencoded" },
+        pick:(d)=> d && d.result_url },
+      { name:"spoo.me", url:"https://spoo.me/",
+        headers:{ "Content-Type":"application/x-www-form-urlencoded", "Accept":"application/json" },
+        pick:(d)=> d && (d.short_url || d.shortUrl) },
+    ];
+    let shortUrl = null;
+    for (let i = 0; i < providers.length && !shortUrl; i++){
+      const p = providers[i];
+      try {
+        const res = await fetch(p.url, { method:"POST", headers:p.headers, body:"url=" + encodeURIComponent(longUrl) });
+        let data = null; try { data = await res.json(); } catch(e2){ data = null; }
+        const u = p.pick(data);
+        if (u && /^https?:\/\//.test(u)) { shortUrl = u; logMsg("PUBLISH","Shortened via " + p.name); }
+        else logMsg("PUBLISH", p.name + " gave no link: " + JSON.stringify(data));
+      } catch(e){
+        logMsg("PUBLISH", p.name + " failed: " + e.message);
       }
-    } catch(e){
-      // most likely CORS or network - the long link still works
-      setShortMsg("Could not shorten (blocked or offline) - using the full link.");
-      logMsg("PUBLISH","Shorten failed: " + e.message);
+    }
+    if (shortUrl){
+      setLink(shortUrl); setCopied(false);
+      setShortMsg("Shortened. Open it once to confirm it works.");
+    } else {
+      setShortMsg("Could not shorten right now - using the full link (it works fine).");
     }
     setShortBusy(false);
   };
