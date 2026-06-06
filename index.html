@@ -184,6 +184,9 @@
     .nutri-line{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-top:9px; font-size:12.5px; color:var(--text-dim);}
     .nutri-line .kc{color:var(--text); font-weight:600;}
     .nutri-line .tg{font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); border:1px solid var(--line); border-radius:999px; padding:1px 7px;}
+    .dish-total{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-top:9px; font-size:12.5px; color:var(--text-dim);}
+    .dish-total .dt-kc{color:var(--text); font-weight:600;}
+    .dish-total .dt-note{font-size:11px; color:var(--text-faint);}
     .iest{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:9px;}
     .iest-btn{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--accent);
       background:transparent; border:1px dashed rgba(224,118,74,0.5); border-radius:999px;
@@ -499,7 +502,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.16.0";
+const APP_VERSION   = "1.16.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -660,7 +663,9 @@ figures.
 History is the running list of everywhere you have eaten, newest first. Each
 entry shows the rating, the dishes (color-coded by your Again/Skip verdict,
 with the estimated calories beside each one when you have them), any nutrition
-summary, your notes, and your photos.
+summary, your notes, and your photos. When you have estimated two or more
+dishes on a visit, the entry also shows a calm running total (for example
+"~1,240 cal total across 3 dishes") - a number for memory, never a budget.
 
 -----
 
@@ -2171,6 +2176,25 @@ function NutriLine({n}){
   );
 }
 
+/* DishTotal - sums the per-dish estimates on a visit into one calm line.
+   Shown only when 2+ dishes are estimated (a single dish's total just
+   repeats the chip). Informative, never a budget: no colors, no verdicts. */
+function DishTotal({dishes}){
+  const est = (dishes || []).filter(d => d && d.nutrition && d.nutrition.kcal);
+  if (est.length < 2) return null;
+  const sum = (k)=> est.reduce((s,d)=> s + (d.nutrition[k] || 0), 0);
+  const kcal = sum("kcal");
+  const p = sum("protein_g"), c = sum("carbs_g"), f = sum("fat_g");
+  const hasMacros = (p + c + f) > 0;
+  return (
+    <div className="dish-total">
+      <span className="dt-kc">~{kcal} cal total</span>
+      {hasMacros && <span className="dt-mc">{p}P / {c}C / {f}F</span>}
+      <span className="dt-note">across {est.length} dishes</span>
+    </div>
+  );
+}
+
 /* PhotoImg - lazy-loads a photo by path from the data repo and renders
    it as an <img>. Shows a soft placeholder while loading, and a small
    icon if the fetch fails. Uses the module-level PHOTO_CACHE so the
@@ -3156,6 +3180,7 @@ function HistoryView({visits, restaurantById, cfg, onOpen}){
                 ))}
               </div>
             )}
+            <DishTotal dishes={v.dishes} />
             <NutriLine n={v.nutrition} />
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
           </div>
@@ -3699,6 +3724,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   ))}
                 </div>
               )}
+              <DishTotal dishes={v.dishes} />
               <NutriLine n={v.nutrition} />
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
             </div>
@@ -4870,8 +4896,11 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                 </div>
               ))}
               <div className="tiny faint" style={{marginTop:2,padding:"0 2px"}}>
-                Tap <strong>Again</strong> or <strong>Skip</strong> to remember what
-                to order next time. The camera estimates that dish from a photo.
+                Tap <strong>Again</strong> for something you'd order again,
+                {" "}<strong>Skip</strong> for something you wouldn't &mdash; it's how
+                you remember what's worth getting next time. Your most recent verdict
+                wins, so you can change your mind later, and skipping a dish just keeps
+                it off your loved list. The camera estimates that dish from a photo.
               </div>
             </div>
           )}
