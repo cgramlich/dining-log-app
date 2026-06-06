@@ -510,6 +510,17 @@
     .yif-entry-s{ font-size:12px; color:var(--text-dim); margin-top:1px; }
     .set-group{ font-size:11px; letter-spacing:0.13em; text-transform:uppercase;
       color:var(--text-faint); margin:24px 4px 9px; }
+    .passport-month{ font-family:'Fraunces',serif; font-size:18px; color:var(--text); margin:20px 2px 11px; }
+    .passport-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px; }
+    .passport-tile{ position:relative; aspect-ratio:1 / 1; border-radius:13px; overflow:hidden;
+      background:var(--surface-2); cursor:pointer; }
+    .passport-tile .pp-photo{ width:100%; height:100%; object-fit:cover; display:block; }
+    .pp-cap{ position:absolute; left:0; right:0; bottom:0; padding:18px 11px 9px;
+      background:linear-gradient(to top, rgba(0,0,0,0.72), rgba(0,0,0,0)); pointer-events:none; }
+    .pp-cap-r{ font-family:'Fraunces',serif; font-size:14px; color:#fff; line-height:1.2;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pp-cap-d{ font-size:11px; color:rgba(255,255,255,0.82); margin-top:2px;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   </style>
 </head>
 <body>
@@ -522,7 +533,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.18.3";
+const APP_VERSION   = "1.19.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -755,6 +766,19 @@ Each card only appears when there is something to show, so a quiet year stays
 short. There is no calorie total here, on purpose - in keeping with the spirit
 of the app, the recap is about places, dishes, and memories, not a number to
 measure yourself against.
+
+-----
+
+## Your food passport
+
+**Food passport** is a photo gallery of everywhere you have eaten - open it from
+the top of your **History** tab, or from **Settings**. Every photo you have
+added, whether to a whole visit or to a single dish, shows up as a tile, grouped
+by month with the newest first. Tap any photo to jump straight to that visit.
+
+Think of it as the picture-first companion to History: History is the detailed
+log, the passport is the gallery. The first time you open it, photos that are
+not cached yet load over a few seconds, and are quick to view after that.
 
 -----
 
@@ -1105,6 +1129,26 @@ function computeYearStats(visits, restaurants, period){
     topVisit: topVisit,
     busiest: busiest ? { label:busiestLabel, count:busiest.count } : null,
   };
+}
+
+// Pure: flatten every photo across visits (both visit-level photos and
+// per-dish photos) into a newest-first list for the Food passport gallery.
+function buildPassportItems(visits, restaurantById){
+  const items = [];
+  (visits || []).forEach(v => {
+    if (!v || !v.date) return;
+    const r = restaurantById ? restaurantById(v.restaurant_id) : null;
+    const restName = (r && r.name) || v.restaurant_name || "A visit";
+    const base = { date:v.date, logged_at:v.logged_at || 0, restName:restName, visitId:v.id };
+    (Array.isArray(v.photos) ? v.photos : []).filter(Boolean).forEach(p => {
+      items.push(Object.assign({}, base, { path:p, dish:null }));
+    });
+    (Array.isArray(v.dishes) ? v.dishes : []).forEach(d => {
+      if (d && d.photo) items.push(Object.assign({}, base, { path:d.photo, dish:d.name || null }));
+    });
+  });
+  items.sort((a,b)=> (b.date || "").localeCompare(a.date || "") || (b.logged_at - a.logged_at));
+  return items;
 }
 
 /* UTF-8 safe base64 - GitHub Contents API stores file bodies in base64. */
@@ -2829,6 +2873,7 @@ function App(){
           <HistoryView visits={visits} restaurantById={restaurantById}
             cfg={config}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
+            onOpenPassport={()=> setOverlay({ type:"passport" })}
             onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
         )}
         {tab === "restaurants" && (
@@ -2845,6 +2890,7 @@ function App(){
             onEdit={()=> setOverlay({ type:"settings" })}
             onOpenHelp={()=> setOverlay({ type:"help" })}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
+            onOpenPassport={()=> setOverlay({ type:"passport" })}
             counts={{
               r: restaurants.length,
               m: Object.keys(menus).reduce((n,rid)=> n + (menus[rid] || []).length, 0),
@@ -3216,6 +3262,12 @@ function App(){
           onClose={()=> setOverlay(null)} />
       )}
 
+      {overlay && overlay.type === "passport" && (
+        <FoodPassport visits={visits} restaurantById={restaurantById} cfg={config}
+          onOpenVisit={(id)=>{ const v = visits.find(x => x.id === id); if (v) setOverlay({ type:"editVisit", visit:v }); }}
+          onClose={()=> setOverlay(null)} />
+      )}
+
       {overlay && overlay.type === "map" && (
         <MapView
           restaurants={restaurants}
@@ -3298,7 +3350,7 @@ function SearchBar({value, onChange, placeholder}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, onOpen, onOpenYearInFood}){
+function HistoryView({visits, restaurantById, cfg, onOpen, onOpenYearInFood, onOpenPassport}){
   const [query, setQuery] = useState("");
   if (!visits.length){
     return (
@@ -3337,6 +3389,18 @@ function HistoryView({visits, restaurantById, cfg, onOpen, onOpenYearInFood}){
           <span className="yif-entry-tx">
             <span className="yif-entry-t">Your Year in Food</span>
             <span className="yif-entry-s">A look back at your places and dishes</span>
+          </span>
+          <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+            <Icon name="back" size={15} color="var(--text-faint)" />
+          </span>
+        </div>
+      )}
+      {!q && onOpenPassport && (
+        <div className="yif-entry tap" onClick={onOpenPassport}>
+          <span className="yif-entry-ic"><Icon name="image" size={16} color="var(--accent)" /></span>
+          <span className="yif-entry-tx">
+            <span className="yif-entry-t">Food passport</span>
+            <span className="yif-entry-s">A photo timeline of your visits</span>
           </span>
           <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
             <Icon name="back" size={15} color="var(--text-faint)" />
@@ -5792,6 +5856,57 @@ function renderHelpMarkdown(doc){
   flushPara(); flushBullets();
   return out;
 }
+function FoodPassport({visits, restaurantById, cfg, onOpenVisit, onClose}){
+  const items = buildPassportItems(visits, restaurantById);
+  // group newest-first into month buckets, order preserved
+  const groups = [];
+  let cur = null;
+  items.forEach(it => {
+    const ym = String(it.date).slice(0,7);
+    if (!cur || cur.ym !== ym){
+      const yy = ym.slice(0,4), mm = parseInt(ym.slice(5,7), 10) - 1;
+      cur = { ym:ym, label: yifMonthName(mm) + " " + yy, items:[] };
+      groups.push(cur);
+    }
+    cur.items.push(it);
+  });
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>Food passport</h2>
+        <span style={{width:40}} />
+      </div>
+      <div className="ovbody">
+        {items.length === 0 ? (
+          <div className="empty" style={{padding:"44px 20px"}}>
+            <div className="big">No photos yet</div>
+            <div>Add a photo to a visit or a dish and it will show up here.</div>
+          </div>
+        ) : groups.map((g,gi)=>(
+          <div key={g.ym}>
+            <div className="passport-month" style={gi === 0 ? {marginTop:4} : null}>{g.label}</div>
+            <div className="passport-grid">
+              {g.items.map((it,ii)=>(
+                <div key={ii} className="passport-tile" onClick={()=> onOpenVisit(it.visitId)}>
+                  <PhotoImg cfg={cfg} path={it.path} className="pp-photo" />
+                  <div className="pp-cap">
+                    <div className="pp-cap-r">{it.restName}</div>
+                    <div className="pp-cap-d">
+                      {it.dish ? it.dish + "  \u00b7  " : ""}{fmtDate(it.date)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function YearInFood({visits, restaurants, onClose}){
   // years that have visits, newest first
   const years = Array.from(new Set((visits || [])
@@ -5937,7 +6052,7 @@ function HelpView({onClose}){
 function SettingsView({config, onEdit, counts, lastSync, onResync,
                        locations, restaurants,
                        onAddLocation, onRenameLocation, onDeleteLocation,
-                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood}){
+                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
   const [, force] = useState(0);
   const [newLoc,setNewLoc] = useState("");
@@ -6064,6 +6179,13 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         <button className="btn ghost sm" onClick={onOpenYearInFood}>
           <Icon name="sparkle" size={15} color="var(--accent)" />
           Your Year in Food
+        </button>
+      </div>
+
+      <div className="updrow" style={{marginBottom:10}}>
+        <button className="btn ghost sm" onClick={onOpenPassport}>
+          <Icon name="image" size={15} color="var(--accent)" />
+          Food passport
         </button>
       </div>
 
