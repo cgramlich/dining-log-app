@@ -490,6 +490,17 @@
     /* keep Leaflet's own tile attribution readable on the dark UI */
     .leaflet-control-attribution{ background:rgba(20,16,12,0.7) !important; color:#b9ab98 !important; }
     .leaflet-control-attribution a{ color:#d7b49a !important; }
+
+    /* ---- Year in Food recap ---- */
+    .yif-hero{ text-align:center; padding:14px 0 22px; }
+    .yif-hero-kicker{ font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--accent); }
+    .yif-hero-year{ font-family:'Fraunces',Georgia,serif; font-weight:600; font-size:62px; line-height:1; color:var(--text); margin:8px 0 10px; }
+    .yif-hero-sub{ font-size:14px; color:var(--text-dim); }
+    .yif-stat{ background:var(--surface); border:1px solid var(--line-soft); border-radius:16px; padding:18px; margin-bottom:12px; }
+    .yif-big{ font-family:'Fraunces',serif; font-weight:600; font-size:46px; line-height:1; color:var(--accent); }
+    .yif-lbl{ font-size:11.5px; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-faint); }
+    .yif-name{ font-family:'Fraunces',serif; font-weight:500; font-size:24px; color:var(--text); margin-top:3px; letter-spacing:-0.01em; }
+    .yif-sub{ font-size:13px; color:var(--text-dim); margin-top:7px; }
   </style>
 </head>
 <body>
@@ -502,7 +513,7 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.17.0";
+const APP_VERSION   = "1.18.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -709,6 +720,31 @@ picks card with two parts:
 
 Marking a dish Skip just keeps it off the loved list. Not ordering something
 again does not count against it.
+
+-----
+
+## Your Year in Food
+
+From **Settings**, tap **Your Year in Food** for a recap built entirely from
+what you have logged - a calm look back rather than a scoreboard.
+
+At the top you can switch between any year you have visits in, plus **All
+time**; it opens on your most-logged year so there is always something to see.
+The recap can include:
+
+- how many visits you logged, and how many different places they were
+- new spots you discovered that year
+- the cities you ate in
+- your #1 spot - where you went the most
+- your top cuisine
+- your most-loved dish, with the other dishes you marked Again
+- your highest-rated visit
+- your busiest month
+
+Each card only appears when there is something to show, so a quiet year stays
+short. There is no calorie total here, on purpose - in keeping with the spirit
+of the app, the recap is about places, dishes, and memories, not a number to
+measure yourself against.
 
 -----
 
@@ -957,6 +993,108 @@ function relDays(iso){
   if (days < 31)  return Math.round(days/7) + " wk ago";
   if (days < 365) return Math.round(days/30) + " mo ago";
   return Math.round(days/365) + " yr ago";
+}
+
+function yifMonthName(m){
+  return ["January","February","March","April","May","June","July",
+          "August","September","October","November","December"][m] || "";
+}
+
+// Pure: derive the "Year in Food" recap stats for a period (a year number, or
+// "all"). No DOM, no calorie totals (deliberate - the recap is about places,
+// dishes and memories, not a budget). Returns {empty:true} when nothing fits.
+function computeYearStats(visits, restaurants, period){
+  const restMap = {};
+  (restaurants || []).forEach(r => { if (r && r.id) restMap[r.id] = r; });
+  const yearOf = (d)=> { const y = parseInt(String(d || "").slice(0,4), 10); return isFinite(y) ? y : 0; };
+
+  // earliest visit year per restaurant across ALL visits (for "new this year")
+  const firstYear = {};
+  (visits || []).forEach(v => {
+    const y = yearOf(v.date); if (!y || !v.restaurant_id) return;
+    if (!firstYear[v.restaurant_id] || y < firstYear[v.restaurant_id]) firstYear[v.restaurant_id] = y;
+  });
+
+  const inPeriod = (v)=> period === "all" ? true : yearOf(v.date) === period;
+  const filtered = (visits || []).filter(v => v && v.date && inPeriod(v));
+  if (!filtered.length) return { empty:true, period:period };
+
+  const nameOf = (id, fallback)=> (restMap[id] && restMap[id].name) || fallback || "a place";
+
+  const byRest = {};
+  filtered.forEach(v => { if (v.restaurant_id) byRest[v.restaurant_id] = (byRest[v.restaurant_id] || 0) + 1; });
+  const placeIds = Object.keys(byRest);
+
+  let topSpot = null;
+  placeIds.forEach(id => {
+    if (!topSpot || byRest[id] > topSpot.count) topSpot = { name:nameOf(id), count:byRest[id] };
+  });
+
+  const byCuisine = {};
+  filtered.forEach(v => {
+    const r = restMap[v.restaurant_id];
+    const cz = (r && r.cuisine) ? r.cuisine.trim() : "";
+    if (cz) byCuisine[cz] = (byCuisine[cz] || 0) + 1;
+  });
+  let topCuisine = null;
+  Object.keys(byCuisine).forEach(c => {
+    if (!topCuisine || byCuisine[c] > topCuisine.count) topCuisine = { name:c, count:byCuisine[c] };
+  });
+
+  const citySet = {};
+  placeIds.forEach(id => {
+    const r = restMap[id]; const c = (r && r.location) ? r.location.trim() : "";
+    if (c) citySet[c] = true;
+  });
+  const cities = Object.keys(citySet).sort((a,b)=> a.localeCompare(b));
+
+  let newSpots = 0;
+  if (period !== "all") placeIds.forEach(id => { if (firstYear[id] === period) newSpots++; });
+
+  const lovedCount = {}, lovedDisplay = {};
+  filtered.forEach(v => (v.dishes || []).forEach(d => {
+    if (d && d.name && d.verdict === "again"){
+      const k = d.name.trim().toLowerCase();
+      lovedCount[k] = (lovedCount[k] || 0) + 1;
+      if (!lovedDisplay[k]) lovedDisplay[k] = d.name.trim();
+    }
+  }));
+  const lovedList = Object.keys(lovedCount)
+    .map(k => ({ name:lovedDisplay[k], count:lovedCount[k] }))
+    .sort((a,b)=> b.count - a.count || a.name.localeCompare(b.name));
+
+  let topVisit = null;
+  filtered.forEach(v => {
+    const rt = typeof v.rating === "number" ? v.rating : 0;
+    if (rt > 0 && (!topVisit || rt > topVisit.rating ||
+        (rt === topVisit.rating && (v.date || "") > topVisit.date))){
+      topVisit = { rating:rt, date:v.date, name:nameOf(v.restaurant_id, v.restaurant_name) };
+    }
+  });
+
+  const byMonth = {};
+  filtered.forEach(v => { const ym = String(v.date).slice(0,7); if (ym.length === 7) byMonth[ym] = (byMonth[ym] || 0) + 1; });
+  let busiest = null;
+  Object.keys(byMonth).forEach(ym => { if (!busiest || byMonth[ym] > busiest.count) busiest = { ym:ym, count:byMonth[ym] }; });
+  let busiestLabel = "";
+  if (busiest){
+    const mi = parseInt(busiest.ym.slice(5,7), 10) - 1;
+    busiestLabel = yifMonthName(mi) + (period === "all" ? " " + busiest.ym.slice(0,4) : "");
+  }
+
+  return {
+    empty:false, period:period,
+    visits: filtered.length,
+    places: placeIds.length,
+    newSpots: newSpots,
+    cities: cities,
+    topSpot: topSpot,
+    topCuisine: topCuisine,
+    lovedList: lovedList,
+    topLoved: lovedList[0] || null,
+    topVisit: topVisit,
+    busiest: busiest ? { label:busiestLabel, count:busiest.count } : null,
+  };
 }
 
 /* UTF-8 safe base64 - GitHub Contents API stores file bodies in base64. */
@@ -2695,6 +2833,7 @@ function App(){
           <SettingsView config={config}
             onEdit={()=> setOverlay({ type:"settings" })}
             onOpenHelp={()=> setOverlay({ type:"help" })}
+            onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             counts={{
               r: restaurants.length,
               m: Object.keys(menus).reduce((n,rid)=> n + (menus[rid] || []).length, 0),
@@ -3059,6 +3198,11 @@ function App(){
 
       {overlay && overlay.type === "help" && (
         <HelpView onClose={()=> setOverlay(null)} />
+      )}
+
+      {overlay && overlay.type === "yearInFood" && (
+        <YearInFood visits={visits} restaurants={restaurants}
+          onClose={()=> setOverlay(null)} />
       )}
 
       {overlay && overlay.type === "map" && (
@@ -5625,6 +5769,134 @@ function renderHelpMarkdown(doc){
   flushPara(); flushBullets();
   return out;
 }
+function YearInFood({visits, restaurants, onClose}){
+  // years that have visits, newest first
+  const years = Array.from(new Set((visits || [])
+    .map(v => parseInt(String(v.date || "").slice(0,4), 10))
+    .filter(y => isFinite(y) && y > 1990))).sort((a,b)=> b - a);
+  // default to the most-logged year (richest recap), else "all"
+  const countByYear = {};
+  (visits || []).forEach(v => {
+    const y = parseInt(String(v.date || "").slice(0,4), 10);
+    if (isFinite(y)) countByYear[y] = (countByYear[y] || 0) + 1;
+  });
+  let defaultPeriod = "all";
+  if (years.length){
+    defaultPeriod = years[0]; let best = -1;
+    years.forEach(y => { if (countByYear[y] > best){ best = countByYear[y]; defaultPeriod = y; } });
+  }
+  const [period, setPeriod] = useState(defaultPeriod);
+  const s = computeYearStats(visits, restaurants, period);
+  const periodLabel = period === "all" ? "All time" : String(period);
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>Year in Food</h2>
+        <span style={{width:40}} />
+      </div>
+      <div className="ovbody">
+        {years.length > 0 && (
+          <div className="chips" style={{marginBottom:16}}>
+            {years.map(y => (
+              <span key={y} className={"chip pick" + (period === y ? " on" : "")}
+                onClick={()=> setPeriod(y)}>{y}</span>
+            ))}
+            <span className={"chip pick" + (period === "all" ? " on" : "")}
+              onClick={()=> setPeriod("all")}>All time</span>
+          </div>
+        )}
+
+        {s.empty ? (
+          <div className="empty" style={{padding:"44px 20px"}}>
+            <div className="big">Nothing logged {period === "all" ? "yet" : "in " + period}</div>
+            <div>Log a few visits and your recap will fill in.</div>
+          </div>
+        ) : (
+          <>
+            <div className="yif-hero">
+              <div className="yif-hero-kicker">Your Year in Food</div>
+              <div className="yif-hero-year">{periodLabel}</div>
+              <div className="yif-hero-sub">
+                {s.visits} visit{s.visits === 1 ? "" : "s"} &nbsp;&middot;&nbsp; {s.places} place{s.places === 1 ? "" : "s"}
+              </div>
+            </div>
+
+            {period !== "all" && s.newSpots > 0 && (
+              <div className="yif-stat">
+                <div className="yif-big">{s.newSpots}</div>
+                <div className="yif-lbl" style={{marginTop:4}}>new spot{s.newSpots === 1 ? "" : "s"} discovered</div>
+              </div>
+            )}
+
+            {s.cities.length > 0 && (
+              <div className="yif-stat">
+                <div className="yif-big">{s.cities.length}</div>
+                <div className="yif-lbl" style={{marginTop:4}}>{s.cities.length === 1 ? "city" : "cities"} you ate in</div>
+                <div className="yif-sub">{s.cities.join("  \u00b7  ")}</div>
+              </div>
+            )}
+
+            {s.topSpot && (
+              <div className="yif-stat">
+                <div className="yif-lbl">Your #1 spot</div>
+                <div className="yif-name">{s.topSpot.name}</div>
+                <div className="yif-sub">{s.topSpot.count} visit{s.topSpot.count === 1 ? "" : "s"}</div>
+              </div>
+            )}
+
+            {s.topCuisine && (
+              <div className="yif-stat">
+                <div className="yif-lbl">Top cuisine</div>
+                <div className="yif-name">{s.topCuisine.name}</div>
+              </div>
+            )}
+
+            {s.topLoved && (
+              <div className="yif-stat">
+                <div className="yif-lbl">Most loved dish</div>
+                <div className="yif-name">{s.topLoved.name}</div>
+                {s.lovedList.length > 1 && (
+                  <div className="chips" style={{marginTop:11}}>
+                    {s.lovedList.slice(0,6).map((d,i)=>(
+                      <span key={i} className="chip dish again">
+                        {d.name}{d.count > 1 ? "  \u00d7" + d.count : ""}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {s.topVisit && (
+              <div className="yif-stat">
+                <div className="yif-lbl">Highest-rated visit</div>
+                <div className="yif-name">{s.topVisit.name}</div>
+                <div className="yif-sub row" style={{gap:8}}>
+                  <Stars value={s.topVisit.rating} /> {fmtDate(s.topVisit.date)}
+                </div>
+              </div>
+            )}
+
+            {s.busiest && (
+              <div className="yif-stat">
+                <div className="yif-lbl">Busiest month</div>
+                <div className="yif-name">{s.busiest.label}</div>
+                <div className="yif-sub">{s.busiest.count} visit{s.busiest.count === 1 ? "" : "s"}</div>
+              </div>
+            )}
+
+            <div className="tiny faint" style={{textAlign:"center",margin:"6px 0 24px"}}>
+              A look back for memory and joy &mdash; built from what you logged.
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function HelpView({onClose}){
   return (
     <div className="overlay">
@@ -5642,7 +5914,7 @@ function HelpView({onClose}){
 function SettingsView({config, onEdit, counts, lastSync, onResync,
                        locations, restaurants,
                        onAddLocation, onRenameLocation, onDeleteLocation,
-                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp}){
+                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood}){
   const [showLog,setShowLog] = useState(false);
   const [, force] = useState(0);
   const [newLoc,setNewLoc] = useState("");
@@ -5778,6 +6050,13 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
             </div>
           </div>
         )}
+      </div>
+
+      <div className="updrow" style={{marginBottom:10}}>
+        <button className="btn ghost sm" onClick={onOpenYearInFood}>
+          <Icon name="sparkle" size={15} color="var(--accent)" />
+          Your Year in Food
+        </button>
       </div>
 
       <div className="updrow" style={{marginBottom:10}}>
