@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  DINING LOG - single-file mobile web app
+  DINING CAPTAIN - single-file mobile web app
   Build: v1.0
   Stack: React 18 + Babel Standalone (CDN). No build step. Open the file or host it.
   Data : GitHub repo (3 JSON files under data/) is the source of truth.
@@ -14,9 +14,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Dining Log" />
+  <meta name="apple-mobile-web-app-title" content="Dining Captain" />
   <meta name="theme-color" content="#1b1714" />
-  <title>Dining Log</title>
+  <title>Dining Captain</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -501,6 +501,15 @@
     .yif-lbl{ font-size:11.5px; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-faint); }
     .yif-name{ font-family:'Fraunces',serif; font-weight:500; font-size:24px; color:var(--text); margin-top:3px; letter-spacing:-0.01em; }
     .yif-sub{ font-size:13px; color:var(--text-dim); margin-top:7px; }
+    .yif-entry{ display:flex; align-items:center; gap:12px; padding:12px 14px; margin-bottom:14px;
+      background:var(--surface); border:1px solid var(--line-soft); border-radius:14px; }
+    .yif-entry-ic{ width:30px; height:30px; border-radius:9px; flex:none;
+      display:flex; align-items:center; justify-content:center; background:rgba(224,118,74,0.13); }
+    .yif-entry-tx{ display:flex; flex-direction:column; flex:1; min-width:0; }
+    .yif-entry-t{ font-family:'Fraunces',serif; font-size:16px; color:var(--text); }
+    .yif-entry-s{ font-size:12px; color:var(--text-dim); margin-top:1px; }
+    .set-group{ font-size:11px; letter-spacing:0.13em; text-transform:uppercase;
+      color:var(--text-faint); margin:24px 4px 9px; }
   </style>
 </head>
 <body>
@@ -508,21 +517,21 @@
 
   <script type="text/babel" data-presets="react">
 /* ============================================================
-   DINING LOG - application code
+   DINING CAPTAIN - application code
    ============================================================ */
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.18.0";
+const APP_VERSION   = "1.18.3";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 
 // In-app user guide (source of truth: dining-log-help.md). Re-sync this when the .md changes.
-const HELP_DOC = `# Dining Log - User Guide
+const HELP_DOC = `# Dining Captain - User Guide
 
-Dining Log is your private notebook for eating out. You log the places you go,
+Dining Captain is your private notebook for eating out. You log the places you go,
 scan their menus, remember which dishes you loved, and - if you want - get a
 rough idea of the calories on your plate. It is built to help you *remember and
 enjoy* what you eat, not to police it.
@@ -725,8 +734,9 @@ again does not count against it.
 
 ## Your Year in Food
 
-From **Settings**, tap **Your Year in Food** for a recap built entirely from
-what you have logged - a calm look back rather than a scoreboard.
+Open **Your Year in Food** from the top of your **History** tab, or from
+**Settings** - either way you get a recap built entirely from what you have
+logged - a calm look back rather than a scoreboard.
 
 At the top you can switch between any year you have visits in, plus **All
 time**; it opens on your most-logged year so there is always something to see.
@@ -1232,7 +1242,7 @@ async function buildRestaurantCardBlob({ name, sub, ratingAvg, address, loved, p
 
   cy += 72;
   ctx.fillStyle = FAINT; ctx.font = "500 26px Outfit, system-ui, sans-serif";
-  ctx.fillText("Shared from Dining Log", PAD, cy);
+  ctx.fillText("Shared from Dining Captain", PAD, cy);
 
   const finalH = Math.min(MAXH, cy + 48);
   const out = document.createElement("canvas");
@@ -1413,7 +1423,7 @@ async function ghPutBinaryFile(cfg, path, blob, sha){
               "/contents/" + path;
   const b64 = await blobToBase64(blob);
   const body = {
-    message:"Update " + path + " via Dining Log",
+    message:"Update " + path + " via Dining Captain",
     content: b64,
   };
   if (sha) body.sha = sha;
@@ -1789,7 +1799,7 @@ async function ghPutFile(cfg, path, dataObj, sha){
   const url = GH_API + "/repos/" + cfg.githubUser + "/" + cfg.githubRepo +
               "/contents/" + path;
   const body = {
-    message:"Update " + path + " via Dining Log",
+    message:"Update " + path + " via Dining Captain",
     content:utf8ToB64(JSON.stringify(dataObj,null,2)),
   };
   if (sha) body.sha = sha;
@@ -2497,7 +2507,7 @@ function App(){
 
   /* ---- startup --------------------------------------------- */
   useEffect(()=>{
-    logMsg("INIT","Dining Log v" + APP_VERSION + " starting");
+    logMsg("INIT","Dining Captain v" + APP_VERSION + " starting");
     const cfg = loadConfig();
     if (!configComplete(cfg)){
       logMsg("INIT","Configuration incomplete - showing setup");
@@ -2818,6 +2828,7 @@ function App(){
         {tab === "history" && (
           <HistoryView visits={visits} restaurantById={restaurantById}
             cfg={config}
+            onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
         )}
         {tab === "restaurants" && (
@@ -3231,7 +3242,7 @@ function App(){
    ============================================================ */
 function TopBar({tab}){
   const titles = {
-    history:["Dining Log","Where you have been"],
+    history:["Dining Captain","Where you have been"],
     restaurants:["Places","Your restaurants & menus"],
     settings:["Settings","Sync & configuration"],
   };
@@ -3287,7 +3298,7 @@ function SearchBar({value, onChange, placeholder}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, onOpen}){
+function HistoryView({visits, restaurantById, cfg, onOpen, onOpenYearInFood}){
   const [query, setQuery] = useState("");
   if (!visits.length){
     return (
@@ -3320,6 +3331,18 @@ function HistoryView({visits, restaurantById, cfg, onOpen}){
           <span className="idl">These numbers are here for memory and curiosity &mdash; never a budget.</span>
         </InfoDot>
       </div>
+      {!q && onOpenYearInFood && (
+        <div className="yif-entry tap" onClick={onOpenYearInFood}>
+          <span className="yif-entry-ic"><Icon name="sparkle" size={16} color="var(--accent)" /></span>
+          <span className="yif-entry-tx">
+            <span className="yif-entry-t">Your Year in Food</span>
+            <span className="yif-entry-s">A look back at your places and dishes</span>
+          </span>
+          <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+            <Icon name="back" size={15} color="var(--text-faint)" />
+          </span>
+        </div>
+      )}
       {filtered.length === 0 ? (
         <div className="empty" style={{padding:"30px 20px"}}>
           <div className="big">No matches</div>
@@ -3714,7 +3737,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         name: r.name, sub: sub, ratingAvg: ratingAvg,
         address: r.address || "", loved: lovedDishes, photoImg: photoImg
       });
-      const file = new File([blob], "dining-log-" + slugify(r.name) + ".png", { type:"image/png" });
+      const file = new File([blob], "dining-captain-" + slugify(r.name) + ".png", { type:"image/png" });
       if (navigator.canShare && navigator.canShare({ files:[file] })){
         try {
           await navigator.share({ files:[file], title: r.name });
@@ -5923,6 +5946,7 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
 
   return (
     <div>
+      <div className="set-group" style={{marginTop:4}}>Setup</div>
       <div className="card">
         <div className="between">
           <div>
@@ -6019,6 +6043,7 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         </div>
       </div>
 
+      <div className="set-group">Your data</div>
       <div className="card">
         <div style={{fontWeight:600,marginBottom:8}}>Your data</div>
         <div className="small muted" style={{lineHeight:1.9}}>
@@ -6033,7 +6058,39 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         </button>
       </div>
 
-      <div className="card">
+      <div className="set-group">More</div>
+
+      <div className="updrow" style={{marginBottom:10}}>
+        <button className="btn ghost sm" onClick={onOpenYearInFood}>
+          <Icon name="sparkle" size={15} color="var(--accent)" />
+          Your Year in Food
+        </button>
+      </div>
+
+      <div className="updrow" style={{marginBottom:10}}>
+        <button className="btn ghost sm" onClick={onOpenHelp}>
+          <Icon name="info" size={15} color="var(--text-dim)" />
+          User guide
+        </button>
+      </div>
+
+      <div className="set-group">About</div>
+
+      <div className="updrow">
+        {updateVersion ? (
+          <button className="btn primary sm" onClick={onApplyUpdate}>
+            <Icon name="check" size={15} color="#1b1714" />
+            Update to v{updateVersion}
+          </button>
+        ) : (
+          <button className="btn ghost sm" onClick={onCheckUpdate}>
+            Check for updates
+          </button>
+        )}
+        {updMsg && <span className="tiny faint">{updMsg}</span>}
+      </div>
+
+      <div className="card" style={{marginTop:12}}>
         <div className="between" onClick={()=> setShowLog(s=>!s)} style={{cursor:"pointer"}}>
           <div style={{fontWeight:600}}>Diagnostics</div>
           <Icon name={showLog ? "chevd" : "chev"} size={17} color="#80715f" />
@@ -6052,36 +6109,8 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         )}
       </div>
 
-      <div className="updrow" style={{marginBottom:10}}>
-        <button className="btn ghost sm" onClick={onOpenYearInFood}>
-          <Icon name="sparkle" size={15} color="var(--accent)" />
-          Your Year in Food
-        </button>
-      </div>
-
-      <div className="updrow" style={{marginBottom:10}}>
-        <button className="btn ghost sm" onClick={onOpenHelp}>
-          <Icon name="info" size={15} color="var(--text-dim)" />
-          User guide
-        </button>
-      </div>
-
-      <div className="updrow">
-        {updateVersion ? (
-          <button className="btn primary sm" onClick={onApplyUpdate}>
-            <Icon name="check" size={15} color="#1b1714" />
-            Update to v{updateVersion}
-          </button>
-        ) : (
-          <button className="btn ghost sm" onClick={onCheckUpdate}>
-            Check for updates
-          </button>
-        )}
-        {updMsg && <span className="tiny faint">{updMsg}</span>}
-      </div>
-
       <div className="tiny faint" style={{textAlign:"center",padding:"8px 0 4px"}}>
-        Dining Log v{APP_VERSION}
+        Dining Captain v{APP_VERSION}
       </div>
     </div>
   );
@@ -6142,7 +6171,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         <div style={{marginBottom:18}}>
           <h2 style={{fontSize:26}}>Welcome</h2>
           <div className="small muted" style={{marginTop:6}}>
-            Dining Log keeps your restaurants, menus and visits in your own
+            Dining Captain keeps your restaurants, menus and visits in your own
             GitHub repo so they sync across devices. Enter your details once.
           </div>
         </div>
@@ -6192,7 +6221,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   }
   return (
     <div id="app-shell">
-      <div className="topbar"><h1>Dining Log</h1>
+      <div className="topbar"><h1>Dining Captain</h1>
         <div className="sub">First-time setup</div></div>
       {body}
     </div>
