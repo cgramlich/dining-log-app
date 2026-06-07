@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<!--
+  DINING CAPTAIN - 404 / still-publishing page (companion to index.html)
+  GitHub Pages serves this for any path that does not exist yet.
+  Newly published list pages (l/<slug>.html) take ~30-90 seconds to deploy,
+  so for those paths this page waits and retries until the page is live.
+  For anything else it shows a plain not-found with a link back to the app.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dining Captain</title>
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Outfit:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    body{ margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+          background:#1b1714; color:#efe6da; font-family:'Outfit',system-ui,sans-serif; text-align:center; }
+    .box{ padding:32px 24px; max-width:420px; }
+    h1{ font-family:'Fraunces',serif; font-weight:500; font-size:26px; margin:0 0 12px; }
+    p{ font-size:15px; line-height:1.5; color:#b8a995; margin:0 0 8px; }
+    a{ color:#e0764a; text-decoration:none; font-weight:500; }
+    .dots::after{ content:""; animation:dots 1.5s steps(4,end) infinite; }
+    @keyframes dots{ 0%{content:"";} 25%{content:".";} 50%{content:"..";} 75%{content:"...";} }
+    .hide{ display:none; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div id="publishing" class="hide">
+      <h1>Almost ready<span class="dots"></span></h1>
+      <p>This list was just published and its page is still going live.
+         It usually takes under a minute.</p>
+      <p>This page will open it automatically.</p>
+      <p id="slowNote" class="hide">Taking longer than usual - try the link again in a few minutes.</p>
+    </div>
+    <div id="notfound" class="hide">
+      <h1>Page not found</h1>
+      <p>That page does not exist.</p>
+      <p><a id="appLink" href="/">Open Dining Captain</a></p>
+    </div>
+  </div>
+  <script>
+    (function(){
+      var path = location.pathname;
+      var isListPage = /\/l\/[^\/]+\.html$/.test(path);
+
+      // Work out the app root: project sites live at /<repo>/..., user root
+      // sites at /. The first path segment without a file extension is the repo.
+      var segs = path.split("/").filter(function(s){ return s.length > 0; });
+      var first = segs[0] || "";
+      var isProject = first !== "" && !/\.[a-z0-9]+$/i.test(first);
+      var appRoot = isProject ? ("/" + first + "/") : "/";
+      document.getElementById("appLink").href = appRoot;
+
+      if (!isListPage){
+        document.getElementById("notfound").className = "";
+        return;
+      }
+
+      document.getElementById("publishing").className = "";
+
+      // Poll the requested URL until GitHub Pages has deployed it, then load
+      // it for real. Cap at ~2.5 minutes, then suggest trying again later.
+      var tries = 0;
+      var MAX_TRIES = 30;            // 30 x 5s = 150s
+      var timer = setInterval(function(){
+        tries++;
+        if (tries > MAX_TRIES){
+          clearInterval(timer);
+          document.getElementById("slowNote").className = "";
+          return;
+        }
+        fetch(location.href, { method:"GET", cache:"no-store" })
+          .then(function(res){ if (res.ok){ clearInterval(timer); location.reload(); } })
+          .catch(function(){ /* transient network error - keep trying */ });
+      }, 5000);
+    })();
+  </script>
+</body>
+</html>

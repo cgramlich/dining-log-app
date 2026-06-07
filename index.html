@@ -17,6 +17,12 @@
   <meta name="apple-mobile-web-app-title" content="Dining Captain" />
   <meta name="theme-color" content="#1b1714" />
   <title>Dining Captain</title>
+  <!-- Fallback link-preview tags: per-list pages under l/ carry their own
+       richer tags; these cover direct links to the app itself. -->
+  <meta property="og:title" content="Dining Captain" />
+  <meta property="og:description" content="A private notebook for eating out - places, dishes, and the ones worth ordering again." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -566,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.26.1";
+const APP_VERSION   = "1.27.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -847,24 +853,35 @@ photo yet, the card uses a colored header instead.
 Want to send someone your favorites? On the **Places** tab tap **Publish a
 list**, give it a title, and tick the restaurants to include (your favorites and
 highest-rated are listed first). Tap **Create link**, then **Copy** or **Share**.
-If the link looks long, tap **Shorten** to swap in a short link; if shortening is
-not available it simply keeps the full link, which always works.
+
+When you publish, the app creates a small public page for the list and gives
+you a short link to it - and when you text that link, it shows a proper
+preview card with your list's name instead of a random web address. The first
+time a particular list is published, its page can take up to a minute to go
+live; anyone who taps right away sees a brief "almost ready" note that opens
+the list automatically. Sharing the same list again later is instant.
+
+If the app cannot create the short page (it needs permission to the app's
+repository - some accounts will not have that), it simply shares the
+full-length link instead, which always works; a **Shorten** button appears for
+those long links if you want a tidier one.
 
 **One-tap city share.** If you have a city selected in the Places filter, a
 **Share my [city] spots** button appears. Tap it and the app builds a list of
 just that city's places and opens your share sheet straight away - no titling or
 ticking needed.
 
-The whole list travels inside the link itself, so whoever you send it to just
-taps it and sees your picks - each place with its city, cuisine, your rating, the
+The whole list is public once shared, so whoever you send it to just taps it
+and sees your picks - each place with its city, cuisine, your rating, the
 dishes you loved there, and the address with a **Directions** link that opens
-their maps app. They do not need the app, an account, or any access to your data,
-and the link never carries your token or key. Because the list lives in the link,
-treat the link as public: anyone who has it can read it - and that now includes
-the street address of each place you share.
+their maps app. They do not need the app, an account, or any access to your
+private data, and the link never carries your token or key. Treat anything you
+publish as public: the link can be opened by anyone who has it, the published
+page lives in the app's public repository, and it includes the street address
+of each place you share.
 
-The shared view is text-only - no photos or private notes - so the link stays
-short enough to send by message or email.
+The shared view is text-only - no photos or private notes - so it stays light
+and loads instantly.
 
 -----
 
@@ -1303,6 +1320,130 @@ async function shortenUrl(longUrl){
     }
   }
   return null;
+}
+
+/* ---- publish-a-list short pages (GitHub Pages, no backend) ----
+   A shared list gets a tiny static HTML page committed to the PUBLIC app
+   repo at l/<slug>.html. The page carries per-list Open Graph tags (so
+   iMessage and friends show a real preview card) and immediately redirects
+   humans to the app's ?list= viewer. Scrapers read the static tags and do
+   not follow the redirect - which is exactly what we want.
+   If the page cannot be created (no Pages host, no token, or the token has
+   no access to the app repo - e.g. a second user on their own account),
+   callers fall back to the long ?list= link, which always works. */
+
+// Minimal HTML escaping for text placed into the generated page.
+function escHtml(s){
+  return String(s == null ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// Deterministic short slug from the encoded payload: two FNV-1a passes with
+// different seeds, base36. Same list -> same slug, so re-sharing reuses the
+// same page instead of piling up duplicates.
+function listSlug(encoded){
+  function fnv(str, seed){
+    let h = seed >>> 0;
+    for (let i = 0; i < str.length; i++){
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h >>> 0;
+  }
+  return fnv(encoded, 0x811c9dc5).toString(36) + fnv(encoded, 0x7a3f5d21).toString(36);
+}
+
+// Work out the GitHub Pages owner/repo this app is being served from, so the
+// app can write list pages into its own public repo. Returns null when not on
+// a *.github.io host (e.g. local testing) - callers then use the long link.
+function getAppPagesInfo(){
+  const m = String(location.hostname).match(/^([^.]+)\.github\.io$/i);
+  if (!m) return null;
+  const owner = m[1];
+  const segs = String(location.pathname).split("/").filter(Boolean);
+  const first = segs[0] || "";
+  // a leading path segment without a file extension means a project site
+  // (github.io/<repo>/...); otherwise this is a user root site
+  const isProject = first !== "" && !/\.[a-z0-9]+$/i.test(first);
+  const repo = isProject ? first : owner + ".github.io";
+  const base = isProject ? (location.origin + "/" + repo + "/") : (location.origin + "/");
+  return { owner, repo, base };
+}
+
+// Build the static preview page for one published list. The og: tags are
+// what link scrapers read; the meta refresh + script send people on to the
+// live viewer with the payload. All dynamic text is HTML-escaped.
+function buildListPageHtml(payload, encoded){
+  const title  = (payload && payload.t) || "My list";
+  const places = (payload && payload.p) || [];
+  const names  = places.map(p => p && p.n).filter(Boolean);
+  const desc   = places.length + (places.length === 1 ? " place" : " places")
+    + (names.length ? ": " + names.slice(0,4).join(", ") + (names.length > 4 ? " and more" : "") : "")
+    + " - shared from Dining Captain.";
+  const target = "../?list=" + encoded;   // l/<slug>.html -> <base>?list=...
+  const eTitle = escHtml(title), eDesc = escHtml(desc), eTarget = escHtml(target);
+  return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
+    + "<meta charset=\"utf-8\" />\n"
+    + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n"
+    + "<title>" + eTitle + " \u00b7 Dining Captain</title>\n"
+    + "<meta property=\"og:title\" content=\"" + eTitle + "\" />\n"
+    + "<meta property=\"og:description\" content=\"" + eDesc + "\" />\n"
+    + "<meta property=\"og:site_name\" content=\"Dining Captain\" />\n"
+    + "<meta property=\"og:type\" content=\"website\" />\n"
+    + "<meta name=\"twitter:card\" content=\"summary\" />\n"
+    + "<meta http-equiv=\"refresh\" content=\"0;url=" + eTarget + "\" />\n"
+    + "<style>body{background:#1b1714;color:#efe6da;font-family:system-ui,sans-serif;"
+    + "display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}"
+    + "a{color:#e0764a;}</style>\n"
+    + "</head>\n<body>\n"
+    + "<p>Opening list&hellip; <a href=\"" + eTarget + "\">tap here if nothing happens</a></p>\n"
+    + "<script>location.replace(" + JSON.stringify(target) + ");</scr" + "ipt>\n"
+    + "</body>\n</html>\n";
+}
+
+// Create (or reuse) the list page in the public app repo. Returns the short
+// URL on success, or null on any failure so callers fall back to the long
+// link. A PUT without sha returns 201 when created and 422 when the file
+// already exists - and since the slug is deterministic, "already exists"
+// means this exact list was published before, so the URL is simply reused.
+async function publishListPage(cfg, payload, encoded){
+  const pages = getAppPagesInfo();
+  if (!pages){ logMsg("PUBLISH","Not on a Pages host - using long link"); return null; }
+  if (!cfg || !cfg.githubToken){ logMsg("PUBLISH","No token - using long link"); return null; }
+  const slug = listSlug(encoded);
+  const path = "l/" + slug + ".html";
+  const shortUrl = pages.base + path;
+  const html = buildListPageHtml(payload, encoded);
+  logMsg("PUBLISH","Publishing list page " + pages.owner + "/" + pages.repo + "/" + path);
+  try {
+    const res = await fetch(GH_API + "/repos/" + pages.owner + "/" + pages.repo + "/contents/" + path, {
+      method:"PUT",
+      headers:{
+        "Authorization":"Bearer " + cfg.githubToken,
+        "Accept":"application/vnd.github+json",
+        "Content-Type":"application/json",
+      },
+      body: JSON.stringify({
+        message:"Publish list page " + slug + " via Dining Captain",
+        content: utf8ToB64(html),
+      }),
+    });
+    if (res.status === 201 || res.status === 200){
+      logMsg("PUBLISH","List page created: " + shortUrl);
+      return shortUrl;
+    }
+    if (res.status === 422){
+      logMsg("PUBLISH","List page already exists - reusing: " + shortUrl);
+      return shortUrl;
+    }
+    // 404 = token has no access to the app repo (normal for non-owner users)
+    logMsg("PUBLISH","List page write failed (" + res.status + ") - using long link");
+    return null;
+  } catch(e){
+    logMsg("PUBLISH","List page write error: " + e.message + " - using long link");
+    return null;
+  }
 }
 
 // Pure: build the lean, shareable payload from selected restaurants. Short keys
@@ -3605,7 +3746,7 @@ function App(){
       )}
 
       {overlay && overlay.type === "publish" && (
-        <PublishBuilder restaurants={restaurants} visits={visits}
+        <PublishBuilder restaurants={restaurants} visits={visits} cfg={cfg}
           onClose={()=> setOverlay(null)} />
       )}
 
@@ -4024,8 +4165,9 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   const hasUnplaced = restaurants.some(r => !r.location);
 
   // One-tap "share my [city] spots": only when a real city filter is active
-  // (not All, not the no-location bucket). Builds the list from the places
-  // currently shown in that city, shortens, and opens the share sheet directly.
+  // (not All, not the no-location bucket). Publishes a short list page into
+  // the public app repo (nice preview card) and opens the share sheet; if
+  // the page cannot be created, the long ?list= link is shared instead.
   const [cityShareBusy, setCityShareBusy] = useState(false);
   const isCityFilter = filter !== "All" && filter !== "(no location)";
   const shareCity = async ()=>{
@@ -4036,10 +4178,12 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
     try {
       const title   = "My " + filter + " spots";
       const payload = buildListPayload(title, places, visits);
-      const longUrl = location.origin + location.pathname + "?list=" + encodeListPayload(payload);
-      logMsg("PUBLISH","City share \"" + title + "\" (" + places.length + " places, link " + longUrl.length + " chars)");
+      const enc     = encodeListPayload(payload);
+      const longUrl = location.origin + location.pathname + "?list=" + enc;
+      logMsg("PUBLISH","City share \"" + title + "\" (" + places.length + " places)");
       let url = longUrl;
-      try { const s = await shortenUrl(longUrl); if (s) url = s; } catch(e){ logMsg("WARN","City share shorten failed: " + e.message); }
+      try { const s = await publishListPage(cfg, payload, enc); if (s) url = s; }
+      catch(e){ logMsg("WARN","City share publish failed: " + e.message); }
       if (navigator.share){
         try { await navigator.share({ title, text:"A few places I love:", url }); }
         catch(e){ /* user cancelled or unsupported */ }
@@ -6355,12 +6499,13 @@ function PublishedList({data}){
   );
 }
 
-function PublishBuilder({restaurants, visits, onClose}){
+function PublishBuilder({restaurants, visits, cfg, onClose}){
   const [title,setTitle] = useState("");
   const [sel,setSel] = useState({});
   const [q,setQ] = useState("");
   const [link,setLink] = useState("");
   const [copied,setCopied] = useState(false);
+  const [makeBusy,setMakeBusy] = useState(false);
   const [shortBusy,setShortBusy] = useState(false);
   const [shortMsg,setShortMsg] = useState("");
 
@@ -6399,12 +6544,26 @@ function PublishBuilder({restaurants, visits, onClose}){
   const toggle = (id)=>{ setSel(s => { const n = Object.assign({}, s); if (n[id]) delete n[id]; else n[id] = true; return n; }); setLink(""); setCopied(false); setShortMsg(""); };
   const onTitle = (e)=>{ setTitle(e.target.value); setLink(""); setCopied(false); setShortMsg(""); };
 
-  const make = ()=>{
-    const selected = (restaurants || []).filter(r => sel[r.id]);
-    const payload = buildListPayload(title.trim(), selected, visits);
-    // ?list= (query) survives URL shorteners; the viewer also still reads #list=
-    setLink(location.origin + location.pathname + "?list=" + encodeListPayload(payload));
-    setCopied(false); setShortMsg("");
+  const make = async ()=>{
+    if (makeBusy) return;
+    setMakeBusy(true); setCopied(false); setShortMsg("");
+    try {
+      const selected = (restaurants || []).filter(r => sel[r.id]);
+      const payload = buildListPayload(title.trim(), selected, visits);
+      const enc = encodeListPayload(payload);
+      // ?list= (query) survives shorteners; the viewer also still reads #list=
+      const longUrl = location.origin + location.pathname + "?list=" + enc;
+      const short = await publishListPage(cfg, payload, enc);
+      if (short){
+        setLink(short);
+        setShortMsg("Short link ready. The first time a list is published, its page can take a minute to go live.");
+      } else {
+        setLink(longUrl);
+        setShortMsg("");
+      }
+    } finally {
+      setMakeBusy(false);
+    }
   };
   const copy = async ()=>{ try { await navigator.clipboard.writeText(link); setCopied(true); } catch(e){ logMsg("WARN","Clipboard copy failed: " + e.message); } };
   const share = async ()=>{
@@ -6438,8 +6597,8 @@ function PublishBuilder({restaurants, visits, onClose}){
 
         <div className="pub-make">
           <div className="small muted">{selCount} selected</div>
-          <button className="btn primary sm" disabled={!selCount} onClick={make}>
-            {link ? "Update link" : "Create link"}
+          <button className="btn primary sm" disabled={!selCount || makeBusy} onClick={make}>
+            {makeBusy ? "Creating..." : (link ? "Update link" : "Create link")}
           </button>
         </div>
 
@@ -6451,9 +6610,11 @@ function PublishBuilder({restaurants, visits, onClose}){
               <button className="btn primary sm" onClick={share}>
                 <Icon name="share" size={15} color="#1b1714" /> Share
               </button>
-              <button className="btn ghost sm" onClick={shorten} disabled={shortBusy}>
-                {shortBusy ? "Shortening..." : "Shorten"}
-              </button>
+              {link.includes("?list=") && (
+                <button className="btn ghost sm" onClick={shorten} disabled={shortBusy}>
+                  {shortBusy ? "Shortening..." : "Shorten"}
+                </button>
+              )}
             </div>
             {shortMsg && <div className="tiny faint" style={{marginTop:8}}>{shortMsg}</div>}
             {link.length > 6000 && (
