@@ -550,6 +550,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .pub-cards{ display:flex; flex-direction:column; gap:12px; }
     .pub-card-n{ font-family:'Fraunces',serif; font-size:20px; color:var(--text); }
     .pub-card-s{ font-size:13px; color:var(--text-dim); margin-top:3px; }
+    .pub-card-addr{ display:flex; align-items:baseline; gap:8px; margin-top:10px; flex-wrap:wrap; }
+    .pub-card-addr .addr-text{ font-size:12px; color:var(--text-faint); flex:1 1 auto; min-width:0; }
+    .pub-card-addr .addr-link{ font-size:12px; font-weight:600; color:var(--accent); text-decoration:none; white-space:nowrap; }
     .pub-foot{ text-align:center; margin-top:32px; }
   </style>
 </head>
@@ -563,7 +566,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.25.2";
+const APP_VERSION   = "1.26.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -847,11 +850,18 @@ highest-rated are listed first). Tap **Create link**, then **Copy** or **Share**
 If the link looks long, tap **Shorten** to swap in a short link; if shortening is
 not available it simply keeps the full link, which always works.
 
+**One-tap city share.** If you have a city selected in the Places filter, a
+**Share my [city] spots** button appears. Tap it and the app builds a list of
+just that city's places and opens your share sheet straight away - no titling or
+ticking needed.
+
 The whole list travels inside the link itself, so whoever you send it to just
-taps it and sees your picks - each place with its city, cuisine, your rating, and
-the dishes you loved there. They do not need the app, an account, or any access
-to your data, and the link never carries your token or key. Because the list
-lives in the link, treat the link as public: anyone who has it can read it.
+taps it and sees your picks - each place with its city, cuisine, your rating, the
+dishes you loved there, and the address with a **Directions** link that opens
+their maps app. They do not need the app, an account, or any access to your data,
+and the link never carries your token or key. Because the list lives in the link,
+treat the link as public: anyone who has it can read it - and that now includes
+the street address of each place you share.
 
 The shared view is text-only - no photos or private notes - so the link stays
 short enough to send by message or email.
@@ -1242,9 +1252,37 @@ function decodeListPayload(s){
   catch(e){ return null; }
 }
 
+// Shorten a long URL via CORS-friendly, keyless providers, tried in order.
+// is.gd has no browser CORS so it is not used. Returns the short URL on
+// success, or null on any failure so callers can fall back to the long link.
+async function shortenUrl(longUrl){
+  const providers = [
+    { name:"cleanuri", url:"https://cleanuri.com/api/v1/shorten",
+      headers:{ "Content-Type":"application/x-www-form-urlencoded" },
+      pick:(d)=> d && d.result_url },
+    { name:"spoo.me", url:"https://spoo.me/",
+      headers:{ "Content-Type":"application/x-www-form-urlencoded", "Accept":"application/json" },
+      pick:(d)=> d && (d.short_url || d.shortUrl) },
+  ];
+  for (let i = 0; i < providers.length; i++){
+    const p = providers[i];
+    try {
+      const res = await fetch(p.url, { method:"POST", headers:p.headers, body:"url=" + encodeURIComponent(longUrl) });
+      let data = null; try { data = await res.json(); } catch(e2){ data = null; }
+      const u = p.pick(data);
+      if (u && /^https?:\/\//.test(u)){ logMsg("PUBLISH","Shortened via " + p.name); return u; }
+      logMsg("PUBLISH", p.name + " gave no link: " + JSON.stringify(data));
+    } catch(e){
+      logMsg("PUBLISH", p.name + " failed: " + e.message);
+    }
+  }
+  return null;
+}
+
 // Pure: build the lean, shareable payload from selected restaurants. Short keys
 // keep the URL small. Only clearly-shareable fields - never tokens/keys, and no
-// street address/phone/notes.
+// phone/notes. The street address (key "a") IS included so the shared view can
+// offer a maps link; treat a published link as public (it always was).
 function buildListPayload(title, selected, visits){
   const byRest = {};
   (visits || []).forEach(v => { if (v && v.restaurant_id){ (byRest[v.restaurant_id] = byRest[v.restaurant_id] || []).push(v); } });
@@ -1265,6 +1303,7 @@ function buildListPayload(title, selected, visits){
     if (avg) o.r = avg;
     if (loved.length) o.d = loved.slice(0,3);
     if (r.favorite) o.f = 1;
+    if (r.address) o.a = r.address;
     return o;
   });
   return { v:1, t: title || "My list", p: places };
@@ -3958,6 +3997,35 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   const showChips = cityChips.length > 0;
   const hasUnplaced = restaurants.some(r => !r.location);
 
+  // One-tap "share my [city] spots": only when a real city filter is active
+  // (not All, not the no-location bucket). Builds the list from the places
+  // currently shown in that city, shortens, and opens the share sheet directly.
+  const [cityShareBusy, setCityShareBusy] = useState(false);
+  const isCityFilter = filter !== "All" && filter !== "(no location)";
+  const shareCity = async ()=>{
+    if (cityShareBusy) return;
+    const places = visible;   // already scoped to the active city
+    if (!places.length) return;
+    setCityShareBusy(true);
+    try {
+      const title   = "My " + filter + " spots";
+      const payload = buildListPayload(title, places, visits);
+      const longUrl = location.origin + location.pathname + "?list=" + encodeListPayload(payload);
+      logMsg("PUBLISH","City share \"" + title + "\" (" + places.length + " places, link " + longUrl.length + " chars)");
+      let url = longUrl;
+      try { const s = await shortenUrl(longUrl); if (s) url = s; } catch(e){ logMsg("WARN","City share shorten failed: " + e.message); }
+      if (navigator.share){
+        try { await navigator.share({ title, text:"A few places I love:", url }); }
+        catch(e){ /* user cancelled or unsupported */ }
+      } else {
+        try { await navigator.clipboard.writeText(url); alert("Link copied to clipboard."); }
+        catch(e){ logMsg("WARN","City share clipboard failed: " + e.message); }
+      }
+    } finally {
+      setCityShareBusy(false);
+    }
+  };
+
   return (
     <div>
       <SearchBar value={query} onChange={setQuery}
@@ -3992,6 +4060,15 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
               onClick={()=> onFilterChange("(no location)")}>No location</span>
           )}
         </div>
+      )}
+
+      {isCityFilter && visible.length > 0 && (
+        <button className="btn ghost sm" onClick={shareCity} disabled={cityShareBusy}
+                style={{margin:"0 0 14px"}}>
+          {cityShareBusy
+            ? <><span className="spin" /> Preparing link&hellip;</>
+            : <><Icon name="share" size={15} color="var(--accent)" /> Share my {filter} spots</>}
+        </button>
       )}
 
       <div className="sortbar">
@@ -6233,6 +6310,14 @@ function PublishedList({data}){
                 {p.d.map((d,j)=>(<span key={j} className="chip dish again">{d}</span>))}
               </div>
             )}
+            {p.a && (
+              <div className="pub-card-addr">
+                <span className="addr-text">{p.a}</span>
+                <a className="addr-link"
+                   href={"https://maps.google.com/?q=" + encodeURIComponent((p.n ? p.n + ", " : "") + p.a)}
+                   target="_blank" rel="noopener noreferrer">Directions</a>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -6300,33 +6385,11 @@ function PublishBuilder({restaurants, visits, onClose}){
     try { if (navigator.share){ await navigator.share({ title: title.trim() || "My list", text:"A few places I love:", url:link }); } else { copy(); } }
     catch(e){ /* user cancelled or unsupported */ }
   };
-  // Optional shortener. is.gd has no browser CORS, so we use CORS-friendly,
-  // keyless providers and try them in order. Any total failure keeps the long link.
+  // Optional shortener (shared helper). Any total failure keeps the long link.
   const shorten = async ()=>{
     if (!link || shortBusy) return;
     setShortBusy(true); setShortMsg("");
-    const longUrl = link;
-    const providers = [
-      { name:"cleanuri", url:"https://cleanuri.com/api/v1/shorten",
-        headers:{ "Content-Type":"application/x-www-form-urlencoded" },
-        pick:(d)=> d && d.result_url },
-      { name:"spoo.me", url:"https://spoo.me/",
-        headers:{ "Content-Type":"application/x-www-form-urlencoded", "Accept":"application/json" },
-        pick:(d)=> d && (d.short_url || d.shortUrl) },
-    ];
-    let shortUrl = null;
-    for (let i = 0; i < providers.length && !shortUrl; i++){
-      const p = providers[i];
-      try {
-        const res = await fetch(p.url, { method:"POST", headers:p.headers, body:"url=" + encodeURIComponent(longUrl) });
-        let data = null; try { data = await res.json(); } catch(e2){ data = null; }
-        const u = p.pick(data);
-        if (u && /^https?:\/\//.test(u)) { shortUrl = u; logMsg("PUBLISH","Shortened via " + p.name); }
-        else logMsg("PUBLISH", p.name + " gave no link: " + JSON.stringify(data));
-      } catch(e){
-        logMsg("PUBLISH", p.name + " failed: " + e.message);
-      }
-    }
+    const shortUrl = await shortenUrl(link);
     if (shortUrl){
       setLink(shortUrl); setCopied(false);
       setShortMsg("Shortened. Open it once to confirm it works.");
