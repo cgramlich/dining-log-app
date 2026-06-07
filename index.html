@@ -563,7 +563,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.25.1";
+const APP_VERSION   = "1.25.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -4920,6 +4920,23 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     existing ? existing.restaurant_id : (presetRestaurantId || (restaurants[0] && restaurants[0].id) || ""));
   const [date,setDate]     = useState(existing ? existing.date : todayISO());
   const [rating,setRating] = useState(existing ? existing.rating : 0);
+  const ratingRef = useRef(null);
+  // Half-star rating by tap position: map where the tap landed across the
+  // 5-star row to the nearest 0.5 step. This is far more reliable on iOS
+  // Safari than overlaying invisible half-width buttons (which did not fire).
+  // Tapping the value you already have clears the rating back to none.
+  function onRateTap(e){
+    const el = ratingRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    // clientX is present on both mouse clicks and tap-generated click events
+    const cx = (e.clientX != null) ? e.clientX
+             : (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientX : rect.left);
+    const x  = Math.max(0, Math.min(rect.width, cx - rect.left));
+    let val  = Math.ceil((x / rect.width) * 5 * 2) / 2;   // nearest half, rounding up
+    val = Math.max(0.5, Math.min(5, val));
+    setRating(val === rating ? 0 : val);
+  }
   const [notes,setNotes]   = useState(existing ? existing.notes : "");
   const [dishes,setDishes] = useState(existing ? existing.dishes.slice() : []);
   const [dishInput,setDishInput] = useState("");
@@ -5298,45 +5315,39 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
 
         <div className="fld">
           <span className="lbl">Rating</span>
-          {/* Each star is two half-width tap zones: the left sets N-0.5,
-              the right sets N. Tapping the value you already have clears
-              it back to none. The visible glyph is lit (full or half) to
-              match the current rating. */}
-          <div className="row" style={{gap:6}}>
-            {[1,2,3,4,5].map(n => {
-              const full = n <= rating;
-              const half = !full && (rating === n - 0.5);
-              const set  = (val)=> setRating(val === rating ? 0 : val);
-              return (
-                <span key={n} className="rate-star"
-                      style={{position:"relative", display:"inline-block",
-                              width:32, height:32, lineHeight:0}}>
-                  {/* dim base glyph */}
-                  <Icon name="star" size={32} color="#3a3128" />
-                  {/* lit overlay: full star, or left-half for a half rating */}
-                  {(full || half) && (
-                    <span style={{position:"absolute", left:0, top:0, height:"100%",
-                                  width: full ? "100%" : "50%",
-                                  overflow:"hidden", display:"inline-block", lineHeight:0}}>
-                      <Icon name="star" size={32} color="#e7b24c" />
-                    </span>
-                  )}
-                  {/* invisible tap zones over the glyph */}
-                  <button aria-label={"Rate " + (n - 0.5)}
-                          onClick={()=> set(n - 0.5)}
-                          style={{position:"absolute", left:0, top:0,
-                                  width:"50%", height:"100%", padding:0,
-                                  background:"transparent", border:"none"}} />
-                  <button aria-label={"Rate " + n}
-                          onClick={()=> set(n)}
-                          style={{position:"absolute", right:0, top:0,
-                                  width:"50%", height:"100%", padding:0,
-                                  background:"transparent", border:"none"}} />
-                </span>
-              );
-            })}
+          {/* One tappable row. onRateTap reads the tap's X position across
+              the whole row and maps it to the nearest half-star, so the left
+              portion of a star is a half and the right portion is a whole.
+              No gaps between stars so the position maps cleanly. */}
+          <div className="row" style={{alignItems:"center", gap:10}}>
+            <div ref={ratingRef} onClick={onRateTap} role="slider"
+                 aria-label="Rating" aria-valuemin={0} aria-valuemax={5}
+                 aria-valuenow={rating}
+                 style={{display:"inline-flex", gap:0, cursor:"pointer",
+                         touchAction:"manipulation", WebkitUserSelect:"none",
+                         userSelect:"none", padding:"4px 0"}}>
+              {[1,2,3,4,5].map(n => {
+                const full = n <= rating;
+                const half = !full && (rating >= n - 0.5);
+                return (
+                  <span key={n}
+                        style={{position:"relative", display:"inline-block",
+                                width:40, height:40, lineHeight:0,
+                                pointerEvents:"none"}}>
+                    <Icon name="star" size={40} color="#3a3128" />
+                    {(full || half) && (
+                      <span style={{position:"absolute", left:0, top:0, height:"100%",
+                                    width: full ? "100%" : "50%",
+                                    overflow:"hidden", display:"inline-block", lineHeight:0}}>
+                        <Icon name="star" size={40} color="#e7b24c" />
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
             {rating > 0 && (
-              <span className="small muted" style={{marginLeft:4, alignSelf:"center"}}>
+              <span className="small muted">
                 {Number.isInteger(rating) ? rating : rating.toFixed(1)}
               </span>
             )}
