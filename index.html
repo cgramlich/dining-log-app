@@ -238,10 +238,11 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .idl:last-child{margin-bottom:0;}
 
     /* ---- stars ---- */
-    .stars{display:inline-flex; gap:3px;}
+    .stars{display:inline-flex; gap:3px; align-items:center;}
     .star{font-size:17px; color:var(--line);}
     .star.lit{color:var(--amber);}
     .star.big{font-size:30px;}
+    .stars-num{margin-left:5px; font-size:13px; color:var(--muted); font-weight:600;}
 
     .fav{color:var(--text-faint); font-size:21px; line-height:1;}
     .fav.on{color:var(--accent);}
@@ -562,13 +563,13 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.23.0";
+const APP_VERSION   = "1.25.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 
-// In-app user guide (source of truth: dining-log-help.md). Re-sync this when the .md changes.
+// In-app user guide (source of truth: dining-captain-help.md). Re-sync this when the .md changes.
 const HELP_DOC = `# Dining Captain - User Guide
 
 Dining Captain is your private notebook for eating out. You log the places you go,
@@ -685,7 +686,10 @@ On any digitized menu you can ask a plain-English question - things like
 "something healthy," "not too heavy," "best value," or "what did I love here?"
 The app answers using that restaurant's actual menu, and it takes your own
 dish ratings into account, so the more you log the more personal the answers
-get.
+get. When a menu item has calories on it - whether printed on the menu or
+estimated - the answers factor those in too, so a question like "something
+lighter" can weigh the actual numbers. It stays easygoing about it: the
+calories inform the suggestion, they are never treated as a budget or a rule.
 
 -----
 
@@ -694,7 +698,12 @@ get.
 Tap the plus button and choose "Log a visit." You can fill in as much or as
 little as you like:
 
-**Date and rating.** Pick the date and give the visit a star rating.
+**Date and rating.** Pick the date and give the visit a star rating. You can
+rate in half-stars: tap the left side of a star for a half, the right side for
+a whole. Tap the rating you already have to clear it. You rate each visit, not
+the restaurant - so a place can have a different rating every time you go. On a
+restaurant, in the Places list, and on a shared card, the star number shown is
+the average of your visits there, labelled "avg."
 
 **What you had (dishes).** Add the dishes you ordered, either by typing them or
 by tapping them straight from that restaurant's digitized menu. Tapping from
@@ -797,6 +806,9 @@ Each card only appears when there is something to show, so a quiet year stays
 short. There is no calorie total here, on purpose - in keeping with the spirit
 of the app, the recap is about places, dishes, and memories, not a number to
 measure yourself against.
+
+You can share the recap as an image: tap the **share** icon at the top and the
+app renders the year you are viewing onto a card you can text or post.
 
 -----
 
@@ -914,6 +926,7 @@ what you ate, not a budget to stay under. The app will never scold you, warn
 you, or tell you that you "blew" anything. If the numbers ever start to feel
 like pressure rather than interest, ignore them - the dish ratings and the
 memories are the real point.
+
 `;
 const CFG_KEY       = "dininglog_config";
 const DATA_KEY      = "dininglog_data";
@@ -1362,13 +1375,38 @@ async function buildRestaurantCardBlob({ name, sub, ratingAvg, address, loved, p
 
   if (ratingAvg){
     cy += 52;
-    const filled = Math.round(ratingAvg);
+    const full = Math.floor(ratingAvg);
+    const half = (ratingAvg - full) >= 0.5;
     ctx.font = "44px system-ui, -apple-system, Arial, sans-serif";
-    const sw = ctx.measureText("\u2605").width + 8;
+    const glyph = "\u2605";
+    const sw = ctx.measureText(glyph).width + 8;
     for (let i = 0; i < 5; i++){
-      ctx.fillStyle = i < filled ? AMBER : "rgba(255,255,255,0.16)";
-      ctx.fillText("\u2605", PAD + i * sw, cy);
+      const x = PAD + i * sw;
+      if (i < full){
+        // full lit star
+        ctx.fillStyle = AMBER;
+        ctx.fillText(glyph, x, cy);
+      } else if (i === full && half){
+        // dim base, then lit left half clipped via a save/clip rect
+        ctx.fillStyle = "rgba(255,255,255,0.16)";
+        ctx.fillText(glyph, x, cy);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, cy - 44, ctx.measureText(glyph).width / 2, 56);
+        ctx.clip();
+        ctx.fillStyle = AMBER;
+        ctx.fillText(glyph, x, cy);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.16)";
+        ctx.fillText(glyph, x, cy);
+      }
     }
+    // numeric average beside the stars, labelled so it reads as an average
+    const numStr = (Number.isInteger(ratingAvg) ? String(ratingAvg) : ratingAvg.toFixed(1)) + " avg";
+    ctx.fillStyle = DIM;
+    ctx.font = "500 30px Outfit, system-ui, sans-serif";
+    ctx.fillText(numStr, PAD + 5 * sw + 6, cy - 4);
   }
 
   if (address){ cy += 18; drawLines(address, "400 30px Outfit, system-ui, sans-serif", FAINT, 38); }
@@ -1401,6 +1439,71 @@ async function buildRestaurantCardBlob({ name, sub, ratingAvg, address, loved, p
 
   return await new Promise((resolve, reject) => {
     out.toBlob(b => b ? resolve(b) : reject(new Error("Card render failed")), "image/png");
+  });
+}
+
+// Draw a Year-in-Food recap as a shareable portrait image (text only, no photo).
+async function buildYearCardBlob(s, periodLabel){
+  const W = 1080, PAD = 84, MAXH = 2600;
+  const BG = "#1b1714", LINE = "rgba(255,255,255,0.10)";
+  const CREAM = "#efe6da", DIM = "#b3a591", FAINT = "#857667", ACCENT = "#e0764a";
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = MAXH;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = BG; ctx.fillRect(0, 0, W, MAXH);
+  ctx.textBaseline = "alphabetic";
+
+  let cy = 0;
+  const center = (text, font, color, advance)=>{
+    ctx.textAlign = "center"; ctx.font = font; ctx.fillStyle = color;
+    cy += advance; ctx.fillText(text, W / 2, cy);
+  };
+  const statRow = (label, value)=>{
+    ctx.textAlign = "left";
+    cy += 66;
+    ctx.font = "600 26px Outfit, system-ui, sans-serif"; ctx.fillStyle = FAINT;
+    ctx.fillText(String(label).toUpperCase(), PAD, cy);
+    cy += 52;
+    ctx.font = "500 46px Fraunces, Georgia, serif"; ctx.fillStyle = CREAM;
+    let v = String(value); const maxW = W - PAD * 2;
+    if (ctx.measureText(v).width > maxW){
+      while (v.length > 4 && ctx.measureText(v + "\u2026").width > maxW) v = v.slice(0, -1);
+      v = v.replace(/\s+\S*$/, "") + "\u2026";
+    }
+    ctx.fillText(v, PAD, cy);
+  };
+
+  cy = 130;
+  center("YOUR YEAR IN FOOD", "600 30px Outfit, system-ui, sans-serif", ACCENT, 0);
+  center(String(periodLabel), "600 112px Fraunces, Georgia, serif", CREAM, 132);
+  center(
+    s.visits + (s.visits === 1 ? " visit" : " visits") + "   \u00b7   " + s.places + (s.places === 1 ? " place" : " places"),
+    "500 38px Outfit, system-ui, sans-serif", DIM, 72
+  );
+
+  cy += 64;
+  ctx.strokeStyle = LINE; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(PAD, cy); ctx.lineTo(W - PAD, cy); ctx.stroke();
+
+  if (s.topSpot)   statRow("Your #1 spot", s.topSpot.name + "  (" + s.topSpot.count + (s.topSpot.count === 1 ? " visit" : " visits") + ")");
+  if (s.topCuisine) statRow("Top cuisine", s.topCuisine.name);
+  if (s.topLoved)  statRow("Most loved dish", s.topLoved.name);
+  if (s.busiest)   statRow("Busiest month", s.busiest.label);
+  if (s.cities && s.cities.length) statRow(s.cities.length === 1 ? "City" : "Cities",
+    s.cities.length <= 3 ? s.cities.join(", ") : s.cities.length + " cities");
+  if (s.period !== "all" && s.newSpots > 0) statRow("New spots discovered", String(s.newSpots));
+
+  cy += 112;
+  center("Made with Dining Captain", "500 28px Outfit, system-ui, sans-serif", FAINT, 0);
+
+  const finalH = Math.min(MAXH, cy + 84);
+  const out = document.createElement("canvas");
+  out.width = W; out.height = finalH;
+  const octx = out.getContext("2d");
+  octx.fillStyle = BG; octx.fillRect(0, 0, W, finalH);
+  octx.drawImage(cv, 0, 0, W, finalH, 0, 0, W, finalH);
+  return await new Promise((resolve, reject) => {
+    out.toBlob(b => b ? resolve(b) : reject(new Error("Year card render failed")), "image/png");
   });
 }
 
@@ -2110,6 +2213,26 @@ async function digitizeMenu(cfg, dataUrls){
 
 // Compact, readable serialization of a menu for the prompt. Text (not raw
 // JSON) keeps the token count down and is easy for the model to read.
+// Render one menu item's cached nutrition as a compact hint for the
+// model (phase-2 calorie-aware ordering). Returns "" when the item has
+// no kcal on record, so items without data simply pass through unchanged.
+// "stated" (printed on the menu) is exact; everything else is an estimate
+// and is labelled "approx" so the model never treats a guess as fact.
+function nutritionHint(it){
+  const n = it && it.nutrition;
+  if (!n || !n.kcal) return "";
+  const exact = n.source === "menu_stated";
+  const word  = exact ? "" : "approx ";
+  let h = " [" + word + n.kcal + " cal";
+  const macros = [];
+  if (n.protein_g) macros.push(n.protein_g + "g protein");
+  if (n.carbs_g)   macros.push(n.carbs_g + "g carbs");
+  if (n.fat_g)     macros.push(n.fat_g + "g fat");
+  if (macros.length) h += "; " + macros.join(", ");
+  h += "]";
+  return h;
+}
+
 function menuToText(menu){
   const lines = [];
   (menu.sections || []).forEach(s => {
@@ -2119,6 +2242,7 @@ function menuToText(menu){
       if (it.price)       line += " (" + it.price + ")";
       if (it.description) line += ": " + it.description;
       if (it.tags && it.tags.length) line += " [tags: " + it.tags.join(", ") + "]";
+      line += nutritionHint(it);   // phase-2: calorie/macro hint when known
       lines.push(line);
     });
   });
@@ -2166,7 +2290,16 @@ async function askMenu(cfg, restaurant, menu, visits, question){
     "- Suggest 2-3 options, each with a short reason. If nothing on the menu fits, "+
     "say so honestly and point to the closest thing.\n"+
     "- Be concise and conversational - a few sentences, not an essay. No headings, "+
-    "no markdown.\n";
+    "no markdown.\n"+
+    "- Some menu items show a calorie/macro hint in square brackets (e.g. "+
+    "\"[approx 300 cal; 24g protein]\"). 'approx' is an estimate; a plain number "+
+    "is taken straight from the menu. When the diner's request relates to how "+
+    "light, heavy, filling, protein-rich, or calorie-conscious they want to eat, "+
+    "use those numbers to inform your picks and mention them naturally (e.g. "+
+    "\"the ceviche is around 300 cal\"). Items without a number simply have none "+
+    "on record - never guess or invent calories. Keep it informative and "+
+    "easygoing: this is for curiosity, never a diet, a budget, or a judgment. "+
+    "Do not scold, warn, or imply any food is 'bad'.\n";
 
   if (hasHist){
     prompt +=
@@ -2187,7 +2320,8 @@ async function askMenu(cfg, restaurant, menu, visits, question){
     "\n\nTHE DINER SAYS: \"" + question + "\"";
 
   logMsg("ASK","Asking " + ASK_MODEL + " (menu " + menuText.length +
-         " chars, history=" + (hasHist ? "yes" : "none") + ")");
+         " chars, history=" + (hasHist ? "yes" : "none") +
+         ", calorie-aware=" + (/\bcal\]/.test(menuText) || /cal;/.test(menuText) ? "yes" : "none") + ")");
   let res;
   try {
     res = await fetch(ANTHROPIC_API, {
@@ -2458,16 +2592,46 @@ function Icon({name, size, color}){
   return <svg {...p}>{paths[name] || null}</svg>;
 }
 
-function Stars({value, size}){
-  const v = Number(value) || 0;
+// Read-only star display. Supports half-star values (e.g. 4.5):
+// full stars up to floor(value), one half-filled star if there is a
+// 0.5 remainder, then empty stars. A half star is drawn by stacking a
+// lit star clipped to its left 50% over a dim star. `showNum` appends
+// the numeric value (e.g. "4.5") beside the stars for read-only contexts.
+function Stars({value, size, showNum}){
+  const v    = Number(value) || 0;
+  const big  = size === "big";
+  const px   = big ? 28 : 15;
+  const full = Math.floor(v);
+  const half = (v - full) >= 0.5;   // treat anything >= .5 as a half star
   return (
     <span className="stars">
-      {[1,2,3,4,5].map(n => (
-        <span key={n} className={"star" + (n<=v ? " lit" : "") + (size==="big" ? " big" : "")}>
-          <Icon name="star" size={size==="big" ? 28 : 15}
-                color={n<=v ? "#e7b24c" : "#3a3128"} />
-        </span>
-      ))}
+      {[1,2,3,4,5].map(n => {
+        const isFull = n <= full;
+        const isHalf = !isFull && n === full + 1 && half;
+        if (isHalf){
+          return (
+            <span key={n} className={"star half" + (big ? " big" : "")}
+                  style={{position:"relative", display:"inline-block"}}>
+              {/* dim base */}
+              <Icon name="star" size={px} color="#3a3128" />
+              {/* lit overlay, clipped to the left half */}
+              <span style={{position:"absolute", left:0, top:0,
+                            width:"50%", overflow:"hidden",
+                            display:"inline-block", lineHeight:0}}>
+                <Icon name="star" size={px} color="#e7b24c" />
+              </span>
+            </span>
+          );
+        }
+        return (
+          <span key={n} className={"star" + (isFull ? " lit" : "") + (big ? " big" : "")}>
+            <Icon name="star" size={px} color={isFull ? "#e7b24c" : "#3a3128"} />
+          </span>
+        );
+      })}
+      {showNum && v > 0 && (
+        <span className="stars-num">{Number.isInteger(v) ? v : v.toFixed(1)}</span>
+      )}
     </span>
   );
 }
@@ -3540,7 +3704,7 @@ function HistoryView({visits, restaurantById, cfg, onOpen, onOpenYearInFood, onO
             )}
             <div className="between">
               <div className="place-name">{r ? r.name : (v.restaurant_name || "Unknown")}</div>
-              {v.rating ? <Stars value={v.rating} /> : null}
+              {v.rating ? <Stars value={v.rating} showNum /> : null}
             </div>
             <div className="meta-line" style={{marginTop:4}}>
               {fmtDate(v.date)} &nbsp;&middot;&nbsp; {relDays(v.date)}
@@ -4120,7 +4284,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               )}
               <div className="between">
                 <div className="small muted">{fmtDate(v.date)}</div>
-                {v.rating ? <Stars value={v.rating} /> : null}
+                {v.rating ? <Stars value={v.rating} showNum /> : null}
               </div>
               {v.dishes && v.dishes.length > 0 && (
                 <div className="chips">
@@ -5134,12 +5298,48 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
 
         <div className="fld">
           <span className="lbl">Rating</span>
+          {/* Each star is two half-width tap zones: the left sets N-0.5,
+              the right sets N. Tapping the value you already have clears
+              it back to none. The visible glyph is lit (full or half) to
+              match the current rating. */}
           <div className="row" style={{gap:6}}>
-            {[1,2,3,4,5].map(n => (
-              <button key={n} onClick={()=> setRating(n===rating ? 0 : n)}>
-                <Icon name="star" size={32} color={n<=rating ? "#e7b24c" : "#3a3128"} />
-              </button>
-            ))}
+            {[1,2,3,4,5].map(n => {
+              const full = n <= rating;
+              const half = !full && (rating === n - 0.5);
+              const set  = (val)=> setRating(val === rating ? 0 : val);
+              return (
+                <span key={n} className="rate-star"
+                      style={{position:"relative", display:"inline-block",
+                              width:32, height:32, lineHeight:0}}>
+                  {/* dim base glyph */}
+                  <Icon name="star" size={32} color="#3a3128" />
+                  {/* lit overlay: full star, or left-half for a half rating */}
+                  {(full || half) && (
+                    <span style={{position:"absolute", left:0, top:0, height:"100%",
+                                  width: full ? "100%" : "50%",
+                                  overflow:"hidden", display:"inline-block", lineHeight:0}}>
+                      <Icon name="star" size={32} color="#e7b24c" />
+                    </span>
+                  )}
+                  {/* invisible tap zones over the glyph */}
+                  <button aria-label={"Rate " + (n - 0.5)}
+                          onClick={()=> set(n - 0.5)}
+                          style={{position:"absolute", left:0, top:0,
+                                  width:"50%", height:"100%", padding:0,
+                                  background:"transparent", border:"none"}} />
+                  <button aria-label={"Rate " + n}
+                          onClick={()=> set(n)}
+                          style={{position:"absolute", right:0, top:0,
+                                  width:"50%", height:"100%", padding:0,
+                                  background:"transparent", border:"none"}} />
+                </span>
+              );
+            })}
+            {rating > 0 && (
+              <span className="small muted" style={{marginLeft:4, alignSelf:"center"}}>
+                {Number.isInteger(rating) ? rating : rating.toFixed(1)}
+              </span>
+            )}
           </div>
         </div>
 
@@ -5956,7 +6156,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
    SETTINGS VIEW
    ============================================================ */
 /* ============================================================
-   IN-APP HELP  (renders HELP_DOC; source of truth: dining-log-help.md)
+   IN-APP HELP  (renders HELP_DOC; source of truth: dining-captain-help.md)
    ============================================================ */
 function renderHelpInline(text, kp){
   const nodes=[]; const re=/\*\*([^*]+)\*\*|\*([^*]+)\*/g;
@@ -6013,7 +6213,8 @@ function PublishedList({data}){
             )}
             {p.r ? (
               <div className="row" style={{gap:8,marginTop:6}}>
-                <Stars value={Math.round(p.r)} /> <span className="small muted">{p.r}</span>
+                <Stars value={p.r} showNum />
+                <span className="small muted">avg</span>
               </div>
             ) : null}
             {Array.isArray(p.d) && p.d.length > 0 && (
@@ -6178,7 +6379,7 @@ function PublishBuilder({restaurants, visits, onClose}){
               <span className="pub-row-n">{r.name}{r.favorite ? "  \u2605" : ""}</span>
               <span className="pub-row-s">
                 {[r.location, r.cuisine].filter(Boolean).join("  \u00b7  ")}
-                {avgById[r.id] ? "   " + avgById[r.id] + "\u2605" : ""}
+                {avgById[r.id] ? "   " + avgById[r.id] + "\u2605 avg" : ""}
               </span>
             </span>
           </div>
@@ -6256,15 +6457,43 @@ function YearInFood({visits, restaurants, onClose}){
     years.forEach(y => { if (countByYear[y] > best){ best = countByYear[y]; defaultPeriod = y; } });
   }
   const [period, setPeriod] = useState(defaultPeriod);
+  const [shareBusy, setShareBusy] = useState(false);
   const s = computeYearStats(visits, restaurants, period);
   const periodLabel = period === "all" ? "All time" : String(period);
+
+  const share = async ()=>{
+    if (shareBusy || s.empty) return;
+    setShareBusy(true);
+    try {
+      try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch(e){}
+      const blob = await buildYearCardBlob(s, periodLabel);
+      const file = new File([blob], "dining-captain-year-" + (period === "all" ? "alltime" : period) + ".png", { type:"image/png" });
+      if (navigator.canShare && navigator.canShare({ files:[file] })){
+        try { await navigator.share({ files:[file], title:"My Year in Food" }); }
+        catch(e){ if (e && e.name !== "AbortError") logMsg("YIF","Share sheet failed: " + e.message); }
+      } else {
+        const u = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = u; a.download = file.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=> URL.revokeObjectURL(u), 2000);
+        logMsg("YIF","File-share unsupported - downloaded the recap instead");
+      }
+    } catch(e){
+      logMsg("ERROR","Year card failed: " + e.message);
+      alert("Could not build the recap image: " + e.message);
+    } finally {
+      setShareBusy(false);
+    }
+  };
 
   return (
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
         <h2>Year in Food</h2>
-        <span style={{width:40}} />
+        <button className="x" onClick={share} disabled={shareBusy || s.empty} aria-label="Share recap">
+          {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
+        </button>
       </div>
       <div className="ovbody">
         {years.length > 0 && (
@@ -6344,7 +6573,7 @@ function YearInFood({visits, restaurants, onClose}){
                 <div className="yif-lbl">Highest-rated visit</div>
                 <div className="yif-name">{s.topVisit.name}</div>
                 <div className="yif-sub row" style={{gap:8}}>
-                  <Stars value={s.topVisit.rating} /> {fmtDate(s.topVisit.date)}
+                  <Stars value={s.topVisit.rating} showNum /> {fmtDate(s.topVisit.date)}
                 </div>
               </div>
             )}
