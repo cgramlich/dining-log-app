@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.27.0";
+const APP_VERSION   = "1.27.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -3746,7 +3746,7 @@ function App(){
       )}
 
       {overlay && overlay.type === "publish" && (
-        <PublishBuilder restaurants={restaurants} visits={visits} cfg={cfg}
+        <PublishBuilder restaurants={restaurants} visits={visits} cfg={config}
           onClose={()=> setOverlay(null)} />
       )}
 
