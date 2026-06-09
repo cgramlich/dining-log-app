@@ -70,7 +70,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     .topbar{
       position:sticky; top:0; z-index:30;
-      background:linear-gradient(180deg,var(--bg) 70%,rgba(27,23,20,0.0));
+      background:var(--bg);
       padding:calc(14px + env(safe-area-inset-top)) 20px 12px;
     }
     .topbar h1{font-size:30px; letter-spacing:-0.02em;}
@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.31.0";
+const APP_VERSION   = "1.32.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -6942,7 +6942,7 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
           </div>
         </div>
         <div className="small muted" style={{marginTop:12,lineHeight:1.8}}>
-          User ID: <b style={{color:"var(--text)"}}>{config.userId}</b><br/>
+          Account: <b style={{color:"var(--text)"}}>{config.email || config.userId}</b><br/>
           Backend: <b style={{color:"var(--text)"}}>{apiBase(config)}</b>
         </div>
       </div>
