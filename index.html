@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.28.0";
+const APP_VERSION   = "1.29.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -2309,13 +2309,11 @@ async function digitizeMenu(cfg, dataUrls){
   logMsg("VISION","Sending " + dataUrls.length + " image(s) to " + VISION_MODEL);
   let res;
   try {
-    res = await fetch(ANTHROPIC_API, {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        "x-api-key":cfg.anthropicKey,
-        "anthropic-version":"2023-06-01",
-        "anthropic-dangerous-direct-browser-access":"true",
+        "X-User-ID":cfg.userId,
       },
       body:JSON.stringify({
         model:VISION_MODEL,
@@ -2327,7 +2325,7 @@ async function digitizeMenu(cfg, dataUrls){
     logMsg("ERROR","Anthropic network failure: " + err.message);
     throw new Error("Network error reaching the Anthropic API");
   }
-  if (res.status === 401){ throw new Error("Anthropic rejected the API key (401). Check it in Settings."); }
+  if (res.status === 401){ throw new Error("Server rejected the request (401). Check your sign-in."); }
   if (res.status === 429){ throw new Error("Anthropic rate limit hit (429). Wait a moment and retry."); }
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
@@ -2502,13 +2500,11 @@ async function askMenu(cfg, restaurant, menu, visits, question){
          ", calorie-aware=" + (/\bcal\]/.test(menuText) || /cal;/.test(menuText) ? "yes" : "none") + ")");
   let res;
   try {
-    res = await fetch(ANTHROPIC_API, {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        "x-api-key":cfg.anthropicKey,
-        "anthropic-version":"2023-06-01",
-        "anthropic-dangerous-direct-browser-access":"true",
+        "X-User-ID":cfg.userId,
       },
       body:JSON.stringify({
         model:ASK_MODEL,
@@ -2520,7 +2516,7 @@ async function askMenu(cfg, restaurant, menu, visits, question){
     logMsg("ERROR","Ask network failure: " + err.message);
     throw new Error("Network error reaching the Anthropic API");
   }
-  if (res.status === 401){ throw new Error("Anthropic rejected the API key (401). Check it in Settings."); }
+  if (res.status === 401){ throw new Error("Server rejected the request (401). Check your sign-in."); }
   if (res.status === 429){ throw new Error("Anthropic rate limit hit (429). Wait a moment and retry."); }
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
@@ -2597,13 +2593,11 @@ async function estimateNutrition(cfg, file){
   logMsg("NUTRI","Estimating nutrition from photo via " + VISION_MODEL);
   let res;
   try {
-    res = await fetch(ANTHROPIC_API, {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        "x-api-key":cfg.anthropicKey,
-        "anthropic-version":"2023-06-01",
-        "anthropic-dangerous-direct-browser-access":"true",
+        "X-User-ID":cfg.userId,
       },
       body:JSON.stringify({
         model:VISION_MODEL,
@@ -2619,7 +2613,7 @@ async function estimateNutrition(cfg, file){
     logMsg("ERROR","Nutrition network failure: " + err.message);
     throw new Error("Network error reaching the Anthropic API");
   }
-  if (res.status === 401){ throw new Error("Anthropic rejected the API key (401). Check it in Settings."); }
+  if (res.status === 401){ throw new Error("Server rejected the request (401). Check your sign-in."); }
   if (res.status === 429){ throw new Error("Anthropic rate limit hit (429). Wait a moment and retry."); }
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
@@ -2668,13 +2662,11 @@ async function estimateItemNutrition(cfg, restaurantName, item){
   logMsg("NUTRI","Estimating item '" + item.name + "' via " + ASK_MODEL);
   let res;
   try {
-    res = await fetch(ANTHROPIC_API, {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        "x-api-key":cfg.anthropicKey,
-        "anthropic-version":"2023-06-01",
-        "anthropic-dangerous-direct-browser-access":"true",
+        "X-User-ID":cfg.userId,
       },
       body:JSON.stringify({
         model:ASK_MODEL,
@@ -2686,7 +2678,7 @@ async function estimateItemNutrition(cfg, restaurantName, item){
     logMsg("ERROR","Item nutrition network failure: " + err.message);
     throw new Error("Network error reaching the Anthropic API");
   }
-  if (res.status === 401){ throw new Error("Anthropic rejected the API key (401). Check it in Settings."); }
+  if (res.status === 401){ throw new Error("Server rejected the request (401). Check your sign-in."); }
   if (res.status === 429){ throw new Error("Rate limit hit (429). Wait a moment and retry."); }
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
@@ -2722,8 +2714,7 @@ function saveConfig(cfg){
 }
 function configComplete(cfg){
   // Track B: a user is configured once they have a backend URL (defaulted)
-  // and a user id. The Anthropic key is still used by the AI features until
-  // they move server-side in the next step.
+  // and a user id. AI now runs through the backend, so no client key is needed.
   return !!(cfg && cfg.userId);
 }
 function loadCache(){
@@ -3010,8 +3001,7 @@ function App(){
       setReady(true);
       return;
     }
-    logMsg("INIT","Config OK - userId=" + cfg.userId + " apiBase=" + apiBase(cfg) +
-                  " anthropicKey=" + (cfg.anthropicKey ? "present" : "MISSING"));
+    logMsg("INIT","Config OK - userId=" + cfg.userId + " apiBase=" + apiBase(cfg));
     // show cached data instantly, then sync
     const cache = loadCache();
     if (cache){
@@ -4562,7 +4552,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
   const [asking,   setAsking]   = useState(false);
   const [answer,   setAnswer]   = useState(null);
   const [askErr,   setAskErr]   = useState(null);
-  const hasKey = !!(cfg && cfg.anthropicKey);
+  const hasKey = configComplete(cfg);
   const hasHistory = dishHistory(visits).loved.length > 0 ||
                      dishHistory(visits).disliked.length > 0;
 
@@ -4570,7 +4560,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
     const q = ((override != null ? override : askInput) || "").trim();
     if (!q) return;
     if (override != null) setAskInput(override);
-    if (!hasKey){ setAskErr("Add your Anthropic key in Settings first."); return; }
+    if (!hasKey){ setAskErr("Set up your account in Settings first."); return; }
     setAsking(true); setAskErr(null); setAnswer(null);
     try {
       const a = await askMenu(cfg, restaurant, menu, visits, q);
@@ -4674,7 +4664,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
           </button>
           {!hasKey && (
             <div className="tiny faint" style={{marginTop:8}}>
-              Add your Anthropic key in Settings to use this.
+              Set up your account in Settings to use this.
             </div>
           )}
           {askErr && <div className="ask-err">{askErr}</div>}
@@ -4720,8 +4710,8 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition}){
 
   async function estimateOne(si, ii, it){
     const key = si + ":" + ii;
-    if (!cfg || !cfg.anthropicKey){
-      setItemErr(e => Object.assign({}, e, { [key]:"Add your Anthropic key in Settings." }));
+    if (!configComplete(cfg)){
+      setItemErr(e => Object.assign({}, e, { [key]:"Set up your account in Settings." }));
       return;
     }
     setItemErr(e => Object.assign({}, e, { [key]:null }));
@@ -5197,7 +5187,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     const file = e.target.files && e.target.files[0];
     if (nutFileRef.current) nutFileRef.current.value = "";   // allow re-picking same file
     if (!file) return;
-    if (!cfg || !cfg.anthropicKey){ setNutErr("Add your Anthropic key in Settings first."); return; }
+    if (!configComplete(cfg)){ setNutErr("Set up your account in Settings first."); return; }
     setNutBusy(true); setNutErr(null);
     try {
       const est = await estimateNutrition(cfg, file);
@@ -5275,8 +5265,8 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
   // Grounded by the matching menu item's description when the dish came from
   // the menu; otherwise estimated from the name alone (lower confidence).
   async function estimateDishNoPhoto(dishName){
-    if (!cfg || !cfg.anthropicKey){
-      setDishNutErr(x => Object.assign({}, x, { [dishName]:"Add your Anthropic key in Settings." }));
+    if (!configComplete(cfg)){
+      setDishNutErr(x => Object.assign({}, x, { [dishName]:"Set up your account in Settings." }));
       return;
     }
     const restObj = (restaurants || []).find(r => r.id === restId);
@@ -5309,8 +5299,8 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     const dishName = pendingDishRef.current;
     if (dishPhotoRef.current) dishPhotoRef.current.value = "";
     if (!file || !dishName) return;
-    if (!cfg || !cfg.anthropicKey){
-      setDishNutErr(x => Object.assign({}, x, { [dishName]:"Add your Anthropic key in Settings." }));
+    if (!configComplete(cfg)){
+      setDishNutErr(x => Object.assign({}, x, { [dishName]:"Set up your account in Settings." }));
       return;
     }
     setDishNutErr(x => Object.assign({}, x, { [dishName]:null }));
@@ -6871,9 +6861,7 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         </div>
         <div className="small muted" style={{marginTop:12,lineHeight:1.8}}>
           User ID: <b style={{color:"var(--text)"}}>{config.userId}</b><br/>
-          Backend: <b style={{color:"var(--text)"}}>{apiBase(config)}</b><br/>
-          Anthropic key: <b style={{color:"var(--text)"}}>
-            {config.anthropicKey ? "set" : "missing"}</b>
+          Backend: <b style={{color:"var(--text)"}}>{apiBase(config)}</b>
         </div>
       </div>
 
@@ -7039,7 +7027,6 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
 function SetupScreen({initial, onSave, onClose, asOverlay}){
   const [apiUrl,setApiUrl]   = useState(initial && initial.apiBase ? initial.apiBase : API_BASE_DEFAULT);
   const [userId,setUserId]   = useState(initial ? (initial.userId || "") : "");
-  const [anKey,setAnKey]     = useState(initial ? (initial.anthropicKey || "") : "");
   const [busy,setBusy]       = useState(false);
   const [err,setErr]         = useState("");
 
@@ -7052,7 +7039,6 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     const cfg = {
       apiBase:(apiUrl.trim() || API_BASE_DEFAULT).replace(/\/+$/, ""),
       userId:userId.trim(),
-      anthropicKey:anKey.trim(),
     };
     // quick check: can we reach the backend with this user id?
     try {
@@ -7094,10 +7080,6 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       <label className="fld"><span className="lbl">User ID</span>
         <input className="input" value={userId} onChange={e=>setUserId(e.target.value)}
           autoCapitalize="none" placeholder="your-user-id" /></label>
-      <label className="fld"><span className="lbl">Anthropic API key</span>
-        <input className="input" type="password" value={anKey}
-          onChange={e=>setAnKey(e.target.value)} autoCapitalize="none"
-          placeholder="sk-ant-..." /></label>
 
       <div className="card tiny muted" style={{lineHeight:1.7}}>
         These values are stored only in this browser (localStorage on this
