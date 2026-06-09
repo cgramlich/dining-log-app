@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.29.0";
+const APP_VERSION   = "1.30.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -583,6 +583,9 @@ const API_BASE_DEFAULT = "https://web-production-cbd3b.up.railway.app";
 function apiBase(cfg){
   return (((cfg && cfg.apiBase) || API_BASE_DEFAULT)).replace(/\/+$/, "");
 }
+// Supabase Auth. The publishable key is public by design - safe to ship.
+const SUPABASE_URL = "https://kpkwevlhfhvybhovtwhj.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_MVfNqjyMufyRkGJ4chLj7Q_1qzp5WJN";
 
 // In-app user guide (source of truth: dining-captain-help.md). Re-sync this when the .md changes.
 const HELP_DOC = `# Dining Captain - User Guide
@@ -6857,7 +6860,15 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
               Backend &amp; account
             </div>
           </div>
-          <button className="btn ghost sm" onClick={onEdit}>Edit</button>
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn ghost sm" onClick={onEdit}>Edit</button>
+            <button className="btn ghost sm" onClick={()=>{
+              if (confirm("Sign out? You'll need to sign back in on this device.")){
+                try { localStorage.removeItem(CFG_KEY); localStorage.removeItem(DATA_KEY); } catch(e){}
+                location.reload();
+              }
+            }}>Sign out</button>
+          </div>
         </div>
         <div className="small muted" style={{marginTop:12,lineHeight:1.8}}>
           User ID: <b style={{color:"var(--text)"}}>{config.userId}</b><br/>
@@ -7026,41 +7037,47 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
    ============================================================ */
 function SetupScreen({initial, onSave, onClose, asOverlay}){
   const [apiUrl,setApiUrl]   = useState(initial && initial.apiBase ? initial.apiBase : API_BASE_DEFAULT);
-  const [userId,setUserId]   = useState(initial ? (initial.userId || "") : "");
+  const [email,setEmail]     = useState(initial ? (initial.email || "") : "");
+  const [password,setPassword] = useState("");
   const [busy,setBusy]       = useState(false);
   const [err,setErr]         = useState("");
 
-  async function verifyAndSave(){
+  async function signIn(){
     setErr("");
-    if (!userId.trim()){
-      setErr("User ID is required."); return;
+    if (!email.trim() || !password){
+      setErr("Email and password are required."); return;
     }
     setBusy(true);
-    const cfg = {
-      apiBase:(apiUrl.trim() || API_BASE_DEFAULT).replace(/\/+$/, ""),
-      userId:userId.trim(),
-    };
-    // quick check: can we reach the backend with this user id?
+    const base = (apiUrl.trim() || API_BASE_DEFAULT).replace(/\/+$/, "");
     try {
-      logMsg("SETUP","Verifying backend access");
-      const res = await fetch(cfg.apiBase + "/api/collection/restaurants",{
-        headers:{ "X-User-ID": cfg.userId },
+      logMsg("AUTH","Signing in " + email.trim());
+      const res = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "apikey":SUPABASE_PUBLISHABLE_KEY },
+        body:JSON.stringify({ email:email.trim(), password:password }),
       });
-      if (res.status === 401){
-        setErr("Server rejected the User ID (401). Check the value.");
-        setBusy(false); return;
+      const data = await res.json().catch(()=> ({}));
+      if (res.status === 400 || res.status === 401){
+        setErr("Invalid email or password."); setBusy(false); return;
       }
-      if (!res.ok){
-        setErr("Backend check failed (" + res.status + ")."); setBusy(false); return;
+      if (!res.ok || !data.access_token || !data.user){
+        setErr("Sign-in failed (" + res.status + ")."); setBusy(false); return;
       }
-      logMsg("SETUP","Backend access verified");
+      const cfg = {
+        apiBase: base,
+        userId: data.user.id,
+        email: data.user.email || email.trim(),
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token || "",
+      };
+      logMsg("AUTH","Signed in as " + cfg.email + " (" + cfg.userId + ")");
+      setBusy(false);
+      onSave(cfg);
     } catch(e){
-      logMsg("ERROR","Setup verification network error: " + e.message);
-      setErr("Network error reaching the server. Check your connection.");
-      setBusy(false); return;
+      logMsg("ERROR","Sign-in network error: " + e.message);
+      setErr("Network error during sign-in. Check your connection.");
+      setBusy(false);
     }
-    setBusy(false);
-    onSave(cfg);
   }
 
   const body = (
@@ -7070,29 +7087,33 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           <h2 style={{fontSize:26}}>Welcome</h2>
           <div className="small muted" style={{marginTop:6}}>
             Dining Captain keeps your restaurants, menus and visits in your
-            private account so they sync across devices. Enter your details once.
+            private account so they sync across devices. Sign in to get started.
           </div>
         </div>
       )}
+      <label className="fld"><span className="lbl">Email</span>
+        <input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)}
+          autoCapitalize="none" placeholder="you@example.com" /></label>
+      <label className="fld"><span className="lbl">Password</span>
+        <input className="input" type="password" value={password}
+          onChange={e=>setPassword(e.target.value)} autoCapitalize="none"
+          placeholder="your password" /></label>
       <label className="fld"><span className="lbl">Backend URL</span>
         <input className="input" value={apiUrl} onChange={e=>setApiUrl(e.target.value)}
           autoCapitalize="none" placeholder="https://...railway.app" /></label>
-      <label className="fld"><span className="lbl">User ID</span>
-        <input className="input" value={userId} onChange={e=>setUserId(e.target.value)}
-          autoCapitalize="none" placeholder="your-user-id" /></label>
 
       <div className="card tiny muted" style={{lineHeight:1.7}}>
-        These values are stored only in this browser (localStorage on this
-        device), and are used to reach your Dining Captain account.
+        Your sign-in is stored only in this browser (localStorage on this
+        device) and used to reach your Dining Captain account.
       </div>
       {err && (
         <div className="syncbar err" style={{margin:"0 0 14px"}}>
           <span className="dot" style={{background:"var(--danger)"}} />{err}
         </div>
       )}
-      <button className="btn primary" disabled={busy} onClick={verifyAndSave}>
+      <button className="btn primary" disabled={busy} onClick={signIn}>
         {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
-        {busy ? "Verifying..." : "Verify & save"}
+        {busy ? "Signing in..." : "Sign in"}
       </button>
       <div style={{height:24}} />
     </div>
