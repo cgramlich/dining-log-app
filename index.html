@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.32.0";
+const APP_VERSION   = "1.33.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -2397,14 +2397,19 @@ async function digitizeMenu(cfg, dataUrls){
     });
   } catch(err){
     logMsg("ERROR","Anthropic network failure: " + err.message);
-    throw new Error("Network error reaching the Anthropic API");
+    throw new Error("Network error reaching the AI service. Check your connection.");
   }
   if (res.status === 401){ throw new Error("Server rejected the request (401). Check your sign-in."); }
-  if (res.status === 429){ throw new Error("Anthropic rate limit hit (429). Wait a moment and retry."); }
+  if (res.status === 429){ throw new Error("The AI service is busy (429). Wait a moment and retry."); }
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
     logMsg("ERROR","Anthropic -> " + res.status + " " + txt.slice(0,180));
-    throw new Error("Anthropic API error (" + res.status + ")");
+    let _detail = "";
+    try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
+    if (res.status === 402) throw new Error(_detail || "You\u2019ve reached this month\u2019s AI usage limit.");
+    if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
+    if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
+    throw new Error(_detail || ("AI request failed (" + res.status + ")"));
   }
   const json = await res.json();
   // If the model ran out of output budget the JSON will be incomplete -
@@ -2588,14 +2593,19 @@ async function askMenu(cfg, restaurant, menu, visits, question){
     });
   } catch(err){
     logMsg("ERROR","Ask network failure: " + err.message);
-    throw new Error("Network error reaching the Anthropic API");
+    throw new Error("Network error reaching the AI service. Check your connection.");
   }
   if (res.status === 401){ throw new Error("Server rejected the request (401). Check your sign-in."); }
-  if (res.status === 429){ throw new Error("Anthropic rate limit hit (429). Wait a moment and retry."); }
+  if (res.status === 429){ throw new Error("The AI service is busy (429). Wait a moment and retry."); }
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
     logMsg("ERROR","Ask -> " + res.status + " " + txt.slice(0,180));
-    throw new Error("Anthropic API error (" + res.status + ")");
+    let _detail = "";
+    try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
+    if (res.status === 402) throw new Error(_detail || "You\u2019ve reached this month\u2019s AI usage limit.");
+    if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
+    if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
+    throw new Error(_detail || ("AI request failed (" + res.status + ")"));
   }
   const json = await res.json();
   const text = (json.content || [])
@@ -2685,14 +2695,19 @@ async function estimateNutrition(cfg, file){
     });
   } catch(err){
     logMsg("ERROR","Nutrition network failure: " + err.message);
-    throw new Error("Network error reaching the Anthropic API");
+    throw new Error("Network error reaching the AI service. Check your connection.");
   }
   if (res.status === 401){ throw new Error("Server rejected the request (401). Check your sign-in."); }
-  if (res.status === 429){ throw new Error("Anthropic rate limit hit (429). Wait a moment and retry."); }
+  if (res.status === 429){ throw new Error("The AI service is busy (429). Wait a moment and retry."); }
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
     logMsg("ERROR","Nutrition -> " + res.status + " " + txt.slice(0,180));
-    throw new Error("Anthropic API error (" + res.status + ")");
+    let _detail = "";
+    try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
+    if (res.status === 402) throw new Error(_detail || "You\u2019ve reached this month\u2019s AI usage limit.");
+    if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
+    if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
+    throw new Error(_detail || ("AI request failed (" + res.status + ")"));
   }
   const json = await res.json();
   const text = (json.content || [])
@@ -2750,14 +2765,19 @@ async function estimateItemNutrition(cfg, restaurantName, item){
     });
   } catch(err){
     logMsg("ERROR","Item nutrition network failure: " + err.message);
-    throw new Error("Network error reaching the Anthropic API");
+    throw new Error("Network error reaching the AI service. Check your connection.");
   }
   if (res.status === 401){ throw new Error("Server rejected the request (401). Check your sign-in."); }
   if (res.status === 429){ throw new Error("Rate limit hit (429). Wait a moment and retry."); }
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
     logMsg("ERROR","Item nutrition -> " + res.status + " " + txt.slice(0,180));
-    throw new Error("Anthropic API error (" + res.status + ")");
+    let _detail = "";
+    try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
+    if (res.status === 402) throw new Error(_detail || "You\u2019ve reached this month\u2019s AI usage limit.");
+    if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
+    if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
+    throw new Error(_detail || ("AI request failed (" + res.status + ")"));
   }
   const json = await res.json();
   const text = (json.content || [])
