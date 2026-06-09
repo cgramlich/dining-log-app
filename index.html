@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.30.0";
+const APP_VERSION   = "1.31.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -586,6 +586,77 @@ function apiBase(cfg){
 // Supabase Auth. The publishable key is public by design - safe to ship.
 const SUPABASE_URL = "https://kpkwevlhfhvybhovtwhj.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_MVfNqjyMufyRkGJ4chLj7Q_1qzp5WJN";
+
+// ---- Track B auth: bearer token + silent refresh ----
+// Every backend call carries the user's Supabase access token. Tokens are
+// short-lived, so before each call we refresh ahead of expiry using the refresh
+// token. A SINGLE shared in-flight refresh stops the burst of startup calls from
+// each spending the single-use refresh token at once.
+let _refreshPromise = null;
+
+function signOutHard(){
+  // Clear the local session and reload to the sign-in screen.
+  try { localStorage.removeItem(CFG_KEY); localStorage.removeItem(DATA_KEY); } catch(e){}
+  location.reload();
+}
+
+async function doRefresh(cfg){
+  // Exchange the refresh token for a new access token; update cfg in place and
+  // persist. Network errors are re-thrown WITHOUT signing out (transient); an
+  // explicit rejection means the session is truly dead -> sign out.
+  if (!cfg.refreshToken){
+    logMsg("AUTH","No refresh token on hand - signing out");
+    signOutHard();
+    throw new Error("no refresh token");
+  }
+  logMsg("AUTH","Refreshing access token");
+  let res;
+  try {
+    res = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPABASE_PUBLISHABLE_KEY },
+      body:JSON.stringify({ refresh_token: cfg.refreshToken }),
+    });
+  } catch(err){
+    // Network blip - do NOT sign out; the caller's request fails and retries later.
+    logMsg("ERROR","Token refresh network error: " + err.message);
+    throw err;
+  }
+  if (!res.ok){
+    logMsg("ERROR","Token refresh rejected (" + res.status + ") - signing out");
+    signOutHard();
+    throw new Error("refresh rejected " + res.status);
+  }
+  const data = await res.json();
+  cfg.accessToken  = data.access_token;
+  cfg.refreshToken = data.refresh_token || cfg.refreshToken;
+  cfg.expiresAt    = data.expires_at || (Math.floor(Date.now()/1000) + (data.expires_in || 3600));
+  saveConfig(cfg);
+  logMsg("AUTH","Access token refreshed");
+  return cfg.accessToken;
+}
+
+async function getFreshToken(cfg){
+  // Return a valid access token, refreshing first if missing or within 60s of
+  // expiry. The check-and-set of _refreshPromise is synchronous (no await
+  // between), so concurrent callers all await the same single refresh.
+  const nowMs = Date.now();
+  const expMs = cfg.expiresAt ? cfg.expiresAt * 1000 : 0;
+  if (cfg.accessToken && (expMs - nowMs) > 60000){
+    return cfg.accessToken;
+  }
+  if (!_refreshPromise){
+    _refreshPromise = doRefresh(cfg).finally(()=>{ _refreshPromise = null; });
+  }
+  return await _refreshPromise;
+}
+
+async function authHeaders(cfg){
+  // Headers for every backend call: the verified bearer token plus the legacy
+  // X-User-ID (kept as a fallback until Step C removes it on the backend).
+  const token = await getFreshToken(cfg);
+  return { "Authorization": "Bearer " + token, "X-User-ID": cfg.userId };
+}
 
 // In-app user guide (source of truth: dining-captain-help.md). Re-sync this when the .md changes.
 const HELP_DOC = `# Dining Captain - User Guide
@@ -1837,7 +1908,7 @@ async function ghGetRawFile(cfg, path){
   logMsg("API","GET photo url " + path);
   let res;
   try {
-    res = await fetch(signUrl, { headers:{ "X-User-ID": cfg.userId } });
+    res = await fetch(signUrl, { headers: await authHeaders(cfg) });
   } catch(err){
     logMsg("ERROR","Backend photo sign network failure: " + err.message);
     throw new Error("Network error reaching the server");
@@ -1894,7 +1965,7 @@ async function ghPutBinaryFile(cfg, path, blob, sha){
   try {
     res = await fetch(url, {
       method:"POST",
-      headers:{ "Content-Type":"application/json", "X-User-ID":cfg.userId },
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
       body:JSON.stringify({ path:path, image_base64:b64 }),
     });
   } catch(err){
@@ -2220,7 +2291,7 @@ async function ghGetFile(cfg, path){
   logMsg("API", "GET " + name);
   let res;
   try {
-    res = await fetch(url, { headers: { "X-User-ID": cfg.userId } });
+    res = await fetch(url, { headers: await authHeaders(cfg) });
   } catch(err){
     logMsg("ERROR","Backend GET network failure: " + err.message);
     throw new Error("Network error reaching the server");
@@ -2252,7 +2323,7 @@ async function ghPutFile(cfg, path, dataObj, sha){
   try {
     res = await fetch(url, {
       method:"PUT",
-      headers:{ "Content-Type":"application/json", "X-User-ID":cfg.userId },
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
       body:JSON.stringify(dataObj),
     });
   } catch(err){
@@ -2316,7 +2387,7 @@ async function digitizeMenu(cfg, dataUrls){
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        "X-User-ID":cfg.userId,
+        ...(await authHeaders(cfg)),
       },
       body:JSON.stringify({
         model:VISION_MODEL,
@@ -2507,7 +2578,7 @@ async function askMenu(cfg, restaurant, menu, visits, question){
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        "X-User-ID":cfg.userId,
+        ...(await authHeaders(cfg)),
       },
       body:JSON.stringify({
         model:ASK_MODEL,
@@ -2600,7 +2671,7 @@ async function estimateNutrition(cfg, file){
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        "X-User-ID":cfg.userId,
+        ...(await authHeaders(cfg)),
       },
       body:JSON.stringify({
         model:VISION_MODEL,
@@ -2669,7 +2740,7 @@ async function estimateItemNutrition(cfg, restaurantName, item){
       method:"POST",
       headers:{
         "Content-Type":"application/json",
-        "X-User-ID":cfg.userId,
+        ...(await authHeaders(cfg)),
       },
       body:JSON.stringify({
         model:ASK_MODEL,
@@ -7069,6 +7140,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         email: data.user.email || email.trim(),
         accessToken: data.access_token,
         refreshToken: data.refresh_token || "",
+        expiresAt: data.expires_at || (Math.floor(Date.now()/1000) + (data.expires_in || 3600)),
       };
       logMsg("AUTH","Signed in as " + cfg.email + " (" + cfg.userId + ")");
       setBusy(false);
