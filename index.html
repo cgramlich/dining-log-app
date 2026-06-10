@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.38.0";
+const APP_VERSION   = "1.39.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -3406,7 +3406,7 @@ function App(){
       <div className="content">
         {tab === "history" && (
           <HistoryView visits={visits} restaurantById={restaurantById}
-            cfg={config}
+            cfg={config} syncing={sync.status === "busy"}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             onOpenPassport={()=> setOverlay({ type:"passport" })}
             onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
@@ -3891,9 +3891,16 @@ function SearchBar({value, onChange, placeholder}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, onOpen, onOpenYearInFood, onOpenPassport}){
+function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport}){
   const [query, setQuery] = useState("");
   if (!visits.length){
+    // WHY: visits starts empty before the first data load completes. Show a
+    // neutral loading state so users don't see "No visits yet" on sign-in.
+    if (syncing) return (
+      <div className="empty">
+        <span className="spin" style={{width:22,height:22,borderWidth:2}} />
+      </div>
+    );
     return (
       <div className="empty">
         <div className="big">No visits yet</div>
