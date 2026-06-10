@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.39.1";
+const APP_VERSION   = "1.40.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -580,6 +580,41 @@ const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 // Track B: hosted backend base. Data and photos go through this; AI moves
 // here in the next step. Overridable per-user via cfg.apiBase (Settings).
 const API_BASE_DEFAULT = "https://web-production-cbd3b.up.railway.app";
+/* ---- billing (Stripe via backend) -------------------------- */
+async function fetchBillingStatus(cfg){
+  const headers = await authHeaders(cfg);
+  const res = await fetch(apiBase(cfg) + "/api/billing/status", { headers });
+  if (!res.ok) throw new Error("billing status " + res.status);
+  return res.json();
+}
+
+async function startCheckout(cfg, plan){
+  // plan: "yearly" | "monthly". Backend returns a Stripe Checkout URL;
+  // we navigate there. Stripe sends the user back to menucaptain.com.
+  logMsg("BILLING","Starting checkout: " + plan);
+  const headers = await authHeaders(cfg);
+  headers["Content-Type"] = "application/json";
+  const res = await fetch(apiBase(cfg) + "/api/stripe/create-checkout", {
+    method:"POST", headers, body:JSON.stringify({ plan }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok || !data.url){
+    throw new Error(data.detail || ("Checkout failed (" + res.status + ")"));
+  }
+  location.href = data.url;
+}
+
+async function openBillingPortal(cfg){
+  logMsg("BILLING","Opening billing portal");
+  const headers = await authHeaders(cfg);
+  const res = await fetch(apiBase(cfg) + "/api/stripe/portal", { method:"POST", headers });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok || !data.url){
+    throw new Error(data.detail || ("Portal failed (" + res.status + ")"));
+  }
+  location.href = data.url;
+}
+
 function apiBase(cfg){
   return (((cfg && cfg.apiBase) || API_BASE_DEFAULT)).replace(/\/+$/, "");
 }
@@ -3110,6 +3145,11 @@ function App(){
                     (cache.locations||[]).length + " locations");
     }
     setReady(true);
+    if (window.__CHECKOUT_RESULT === "success"){
+      // Webhook flips the tier server-side within seconds of payment.
+      flash("Welcome to MenuCaptain Pro!");
+      window.__CHECKOUT_RESULT = null;
+    }
     syncFromGitHub(cfg, cache);
     // eslint-disable-next-line
   },[]);
@@ -6937,6 +6977,89 @@ function HelpView({onClose}){
   );
 }
 
+function ProCard({config}){
+  const [bill,setBill] = useState(null);   // /api/billing/status payload
+  const [busy,setBusy] = useState("");     // which button is working
+  const [err,setErr]   = useState("");
+
+  useEffect(()=>{
+    let alive = true;
+    fetchBillingStatus(config)
+      .then(d=>{ if (alive) setBill(d); })
+      .catch(e=>{ logMsg("BILLING","Status fetch failed: " + e.message); });
+    return ()=>{ alive = false; };
+    // eslint-disable-next-line
+  },[]);
+
+  async function go(kind){
+    setErr(""); setBusy(kind);
+    try {
+      if (kind === "portal") await openBillingPortal(config);
+      else await startCheckout(config, kind);
+      // On success the browser navigates away; nothing more to do here.
+    } catch(e){
+      setErr(e.message);
+      setBusy("");
+    }
+  }
+
+  const fmtDate = (iso)=>{
+    if (!iso) return "";
+    try { return new Date(iso).toLocaleDateString(); } catch(e){ return ""; }
+  };
+
+  let body;
+  if (!bill){
+    body = <div className="tiny muted">Checking your plan...</div>;
+  } else if (bill.owner){
+    body = <div className="tiny muted">Pro - owner account.</div>;
+  } else if (bill.tier === "pro"){
+    body = (
+      <div>
+        <div className="tiny muted" style={{marginBottom:10}}>
+          Pro{bill.plan ? " - " + (bill.plan === "yearly" ? "$19.99/year" : "$2.99/month") : ""}
+          {bill.current_period_end ? " - renews " + fmtDate(bill.current_period_end) : ""}
+        </div>
+        <button className="btn" disabled={!!busy} onClick={()=>go("portal")}>
+          {busy === "portal" ? <span className="spin" /> : null}
+          Manage subscription
+        </button>
+      </div>
+    );
+  } else {
+    const used = bill.calls_used || 0, cap = bill.calls_cap || 75;
+    body = (
+      <div>
+        <div className="tiny muted" style={{marginBottom:10}}>
+          Free plan - {used} of {cap} AI uses. Upgrade for unlimited menu
+          scans, calorie estimates, and ordering help.
+        </div>
+        <button className="btn primary" style={{marginBottom:8}}
+          disabled={!!busy} onClick={()=>go("yearly")}>
+          {busy === "yearly" ? <span className="spin" /> : null}
+          Go Pro - $19.99/year
+        </button>
+        <button className="btn" disabled={!!busy} onClick={()=>go("monthly")}>
+          {busy === "monthly" ? <span className="spin" /> : null}
+          $2.99/month
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div style={{fontWeight:600, marginBottom:6}}>MenuCaptain Pro</div>
+      {body}
+      {err && (
+        <div className="syncbar err" style={{margin:"10px 0 0"}}>
+          <span className="dot" style={{background:"var(--danger)"}} />{err}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsView({config, onEdit, counts, lastSync, onResync,
                        locations, restaurants,
                        onAddLocation, onRenameLocation, onDeleteLocation,
@@ -7049,6 +7172,9 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
           </button>
         </div>
       </div>
+
+      <div className="set-group">Plan</div>
+      <ProCard config={config} />
 
       <div className="set-group">Your data</div>
       <div className="card">
@@ -7484,6 +7610,14 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   try {
     // new links use ?list= (survives URL shorteners); old links used #list=
     let raw = null;
+    // Returning from Stripe Checkout: strip the param, remember the verdict
+    // so App can toast a welcome after it mounts.
+    const co = (location.search || "").match(/[?&]checkout=(success|cancel)/);
+    if (co){
+      window.__CHECKOUT_RESULT = co[1];
+      logMsg("BILLING","Returned from checkout: " + co[1]);
+      history.replaceState(null, "", location.pathname);
+    }
     const qm = (location.search || "").match(/[?&]list=([^&]+)/);
     if (qm) raw = qm[1];
     else { const h = location.hash || ""; if (h.indexOf("#list=") === 0) raw = h.slice(6); }
