@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.35.0";
+const APP_VERSION   = "1.36.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -7126,11 +7126,102 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
 /* ============================================================
    SETUP SCREEN  (first run + Settings > Edit)
    ============================================================ */
+function ResetPasswordScreen({accessToken, refreshToken, expiresIn}){
+  // Reached from the password-reset email: Supabase redirects here with a
+  // short-lived recovery session in the URL hash. We set the new password
+  // with that session, then sign the user straight in using the same tokens.
+  const [pw1,setPw1]   = useState("");
+  const [pw2,setPw2]   = useState("");
+  const [busy,setBusy] = useState(false);
+  const [err,setErr]   = useState("");
+
+  async function applyNewPassword(){
+    setErr("");
+    if (pw1.length < 6){ setErr("Password must be at least 6 characters."); return; }
+    if (pw1 !== pw2){ setErr("Passwords do not match."); return; }
+    setBusy(true);
+    try {
+      logMsg("AUTH","Applying new password from recovery link");
+      const res = await fetch(SUPABASE_URL + "/auth/v1/user", {
+        method:"PUT",
+        headers:{
+          "Content-Type":"application/json",
+          "apikey":SUPABASE_PUBLISHABLE_KEY,
+          "Authorization":"Bearer " + accessToken,
+        },
+        body:JSON.stringify({ password: pw1 }),
+      });
+      const data = await res.json().catch(()=> ({}));
+      if (res.status === 401){
+        setErr("This reset link has expired. Request a new one from the sign-in screen.");
+        setBusy(false); return;
+      }
+      if (!res.ok || !data.id){
+        const msg = data.msg || data.error_description || data.message || "";
+        setErr(msg || ("Could not update the password (" + res.status + ")."));
+        setBusy(false); return;
+      }
+      // Password updated. Sign in with the recovery session tokens.
+      const cfg = {
+        apiBase: API_BASE_DEFAULT,
+        userId: data.id,
+        email: data.email || "",
+        accessToken: accessToken,
+        refreshToken: refreshToken || "",
+        expiresAt: Math.floor(Date.now()/1000) + (parseInt(expiresIn,10) || 3600),
+      };
+      saveConfig(cfg);
+      logMsg("AUTH","Password updated - signed in as " + cfg.email);
+      // Strip the recovery hash and reload into the app.
+      location.replace(location.pathname);
+    } catch(e){
+      logMsg("ERROR","Password update network error: " + e.message);
+      setErr("Network error updating the password. Check your connection.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div id="app-shell">
+      <div className="topbar"><h1>MenuCaptain</h1>
+        <div className="sub">Reset password</div></div>
+      <div className="ovbody">
+        <div style={{marginBottom:18}}>
+          <h2 style={{fontSize:26}}>Choose a new password</h2>
+          <div className="small muted" style={{marginTop:6}}>
+            You followed a password reset link. Pick a new password for your
+            account and you will be signed in.
+          </div>
+        </div>
+        <label className="fld"><span className="lbl">New password</span>
+          <input className="input" type="password" value={pw1}
+            onChange={e=>setPw1(e.target.value)} autoCapitalize="none"
+            placeholder="at least 6 characters" /></label>
+        <label className="fld"><span className="lbl">Confirm new password</span>
+          <input className="input" type="password" value={pw2}
+            onChange={e=>setPw2(e.target.value)} autoCapitalize="none"
+            placeholder="same password again" /></label>
+        {err && (
+          <div className="syncbar err" style={{margin:"0 0 14px"}}>
+            <span className="dot" style={{background:"var(--danger)"}} />{err}
+          </div>
+        )}
+        <button className="btn primary" disabled={busy} onClick={applyNewPassword}>
+          {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
+          {busy ? "Saving..." : "Set new password"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SetupScreen({initial, onSave, onClose, asOverlay}){
+  const [mode,setMode]       = useState("signin");   // signin | signup | forgot
   const [email,setEmail]     = useState(initial ? (initial.email || "") : "");
   const [password,setPassword] = useState("");
   const [busy,setBusy]       = useState(false);
   const [err,setErr]         = useState("");
+  const [info,setInfo]       = useState("");
 
   async function signIn(){
     setErr("");
@@ -7173,38 +7264,146 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     }
   }
 
+  async function signUp(){
+    setErr(""); setInfo("");
+    if (!email.trim() || !password){
+      setErr("Email and password are required."); return;
+    }
+    if (password.length < 6){
+      setErr("Password must be at least 6 characters."); return;
+    }
+    setBusy(true);
+    const base = (((initial && initial.apiBase) || API_BASE_DEFAULT)).replace(/\/+$/, "");
+    try {
+      logMsg("AUTH","Creating account for " + email.trim());
+      const res = await fetch(SUPABASE_URL + "/auth/v1/signup", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "apikey":SUPABASE_PUBLISHABLE_KEY },
+        body:JSON.stringify({ email:email.trim(), password:password }),
+      });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok){
+        const msg = data.msg || data.error_description || data.message || "";
+        setErr(msg || ("Could not create the account (" + res.status + ")."));
+        setBusy(false); return;
+      }
+      if (data.session && data.session.access_token && data.user){
+        // Email confirmation is off - we got a session, sign straight in.
+        const cfg = {
+          apiBase: base,
+          userId: data.user.id,
+          email: data.user.email || email.trim(),
+          accessToken: data.session.access_token,
+          refreshToken: data.session.refresh_token || "",
+          expiresAt: data.session.expires_at || (Math.floor(Date.now()/1000) + (data.session.expires_in || 3600)),
+        };
+        logMsg("AUTH","Account created and signed in: " + cfg.email);
+        setBusy(false);
+        onSave(cfg);
+        return;
+      }
+      // Email confirmation is on - no session until the link is tapped.
+      logMsg("AUTH","Account created - confirmation email sent");
+      setBusy(false);
+      setMode("signin");
+      setInfo("Almost there - we sent a confirmation link to " + email.trim() +
+              ". Tap it, then sign in here.");
+    } catch(e){
+      logMsg("ERROR","Sign-up network error: " + e.message);
+      setErr("Network error creating the account. Check your connection.");
+      setBusy(false);
+    }
+  }
+
+  async function sendReset(){
+    setErr(""); setInfo("");
+    if (!email.trim()){
+      setErr("Enter your account email first."); return;
+    }
+    setBusy(true);
+    try {
+      logMsg("AUTH","Requesting password reset for " + email.trim());
+      await fetch(SUPABASE_URL + "/auth/v1/recover", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "apikey":SUPABASE_PUBLISHABLE_KEY },
+        body:JSON.stringify({ email:email.trim() }),
+      });
+      // Always the same message - never reveal whether an account exists.
+      setBusy(false);
+      setMode("signin");
+      setInfo("If an account exists for " + email.trim() +
+              ", a password reset link is on its way. Check your email.");
+    } catch(e){
+      logMsg("ERROR","Reset request network error: " + e.message);
+      setErr("Network error sending the reset link. Check your connection.");
+      setBusy(false);
+    }
+  }
+
+  const titles = {
+    signin:["Welcome","MenuCaptain keeps your restaurants, menus and visits in your private account so they sync across devices. Sign in to get started."],
+    signup:["Create your account","One account, all your devices. Your log stays private to you."],
+    forgot:["Reset your password","Enter your account email and we will send you a reset link."],
+  };
+  const primary = {
+    signin:{ label:"Sign in",            busyLabel:"Signing in...",      fn:signIn },
+    signup:{ label:"Create account",     busyLabel:"Creating...",        fn:signUp },
+    forgot:{ label:"Send reset link",    busyLabel:"Sending...",         fn:sendReset },
+  }[mode];
+  const switchTo = (m)=>{ setMode(m); setErr(""); setInfo(""); };
+
   const body = (
     <div className="ovbody">
       {!asOverlay && (
         <div style={{marginBottom:18}}>
-          <h2 style={{fontSize:26}}>Welcome</h2>
-          <div className="small muted" style={{marginTop:6}}>
-            MenuCaptain keeps your restaurants, menus and visits in your
-            private account so they sync across devices. Sign in to get started.
-          </div>
+          <h2 style={{fontSize:26}}>{titles[mode][0]}</h2>
+          <div className="small muted" style={{marginTop:6}}>{titles[mode][1]}</div>
         </div>
       )}
       <label className="fld"><span className="lbl">Email</span>
         <input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)}
           autoCapitalize="none" placeholder="you@example.com" /></label>
-      <label className="fld"><span className="lbl">Password</span>
-        <input className="input" type="password" value={password}
-          onChange={e=>setPassword(e.target.value)} autoCapitalize="none"
-          placeholder="your password" /></label>
+      {mode !== "forgot" && (
+        <label className="fld"><span className="lbl">Password</span>
+          <input className="input" type="password" value={password}
+            onChange={e=>setPassword(e.target.value)} autoCapitalize="none"
+            placeholder={mode === "signup" ? "at least 6 characters" : "your password"} /></label>
+      )}
 
-      <div className="card tiny muted" style={{lineHeight:1.7}}>
-        Your sign-in is stored only in this browser (localStorage on this
-        device) and used to reach your MenuCaptain account.
-      </div>
+      {mode === "signin" && (
+        <div className="card tiny muted" style={{lineHeight:1.7}}>
+          Your sign-in is stored only in this browser (localStorage on this
+          device) and used to reach your MenuCaptain account.
+        </div>
+      )}
+      {info && (
+        <div className="syncbar" style={{margin:"0 0 14px"}}>
+          <span className="dot" style={{background:"var(--accent)"}} />{info}
+        </div>
+      )}
       {err && (
         <div className="syncbar err" style={{margin:"0 0 14px"}}>
           <span className="dot" style={{background:"var(--danger)"}} />{err}
         </div>
       )}
-      <button className="btn primary" disabled={busy} onClick={signIn}>
+      <button className="btn primary" disabled={busy} onClick={primary.fn}>
         {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
-        {busy ? "Signing in..." : "Sign in"}
+        {busy ? primary.busyLabel : primary.label}
       </button>
+
+      <div className="small muted" style={{marginTop:16, textAlign:"center", lineHeight:2.2}}>
+        {mode === "signin" && (<span>
+          <a href="#" onClick={(e)=>{e.preventDefault(); switchTo("forgot");}}>Forgot password?</a>
+          <br/>
+          New here? <a href="#" onClick={(e)=>{e.preventDefault(); switchTo("signup");}}>Create an account</a>
+        </span>)}
+        {mode === "signup" && (<span>
+          Have an account? <a href="#" onClick={(e)=>{e.preventDefault(); switchTo("signin");}}>Sign in</a>
+        </span>)}
+        {mode === "forgot" && (<span>
+          <a href="#" onClick={(e)=>{e.preventDefault(); switchTo("signin");}}>Back to sign in</a>
+        </span>)}
+      </div>
       <div style={{height:24}} />
     </div>
   );
@@ -7240,8 +7439,27 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     else { const h = location.hash || ""; if (h.indexOf("#list=") === 0) raw = h.slice(6); }
     if (raw) published = decodeListPayload(raw);
   } catch(e){ published = null; }
+  // Password-reset links land here with a recovery session in the hash.
+  let recovery = null;
+  try {
+    const hp = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+    if (hp.get("type") === "recovery" && hp.get("access_token")){
+      recovery = {
+        accessToken: hp.get("access_token"),
+        refreshToken: hp.get("refresh_token") || "",
+        expiresIn: hp.get("expires_in") || "3600",
+      };
+    } else if (hp.get("error_description")){
+      // Expired/invalid auth link - drop the hash and fall through to the app.
+      logMsg("AUTH","Auth link error: " + hp.get("error_description"));
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+  } catch(e){ recovery = null; }
   const root = ReactDOM.createRoot(document.getElementById("root"));
-  root.render(published ? <PublishedList data={published} /> : <App />);
+  root.render(recovery ? <ResetPasswordScreen accessToken={recovery.accessToken}
+                            refreshToken={recovery.refreshToken}
+                            expiresIn={recovery.expiresIn} />
+            : published ? <PublishedList data={published} /> : <App />);
 })();
 logMsg("INIT","React mounted");
   </script>
