@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.37.0";
+const APP_VERSION   = "1.38.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -6948,7 +6948,7 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
           <div>
             <div style={{fontWeight:600}}>Connection</div>
             <div className="tiny faint" style={{marginTop:3}}>
-              Backend &amp; account
+              Account &amp; servers
             </div>
           </div>
           <div style={{display:"flex",gap:8}}>
@@ -6963,7 +6963,7 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         </div>
         <div className="small muted" style={{marginTop:12,lineHeight:1.8}}>
           Account: <b style={{color:"var(--text)"}}>{config.email || config.userId}</b><br/>
-          Backend: <b style={{color:"var(--text)"}}>{apiBase(config)}</b>
+          Servers: <b style={{color:"var(--text)"}}>MenuCaptain</b>
         </div>
       </div>
 
@@ -7106,6 +7106,9 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
           <div style={{marginTop:11}}>
             <div className="row" style={{justifyContent:"flex-end",marginBottom:8}}>
               <button className="btn ghost sm" onClick={()=> force(x=>x+1)}>Refresh</button>
+            </div>
+            <div className="tiny faint" style={{marginBottom:8,wordBreak:"break-all"}}>
+              Backend: {apiBase(config)}
             </div>
             <div className="logbox">
               {LOG_BUFFER.length
@@ -7402,7 +7405,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       )}
       <label className="fld"><span className="lbl">Email</span>
         <input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)}
-          autoCapitalize="none" placeholder="you@example.com" /></label>
+          autoCapitalize="none" autoComplete="email" placeholder="you@example.com" /></label>
       {mode !== "forgot" && (
         <label className="fld"><span className="lbl">Password</span>
           <PwInput value={password} onChange={e=>setPassword(e.target.value)}
