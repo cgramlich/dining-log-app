@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.39.0";
+const APP_VERSION   = "1.39.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -3133,7 +3133,7 @@ function App(){
   async function syncFromGitHub(cfg, cache){
     cfg = cfg || config;
     if (!configComplete(cfg)) return;
-    setSync({ status:"busy", msg:"Syncing with GitHub..." });
+    setSync({ status:"busy", msg:"Syncing your data..." });
     logMsg("SYNC","Starting sync");
 
     const localDirty = (cache && cache.dirty) || dirty;
@@ -3898,7 +3898,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
     // neutral loading state so users don't see "No visits yet" on sign-in.
     if (syncing) return (
       <div className="empty">
-        <span className="spin" style={{width:22,height:22,borderWidth:2}} />
+        <span className="spin" />
       </div>
     );
     return (
