@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  DINING CAPTAIN - single-file mobile web app
+  MENUCAPTAIN - single-file mobile web app
   Build: v1.0
   Stack: React 18 + Babel Standalone (CDN). No build step. Open the file or host it.
   Data : GitHub repo (3 JSON files under data/) is the source of truth.
@@ -14,12 +14,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Dining Captain" />
+  <meta name="apple-mobile-web-app-title" content="MenuCaptain" />
   <meta name="theme-color" content="#1b1714" />
-  <title>Dining Captain</title>
+  <title>MenuCaptain</title>
   <!-- Fallback link-preview tags: per-list pages under l/ carry their own
        richer tags; these cover direct links to the app itself. -->
-  <meta property="og:title" content="Dining Captain" />
+  <meta property="og:title" content="MenuCaptain" />
   <meta property="og:description" content="A private notebook for eating out - places, dishes, and the ones worth ordering again." />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary" />
@@ -567,12 +567,12 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 
   <script type="text/babel" data-presets="react">
 /* ============================================================
-   DINING CAPTAIN - application code
+   MENUCAPTAIN - application code
    ============================================================ */
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.33.0";
+const APP_VERSION   = "1.34.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -659,9 +659,9 @@ async function authHeaders(cfg){
 }
 
 // In-app user guide (source of truth: dining-captain-help.md). Re-sync this when the .md changes.
-const HELP_DOC = `# Dining Captain - User Guide
+const HELP_DOC = `# MenuCaptain - User Guide
 
-Dining Captain is your private notebook for eating out. You log the places you go,
+MenuCaptain is your private notebook for eating out. You log the places you go,
 scan their menus, remember which dishes you loved, and - if you want - get a
 rough idea of the calories on your plate. It is built to help you *remember and
 enjoy* what you eat, not to police it.
@@ -1460,16 +1460,16 @@ function buildListPageHtml(payload, encoded){
   const names  = places.map(p => p && p.n).filter(Boolean);
   const desc   = places.length + (places.length === 1 ? " place" : " places")
     + (names.length ? ": " + names.slice(0,4).join(", ") + (names.length > 4 ? " and more" : "") : "")
-    + " - shared from Dining Captain.";
+    + " - shared from MenuCaptain.";
   const target = "../?list=" + encoded;   // l/<slug>.html -> <base>?list=...
   const eTitle = escHtml(title), eDesc = escHtml(desc), eTarget = escHtml(target);
   return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
     + "<meta charset=\"utf-8\" />\n"
     + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n"
-    + "<title>" + eTitle + " \u00b7 Dining Captain</title>\n"
+    + "<title>" + eTitle + " \u00b7 MenuCaptain</title>\n"
     + "<meta property=\"og:title\" content=\"" + eTitle + "\" />\n"
     + "<meta property=\"og:description\" content=\"" + eDesc + "\" />\n"
-    + "<meta property=\"og:site_name\" content=\"Dining Captain\" />\n"
+    + "<meta property=\"og:site_name\" content=\"MenuCaptain\" />\n"
     + "<meta property=\"og:type\" content=\"website\" />\n"
     + "<meta name=\"twitter:card\" content=\"summary\" />\n"
     + "<meta http-equiv=\"refresh\" content=\"0;url=" + eTarget + "\" />\n"
@@ -1505,7 +1505,7 @@ async function publishListPage(cfg, payload, encoded){
         "Content-Type":"application/json",
       },
       body: JSON.stringify({
-        message:"Publish list page " + slug + " via Dining Captain",
+        message:"Publish list page " + slug + " via MenuCaptain",
         content: utf8ToB64(html),
       }),
     });
@@ -1716,7 +1716,7 @@ async function buildRestaurantCardBlob({ name, sub, ratingAvg, address, loved, p
 
   cy += 72;
   ctx.fillStyle = FAINT; ctx.font = "500 26px Outfit, system-ui, sans-serif";
-  ctx.fillText("Shared from Dining Captain", PAD, cy);
+  ctx.fillText("Shared from MenuCaptain", PAD, cy);
 
   const finalH = Math.min(MAXH, cy + 48);
   const out = document.createElement("canvas");
@@ -1780,7 +1780,7 @@ async function buildYearCardBlob(s, periodLabel){
   if (s.period !== "all" && s.newSpots > 0) statRow("New spots discovered", String(s.newSpots));
 
   cy += 112;
-  center("Made with Dining Captain", "500 28px Outfit, system-ui, sans-serif", FAINT, 0);
+  center("Made with MenuCaptain", "500 28px Outfit, system-ui, sans-serif", FAINT, 0);
 
   const finalH = Math.min(MAXH, cy + 84);
   const out = document.createElement("canvas");
@@ -3087,7 +3087,7 @@ function App(){
 
   /* ---- startup --------------------------------------------- */
   useEffect(()=>{
-    logMsg("INIT","Dining Captain v" + APP_VERSION + " starting");
+    logMsg("INIT","MenuCaptain v" + APP_VERSION + " starting");
     const cfg = loadConfig();
     if (!configComplete(cfg)){
       logMsg("INIT","Configuration incomplete - showing setup");
@@ -3835,7 +3835,7 @@ function App(){
    ============================================================ */
 function TopBar({tab}){
   const titles = {
-    history:["Dining Captain","Where you have been"],
+    history:["MenuCaptain","Where you have been"],
     restaurants:["Places","Your restaurants & menus"],
     settings:["Settings","Sync & configuration"],
   };
@@ -4404,7 +4404,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         name: r.name, sub: sub, ratingAvg: ratingAvg,
         address: r.address || "", loved: lovedDishes, photoImg: photoImg
       });
-      const file = new File([blob], "dining-captain-" + slugify(r.name) + ".png", { type:"image/png" });
+      const file = new File([blob], "menucaptain-" + slugify(r.name) + ".png", { type:"image/png" });
       if (navigator.canShare && navigator.canShare({ files:[file] })){
         try {
           await navigator.share({ files:[file], title: r.name });
@@ -6513,13 +6513,13 @@ function PublishedList({data}){
       <div className="pub-wrap">
         <div className="pub-title">This link looks broken</div>
         <div className="muted" style={{textAlign:"center",marginBottom:20}}>The list could not be read.</div>
-        <div style={{textAlign:"center"}}><a className="btn primary" href={home}>Open Dining Captain</a></div>
+        <div style={{textAlign:"center"}}><a className="btn primary" href={home}>Open MenuCaptain</a></div>
       </div>
     );
   }
   return (
     <div className="pub-wrap">
-      <div className="pub-kicker">A Dining Captain list</div>
+      <div className="pub-kicker">A MenuCaptain list</div>
       <div className="pub-title">{data.t || "My list"}</div>
       <div className="pub-cards">
         {data.p.map((p,i)=>(
@@ -6551,7 +6551,7 @@ function PublishedList({data}){
         ))}
       </div>
       <div className="pub-foot">
-        <div className="tiny faint" style={{marginBottom:10}}>Made with Dining Captain</div>
+        <div className="tiny faint" style={{marginBottom:10}}>Made with MenuCaptain</div>
         <a className="btn ghost sm" href={home}>Make your own</a>
       </div>
     </div>
@@ -6787,7 +6787,7 @@ function YearInFood({visits, restaurants, onClose}){
     try {
       try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch(e){}
       const blob = await buildYearCardBlob(s, periodLabel);
-      const file = new File([blob], "dining-captain-year-" + (period === "all" ? "alltime" : period) + ".png", { type:"image/png" });
+      const file = new File([blob], "menucaptain-year-" + (period === "all" ? "alltime" : period) + ".png", { type:"image/png" });
       if (navigator.canShare && navigator.canShare({ files:[file] })){
         try { await navigator.share({ files:[file], title:"My Year in Food" }); }
         catch(e){ if (e && e.name !== "AbortError") logMsg("YIF","Share sheet failed: " + e.message); }
@@ -7117,7 +7117,7 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
       </div>
 
       <div className="tiny faint" style={{textAlign:"center",padding:"8px 0 4px"}}>
-        Dining Captain v{APP_VERSION}
+        MenuCaptain v{APP_VERSION}
       </div>
     </div>
   );
@@ -7178,7 +7178,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         <div style={{marginBottom:18}}>
           <h2 style={{fontSize:26}}>Welcome</h2>
           <div className="small muted" style={{marginTop:6}}>
-            Dining Captain keeps your restaurants, menus and visits in your
+            MenuCaptain keeps your restaurants, menus and visits in your
             private account so they sync across devices. Sign in to get started.
           </div>
         </div>
@@ -7196,7 +7196,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
 
       <div className="card tiny muted" style={{lineHeight:1.7}}>
         Your sign-in is stored only in this browser (localStorage on this
-        device) and used to reach your Dining Captain account.
+        device) and used to reach your MenuCaptain account.
       </div>
       {err && (
         <div className="syncbar err" style={{margin:"0 0 14px"}}>
@@ -7224,7 +7224,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   }
   return (
     <div id="app-shell">
-      <div className="topbar"><h1>Dining Captain</h1>
+      <div className="topbar"><h1>MenuCaptain</h1>
         <div className="sub">First-time setup</div></div>
       {body}
     </div>
