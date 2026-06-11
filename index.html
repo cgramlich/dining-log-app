@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.40.2";
+const APP_VERSION   = "1.41.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -696,27 +696,27 @@ async function authHeaders(cfg){
 // In-app user guide (source of truth: dining-captain-help.md). Re-sync this when the .md changes.
 const HELP_DOC = `# MenuCaptain - User Guide
 
+*Updated June 11, 2026*
+
 MenuCaptain is your private notebook for eating out. You log the places you go,
 scan their menus, remember which dishes you loved, and - if you want - get a
 rough idea of the calories on your plate. It is built to help you *remember and
 enjoy* what you eat, not to police it.
 
-Everything you save lives in your own private storage, separate from everyone
-else's. You, and anyone you set up, each have a completely separate world even
-though you all open the same app.
+Everything you save lives in your own private account, separate from everyone
+else's. Your places, visits, photos, and menus are yours alone.
 
 -----
 
 ## Getting set up
 
-The first time you use the app you enter four things on the Settings screen:
-your GitHub username, your repository name, an access token, and an Anthropic
-key (which powers the AI features). The app then creates your data files
-automatically on your first save.
+Go to menucaptain.com and create an account with your email address and a
+password. The app sends you a confirmation email - tap the link inside it and
+you are in. That is the whole setup.
 
-If you are setting up a new person from scratch, follow the separate
-"Private Repo Setup" guide - it walks through creating the account, the repo,
-and the token step by step. You only do this once.
+If you ever forget your password, tap "Forgot password" on the sign-in screen
+and the app emails you a reset link. Signing in on a new phone or computer is
+just your email and password - your data follows your account.
 
 -----
 
@@ -728,7 +728,7 @@ There is a bar across the bottom of the screen with four spots:
 - **Places** - your list of restaurants.
 - **The plus (+) button** - the quick-action button. Tap it to log a visit,
   add a restaurant, or scan a menu.
-- **Settings** - your account details, the update check, this user guide, and
+- **Settings** - your account and plan, the update check, this user guide, and
   app info.
 
 -----
@@ -783,8 +783,8 @@ and the calorie estimates.
 Brunch, and Drinks). When you scan a menu that has more than one section, the
 app asks how to save it: **One menu** keeps every section together in a single
 menu, or **Customize each section** lets you split the sections into separate
-menus (any sections you give the same name merge back together). That is how
-one long scan can become a few tidy menus.
+menus (any sections you give the same name merge back together). So a single
+scan of a long menu can be saved as separate Dinner, Brunch, and Drinks menus.
 
 **Where menus show.** On a restaurant page, if there is only one menu it is
 shown expanded right there, so you can browse and estimate items without
@@ -976,10 +976,9 @@ time a particular list is published, its page can take up to a minute to go
 live; anyone who taps right away sees a brief "almost ready" note that opens
 the list automatically. Sharing the same list again later is instant.
 
-If the app cannot create the short page (it needs permission to the app's
-repository - some accounts will not have that), it simply shares the
-full-length link instead, which always works; a **Shorten** button appears for
-those long links if you want a tidier one.
+If the app cannot create the short page, it simply shares the full-length link
+instead, which always works; a **Shorten** button appears for those long links
+if you want a tidier one.
 
 **One-tap city share.** If you have a city selected in the Places filter, a
 **Share my [city] spots** button appears. Tap it and the app builds a list of
@@ -990,10 +989,9 @@ The whole list is public once shared, so whoever you send it to just taps it
 and sees your picks - each place with its city, cuisine, your rating, the
 dishes you loved there, and the address with a **Directions** link that opens
 their maps app. They do not need the app, an account, or any access to your
-private data, and the link never carries your token or key. Treat anything you
-publish as public: the link can be opened by anyone who has it, the published
-page lives in the app's public repository, and it includes the street address
-of each place you share.
+private data. Treat anything you publish as public: the link can be opened by
+anyone who has it, the published page is hosted publicly, and it includes the
+street address of each place you share.
 
 The shared view is text-only - no photos or private notes - so it stays light
 and loads instantly.
@@ -1010,6 +1008,7 @@ A few small labels show up wherever calories appear:
 - **9P / 22C / 22F** - grams of protein, carbs, and fat.
 
 Where an estimate came from:
+
 - **from a photo** - estimated from a picture of the actual plate.
 - **estimated** - estimated from the menu description (no photo).
 - **per menu** - taken straight from the printed menu.
@@ -1018,6 +1017,28 @@ Where an estimate came from:
 A photo of the real plate is treated as a better guess than one from the
 description, which is why the app offers to replace a description-based
 estimate when you add a photo.
+
+-----
+
+## Your plan and the AI features
+
+The AI features - menu scanning, "Help me order," and the calorie and macro
+estimates - are built in. There is nothing to configure and no key to manage.
+
+Every account starts on the **free plan**, which includes a taste of the AI
+features so you can try everything. The Plan card in **Settings** shows how
+many AI uses you have left. **Pro** removes the everyday limit, with a
+generous monthly allowance that normal use will not reach - scan menus and
+estimate plates freely.
+
+Upgrading, switching plans, and canceling all happen from the Plan card in
+Settings. Payments are handled securely by Stripe; the app never sees your
+card details. If you cancel, Pro keeps working until the end of the period you
+paid for - the card shows the exact date.
+
+Everything that is not AI - logging visits, rating dishes, places, the map,
+History, Year in Food, the passport, and sharing - is free and unlimited on
+every plan.
 
 -----
 
@@ -1031,29 +1052,40 @@ get the newest changes.
 
 -----
 
-## Your data, privacy, and cost
+## Your data and privacy
 
-Your logs, menus, and photos are stored in your own private storage - they are
-not shared with anyone else, and each person you set up has a separate world.
+Your logs, menus, and photos are stored privately in your MenuCaptain account.
+They are not shared with anyone else, they are never used for advertising, and
+nobody else can see them - sharing only ever happens when you explicitly share
+or publish something yourself.
 
-The AI features (menu scanning, Help me order, and the photo estimates) run
-through your own Anthropic key, so those requests are yours. Personal-scale use
-costs only pennies. The photo estimate is the most involved AI step, since it
-has to look at a picture; everyday use is still very cheap.
+Your password is never stored in readable form, and signing in on a new device
+needs only your email and password - your data follows your account, not your
+phone.
+
+Questions or trouble? Email **support@menucaptain.com**.
 
 -----
 
 ## If something stops working
 
-- **Nothing is saving / it says it can't sync.** Your access token has most
-  likely expired. Generate a fresh token and paste it into Settings - that is
-  the usual fix. (Tokens are set to expire on a schedule for safety.)
-- **A photo is slow to appear or won't load.** Photos load from your storage
-  the first time, so the very first view can be slow; it is quick after that.
-  If one refuses to load, it may not have finished uploading - try again on a
-  good connection.
-- **An AI feature says to add your key.** The Anthropic key in Settings is
-  missing or wrong. Re-enter it.
+- **You can't sign in.** Tap "Forgot password" on the sign-in screen and use
+  the reset link the app emails you. If the email doesn't arrive within a
+  minute or two, check your spam folder - and note the app sends at most one
+  email per minute to the same address, so give it a moment before retrying.
+- **The confirmation email never arrived.** Same advice: wait a minute, check
+  spam, then request it again from the sign-in screen.
+- **An AI feature says you've reached your limit.** Open the Plan card in
+  Settings - free accounts include a set number of AI uses, and upgrading to
+  Pro removes the everyday limit. Everything that is not AI keeps working
+  regardless.
+- **A photo is slow to appear or won't load.** Photos load from your account
+  the first time you view them, so the very first view can be slow; it is
+  quick after that. If one refuses to load, it may not have finished
+  uploading - try again on a good connection.
+- **Your data looks out of date on this device.** Open Settings and tap
+  "Sync now." If something still looks wrong, sign out and back in - your
+  data lives in your account, so nothing is lost.
 - **A dish photo estimate didn't show up on the menu.** The dish name has to
   match a menu item exactly. Adding the dish by tapping it from the menu
   guarantees the match; a free-typed name that doesn't match will still get an
@@ -1591,7 +1623,8 @@ function buildListPayload(title, selected, visits){
   return { v:1, t: title || "My list", p: places };
 }
 
-/* UTF-8 safe base64 - GitHub Contents API stores file bodies in base64. */
+/* UTF-8 safe base64. Sole remaining GitHub use: committing the
+   published-list preview pages to the public app repo. */
 function utf8ToB64(str){
   const bytes = new TextEncoder().encode(str);
   let bin = "";
@@ -1892,7 +1925,7 @@ function blobToDataUrl(blob){
   });
 }
 /* Convert a Blob into raw base64 (no data URL prefix). Used to
-   stage binary file payloads for the GitHub Contents API. */
+   stage photo payloads for the backend upload (POST /api/photos). */
 function blobToBase64(blob){
   return new Promise((resolve,reject)=>{
     const r = new FileReader();
@@ -1925,17 +1958,13 @@ async function resizeForOcr(file, maxEdge){
   return await blobToDataUrl(blob);
 }
 
-/* Binary variants of the GitHub Contents API helpers for photo files.
-   Photos are stored as JPEGs alongside the JSON data files in the same
-   private repo. The Contents API uses base64 for ALL file payloads
-   (binary or text), so the binary helpers are nearly identical to the
-   JSON ones - they just take/return raw base64 instead of JSON. */
+/* Photo transfer (Track B). Photos are stored in object storage
+   behind the backend. Reads ask the backend for a short-lived
+   signed URL and fetch the bytes from it; writes POST base64 to
+   /api/photos. Function names keep their historical gh* prefix so
+   call sites did not have to change in the Track A -> B cutover. */
 
-/* Fetch a file's RAW bytes (no base64) using the raw media type.
-   This is meaningfully faster than ghGetBinaryFile for photos:
-     - payload is ~25% smaller (no base64 inflation)
-     - no client-side atob + Uint8Array decode (real CPU on a phone)
-     - response.blob() is native
+/* Fetch a photo's bytes via a backend-signed URL.
    Returns a Blob. Throws on 404/!ok. */
 async function ghGetRawFile(cfg, path){
   // Track B: ask the backend for a short-lived signed URL, then fetch the bytes.
@@ -1958,37 +1987,6 @@ async function ghGetRawFile(cfg, path){
   const imgRes = await fetch(signed.url);
   if (!imgRes.ok){ throw new Error("Photo fetch failed (" + imgRes.status + ")"); }
   return await imgRes.blob();
-}
-
-async function ghGetBinaryFile(cfg, path){
-  // Returns { found:true, base64, sha, mime } or { found:false }
-  const url = GH_API + "/repos/" + cfg.githubUser + "/" + cfg.githubRepo +
-              "/contents/" + path;
-  logMsg("GITHUB","GET binary " + path);
-  let res;
-  try {
-    res = await fetch(url, { headers:{
-      "Authorization":"Bearer " + cfg.githubToken,
-      "Accept":"application/vnd.github+json",
-    }});
-  } catch(err){
-    logMsg("ERROR","GitHub GET binary network failure: " + err.message);
-    throw new Error("Network error reaching GitHub");
-  }
-  if (res.status === 404){
-    logMsg("GITHUB",path + " not found (404)");
-    return { found:false };
-  }
-  if (res.status === 401){
-    throw new Error("GitHub rejected the token (401). Check your token in Settings.");
-  }
-  if (!res.ok){
-    const body = await res.text().catch(()=> "");
-    logMsg("ERROR","GitHub GET binary " + path + " -> " + res.status + " " + body.slice(0,120));
-    throw new Error("GitHub GET failed (" + res.status + ")");
-  }
-  const json = await res.json();
-  return { found:true, base64:(json.content || "").replace(/\s/g,""), sha:json.sha };
 }
 
 async function ghPutBinaryFile(cfg, path, blob, sha){
@@ -2026,10 +2024,11 @@ async function ghPutBinaryFile(cfg, path, blob, sha){
             Survives app restarts and works OFFLINE for photos
             already viewed once. This is the big win for "slow
             loading" - after the first view, a photo loads instantly
-            from local disk instead of round-tripping to GitHub.
+            from local disk instead of round-tripping to the server.
 
-   Lookup order on display: memory -> IndexedDB -> GitHub (raw bytes).
-   On a GitHub fetch we write the blob into IndexedDB for next time.
+   Lookup order on display: memory -> IndexedDB -> backend (signed
+   URL fetch). On a network fetch we write the blob into IndexedDB
+   for next time.
    Object URLs are never revoked (bounded by unique paths viewed),
    keeping a few MB of URLs alive for the session. */
 
@@ -3316,17 +3315,7 @@ function App(){
     if (!configComplete(config)) throw new Error("Not configured");
     const nextShas = Object.assign({}, shas);
     for (const u of uploads){
-      let newSha;
-      try {
-        newSha = await ghPutBinaryFile(config, u.path, u.blob, nextShas[u.path]);
-      } catch(err){
-        if (err.conflict){
-          // file moved under us - refetch sha and retry once
-          logMsg("SYNC","Resolving photo conflict on " + u.path);
-          const fresh = await ghGetBinaryFile(config, u.path);
-          newSha = await ghPutBinaryFile(config, u.path, u.blob, fresh.sha);
-        } else throw err;
-      }
+      const newSha = await ghPutBinaryFile(config, u.path, u.blob, nextShas[u.path]);
       nextShas[u.path] = newSha;
       // bust any stale cache entry and seed the new bytes so the UI
       // can render the upload immediately without a round-trip
