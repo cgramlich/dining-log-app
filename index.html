@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.41.0";
+const APP_VERSION   = "1.42.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -693,7 +693,7 @@ async function authHeaders(cfg){
   return { "Authorization": "Bearer " + token, "X-User-ID": cfg.userId };
 }
 
-// In-app user guide (source of truth: dining-captain-help.md). Re-sync this when the .md changes.
+// In-app user guide (source of truth: menucaptain-help.md). Re-sync this when the .md changes.
 const HELP_DOC = `# MenuCaptain - User Guide
 
 *Updated June 11, 2026*
@@ -7073,7 +7073,40 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
                        onAddLocation, onRenameLocation, onDeleteLocation,
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
+  const [showDel,setShowDel] = useState(false);   // delete-account card expanded
+  const [delText,setDelText] = useState("");      // user must type DELETE
+  const [delBusy,setDelBusy] = useState(false);
+  const [delErr,setDelErr]   = useState("");
   const [, force] = useState(0);
+
+  async function doDeleteAccount(){
+    // The backend re-checks everything (own-account only, owner refusal,
+    // confirm text) - this client gate just prevents accidental taps.
+    if (delText.trim().toUpperCase() !== "DELETE" || delBusy) return;
+    setDelBusy(true); setDelErr("");
+    logMsg("DELETE","Account deletion requested by user");
+    try {
+      const headers = await authHeaders(config);
+      headers["Content-Type"] = "application/json";
+      const res = await fetch(apiBase(config) + "/api/account/delete", {
+        method:"POST", headers, body: JSON.stringify({ confirm:"DELETE" }),
+      });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok){
+        const msg = (data && data.detail) || ("Delete failed (" + res.status + ")");
+        logMsg("ERROR","Account delete refused: " + msg);
+        setDelErr(msg); setDelBusy(false); return;
+      }
+      logMsg("DELETE","Account deleted on the server - wiping this device");
+      try { indexedDB.deleteDatabase(IDB_NAME); } catch(e){}
+      try { localStorage.setItem("dininglog_deleted", "1"); } catch(e){}
+      signOutHard();   // clears config + cache and reloads to sign-in
+    } catch(err){
+      logMsg("ERROR","Account delete network failure: " + err.message);
+      setDelErr("Network error - nothing was deleted. Try again.");
+      setDelBusy(false);
+    }
+  }
   const [newLoc,setNewLoc] = useState("");
   const [editing,setEditing] = useState(null);    // {name, draft}
   const usageCount = (name)=> (restaurants || []).filter(r => r.location === name).length;
@@ -7260,6 +7293,33 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         )}
       </div>
 
+      <div className="card" style={{marginTop:12}}>
+        <div className="between" onClick={()=> setShowDel(s=>!s)} style={{cursor:"pointer"}}>
+          <div style={{fontWeight:600,color:"#e7a99e"}}>Delete account</div>
+          <Icon name={showDel ? "chevd" : "chev"} size={17} color="#80715f" />
+        </div>
+        {showDel && (
+          <div style={{marginTop:11}}>
+            <div className="small muted" style={{lineHeight:1.7,marginBottom:10}}>
+              This permanently deletes your account: every visit, place, menu,
+              and photo, on every device. Any subscription is canceled
+              immediately. This cannot be undone.
+            </div>
+            <label className="fld"><span className="lbl">Type DELETE to confirm</span>
+              <input className="input" value={delText}
+                onChange={e=>{ setDelText(e.target.value); setDelErr(""); }}
+                autoCapitalize="characters" autoComplete="off"
+                placeholder="DELETE" /></label>
+            {delErr && <div className="small" style={{color:"#e7a99e",marginBottom:8}}>{delErr}</div>}
+            <button className="btn danger" style={{width:"100%"}}
+              disabled={delBusy || delText.trim().toUpperCase() !== "DELETE"}
+              onClick={doDeleteAccount}>
+              {delBusy ? "Deleting..." : "Permanently delete my account"}
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="tiny faint" style={{textAlign:"center",padding:"8px 0 4px"}}>
         MenuCaptain v{APP_VERSION}
       </div>
@@ -7400,6 +7460,17 @@ function ResetPasswordScreen({accessToken, refreshToken, expiresIn}){
 }
 
 function SetupScreen({initial, onSave, onClose, asOverlay}){
+  // One-time note after an account deletion: the flag is set just before
+  // the post-delete reload and consumed (removed) on first render here.
+  const [deletedNote] = React.useState(()=>{
+    try {
+      if (localStorage.getItem("dininglog_deleted") === "1"){
+        localStorage.removeItem("dininglog_deleted");
+        return true;
+      }
+    } catch(e){}
+    return false;
+  });
   const [mode,setMode]       = useState("signin");   // signin | signup | forgot
   const [email,setEmail]     = useState(initial ? (initial.email || "") : "");
   const [password,setPassword] = useState("");
@@ -7538,6 +7609,12 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
 
   const body = (
     <div className="ovbody">
+      {!asOverlay && deletedNote && (
+        <div className="card small muted" style={{marginBottom:14,lineHeight:1.7}}>
+          Your account was deleted. Thanks for trying MenuCaptain - you are
+          welcome back any time.
+        </div>
+      )}
       {!asOverlay && (
         <div style={{marginBottom:18}}>
           <h2 style={{fontSize:26}}>{titles[mode][0]}</h2>
