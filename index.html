@@ -572,10 +572,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.43.0";
+const APP_VERSION   = "1.44.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
-const GH_API        = "https://api.github.com";
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 // Track B: hosted backend base. Data and photos go through this; AI moves
 // here in the next step. Overridable per-user via cfg.apiBase (Settings).
@@ -1469,126 +1468,40 @@ async function shortenUrl(longUrl){
   return null;
 }
 
-/* ---- publish-a-list short pages (GitHub Pages, no backend) ----
-   A shared list gets a tiny static HTML page committed to the PUBLIC app
-   repo at l/<slug>.html. The page carries per-list Open Graph tags (so
-   iMessage and friends show a real preview card) and immediately redirects
-   humans to the app's ?list= viewer. Scrapers read the static tags and do
-   not follow the redirect - which is exactly what we want.
-   If the page cannot be created (no Pages host, no token, or the token has
-   no access to the app repo - e.g. a second user on their own account),
-   callers fall back to the long ?list= link, which always works. */
+/* ---- publish-a-list short pages (via the backend) ----
+   A shared list gets a tiny static HTML page at menucaptain.com/l/<slug>.html
+   with per-list Open Graph tags, so texted links show a real preview card.
+   Track B: the page is built and committed by OUR backend with a server-side
+   token - it works for every signed-in user, with no GitHub anything on the
+   client. The slug is deterministic on the backend (same list -> same page).
+   Any failure returns null and callers fall back to the long ?list= link,
+   which always works. */
 
-// Minimal HTML escaping for text placed into the generated page.
-function escHtml(s){
-  return String(s == null ? "" : s)
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
-
-// Deterministic short slug from the encoded payload: two FNV-1a passes with
-// different seeds, base36. Same list -> same slug, so re-sharing reuses the
-// same page instead of piling up duplicates.
-function listSlug(encoded){
-  function fnv(str, seed){
-    let h = seed >>> 0;
-    for (let i = 0; i < str.length; i++){
-      h ^= str.charCodeAt(i);
-      h = Math.imul(h, 0x01000193) >>> 0;
-    }
-    return h >>> 0;
-  }
-  return fnv(encoded, 0x811c9dc5).toString(36) + fnv(encoded, 0x7a3f5d21).toString(36);
-}
-
-// Work out the GitHub Pages owner/repo this app is being served from, so the
-// app can write list pages into its own public repo. Returns null when not on
-// a *.github.io host (e.g. local testing) - callers then use the long link.
-function getAppPagesInfo(){
-  const m = String(location.hostname).match(/^([^.]+)\.github\.io$/i);
-  if (!m) return null;
-  const owner = m[1];
-  const segs = String(location.pathname).split("/").filter(Boolean);
-  const first = segs[0] || "";
-  // a leading path segment without a file extension means a project site
-  // (github.io/<repo>/...); otherwise this is a user root site
-  const isProject = first !== "" && !/\.[a-z0-9]+$/i.test(first);
-  const repo = isProject ? first : owner + ".github.io";
-  const base = isProject ? (location.origin + "/" + repo + "/") : (location.origin + "/");
-  return { owner, repo, base };
-}
-
-// Build the static preview page for one published list. The og: tags are
-// what link scrapers read; the meta refresh + script send people on to the
-// live viewer with the payload. All dynamic text is HTML-escaped.
-function buildListPageHtml(payload, encoded){
-  const title  = (payload && payload.t) || "My list";
-  const places = (payload && payload.p) || [];
-  const names  = places.map(p => p && p.n).filter(Boolean);
-  const desc   = places.length + (places.length === 1 ? " place" : " places")
-    + (names.length ? ": " + names.slice(0,4).join(", ") + (names.length > 4 ? " and more" : "") : "")
-    + " - shared from MenuCaptain.";
-  const target = "../?list=" + encoded;   // l/<slug>.html -> <base>?list=...
-  const eTitle = escHtml(title), eDesc = escHtml(desc), eTarget = escHtml(target);
-  return "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
-    + "<meta charset=\"utf-8\" />\n"
-    + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n"
-    + "<title>" + eTitle + " \u00b7 MenuCaptain</title>\n"
-    + "<meta property=\"og:title\" content=\"" + eTitle + "\" />\n"
-    + "<meta property=\"og:description\" content=\"" + eDesc + "\" />\n"
-    + "<meta property=\"og:site_name\" content=\"MenuCaptain\" />\n"
-    + "<meta property=\"og:type\" content=\"website\" />\n"
-    + "<meta name=\"twitter:card\" content=\"summary\" />\n"
-    + "<meta http-equiv=\"refresh\" content=\"0;url=" + eTarget + "\" />\n"
-    + "<style>body{background:#1b1714;color:#efe6da;font-family:system-ui,sans-serif;"
-    + "display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}"
-    + "a{color:#e0764a;}</style>\n"
-    + "</head>\n<body>\n"
-    + "<p>Opening list&hellip; <a href=\"" + eTarget + "\">tap here if nothing happens</a></p>\n"
-    + "<script>location.replace(" + JSON.stringify(target) + ");</scr" + "ipt>\n"
-    + "</body>\n</html>\n";
-}
-
-// Create (or reuse) the list page in the public app repo. Returns the short
-// URL on success, or null on any failure so callers fall back to the long
-// link. A PUT without sha returns 201 when created and 422 when the file
-// already exists - and since the slug is deterministic, "already exists"
-// means this exact list was published before, so the URL is simply reused.
 async function publishListPage(cfg, payload, encoded){
-  const pages = getAppPagesInfo();
-  if (!pages){ logMsg("PUBLISH","Not on a Pages host - using long link"); return null; }
-  if (!cfg || !cfg.githubToken){ logMsg("PUBLISH","No token - using long link"); return null; }
-  const slug = listSlug(encoded);
-  const path = "l/" + slug + ".html";
-  const shortUrl = pages.base + path;
-  const html = buildListPageHtml(payload, encoded);
-  logMsg("PUBLISH","Publishing list page " + pages.owner + "/" + pages.repo + "/" + path);
   try {
-    const res = await fetch(GH_API + "/repos/" + pages.owner + "/" + pages.repo + "/contents/" + path, {
-      method:"PUT",
-      headers:{
-        "Authorization":"Bearer " + cfg.githubToken,
-        "Accept":"application/vnd.github+json",
-        "Content-Type":"application/json",
-      },
+    const places = (payload && payload.p) || [];
+    const names = places.map(p => p && p.n).filter(Boolean).slice(0, 8);
+    const headers = await authHeaders(cfg);
+    headers["Content-Type"] = "application/json";
+    logMsg("PUBLISH","Publishing list page via backend");
+    const res = await fetch(apiBase(cfg) + "/api/publish-list", {
+      method:"POST", headers,
       body: JSON.stringify({
-        message:"Publish list page " + slug + " via MenuCaptain",
-        content: utf8ToB64(html),
+        title: (payload && payload.t) || "My list",
+        names: names,
+        count: places.length,
+        encoded: encoded,
       }),
     });
-    if (res.status === 201 || res.status === 200){
-      logMsg("PUBLISH","List page created: " + shortUrl);
-      return shortUrl;
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok || !data.url){
+      logMsg("PUBLISH","Backend publish failed (" + res.status + ") - using long link");
+      return null;
     }
-    if (res.status === 422){
-      logMsg("PUBLISH","List page already exists - reusing: " + shortUrl);
-      return shortUrl;
-    }
-    // 404 = token has no access to the app repo (normal for non-owner users)
-    logMsg("PUBLISH","List page write failed (" + res.status + ") - using long link");
-    return null;
+    logMsg("PUBLISH", (data.created ? "List page created: " : "List page reused: ") + data.url);
+    return data.url;
   } catch(e){
-    logMsg("PUBLISH","List page write error: " + e.message + " - using long link");
+    logMsg("PUBLISH","Publish error: " + e.message + " - using long link");
     return null;
   }
 }
@@ -1621,21 +1534,6 @@ function buildListPayload(title, selected, visits){
     return o;
   });
   return { v:1, t: title || "My list", p: places };
-}
-
-/* UTF-8 safe base64. Sole remaining GitHub use: committing the
-   published-list preview pages to the public app repo. */
-function utf8ToB64(str){
-  const bytes = new TextEncoder().encode(str);
-  let bin = "";
-  bytes.forEach(b => { bin += String.fromCharCode(b); });
-  return btoa(bin);
-}
-function b64ToUtf8(b64){
-  const clean = (b64 || "").replace(/\s/g,"");          // GitHub adds line breaks
-  const bin   = atob(clean);
-  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
 }
 
 /* Loose JSON parse - tolerates markdown fences around model output. */
