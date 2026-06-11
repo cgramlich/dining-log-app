@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.40.1";
+const APP_VERSION   = "1.40.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -7037,7 +7037,7 @@ function ProCard({config}){
       <div>
         <div className="tiny muted" style={{marginBottom:10}}>
           Pro{bill.plan ? " - " + (bill.plan === "yearly" ? "$19.99/year" : "$2.99/month") : ""}
-          {bill.current_period_end ? " - renews " + fmtDate(bill.current_period_end) : ""}
+          {bill.current_period_end ? (bill.cancel_at_period_end ? " - ends " : " - renews ") + fmtDate(bill.current_period_end) : ""}
         </div>
         <button className="btn" disabled={!!busy} onClick={()=>go("portal")}>
           {busy === "portal" ? <span className="spin" /> : null}
