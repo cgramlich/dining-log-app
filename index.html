@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.42.0";
+const APP_VERSION   = "1.43.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -6970,6 +6970,40 @@ function ProCard({config}){
   const [bill,setBill] = useState(null);   // /api/billing/status payload
   const [busy,setBusy] = useState("");     // which button is working
   const [err,setErr]   = useState("");
+  const [showCode,setShowCode] = useState(false);  // friends & family code UI
+  const [codeText,setCodeText] = useState("");
+  const [codeBusy,setCodeBusy] = useState(false);
+  const [codeMsg,setCodeMsg]   = useState("");
+
+  async function redeemCode(){
+    const code = codeText.trim();
+    if (!code || codeBusy) return;
+    setCodeBusy(true); setCodeMsg("");
+    logMsg("COMP","Redeeming friends & family code");
+    try {
+      const headers = await authHeaders(config);
+      headers["Content-Type"] = "application/json";
+      const res = await fetch(apiBase(config) + "/api/account/redeem-code", {
+        method:"POST", headers, body: JSON.stringify({ code }),
+      });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok){
+        const msg = (data && data.detail) || ("Could not redeem (" + res.status + ")");
+        logMsg("COMP","Redeem refused: " + msg);
+        setCodeMsg(msg); setCodeBusy(false); return;
+      }
+      logMsg("COMP","Code redeemed - Pro until " + (data.until || "?"));
+      setCodeBusy(false); setShowCode(false); setCodeText("");
+      // Refetch so the card flips to Pro immediately.
+      fetchBillingStatus(config)
+        .then(d=> setBill(d))
+        .catch(e=> logMsg("BILLING","Status refetch failed: " + e.message));
+    } catch(err2){
+      logMsg("ERROR","Redeem network failure: " + err2.message);
+      setCodeMsg("Network error - try again.");
+      setCodeBusy(false);
+    }
+  }
 
   useEffect(()=>{
     let alive = true;
@@ -7021,6 +7055,15 @@ function ProCard({config}){
     body = <div className="tiny muted">Checking your plan...</div>;
   } else if (bill.owner){
     body = <div className="tiny muted">Pro - owner account.</div>;
+  } else if (bill.tier === "pro" && bill.status === "comped"){
+    // Friends & family comp: no Stripe customer exists, so no portal
+    // button - and the copy reads as a courtesy, not a billing state.
+    body = (
+      <div className="tiny muted">
+        Pro - friends &amp; family
+        {bill.current_period_end ? " - until " + fmtDate(bill.current_period_end) : ""}
+      </div>
+    );
   } else if (bill.tier === "pro"){
     body = (
       <div>
@@ -7051,6 +7094,29 @@ function ProCard({config}){
           {busy === "monthly" ? <span className="spin" /> : null}
           $2.99/month
         </button>
+        {!showCode ? (
+          <div className="tiny" style={{marginTop:10, textAlign:"center"}}>
+            <a href="#" onClick={(e)=>{ e.preventDefault(); setShowCode(true); }}>
+              Have a code?
+            </a>
+          </div>
+        ) : (
+          <div style={{marginTop:12}}>
+            <label className="fld"><span className="lbl">Friends &amp; family code</span>
+              <input className="input" value={codeText}
+                onChange={e=>{ setCodeText(e.target.value); setCodeMsg(""); }}
+                autoCapitalize="characters" autoComplete="off"
+                placeholder="YOUR-CODE" /></label>
+            {codeMsg && (
+              <div className="small" style={{color:"#e7a99e", marginBottom:8}}>{codeMsg}</div>
+            )}
+            <button className="btn" style={{width:"100%"}}
+              disabled={codeBusy || !codeText.trim()} onClick={redeemCode}>
+              {codeBusy ? <span className="spin" /> : null}
+              Redeem code
+            </button>
+          </div>
+        )}
       </div>
     );
   }
