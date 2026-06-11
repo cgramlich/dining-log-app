@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.40.0";
+const APP_VERSION   = "1.40.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const GH_API        = "https://api.github.com";
@@ -6984,10 +6984,24 @@ function ProCard({config}){
 
   useEffect(()=>{
     let alive = true;
-    fetchBillingStatus(config)
-      .then(d=>{ if (alive) setBill(d); })
-      .catch(e=>{ logMsg("BILLING","Status fetch failed: " + e.message); });
-    return ()=>{ alive = false; };
+    const load = ()=>{
+      fetchBillingStatus(config)
+        .then(d=>{ if (alive) setBill(d); })
+        .catch(e=>{ logMsg("BILLING","Status fetch failed: " + e.message); });
+    };
+    load();
+    // WHY: returning from the Stripe sheet (portal/checkout) does not
+    // remount this card. Refetch when the app becomes visible again so
+    // changes made in the portal show up without an app restart - and
+    // clear any busy state as a second safety net for the stuck spinner.
+    const onVis = ()=>{
+      if (document.visibilityState === "visible"){ setBusy(""); load(); }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return ()=>{
+      alive = false;
+      document.removeEventListener("visibilitychange", onVis);
+    };
     // eslint-disable-next-line
   },[]);
 
@@ -6996,7 +7010,12 @@ function ProCard({config}){
     try {
       if (kind === "portal") await openBillingPortal(config);
       else await startCheckout(config, kind);
-      // On success the browser navigates away; nothing more to do here.
+      // WHY reset: on an installed iOS app, Stripe opens as a sheet ON TOP
+      // of this page - the app keeps running underneath. Without this,
+      // closing the sheet with the X returns to a forever-spinning,
+      // disabled button. In a normal browser tab the page has already
+      // navigated away, so the timeout is harmless there.
+      setTimeout(()=> setBusy(""), 1500);
     } catch(e){
       setErr(e.message);
       setBusy("");
