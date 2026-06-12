@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.45.0";
+const APP_VERSION   = "1.46.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2396,6 +2396,108 @@ async function digitizeMenu(cfg, dataUrls){
 }
 
 /* ============================================================
+   RECEIPT SCAN - read an itemized check into tickable line items
+   ============================================================ */
+
+// Small money formatter for dish prices: "$14" for whole dollars,
+// "$14.50" otherwise. Returns "" for missing/invalid values.
+function fmtPrice(p){
+  const n = Number(p);
+  if (!isFinite(n) || n <= 0) return "";
+  return "$" + (Number.isInteger(n) ? String(n) : n.toFixed(2));
+}
+
+// Parse 1-2 photos of a restaurant check. menuItemNames (the restaurant's
+// digitized menu, may be empty) lets the model match receipt shorthand like
+// "CHKN PARM" to the real menu item so downstream features line up.
+async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
+  let prompt =
+    "You are reading a restaurant receipt (an itemized check) from the "+
+    "attached photo(s). Respond with ONLY valid JSON, no other text:\n"+
+    "{\n"+
+    '  "items": [ { "name": string, "qty": integer, "price": number|null, "menu_match": string|null } ],\n'+
+    '  "total": number|null\n'+
+    "}\n\n"+
+    "Rules:\n"+
+    "- items: food and drink line items ONLY. Skip tax, tip, subtotal, total, "+
+    "discounts, service charges, table/server/payment lines.\n"+
+    "- name: the item as printed, lightly cleaned up. Expand an abbreviation "+
+    "only when it is obvious.\n"+
+    "- qty: how many of the item (default 1). A line like '2 MARGARITA 18.00' "+
+    "is qty 2.\n"+
+    "- price: the line's printed price as a number (the line total), or null "+
+    "if unreadable.\n"+
+    "- total: the final total printed on the check, or null.\n";
+  if (menuItemNames && menuItemNames.length){
+    prompt +=
+      "- menu_match: this restaurant's menu items are listed below. If a "+
+      "receipt line clearly refers to one of them, set menu_match to that "+
+      "EXACT name (copy it verbatim). Otherwise null. Do not guess.\n"+
+      "MENU ITEMS:\n" + menuItemNames.map(n => "- " + n).join("\n") + "\n";
+  } else {
+    prompt += "- menu_match: always null.\n";
+  }
+
+  const content = dataUrls.map(u => ({
+    type:"image",
+    source:{ type:"base64", media_type:"image/jpeg", data:u.split(",")[1] },
+  }));
+  content.push({ type:"text", text:prompt });
+
+  logMsg("RECEIPT","Sending " + dataUrls.length + " receipt photo(s), menu names=" +
+         (menuItemNames ? menuItemNames.length : 0));
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        ...(await authHeaders(cfg)),
+      },
+      body:JSON.stringify({
+        task:"ocr_receipt",
+        model:VISION_MODEL,   // advisory; server routes by task
+        max_tokens:2000,
+        messages:[{ role:"user", content:content }],
+      }),
+    });
+  } catch(err){
+    logMsg("ERROR","Receipt network failure: " + err.message);
+    throw new Error("Network error reaching the AI service. Check your connection.");
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    logMsg("ERROR","Receipt scan -> " + res.status + " " + txt.slice(0,180));
+    let _detail = "";
+    try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
+    if (res.status === 402) throw new Error(_detail || "You\u2019ve reached this month\u2019s AI usage limit.");
+    throw new Error(_detail || ("Receipt scan failed (" + res.status + ")"));
+  }
+  const json = await res.json();
+  const text = (json.content || [])
+    .filter(b => b.type === "text").map(b => b.text).join("\n");
+  let parsed;
+  try {
+    parsed = parseJsonLoose(text);
+  } catch(err){
+    logMsg("ERROR","Could not parse receipt JSON: " + err.message);
+    throw new Error("Couldn\u2019t read that receipt. Try a sharper, straight-on photo.");
+  }
+  const items = (Array.isArray(parsed.items) ? parsed.items : []).map(it => ({
+    name: String(it.name || "").trim(),
+    qty: Math.max(1, parseInt(it.qty, 10) || 1),
+    price: (it.price === null || it.price === undefined || isNaN(Number(it.price)))
+      ? null : Number(it.price),
+    menu_match: it.menu_match ? String(it.menu_match).trim() : null,
+  })).filter(it => it.name);
+  const total = (parsed.total === null || parsed.total === undefined || isNaN(Number(parsed.total)))
+    ? null : Number(parsed.total);
+  logMsg("RECEIPT","Parsed " + items.length + " line item(s), total=" + total);
+  if (!items.length) throw new Error("No line items found on that receipt. Try a clearer photo.");
+  return { items: items, total: total };
+}
+
+/* ============================================================
    "HELP ME ORDER" - text Q&A against a digitized menu
    ============================================================ */
 
@@ -2914,6 +3016,33 @@ function PhotoImg({cfg, path, alt, className, style, onClick}){
   return <img src={url} alt={alt || ""}
               className={"photo-img " + (className || "")} style={style}
               onClick={onClick} />;
+}
+
+// Subtle receipt reveal on a logged visit: the receipt is a record, not a
+// memory photo, so it never joins the photo strip or the Food passport -
+// it hides behind this link until asked for.
+function ReceiptReveal({cfg, receipt}){
+  const [open, setOpen] = useState(false);
+  if (!receipt || !receipt.photo) return null;
+  return (
+    <div style={{marginTop:8}}>
+      <a href="#" className="tiny" style={{color:"var(--accent)"}}
+         onClick={(e)=>{ e.preventDefault(); setOpen(o=>!o); }}>
+        {open ? "Hide receipt" : "Show receipt"}
+      </a>
+      {open && (
+        <div style={{marginTop:8}}>
+          <PhotoImg cfg={cfg} path={receipt.photo}
+                    style={{maxWidth:"100%", borderRadius:12}} />
+          {receipt.total ? (
+            <div className="tiny muted" style={{marginTop:4}}>
+              Check total {fmtPrice(receipt.total)}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ============================================================
@@ -3917,7 +4046,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
                 {v.dishes.map((d,i)=> (
                   <span key={i} className={"chip dish" +
                     (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
-                    {d.name}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + d.nutrition.kcal : ""}
+                    {d.name}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + d.nutrition.kcal : ""}{d.price ? " \u00b7 " + fmtPrice(d.price) : ""}
                   </span>
                 ))}
               </div>
@@ -3925,6 +4054,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             <DishTotal dishes={v.dishes} />
             <NutriLine n={v.nutrition} />
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
+            <ReceiptReveal cfg={cfg} receipt={v.receipt} />
           </div>
         );
       })}
@@ -4535,7 +4665,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   {v.dishes.map((d,i)=> (
                     <span key={i} className={"chip dish" +
                       (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
-                      {d.name}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + d.nutrition.kcal : ""}
+                      {d.name}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + d.nutrition.kcal : ""}{d.price ? " \u00b7 " + fmtPrice(d.price) : ""}
                     </span>
                   ))}
                 </div>
@@ -4543,6 +4673,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <DishTotal dishes={v.dishes} />
               <NutriLine n={v.nutrition} />
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
+              <ReceiptReveal cfg={cfg} receipt={v.receipt} />
             </div>
           );
         })}
@@ -5186,6 +5317,79 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
   const [dishInput,setDishInput] = useState("");
   const [confirmDel,setConfirmDel] = useState(false);
 
+  // ---- receipt scan state ---------------------------------------------
+  // receiptSlot: null | {kind:"existing", path} | {kind:"pending", blob, previewUrl}
+  // The receipt is a record, not a memory photo: it is stored separately
+  // from photoSlots and revealed on demand, never shown in the photo strip.
+  const [receiptSlot,setReceiptSlot] = useState(
+    existing && existing.receipt && existing.receipt.photo
+      ? { kind:"existing", path: existing.receipt.photo } : null);
+  const [receiptTotal,setReceiptTotal] = useState(
+    existing && existing.receipt && existing.receipt.total ? existing.receipt.total : null);
+  const [receiptBusy,setReceiptBusy] = useState(false);
+  const [receiptErr,setReceiptErr] = useState("");
+  const [receiptShow,setReceiptShow] = useState(false);     // inline preview toggle
+  const [receiptReview,setReceiptReview] = useState(null);  // null | [{...item, checked}]
+  const receiptRef = useRef(null);
+
+  async function onReceiptPicked(e){
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setReceiptBusy(true); setReceiptErr("");
+    try {
+      const blob = await resizeImageToBlob(file, 1200, 0.82);
+      const dataUrl = await blobToDataUrl(blob);
+      // The restaurant's digitized menu names ground the matching, so
+      // "CHKN PARM" lands on the real menu item and estimates line up.
+      const names = [];
+      (menuGroups || []).forEach(g => (g.sections || []).forEach(s =>
+        (s.items || []).forEach(it => { if (it.name) names.push(it.name); })));
+      const parsed = await parseReceiptPhotos(cfg, [dataUrl], names);
+      // keep the photo (pending upload) regardless of what the user ticks
+      const prev = URL.createObjectURL(blob);
+      setReceiptSlot({ kind:"pending", blob:blob, previewUrl:prev });
+      if (parsed.total != null) setReceiptTotal(parsed.total);
+      setReceiptReview(parsed.items.map((it, i) => Object.assign({}, it, {
+        rid:"r"+i, checked:false,
+        // the name the dish will be logged under; menu match wins
+        useName: it.menu_match || it.name,
+      })));
+      logMsg("RECEIPT","Review open with " + parsed.items.length + " item(s)");
+    } catch(err){
+      logMsg("ERROR","Receipt scan failed: " + err.message);
+      setReceiptErr(err.message);
+    }
+    setReceiptBusy(false);
+  }
+
+  function confirmReceiptDishes(){
+    const picked = (receiptReview || []).filter(it => it.checked);
+    setDishes(d => {
+      const have = {};
+      d.forEach(x => { have[x.name] = true; });
+      const added = [];
+      picked.forEach(it => {
+        const n = (it.useName || "").trim();
+        if (!n || have[n]) return;
+        have[n] = true;
+        const dish = { name:n, note:"", verdict:null };
+        if (it.price != null) dish.price = it.price;
+        added.push(dish);
+      });
+      return d.concat(added);
+    });
+    logMsg("RECEIPT","Added " + picked.length + " dish(es) from the check");
+    setReceiptReview(null);
+  }
+
+  function removeReceipt(){
+    if (receiptSlot && receiptSlot.kind === "pending" && receiptSlot.previewUrl){
+      try { URL.revokeObjectURL(receiptSlot.previewUrl); } catch(e){}
+    }
+    setReceiptSlot(null); setReceiptTotal(null); setReceiptShow(false);
+  }
+
   // ---- photo state -----------------------------------------------------
   // photoSlots: ordered array (max length 3) of either:
   //   { kind:"existing", path:"<repo path>" }                 (already saved)
@@ -5485,6 +5689,21 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
       }
     });
 
+    // Receipt: pending blob gets its own stable path under photos/receipts/
+    // (kept OUT of the photos array so it never appears in the photo strip
+    // or the Food passport - it is revealed via the Show receipt link).
+    let receipt = null;
+    if (receiptSlot){
+      if (receiptSlot.kind === "existing"){
+        receipt = { photo: receiptSlot.path, total: receiptTotal != null ? receiptTotal : null };
+      } else {
+        const rphotoId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+        const rpath = "photos/receipts/" + vid + "_" + rphotoId + ".jpg";
+        pendingUploads.push({ path: rpath, blob: receiptSlot.blob });
+        receipt = { photo: rpath, total: receiptTotal != null ? receiptTotal : null };
+      }
+    }
+
     const rec = {
       id: vid,
       restaurant_id: restId,
@@ -5494,6 +5713,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
       dishes: dishes,
       notes: notes.trim(),
       photos: finalPaths,
+      receipt: receipt,                          // {photo, total} or null
       nutrition: nutrition || null,              // meal-photo estimate (or null)
       logged_at: existing ? existing.logged_at : Date.now(),
     };
@@ -5746,6 +5966,87 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
             <button className="btn ghost sm" onClick={()=> addDish(dishInput)}
               style={{flex:"none"}}>Add</button>
           </div>
+          <input ref={receiptRef} type="file" accept="image/*"
+            style={{display:"none"}} onChange={onReceiptPicked} />
+          <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
+            disabled={receiptBusy} onClick={()=> receiptRef.current && receiptRef.current.click()}>
+            {receiptBusy ? <span className="spin" /> : <Icon name="camera" size={16} />}
+            {receiptBusy ? "Reading the check..." : "Scan the check"}
+          </button>
+          {receiptErr && (
+            <div className="small" style={{color:"#e7a99e", marginTop:6}}>{receiptErr}</div>
+          )}
+          {receiptSlot && (
+            <div className="tiny muted" style={{marginTop:8}}>
+              Receipt attached{receiptTotal ? " \u00b7 total " + fmtPrice(receiptTotal) : ""}
+              {" \u00b7 "}
+              <a href="#" style={{color:"var(--accent)"}}
+                 onClick={(e)=>{ e.preventDefault(); setReceiptShow(s=>!s); }}>
+                {receiptShow ? "hide" : "show"}</a>
+              {" \u00b7 "}
+              <a href="#" style={{color:"var(--accent)"}}
+                 onClick={(e)=>{ e.preventDefault(); removeReceipt(); }}>remove</a>
+              {receiptShow && (
+                <div style={{marginTop:8}}>
+                  {receiptSlot.kind === "pending"
+                    ? <img src={receiptSlot.previewUrl} className="photo-img"
+                           style={{maxWidth:"100%", borderRadius:12}} />
+                    : <PhotoImg cfg={cfg} path={receiptSlot.path}
+                                style={{maxWidth:"100%", borderRadius:12}} />}
+                </div>
+              )}
+            </div>
+          )}
+          {receiptReview && (
+            <div className="modal-bg" onClick={()=> setReceiptReview(null)}>
+              <div className="modal" onClick={e=> e.stopPropagation()}>
+                <div className="modal-title">Which were yours?</div>
+                <div className="modal-body">
+                  <div className="row" style={{gap:8, marginBottom:10}}>
+                    <button className="btn ghost sm" onClick={()=>
+                      setReceiptReview(rr => rr.map(it => Object.assign({}, it, {checked:true})))}>
+                      Select all</button>
+                    <button className="btn ghost sm" onClick={()=>
+                      setReceiptReview(rr => rr.map(it => Object.assign({}, it, {checked:false})))}>
+                      Clear</button>
+                  </div>
+                  <div style={{maxHeight:"46vh", overflowY:"auto"}}>
+                    {receiptReview.map(it => (
+                      <div key={it.rid} className="row"
+                           style={{gap:9, alignItems:"center", padding:"7px 0",
+                                   borderBottom:"1px solid rgba(255,255,255,0.06)"}}
+                           onClick={()=> setReceiptReview(rr => rr.map(x =>
+                             x.rid === it.rid ? Object.assign({}, x, {checked:!x.checked}) : x))}>
+                        <div className={"verdict-btn" + (it.checked ? " on again" : "")}
+                             style={{flex:"none", minWidth:34, textAlign:"center"}}>
+                          {it.checked ? "\u2713" : ""}
+                        </div>
+                        <div style={{flex:1, minWidth:0}}>
+                          <div className="small" style={{fontWeight:600}}>
+                            {it.useName}{it.qty > 1 ? " \u00d7" + it.qty : ""}
+                          </div>
+                          {it.menu_match && it.menu_match !== it.name && (
+                            <div className="tiny faint">on the check: {it.name}</div>
+                          )}
+                        </div>
+                        <div className="small muted" style={{flex:"none"}}>
+                          {it.price != null ? fmtPrice(it.price) : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="row" style={{gap:9, marginTop:12}}>
+                  <button className="btn ghost" onClick={()=> setReceiptReview(null)}>Cancel</button>
+                  <button className="btn primary"
+                    disabled={!receiptReview.some(it => it.checked)}
+                    onClick={confirmReceiptDishes}>
+                    Add {receiptReview.filter(it => it.checked).length || ""} dish{receiptReview.filter(it => it.checked).length === 1 ? "" : "es"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {dishes.length > 0 && (
             <div style={{marginTop:6}}>
               <input ref={dishPhotoRef} type="file" accept="image/*"
@@ -5753,7 +6054,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
               {dishes.map((d,i)=>(
                 <div key={i} className="dish-item">
                   <div className="dish-row">
-                    <span className="dish-row-name">{d.name}</span>
+                    <span className="dish-row-name">{d.name}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}</span>
                     <div className="dish-verdict">
                       <button
                         className={"verdict-btn again" + (d.verdict==="again" ? " on" : "")}
