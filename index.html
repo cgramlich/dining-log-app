@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.46.0";
+const APP_VERSION   = "1.46.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5661,6 +5661,23 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     setDishInput("");
   }
   function removeDish(name){ setDishes(d => d.filter(x => x.name !== name)); }
+
+  // Rename a dish in place (e.g. the check printed "SPECIAL" and you want
+  // the real dish name). Keeps price, verdict, estimate, and photo intact.
+  const [editDish,setEditDish] = useState(null);   // null | {orig, draft, err}
+  function saveDishRename(){
+    if (!editDish) return;
+    const next = (editDish.draft || "").trim();
+    if (!next){ setEditDish(ed => Object.assign({}, ed, {err:"Name can\u2019t be empty."})); return; }
+    if (next !== editDish.orig && dishNames.indexOf(next) !== -1){
+      setEditDish(ed => Object.assign({}, ed, {err:"You already have a dish with that name."}));
+      return;
+    }
+    setDishes(d => d.map(x => x.name === editDish.orig
+      ? Object.assign({}, x, { name: next }) : x));
+    logMsg("VISIT","Renamed dish '" + editDish.orig + "' -> '" + next + "'");
+    setEditDish(null);
+  }
   // toggle a dish's verdict; tapping the active verdict again clears it
   function setVerdict(name, v){
     setDishes(d => d.map(x => x.name === name
@@ -5997,6 +6014,28 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
               )}
             </div>
           )}
+          {editDish && (
+            <div className="modal-bg" onClick={()=> setEditDish(null)}>
+              <div className="modal" onClick={e=> e.stopPropagation()}>
+                <div className="modal-title">Rename dish</div>
+                <div className="modal-body">
+                  <input className="input" value={editDish.draft} autoFocus
+                    onChange={e=> setEditDish(ed => Object.assign({}, ed, {draft:e.target.value, err:""}))}
+                    onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); saveDishRename(); } }} />
+                  {editDish.err && (
+                    <div className="small" style={{color:"#e7a99e", marginTop:6}}>{editDish.err}</div>
+                  )}
+                  <div className="tiny faint" style={{marginTop:6}}>
+                    Price, rating, and any estimate stay with the dish.
+                  </div>
+                </div>
+                <div className="row" style={{gap:9, marginTop:12}}>
+                  <button className="btn ghost" onClick={()=> setEditDish(null)}>Cancel</button>
+                  <button className="btn primary" onClick={saveDishRename}>Save</button>
+                </div>
+              </div>
+            </div>
+          )}
           {receiptReview && (
             <div className="modal-bg" onClick={()=> setReceiptReview(null)}>
               <div className="modal" onClick={e=> e.stopPropagation()}>
@@ -6054,7 +6093,10 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
               {dishes.map((d,i)=>(
                 <div key={i} className="dish-item">
                   <div className="dish-row">
-                    <span className="dish-row-name">{d.name}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}</span>
+                    <span className="dish-row-name"
+                      onClick={()=> setEditDish({ orig:d.name, draft:d.name, err:"" })}
+                      style={{cursor:"pointer"}}>
+                      {d.name}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}</span>
                     <div className="dish-verdict">
                       <button
                         className={"verdict-btn again" + (d.verdict==="again" ? " on" : "")}
