@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.46.1";
+const APP_VERSION   = "1.47.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -838,6 +838,22 @@ something you would order again, Skip for something you would not. This is the
 heart of the app - it is how you remember what is worth getting next time. The
 most recent verdict always wins, so you can change your mind later.
 
+**Rename a dish.** Tap any dish's name to rename it - useful when a
+free-typed name needs tidying up. The dish keeps its price, verdict, and any
+estimate. This works while logging and later, from any past visit.
+
+**Scan the check.** When the bill arrives, tap "Scan the check" (under the
+dish list) and snap a photo of the receipt. The app reads it and asks "Which
+were yours?" - tick the lines you ordered, and they are added as dishes with
+their prices. When a line matches the restaurant's digitized menu, the dish
+takes the menu's proper name, with a small note showing how it appeared on
+the check. The receipt itself stays attached to the visit behind a quiet
+"Show receipt" link - it never appears in your photo strip or Food passport.
+
+**Prices.** A dish can carry a price - typed in or picked up from a scanned
+check. Priced dishes show it beside the name in History and on the
+restaurant page.
+
 **Estimate a dish from a photo.** Under each dish is an "Estimate from a photo"
 button. When the food arrives, tap it and snap a picture of that dish. The app
 estimates the calories and macros for it. If that dish is on the restaurant's
@@ -1030,6 +1046,10 @@ many AI uses you have left. **Pro** removes the everyday limit, with a
 generous monthly allowance that normal use will not reach - scan menus and
 estimate plates freely.
 
+**Have a code?** If you were given a friends & family code, enter it on the
+Plan card in Settings ("Have a code?") and your account flips to Pro through
+the date shown - no payment needed.
+
 Upgrading, switching plans, and canceling all happen from the Plan card in
 Settings. Payments are handled securely by Stripe; the app never sees your
 card details. If you cancel, Pro keeps working until the end of the period you
@@ -1100,6 +1120,12 @@ you, or tell you that you "blew" anything. If the numbers ever start to feel
 like pressure rather than interest, ignore them - the dish ratings and the
 memories are the real point.
 
+-----
+
+*Maintainer note: this document is the source of truth for the app's in-app
+help. When features change, update this file first; the in-app Help screen and
+the (i) call-outs are meant to be rebuilt from it so the two never drift. This
+file (menucaptain-help.md) replaces dining-captain-help.md.*
 `;
 const CFG_KEY       = "dininglog_config";
 const DATA_KEY      = "dininglog_data";
@@ -1683,6 +1709,11 @@ async function buildRestaurantCardBlob({ name, sub, ratingAvg, address, loved, p
   cy += 72;
   ctx.fillStyle = FAINT; ctx.font = "500 26px Outfit, system-ui, sans-serif";
   ctx.fillText("Shared from MenuCaptain", PAD, cy);
+  // WHY: the card travels to people who have never heard of the app -
+  // give them the one string that gets them there.
+  cy += 44;
+  ctx.fillStyle = ACCENT; ctx.font = "600 26px Outfit, system-ui, sans-serif";
+  ctx.fillText("menucaptain.com", PAD, cy);
 
   const finalH = Math.min(MAXH, cy + 48);
   const out = document.createElement("canvas");
@@ -1747,6 +1778,7 @@ async function buildYearCardBlob(s, periodLabel){
 
   cy += 112;
   center("Made with MenuCaptain", "500 28px Outfit, system-ui, sans-serif", FAINT, 0);
+  center("menucaptain.com", "600 28px Outfit, system-ui, sans-serif", ACCENT, 44);
 
   const finalH = Math.min(MAXH, cy + 84);
   const out = document.createElement("canvas");
@@ -7788,6 +7820,10 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   const [busy,setBusy]       = useState(false);
   const [err,setErr]         = useState("");
   const [info,setInfo]       = useState("");
+  // Email that signed up but has not confirmed yet (this device/session).
+  // WHY: lets sign-in failures explain "confirm first" instead of the
+  // misleading "invalid password", and lets the Sign in button dim.
+  const [pendingConfirmEmail,setPendingConfirmEmail] = useState("");
 
   async function signIn(){
     setErr("");
@@ -7807,7 +7843,18 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       });
       const data = await res.json().catch(()=> ({}));
       if (res.status === 400 || res.status === 401){
-        setErr("Invalid email or password."); setBusy(false); return;
+        // WHY: Supabase reports an unconfirmed email as plain invalid
+        // credentials. If THIS device just signed this email up, the real
+        // reason is almost certainly the missing confirmation tap.
+        if (pendingConfirmEmail &&
+            email.trim().toLowerCase() === pendingConfirmEmail.toLowerCase()){
+          setErr("Your email may not be confirmed yet - tap the link we sent to " +
+                 email.trim() + " first. Already confirmed? Then double-check " +
+                 "your password.");
+        } else {
+          setErr("Invalid email or password.");
+        }
+        setBusy(false); return;
       }
       if (!res.ok || !data.access_token || !data.user){
         setErr("Sign-in failed (" + res.status + ")."); setBusy(false); return;
@@ -7850,7 +7897,16 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       const data = await res.json().catch(()=> ({}));
       if (!res.ok){
         const msg = data.msg || data.error_description || data.message || "";
-        setErr(msg || ("Could not create the account (" + res.status + ")."));
+        // WHY: Supabase throttles confirmation emails and returns raw
+        // plumbing copy ("you can only request this after N seconds").
+        // Translate it - the email almost certainly already went out.
+        if (/only request this after/i.test(msg)){
+          setErr("We just sent your confirmation email - check your inbox " +
+                 "(and spam). You can request another one in a minute.");
+          setPendingConfirmEmail(email.trim());
+        } else {
+          setErr(msg || ("Could not create the account (" + res.status + ")."));
+        }
         setBusy(false); return;
       }
       if (data.session && data.session.access_token && data.user){
@@ -7872,6 +7928,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       logMsg("AUTH","Account created - confirmation email sent");
       setBusy(false);
       setMode("signin");
+      setPendingConfirmEmail(email.trim());
       setInfo("Almost there - we sent a confirmation link to " + email.trim() +
               ". Tap it, then sign in here.");
     } catch(e){
@@ -7958,7 +8015,10 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           <span className="dot" style={{background:"var(--danger)"}} />{err}
         </div>
       )}
-      <button className="btn primary" disabled={busy} onClick={primary.fn}>
+      <button className="btn primary" disabled={busy} onClick={primary.fn}
+        style={(mode === "signin" && pendingConfirmEmail &&
+                email.trim().toLowerCase() === pendingConfirmEmail.toLowerCase())
+               ? {opacity:0.55} : undefined}>
         {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
         {busy ? primary.busyLabel : primary.label}
       </button>
