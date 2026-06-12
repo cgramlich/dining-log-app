@@ -572,7 +572,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.44.0";
+const APP_VERSION   = "1.45.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2322,7 +2322,8 @@ async function digitizeMenu(cfg, dataUrls){
         ...(await authHeaders(cfg)),
       },
       body:JSON.stringify({
-        model:VISION_MODEL,
+        task:"ocr_menu",          // server routes the model per task
+        model:VISION_MODEL,       // advisory fallback for older backends
         max_tokens:32000,
         messages:[{ role:"user", content:content }],
       }),
@@ -2518,6 +2519,7 @@ async function askMenu(cfg, restaurant, menu, visits, question){
         ...(await authHeaders(cfg)),
       },
       body:JSON.stringify({
+        task:"help_me_order",
         model:ASK_MODEL,
         max_tokens:700,
         messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
@@ -2616,6 +2618,7 @@ async function estimateNutrition(cfg, file){
         ...(await authHeaders(cfg)),
       },
       body:JSON.stringify({
+        task:"estimate_photo",
         model:VISION_MODEL,
         max_tokens:1500,
         messages:[{ role:"user", content:[
@@ -2690,6 +2693,7 @@ async function estimateItemNutrition(cfg, restaurantName, item){
         ...(await authHeaders(cfg)),
       },
       body:JSON.stringify({
+        task:"estimate_text",
         model:ASK_MODEL,
         max_tokens:700,
         messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
@@ -6591,7 +6595,7 @@ function PublishBuilder({restaurants, visits, cfg, onClose}){
         <div className="pub-make">
           <div className="small muted">{selCount} selected</div>
           <button className="btn primary sm" disabled={!selCount || makeBusy} onClick={make}>
-            {makeBusy ? "Creating..." : (link ? "Update link" : "Create link")}
+            {makeBusy ? "Creating..." : (link ? "Refresh link after changes" : "Create link")}
           </button>
         </div>
 
