@@ -615,7 +615,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.49.0";
+const APP_VERSION   = "1.49.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7243,12 +7243,15 @@ function PublishedMenu({data}){
     if (!pickNames.length) return;
     const rest = data.r || "the menu";
     const text = "My picks from " + rest + ": " + pickNames.join(", ");
+    // Text only, no url: the recipient's share-sheet link would resolve to the
+    // root ?menu= app shell (generic preview card), which adds noise. The text
+    // already names the restaurant and the dishes, so it stands on its own.
     try {
       if (navigator.share){
-        await navigator.share({ title:"My picks", text, url: location.href });
+        await navigator.share({ title:"My picks", text });
         setSent(true);
       } else {
-        await navigator.clipboard.writeText(text + "  " + location.href);
+        await navigator.clipboard.writeText(text);
         setSent(true);
       }
     } catch(e){ /* user cancelled - leave the tray as-is */ }
