@@ -615,7 +615,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.50.0";
+const APP_VERSION   = "1.50.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1004,6 +1004,38 @@ by month with the newest first. Tap any photo to jump straight to that visit.
 Think of it as the picture-first companion to History: History is the detailed
 log, the passport is the gallery. The first time you open it, photos that are
 not cached yet load over a few seconds, and are quick to view after that.
+
+-----
+
+## Your badges
+
+Open **Settings** to find **Your badges** - a small set of stamps the app
+awards as you use it. They are milestones, not a scoreboard: there is nothing
+to chase and nothing you can lose. A badge you have earned shows in full color
+with a note of what you did; one you have not earned yet sits quietly greyed
+out with a hint of how to get it.
+
+The starting set:
+
+- **First Scan** - scan your first menu.
+- **Ten Visits** - log ten visits.
+- **Five Cities** - eat in five different cities.
+- **First List** - publish a list.
+- **Spread the Word** - share the app five times (see below).
+
+When you earn one, a brief note slides in to mark the moment. Anything you
+earned before badges arrived simply shows as already earned, without a fuss.
+
+-----
+
+## Share the Love
+
+Just below your badges is a **Share the Love** button. If you are enjoying
+MenuCaptain, tap it to pass the app along to someone who would like it too - it
+opens your phone's share sheet with a link to a short page that shows them what
+MenuCaptain is. Do that five times and you earn the Spread the Word badge. That
+is the whole of it: no one to invite, no rewards beyond the stamp - just handing
+a friend something you like.
 
 -----
 
@@ -3106,6 +3138,7 @@ function Icon({name, size, color}){
     share:   <g><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></g>,
     sparkle: <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/>,
     heart:   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
+    nodes:   <g><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5L15.4 6.5"/><path d="M8.6 13.5L15.4 17.5"/></g>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
 }
@@ -3325,8 +3358,9 @@ const BADGES = [
   { id:"first-list",  name:"First List",  icon:"share",
     earnedText:"You published your first list.",
     lockedText:"Publish a list to earn this." },
-  // name is "Shared the" + a heart Icon (see nameHeart) -> reads "Shared the [heart]"
-  { id:"share-love",  name:"Shared the",  icon:"heart",  nameHeart:true,
+  // "Spread the Word" badge: earned by tapping Share the Love >= 5 times.
+  // Uses the share-nodes glyph (the heart belongs to the function, not the badge).
+  { id:"share-love",  name:"Spread the Word",  icon:"nodes",
     earnedText:"You've spread the word five times.",
     lockedText:"Share the app five times to earn this." },
 ];
@@ -7981,17 +8015,9 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         </div>
       </div>
 
-      <div className="card" style={{marginTop:16}}>
-        <div style={{fontWeight:600, display:"flex", alignItems:"center", gap:6}}>
-          Share the Love <Icon name="heart" size={15} color="var(--accent)" />
-        </div>
-        <div className="tiny faint" style={{marginTop:3}}>
-          Loving MenuCaptain? Send it to someone who'd get it.
-        </div>
-        <button className="btn ghost sm" style={{marginTop:10}} onClick={onShareApp}>
-          Share MenuCaptain
-        </button>
-      </div>
+      <button className="btn ghost" style={{marginTop:16, width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:6}} onClick={onShareApp}>
+        Share the Love <Icon name="heart" size={16} color="var(--accent)" />
+      </button>
 
       <div className="set-group" style={{marginTop:4}}>Setup</div>
       <div className="card">
