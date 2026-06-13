@@ -100,6 +100,16 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     .card.tap{transition:transform 0.08s ease;}
     .card.tap:active{transform:scale(0.985);}
+    /* ---- badges ---- */
+    .badge-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+    .badge{ background:var(--surface-2); border:1px solid var(--line); border-radius:13px;
+            padding:12px 11px; display:flex; flex-direction:column; gap:5px; }
+    .badge.locked{ opacity:0.5; }
+    .badge-ic{ width:34px; height:34px; border-radius:9px; display:flex; align-items:center;
+               justify-content:center; background:rgba(224,118,74,0.12); }
+    .badge.locked .badge-ic{ background:var(--bg-2); }
+    .badge-name{ font-weight:600; font-size:14px; color:var(--text); display:flex; align-items:center; }
+    .badge-sub{ font-size:12px; color:var(--text-dim); line-height:1.35; }
 
     .row{display:flex; align-items:center; gap:12px;}
     .between{display:flex; align-items:center; justify-content:space-between; gap:10px;}
@@ -572,7 +582,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.47.0";
+const APP_VERSION   = "1.48.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2924,6 +2934,7 @@ function Icon({name, size, color}){
     search:  <g><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.2-4.2"/></g>,
     share:   <g><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></g>,
     sparkle: <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/>,
+    heart:   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
 }
@@ -3125,6 +3136,57 @@ function applyUpdate(version){
   location.replace(base + "?v=" + encodeURIComponent(version || Date.now()));
 }
 
+// ---------------------------------------------------------------------------
+// Badges. Earned status is DERIVED live from the user's own data (no stored
+// badge state) - same philosophy as the Year in Food recap. Voice A copy. The
+// heart in "Share the Love" renders as an SVG Icon, never an emoji character.
+// ---------------------------------------------------------------------------
+const BADGES = [
+  { id:"first-scan",  name:"First Scan",  icon:"camera",
+    earnedText:"You scanned your first menu.",
+    lockedText:"Scan a menu to earn this." },
+  { id:"ten-visits",  name:"Ten Visits",  icon:"book",
+    earnedText:"Ten visits logged.",
+    lockedText:"Log ten visits." },
+  { id:"five-cities", name:"Five Cities", icon:"pin",
+    earnedText:"You've eaten in five different cities.",
+    lockedText:"Eat in five different cities." },
+  { id:"first-list",  name:"First List",  icon:"share",
+    earnedText:"You published your first list.",
+    lockedText:"Publish a list to earn this." },
+  // name is "Share the" + a heart Icon (see nameHeart) -> reads "Share the [heart]"
+  { id:"share-love",  name:"Share the",   icon:"heart",  nameHeart:true,
+    earnedText:"You've spread the word five times.",
+    lockedText:"Share the app five times to earn this." },
+];
+
+// Pure: which badge ids are currently earned, computed from existing data.
+function earnedBadgeIds({restaurants, visits, menus, lists, meta}){
+  const ids = [];
+  // first-scan: any menu exists (menus is keyed by restaurant id -> array).
+  const menuCount = Object.keys(menus || {}).reduce(
+    (n, rid)=> n + ((menus[rid] || []).length), 0);
+  if (menuCount >= 1) ids.push("first-scan");
+  // ten-visits
+  if ((visits || []).length >= 10) ids.push("ten-visits");
+  // five-cities: distinct r.location among restaurants with >=1 visit - the
+  // SAME rule the Year in Food recap uses for "cities you ate in".
+  const restMap = {};
+  (restaurants || []).forEach(r => { if (r && r.id) restMap[r.id] = r; });
+  const cities = {};
+  (visits || []).forEach(v => {
+    const r = (v && v.restaurant_id) ? restMap[v.restaurant_id] : null;
+    const c = (r && r.location) ? r.location.trim() : "";
+    if (c) cities[c] = true;
+  });
+  if (Object.keys(cities).length >= 5) ids.push("five-cities");
+  // first-list: any saved published list exists
+  if ((lists || []).length >= 1) ids.push("first-list");
+  // share-love: tapped "Share the app" >= 5 times
+  if (((meta || {}).app_shares || 0) >= 5) ids.push("share-love");
+  return ids;
+}
+
 function App(){
   const [config, setConfig]     = useState(() => loadConfig());
   const [ready, setReady]       = useState(false);
@@ -3135,6 +3197,9 @@ function App(){
   const [menus, setMenus]             = useState({});
   const [visits, setVisits]           = useState([]);
   const [locations, setLocations]     = useState([]);      // array of city names
+  const [lists, setLists]             = useState([]);      // saved published lists
+  const [meta, setMeta]               = useState({});      // small per-user state (app_shares)
+  const [auxLoaded, setAuxLoaded]     = useState(false);   // lists+meta fetched (gates badge eval)
   const [shas, setShas]               = useState({});      // path -> sha
   const [dirty, setDirty]             = useState({});      // logical name -> bool (unpushed)
 
@@ -3213,8 +3278,99 @@ function App(){
       window.__CHECKOUT_RESULT = null;
     }
     syncFromGitHub(cfg, cache);
+    // Load lists + meta. These are kept OUT of the main sync/merge engine
+    // (their own light state) and back the saved-list records, the First List
+    // and Share the Love badges, and the share counter. auxLoaded gates badge
+    // evaluation so we never seed/toast before this data has arrived.
+    (async ()=>{
+      try {
+        const lr = await ghGetFile(cfg, "data/lists.json");
+        setLists(Array.isArray(lr.data) ? lr.data : []);
+      } catch(e){ logMsg("WARN","lists load failed: " + e.message); }
+      try {
+        const mr = await ghGetFile(cfg, "data/meta.json");
+        setMeta((mr.data && typeof mr.data === "object" && !Array.isArray(mr.data)) ? mr.data : {});
+      } catch(e){ logMsg("WARN","meta load failed: " + e.message); }
+      setAuxLoaded(true);
+    })();
     // eslint-disable-next-line
   },[]);
+
+  /* ---- badges: toast the moment one is newly earned -------------------- */
+  // Earned status is derived from data; we persist only a per-device list of
+  // ids already seen (dininglog_badges_seen). The FIRST evaluation each session
+  // silently establishes a baseline (acknowledges everything already earned -
+  // including the very first run, and any stale-cache catch-up), so we never
+  // toast for old milestones. Only badges earned LATER in the session toast.
+  const badgeBaseline = useRef(false);
+  useEffect(()=>{
+    if (!ready || !auxLoaded) return;
+    let seen;
+    try { seen = JSON.parse(localStorage.getItem("dininglog_badges_seen") || "[]"); }
+    catch(e){ seen = []; }
+    if (!Array.isArray(seen)) seen = [];
+    const earned = earnedBadgeIds({ restaurants, visits, menus, lists, meta });
+    if (!badgeBaseline.current){
+      const merged = seen.slice();
+      earned.forEach(id => { if (merged.indexOf(id) === -1) merged.push(id); });
+      try { localStorage.setItem("dininglog_badges_seen", JSON.stringify(merged)); } catch(e){}
+      badgeBaseline.current = true;
+      logMsg("BADGES","Baseline set (" + earned.length + " earned, no toast)");
+      return;
+    }
+    const fresh = earned.filter(id => seen.indexOf(id) === -1);
+    if (fresh.length){
+      const names = fresh.map(id => {
+        const b = BADGES.find(x => x.id === id);
+        return b ? (b.nameHeart ? "Share the Love" : b.name) : id;
+      });
+      flash("Badge earned - " + names.join(", "));
+      logMsg("BADGES","Newly earned: " + fresh.join(", "));
+      const next = seen.concat(fresh);
+      try { localStorage.setItem("dininglog_badges_seen", JSON.stringify(next)); } catch(e){}
+    }
+  }, [ready, auxLoaded, restaurants, visits, menus, lists, meta]);
+
+  /* ---- saved lists + meta (direct persistence, not the sync engine) ---- */
+  async function saveLists(next){
+    setLists(next);
+    try { await ghPutFile(config, "data/lists.json", next, null); logMsg("LISTS","Saved " + next.length + " lists"); }
+    catch(e){ logMsg("ERROR","lists save failed: " + e.message); flash("Could not save the list"); }
+  }
+  async function saveMeta(next){
+    setMeta(next);
+    try { await ghPutFile(config, "data/meta.json", next, null); logMsg("META","Saved meta"); }
+    catch(e){ logMsg("ERROR","meta save failed: " + e.message); }
+  }
+  // Called by PublishBuilder after a deliberate publish succeeds. Dedup by url
+  // so re-publishing the same list updates it instead of adding a duplicate.
+  function handleListPublished(rec){
+    if (!rec || !rec.url) return;
+    const idx = (lists || []).findIndex(l => l.url === rec.url);
+    let next;
+    if (idx >= 0){
+      next = lists.slice();
+      next[idx] = Object.assign({}, next[idx], rec,
+        { created_at: next[idx].created_at, updated_at: new Date().toISOString() });
+    } else {
+      next = (lists || []).concat([rec]);
+    }
+    saveLists(next);
+    logMsg("LISTS", (idx >= 0 ? "Updated" : "Added") + " published list: " + (rec.title || "(untitled)"));
+  }
+  // Called by the Share the Love card. Counts taps (a confirmed send cannot be
+  // detected from the share sheet); increments meta.app_shares.
+  async function shareApp(){
+    const shareUrl = "https://menucaptain.com";
+    const txt = "I'm using MenuCaptain to remember every great meal - thought you'd like it.";
+    try {
+      if (navigator.share){ await navigator.share({ title:"MenuCaptain", text:txt, url:shareUrl }); }
+      else { await navigator.clipboard.writeText(shareUrl); flash("Link copied - share it with someone"); }
+    } catch(e){ /* user cancelled the share sheet - still counts as intent */ }
+    const nextMeta = Object.assign({}, meta, { app_shares: ((meta || {}).app_shares || 0) + 1 });
+    saveMeta(nextMeta);
+    logMsg("SHARE","app_shares -> " + nextMeta.app_shares);
+  }
 
   /* ---- cache writer ---------------------------------------- */
   function persist(next){
@@ -3528,6 +3684,11 @@ function App(){
             onResync={retrySync}
             locations={locations}
             restaurants={restaurants}
+            visits={visits}
+            menus={menus}
+            lists={lists}
+            meta={meta}
+            onShareApp={shareApp}
             onAddLocation={(name)=>{
               const trimmed = (name || "").trim();
               if (!trimmed) return;
@@ -3898,6 +4059,7 @@ function App(){
 
       {overlay && overlay.type === "publish" && (
         <PublishBuilder restaurants={restaurants} visits={visits} cfg={config}
+          onPublished={handleListPublished}
           onClose={()=> setOverlay(null)} />
       )}
 
@@ -6871,7 +7033,7 @@ function PublishedList({data}){
   );
 }
 
-function PublishBuilder({restaurants, visits, cfg, onClose}){
+function PublishBuilder({restaurants, visits, cfg, onPublished, onClose}){
   const [title,setTitle] = useState("");
   const [sel,setSel] = useState({});
   const [q,setQ] = useState("");
@@ -6932,6 +7094,23 @@ function PublishBuilder({restaurants, visits, cfg, onClose}){
       } else {
         setLink(longUrl);
         setShortMsg("");
+      }
+      // Save this list to the user's saved lists (deliberate publishes only;
+      // the one-tap city share does NOT save). place_ids come from the live
+      // selection, since the encoded blob is name-based and carries no ids.
+      const finalUrl = short || longUrl;
+      if (onPublished){
+        onPublished({
+          id: "list_" + Math.random().toString(36).slice(2, 10),
+          title: title.trim() || "Untitled list",
+          place_ids: selected.map(r => r.id),
+          encoded: enc,
+          url: finalUrl,
+          count: selected.length,
+          names: selected.slice(0, 8).map(r => r.name),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
       }
     } finally {
       setMakeBusy(false);
@@ -7412,7 +7591,7 @@ function ProCard({config}){
 }
 
 function SettingsView({config, onEdit, counts, lastSync, onResync,
-                       locations, restaurants,
+                       locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
@@ -7453,9 +7632,44 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
   const [newLoc,setNewLoc] = useState("");
   const [editing,setEditing] = useState(null);    // {name, draft}
   const usageCount = (name)=> (restaurants || []).filter(r => r.location === name).length;
+  const earnedIds = earnedBadgeIds({ restaurants, visits, menus, lists, meta });
 
   return (
     <div>
+      <div className="set-group" style={{marginTop:6}}>Your badges</div>
+      <div className="card">
+        <div className="badge-grid">
+          {BADGES.map(b => {
+            const got = earnedIds.indexOf(b.id) !== -1;
+            const col = got ? "var(--accent)" : "var(--text-faint)";
+            return (
+              <div key={b.id} className={"badge" + (got ? "" : " locked")}>
+                <div className="badge-ic"><Icon name={b.icon} size={22} color={col} /></div>
+                <div className="badge-name">
+                  {b.name}
+                  {b.nameHeart ? <span style={{marginLeft:4, display:"inline-flex"}}>
+                    <Icon name="heart" size={14} color={col} /></span> : null}
+                </div>
+                <div className="badge-sub">{got ? b.earnedText : b.lockedText}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="set-group">Share the Love</div>
+      <div className="card">
+        <div style={{fontWeight:600, display:"flex", alignItems:"center", gap:6}}>
+          Spread the word <Icon name="heart" size={15} color="var(--accent)" />
+        </div>
+        <div className="tiny faint" style={{marginTop:3}}>
+          Loving MenuCaptain? Send it to someone who'd get it.
+        </div>
+        <button className="btn ghost sm" style={{marginTop:10}} onClick={onShareApp}>
+          Share MenuCaptain
+        </button>
+      </div>
+
       <div className="set-group" style={{marginTop:4}}>Setup</div>
       <div className="card">
         <div className="between">
