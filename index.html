@@ -582,7 +582,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.48.0";
+const APP_VERSION   = "1.48.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7657,10 +7657,9 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         </div>
       </div>
 
-      <div className="set-group">Share the Love</div>
-      <div className="card">
+      <div className="card" style={{marginTop:16}}>
         <div style={{fontWeight:600, display:"flex", alignItems:"center", gap:6}}>
-          Spread the word <Icon name="heart" size={15} color="var(--accent)" />
+          Share the Love <Icon name="heart" size={15} color="var(--accent)" />
         </div>
         <div className="tiny faint" style={{marginTop:3}}>
           Loving MenuCaptain? Send it to someone who'd get it.
