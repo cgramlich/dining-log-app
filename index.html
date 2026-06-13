@@ -582,7 +582,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.48.1";
+const APP_VERSION   = "1.48.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3154,8 +3154,8 @@ const BADGES = [
   { id:"first-list",  name:"First List",  icon:"share",
     earnedText:"You published your first list.",
     lockedText:"Publish a list to earn this." },
-  // name is "Share the" + a heart Icon (see nameHeart) -> reads "Share the [heart]"
-  { id:"share-love",  name:"Share the",   icon:"heart",  nameHeart:true,
+  // name is "Shared the" + a heart Icon (see nameHeart) -> reads "Shared the [heart]"
+  { id:"share-love",  name:"Shared the",  icon:"heart",  nameHeart:true,
     earnedText:"You've spread the word five times.",
     lockedText:"Share the app five times to earn this." },
 ];
@@ -3322,7 +3322,7 @@ function App(){
     if (fresh.length){
       const names = fresh.map(id => {
         const b = BADGES.find(x => x.id === id);
-        return b ? (b.nameHeart ? "Share the Love" : b.name) : id;
+        return b ? (b.nameHeart ? "Shared the Love" : b.name) : id;
       });
       flash("Badge earned - " + names.join(", "));
       logMsg("BADGES","Newly earned: " + fresh.join(", "));
