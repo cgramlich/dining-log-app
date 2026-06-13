@@ -110,6 +110,14 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .badge.locked .badge-ic{ background:var(--bg-2); }
     .badge-name{ font-weight:600; font-size:14px; color:var(--text); display:flex; align-items:center; }
     .badge-sub{ font-size:12px; color:var(--text-dim); line-height:1.35; }
+    /* Discover tab: each badge is a row - stamp + text on the left, a quiet
+       action button on the right (the "doorway" into what the badge is about). */
+    .badge-row{ display:flex; align-items:center; gap:12px; padding:11px 2px; }
+    .badge-row + .badge-row{ border-top:1px solid var(--line); }
+    .badge-row.locked{ opacity:0.5; }
+    .badge-row.locked .badge-ic{ background:var(--bg-2); }
+    .badge-rtx{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+    .badge-act{ flex:none; font-size:12.5px; padding:7px 11px; }
 
     .row{display:flex; align-items:center; gap:12px;}
     .between{display:flex; align-items:center; justify-content:space-between; gap:10px;}
@@ -615,7 +623,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.50.3";
+const APP_VERSION   = "1.51.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -764,12 +772,14 @@ just your email and password - your data follows your account.
 
 ## Getting around
 
-There is a bar across the bottom of the screen with four spots:
+There is a bar across the bottom of the screen with five spots:
 
 - **History** - everything you have logged, newest first.
 - **Places** - your list of restaurants.
 - **The plus (+) button** - the quick-action button. Tap it to log a visit,
   add a restaurant, or scan a menu.
+- **Discover** - the home for your badges, Your Year in Food, and your Food
+  passport.
 - **Settings** - your account and plan, the update check, this user guide, and
   app info.
 
@@ -967,7 +977,7 @@ again does not count against it.
 
 ## Your Year in Food
 
-Open **Your Year in Food** from the top of your **History** tab, or from
+Open **Your Year in Food** from the **Discover** tab, or from
 **Settings** - either way you get a recap built entirely from what you have
 logged - a calm look back rather than a scoreboard.
 
@@ -997,7 +1007,7 @@ app renders the year you are viewing onto a card you can text or post.
 ## Your food passport
 
 **Food passport** is a photo gallery of everywhere you have eaten - open it from
-the top of your **History** tab, or from **Settings**. Every photo you have
+the **Discover** tab, or from **Settings**. Every photo you have
 added, whether to a whole visit or to a single dish, shows up as a tile, grouped
 by month with the newest first. Tap any photo to jump straight to that visit.
 
@@ -1009,11 +1019,14 @@ not cached yet load over a few seconds, and are quick to view after that.
 
 ## Your badges
 
-Open **Settings** to find **Your badges** - a small set of stamps the app
-awards as you use it. They are milestones, not a scoreboard: there is nothing
+Open the **Discover** tab to find **Your badges** - a small set of stamps the
+app awards as you use it. They are milestones, not a scoreboard: there is nothing
 to chase and nothing you can lose. A badge you have earned shows in full color
 with a note of what you did; one you have not earned yet sits quietly greyed
-out with a hint of how to get it.
+out with a hint of how to get it. Next to each badge is a quiet button that
+opens the thing it is about - tap **Scan a menu** beside First Scan, **Publish a
+list** beside First List, and so on - so a badge doubles as a shortcut, never a
+nag.
 
 The starting set:
 
@@ -1030,7 +1043,8 @@ earned before badges arrived simply shows as already earned, without a fuss.
 
 ## Share the Love
 
-Just below your badges is a **Share the Love** button. If you are enjoying
+In the **Discover** tab, the **Five Shares** badge sits beside a **Share the
+Love** button. If you are enjoying
 MenuCaptain, tap it to pass the app along to someone who would like it too - it
 opens your phone's share sheet with a link to a short page that shows them what
 MenuCaptain is. Do that five times and you earn the Five Shares badge. That
@@ -3139,6 +3153,7 @@ function Icon({name, size, color}){
     sparkle: <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/>,
     heart:   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
     nodes:   <g><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5L15.4 6.5"/><path d="M8.6 13.5L15.4 17.5"/></g>,
+    compass: <g><circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2.1 4.7-4.7 2.1 2.1-4.7z"/></g>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
 }
@@ -3862,8 +3877,6 @@ function App(){
         {tab === "history" && (
           <HistoryView visits={visits} restaurantById={restaurantById}
             cfg={config} syncing={sync.status === "busy"}
-            onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
-            onOpenPassport={()=> setOverlay({ type:"passport" })}
             onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
         )}
         {tab === "restaurants" && (
@@ -3943,6 +3956,18 @@ function App(){
             updateVersion={update ? update.version : null}
             onApplyUpdate={()=> applyUpdate(update ? update.version : null)} />
         )}
+        {tab === "discover" && (
+          <DiscoverView
+            restaurants={restaurants} visits={visits} menus={menus}
+            lists={lists} meta={meta}
+            onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
+            onOpenPassport={()=> setOverlay({ type:"passport" })}
+            onScanMenu={()=> setOverlay({ type:"scanMenu" })}
+            onLogVisit={()=> setOverlay({ type:"logVisit" })}
+            onAddPlace={()=> setOverlay({ type:"addRestaurant" })}
+            onPublishList={()=> setOverlay({ type:"publish" })}
+            onShareApp={shareApp} />
+        )}
       </div>
 
       {/* bottom navigation */}
@@ -3955,6 +3980,9 @@ function App(){
         </button>
         <button onClick={()=> setSheet(true)}>
           <span className="add"><Icon name="plus" size={24} color="#1b1714" /></span>
+        </button>
+        <button className={tab==="discover" ? "on" : ""} onClick={()=> setTab("discover")}>
+          <span className="navicon"><Icon name="compass" size={23} /></span>Discover
         </button>
         <button className={tab==="settings" ? "on" : ""} onClick={()=> setTab("settings")}>
           <span className="navicon"><Icon name="gear" size={23} /></span>Settings
@@ -4348,6 +4376,74 @@ function SearchBar({value, onChange, placeholder}){
           <Icon name="close" size={14} color="#80715f" />
         </button>
       ) : null}
+    </div>
+  );
+}
+
+// Discover tab: the calm home for the recap surfaces (Year in Food, Food
+// passport) and the badges. Each badge is paired with a quiet "doorway" action
+// that opens the thing it is about - an inviting button, never a "go earn this"
+// nag. Earned state is derived the same pure way Settings used to compute it.
+function DiscoverView({ restaurants, visits, menus, lists, meta,
+                        onOpenYearInFood, onOpenPassport,
+                        onScanMenu, onLogVisit, onAddPlace, onPublishList, onShareApp }){
+  const earnedIds = earnedBadgeIds({ restaurants, visits, menus, lists, meta });
+  // Badge id -> its doorway action. Keep labels matching the real entry points.
+  const ACTIONS = {
+    "first-scan":  { label:"Scan a menu",    on:onScanMenu },
+    "ten-visits":  { label:"Log a visit",    on:onLogVisit },
+    "five-cities": { label:"Add a place",    on:onAddPlace },
+    "first-list":  { label:"Publish a list", on:onPublishList },
+    "share-love":  { label:"Share the Love", on:onShareApp, heart:true },
+  };
+  return (
+    <div>
+      <div className="set-group" style={{marginTop:6}}>Your journey</div>
+      <div className="yif-entry tap" onClick={onOpenYearInFood}>
+        <span className="yif-entry-ic"><Icon name="sparkle" size={16} color="var(--accent)" /></span>
+        <span className="yif-entry-tx">
+          <span className="yif-entry-t">Your Year in Food</span>
+          <span className="yif-entry-s">A look back at your places and dishes</span>
+        </span>
+        <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+          <Icon name="back" size={15} color="var(--text-faint)" />
+        </span>
+      </div>
+      <div className="yif-entry tap" onClick={onOpenPassport}>
+        <span className="yif-entry-ic"><Icon name="image" size={16} color="var(--accent)" /></span>
+        <span className="yif-entry-tx">
+          <span className="yif-entry-t">Food passport</span>
+          <span className="yif-entry-s">A photo timeline of your visits</span>
+        </span>
+        <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+          <Icon name="back" size={15} color="var(--text-faint)" />
+        </span>
+      </div>
+
+      <div className="set-group" style={{marginTop:18}}>Your badges</div>
+      <div className="card">
+        {BADGES.map(b => {
+          const got = earnedIds.indexOf(b.id) !== -1;
+          const col = got ? "var(--accent)" : "var(--text-faint)";
+          const act = ACTIONS[b.id];
+          return (
+            <div key={b.id} className={"badge-row" + (got ? "" : " locked")}>
+              <div className="badge-ic"><Icon name={b.icon} size={22} color={col} /></div>
+              <div className="badge-rtx">
+                <div className="badge-name">{b.name}</div>
+                <div className="badge-sub">{got ? b.earnedText : b.lockedText}</div>
+              </div>
+              {act ? (
+                <button className="btn ghost badge-act" onClick={act.on}>
+                  {act.label}
+                  {act.heart ? <span style={{marginLeft:5, display:"inline-flex"}}>
+                    <Icon name="heart" size={14} color="var(--accent)" /></span> : null}
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -7992,37 +8088,9 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
   const [newLoc,setNewLoc] = useState("");
   const [editing,setEditing] = useState(null);    // {name, draft}
   const usageCount = (name)=> (restaurants || []).filter(r => r.location === name).length;
-  const earnedIds = earnedBadgeIds({ restaurants, visits, menus, lists, meta });
-
   return (
     <div>
-      <div className="set-group" style={{marginTop:6}}>Your badges</div>
-      <div className="card">
-        <div className="badge-grid">
-          {BADGES.map(b => {
-            const got = earnedIds.indexOf(b.id) !== -1;
-            const col = got ? "var(--accent)" : "var(--text-faint)";
-            return (
-              <div key={b.id} className={"badge" + (got ? "" : " locked")}>
-                <div className="badge-ic"><Icon name={b.icon} size={22} color={col} /></div>
-                <div className="badge-name">
-                  {b.name}
-                  {b.nameHeart ? <span style={{marginLeft:4, display:"inline-flex"}}>
-                    <Icon name="heart" size={14} color={col} /></span> : null}
-                </div>
-                <div className="badge-sub">{got ? b.earnedText : b.lockedText}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="set-group" style={{marginTop:18}}>Enjoying MenuCaptain?</div>
-      <button className="btn ghost" style={{marginTop:6, width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:6}} onClick={onShareApp}>
-        Share the Love <Icon name="heart" size={16} color="var(--accent)" />
-      </button>
-
-      <div className="set-group" style={{marginTop:4}}>Setup</div>
+      <div className="set-group" style={{marginTop:6}}>Setup</div>
       <div className="card">
         <div className="between">
           <div>
