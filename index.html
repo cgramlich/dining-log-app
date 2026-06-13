@@ -615,7 +615,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.49.1";
+const APP_VERSION   = "1.50.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1018,6 +1018,32 @@ save it to Photos, or post it.
 It is just a picture, so the person you send it to does not need the app or any
 access to your data - they simply get your recommendation. If a place has no
 photo yet, the card uses a colored header instead.
+
+-----
+
+## Sharing a menu
+
+Once a restaurant has a digitized menu, you can send that menu to someone who
+does not have MenuCaptain at all - handy for the "I am at the restaurant, what
+do you want me to bring home?" moment.
+
+Open the menu and tap the **share** icon in the row next to re-scan and delete.
+(You reach that row by tapping a menu, or by tapping **Manage** on a place that
+has just one menu - and on a single-menu place there is also a quick **Share**
+button right beside **Manage**.) The app builds a small public page for the menu
+and hands the link to your share sheet, so you can text it like any other link.
+
+Whoever you send it to opens the menu right in their browser - no app, no
+account, no access to anything else of yours. They see the restaurant's menu:
+the sections, the dishes, descriptions, prices, and tags. They can **tap the
+dishes they would like**, which gather into a "your picks" strip at the bottom,
+and then tap **Send my picks** to fire their own share sheet with the list ready
+to text back to you - "My picks from [the restaurant]: ...". No typing, no
+account, just a quick answer back.
+
+The shared page is only the menu - your own private calorie estimates are never
+part of it. As with a published list, treat the link as public: anyone who has
+it can open that menu page.
 
 -----
 
@@ -3506,7 +3532,7 @@ function App(){
   // Called by the Share the Love card. Counts taps (a confirmed send cannot be
   // detected from the share sheet); increments meta.app_shares.
   async function shareApp(){
-    const shareUrl = "https://menucaptain.com";
+    const shareUrl = "https://menucaptain.com/welcome.html";
     const txt = "I'm using MenuCaptain to remember every great meal - thought you'd like it.";
     try {
       if (navigator.share){ await navigator.share({ title:"MenuCaptain", text:txt, url:shareUrl }); }
