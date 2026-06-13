@@ -102,8 +102,8 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .card.tap:active{transform:scale(0.985);}
     /* ---- badges ---- */
     .badge-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
-    .badge{ background:var(--surface-2); border:1px solid var(--line); border-radius:13px;
-            padding:12px 11px; display:flex; flex-direction:column; gap:5px; }
+    .badge{ background:transparent; border:none; border-radius:0;
+            padding:2px 0; display:flex; flex-direction:column; gap:5px; }
     .badge.locked{ opacity:0.5; }
     .badge-ic{ width:34px; height:34px; border-radius:9px; display:flex; align-items:center;
                justify-content:center; background:rgba(224,118,74,0.12); }
@@ -615,7 +615,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.50.2";
+const APP_VERSION   = "1.50.3";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1021,7 +1021,7 @@ The starting set:
 - **Ten Visits** - log ten visits.
 - **Five Cities** - eat in five different cities.
 - **First List** - publish a list.
-- **Spread the Word** - share the app five times (see below).
+- **Five Shares** - share the app five times (see below).
 
 When you earn one, a brief note slides in to mark the moment. Anything you
 earned before badges arrived simply shows as already earned, without a fuss.
@@ -1033,7 +1033,7 @@ earned before badges arrived simply shows as already earned, without a fuss.
 Just below your badges is a **Share the Love** button. If you are enjoying
 MenuCaptain, tap it to pass the app along to someone who would like it too - it
 opens your phone's share sheet with a link to a short page that shows them what
-MenuCaptain is. Do that five times and you earn the Spread the Word badge. That
+MenuCaptain is. Do that five times and you earn the Five Shares badge. That
 is the whole of it: no one to invite, no rewards beyond the stamp - just handing
 a friend something you like.
 
@@ -3358,10 +3358,12 @@ const BADGES = [
   { id:"first-list",  name:"First List",  icon:"share",
     earnedText:"You published your first list.",
     lockedText:"Publish a list to earn this." },
-  // "Spread the Word" badge: earned by tapping Share the Love >= 5 times.
+  // "Five Shares" badge: earned by tapping Share the Love >= 5 times.
   // Uses the share-nodes glyph (the heart belongs to the function, not the badge).
-  { id:"share-love",  name:"Spread the Word",  icon:"nodes",
-    earnedText:"You've spread the word five times.",
+  // Name is a count+noun milestone (like Five Cities) so it reads as earned
+  // status, not an instruction - it sits in the same screen as the real button.
+  { id:"share-love",  name:"Five Shares",  icon:"nodes",
+    earnedText:"You've shared the app five times.",
     lockedText:"Share the app five times to earn this." },
 ];
 
@@ -8015,7 +8017,8 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         </div>
       </div>
 
-      <button className="btn ghost" style={{marginTop:16, width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:6}} onClick={onShareApp}>
+      <div className="set-group" style={{marginTop:18}}>Enjoying MenuCaptain?</div>
+      <button className="btn ghost" style={{marginTop:6, width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:6}} onClick={onShareApp}>
         Share the Love <Icon name="heart" size={16} color="var(--accent)" />
       </button>
 
