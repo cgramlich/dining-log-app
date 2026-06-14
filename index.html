@@ -626,7 +626,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.51.1";
+const APP_VERSION   = "1.52.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -954,7 +954,9 @@ dishes on a visit, the entry also shows a calm running total (for example
 As your lists grow you can filter them quickly:
 
 - On **History**, the search box at the top filters your visits by restaurant
-  name, by dish, or by anything in your notes.
+  name, by dish, or by anything in your notes. A **Sort** row lets you order them
+  by newest, oldest, highest rated, or restaurant - and the sort and search work
+  together.
 - On **Places**, the search box filters your restaurants by name, cuisine, or
   city, and works alongside the city filter chips. A **Sort** row lets you order
   them alphabetically (A-Z), by recently added, or favorites first - and the
@@ -4454,6 +4456,7 @@ function DiscoverView({ restaurants, visits, menus, lists, meta,
 
 function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport}){
   const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
   if (!visits.length){
     // WHY: visits starts empty before the first data load completes. Show a
     // neutral loading state so users don't see "No visits yet" on sign-in.
@@ -4469,9 +4472,22 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
       </div>
     );
   }
-  const sorted = visits.slice().sort((a,b)=>
+  // History sort: Newest (default), Oldest, Highest rated, or Restaurant A-Z.
+  // Every comparator falls back to newest-first so ties have a stable order.
+  const byNewest = (a,b)=>
     (b.date || "").localeCompare(a.date || "") ||
-    (b.logged_at || 0) - (a.logged_at || 0));
+    (b.logged_at || 0) - (a.logged_at || 0);
+  const ratingOf = (v)=> (typeof v.rating === "number" ? v.rating : -1);
+  const histName = (v)=> {
+    const rr = restaurantById(v.restaurant_id);
+    return (rr ? rr.name : (v.restaurant_name || "")).toLowerCase();
+  };
+  const cmp =
+    sortBy === "oldest"     ? (a,b)=> -byNewest(a,b) :
+    sortBy === "rating"     ? (a,b)=> (ratingOf(b) - ratingOf(a)) || byNewest(a,b) :
+    sortBy === "restaurant" ? (a,b)=> histName(a).localeCompare(histName(b)) || byNewest(a,b) :
+                              byNewest;
+  const sorted = visits.slice().sort(cmp);
   const q = query.trim().toLowerCase();
   const filtered = q ? sorted.filter(v => {
     const rr = restaurantById(v.restaurant_id);
@@ -4484,6 +4500,13 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
     <div>
       <SearchBar value={query} onChange={setQuery}
         placeholder="Search visits, dishes, notes" />
+      <div className="sortbar">
+        <span className="sortbar-lbl">Sort</span>
+        <span className={"chip pick" + (sortBy === "newest" ? " on" : "")} onClick={()=> setSortBy("newest")}>Newest</span>
+        <span className={"chip pick" + (sortBy === "oldest" ? " on" : "")} onClick={()=> setSortBy("oldest")}>Oldest</span>
+        <span className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</span>
+        <span className={"chip pick" + (sortBy === "restaurant" ? " on" : "")} onClick={()=> setSortBy("restaurant")}>Restaurant</span>
+      </div>
       <div className="hist-legend">
         <InfoDot title="Calorie labels" label="Calorie labels">
           <span className="idl"><strong>~320 cal</strong> &mdash; an estimate (the ~ means estimated).</span>
