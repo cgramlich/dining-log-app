@@ -640,7 +640,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.54.0";
+const APP_VERSION   = "1.54.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5921,7 +5921,7 @@ function RestaurantForm({existing, locations, cfg, onClose, onSave}){
    ============================================================ */
 function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition}){
   const [restId,setRestId] = useState(
-    existing ? existing.restaurant_id : (presetRestaurantId || (restaurants[0] && restaurants[0].id) || ""));
+    existing ? existing.restaurant_id : (presetRestaurantId || ""));
   const [date,setDate]     = useState(existing ? existing.date : todayISO());
   const [rating,setRating] = useState(existing ? existing.rating : 0);
   const ratingRef = useRef(null);
@@ -6414,6 +6414,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
       <div className="ovbody">
         <label className="fld"><span className="lbl">Restaurant</span>
           <select className="input" value={restId} onChange={e=>setRestId(e.target.value)}>
+            <option value="">Choose a restaurant...</option>
             {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </label>
