@@ -564,6 +564,45 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .theme-dot:first-child{ margin-left:0; }
     .theme-name{ flex:1; font-size:15px; color:var(--text); }
     .theme-check{ flex:none; color:var(--accent); font-size:16px; font-weight:700; }
+    /* ---- history export: buttons + printable overlay ---- */
+    .exp-acts{ display:flex; gap:8px; flex-wrap:wrap; }
+    .exp-acts .btn{ width:auto; flex:0 0 auto; }
+    .print-overlay{ position:fixed; inset:0; z-index:120; background:var(--bg); overflow:auto;
+      -webkit-overflow-scrolling:touch; }
+    .print-bar{ position:sticky; top:0; z-index:1; display:flex; align-items:center;
+      justify-content:space-between; gap:10px; padding:10px 14px;
+      background:var(--surface); border-bottom:1px solid var(--line); }
+    .print-bar .btn{ width:auto; flex:0 0 auto; }
+    .print-title-sm{ font-size:13px; color:var(--text-dim); }
+    .print-sheet{ max-width:680px; margin:0 auto; padding:24px 20px 60px; }
+    .print-head{ text-align:center; margin-bottom:22px; }
+    .print-h1{ font-family:'Fraunces',serif; font-size:26px; color:var(--text); }
+    .print-h2{ font-size:15px; color:var(--text-dim); margin-top:2px; }
+    .print-h3{ font-size:12px; color:var(--text-faint); margin-top:6px; }
+    .print-visit{ padding:13px 0; border-bottom:1px solid var(--line-soft); }
+    .print-v-head{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+    .print-v-name{ font-weight:600; font-size:16px; color:var(--text); }
+    .print-v-city{ font-size:12px; color:var(--text-faint); }
+    .print-v-meta{ font-size:12px; color:var(--text-dim); margin-top:2px; }
+    .print-dishes{ list-style:none; margin:8px 0 0; padding:0; }
+    .print-dish{ display:flex; justify-content:space-between; gap:12px;
+      font-size:13.5px; padding:2px 0; color:var(--text); }
+    .print-d-bits{ color:var(--text-faint); font-size:12px; white-space:nowrap; }
+    .print-plate{ font-size:12.5px; color:var(--text-dim); margin-top:7px; }
+    .print-notes{ font-size:12.5px; color:var(--text-dim); margin-top:7px; font-style:italic; }
+    .print-foot{ text-align:center; font-size:11px; color:var(--text-faint); margin-top:24px; }
+    .print-empty{ text-align:center; color:var(--text-dim); padding:40px 0; }
+    @media print {
+      body * { visibility:hidden !important; }
+      .printable-sheet, .printable-sheet * { visibility:visible !important; }
+      .printable-sheet{ position:absolute; left:0; top:0; width:100%; padding:0 8px;
+        color:#000 !important; background:#fff !important; }
+      .no-print{ display:none !important; }
+      .print-h1,.print-v-name,.print-d-name{ color:#000 !important; }
+      .print-h2,.print-h3,.print-v-meta,.print-v-city,.print-d-bits,
+      .print-plate,.print-notes,.print-foot{ color:#333 !important; }
+      .print-visit{ border-bottom:1px solid #ccc !important; break-inside:avoid; page-break-inside:avoid; }
+    }
     .sortbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
     .sortbar-lbl{ font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-faint); margin-right:2px; }
     .passport-month{ font-family:'Fraunces',serif; font-size:18px; color:var(--text); margin:20px 2px 11px; }
@@ -665,7 +704,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.55.0";
+const APP_VERSION   = "1.56.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1240,6 +1279,22 @@ you from the usual home-screen app trick of having to clear it and re-add it to
 get the newest changes.
 
 -----
+
+## Exporting your history
+
+You can take your whole dining log with you. In **Settings**, under **Your
+data**, tap **Export your history** for two ways to get it out:
+
+- **Spreadsheet (CSV)** - every visit and dish in full detail: date, place,
+  city, cuisine, your rating, each dish with its Again/Skip verdict, price, and
+  any calories and macros. It opens in Excel, Numbers, or Google Sheets. On a
+  phone, your share sheet pops up so you can save it to Files or email it to
+  yourself; on a computer it downloads.
+- **Printable** - a clean page grouped by visit, newest first. Tap **Print /
+  Save PDF** to save it as a PDF or print it on paper - a nice keepsake.
+
+Photos are not included in either one - both are text only. The export is built
+right on your device from what you have already logged.
 
 ## Your data and privacy
 
@@ -8309,6 +8364,210 @@ function ProCard({config}){
   );
 }
 
+// ---- Dining-history export (CSV + printable) -------------------------------
+// All client-side; no backend. Captures every visit and every dish, plus the
+// whole-plate (visit-level) estimate, so nothing logged is left out.
+
+// Friendly label for a nutrition estimate's source, for the CSV column.
+const EXPORT_SOURCE_LABEL = {
+  menu_stated:    "menu (printed)",
+  photo_estimate: "photo",
+  menu_estimate:  "description",
+  manual:         "entered",
+  seed:           "starter",
+};
+function exportSourceLabel(n){
+  if (!n || !n.source) return "";
+  return EXPORT_SOURCE_LABEL[n.source] || n.source;
+}
+function exportVerdictLabel(v){ return v === "again" ? "Again" : v === "skip" ? "Skip" : ""; }
+function exportPriceCell(p){
+  if (p === null || p === undefined || p === "") return "";
+  return String(p).trim();
+}
+function exportDateStamp(){
+  try { return new Date().toISOString().slice(0,10); } catch(e){ return "export"; }
+}
+
+// Quote one CSV field: wrap in quotes and double any internal quotes. Always
+// quoting keeps commas, newlines, and leading symbols safe in every tool.
+function csvCell(v){
+  const s = (v === null || v === undefined) ? "" : String(v);
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+// Build the dish-level CSV. One row per dish; a visit with a whole-plate
+// estimate gets an extra "(whole plate)" row; a visit with nothing itemized
+// still gets one row so it never vanishes. Newest first. BOM + CRLF for Excel.
+function buildHistoryCsv(visits, restById){
+  const COLS = ["Date","Restaurant","City","Cuisine","Visit rating",
+                "Dish","Verdict","Price","Calories","Protein (g)",
+                "Carbs (g)","Fat (g)","Estimate source","Notes"];
+  const rows = (visits || []).filter(v => v && v.date).slice().sort((a,b)=>{
+    if (a.date !== b.date) return a.date < b.date ? 1 : -1;   // newest date first
+    return (b.logged_at || 0) - (a.logged_at || 0);           // newest logged first
+  });
+  const out = [COLS.map(csvCell).join(",")];
+  let dishRows = 0, plateRows = 0, bareRows = 0;
+  rows.forEach(v => {
+    const r = restById ? restById(v.restaurant_id) : null;
+    const restName = (r && r.name) || v.restaurant_name || "";
+    const city     = (r && r.city) || "";
+    const cuisine  = (r && r.cuisine) || "";
+    const rating   = (typeof v.rating === "number" && v.rating > 0) ? v.rating : "";
+    const notes    = v.notes || "";
+    const lead = [v.date, restName, city, cuisine, rating];   // shared visit prefix
+
+    const dishes = Array.isArray(v.dishes)
+      ? v.dishes.filter(d => d && (d.name || d.nutrition)) : [];
+    dishes.forEach(d => {
+      const n = d.nutrition || null;
+      out.push(lead.concat([
+        d.name || "", exportVerdictLabel(d.verdict), exportPriceCell(d.price),
+        (n && n.kcal) || "", (n && n.protein_g) || "",
+        (n && n.carbs_g) || "", (n && n.fat_g) || "",
+        exportSourceLabel(n), notes,
+      ]).map(csvCell).join(","));
+      dishRows++;
+    });
+
+    const vn = v.nutrition || null;          // whole-plate (visit-level) estimate
+    if (vn && vn.kcal){
+      out.push(lead.concat([
+        "(whole plate)", "", "",
+        vn.kcal || "", vn.protein_g || "", vn.carbs_g || "", vn.fat_g || "",
+        exportSourceLabel(vn), notes,
+      ]).map(csvCell).join(","));
+      plateRows++;
+    }
+
+    if (dishes.length === 0 && !(vn && vn.kcal)){   // bare visit still appears once
+      out.push(lead.concat(["","","","","","","","",notes]).map(csvCell).join(","));
+      bareRows++;
+    }
+  });
+  logMsg("EXPORT","CSV built: " + rows.length + " visits -> " + dishRows +
+    " dish rows, " + plateRows + " plate rows, " + bareRows + " bare rows");
+  return "\ufeff" + out.join("\r\n") + "\r\n";
+}
+
+// Hand a generated file to the OS: share sheet first (the reliable path on an
+// installed iOS PWA -> Save to Files / Mail), then a direct download fallback
+// for desktop browsers. Returns true on success or user-cancel.
+async function shareOrDownloadFile(filename, text, mime){
+  let blob, file;
+  try {
+    blob = new Blob([text], { type: mime });
+    file = new File([blob], filename, { type: mime });
+  } catch(e){
+    logMsg("ERROR","Export blob build failed: " + e.message);
+    return false;
+  }
+  if (navigator.canShare && navigator.share && navigator.canShare({ files:[file] })){
+    try {
+      await navigator.share({ files:[file], title: filename });
+      logMsg("EXPORT","Shared via share sheet: " + filename);
+      return true;
+    } catch(err){
+      if (err && err.name === "AbortError"){ logMsg("EXPORT","Share cancelled"); return true; }
+      logMsg("EXPORT","Share failed (" + (err && err.name) + ") - trying download");
+      // fall through to anchor download
+    }
+  }
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=> URL.revokeObjectURL(url), 4000);
+    logMsg("EXPORT","Downloaded via anchor: " + filename);
+    return true;
+  } catch(e){
+    logMsg("ERROR","Export download fallback failed: " + e.message);
+    return false;
+  }
+}
+
+// Full-screen printable history: visit-grouped, newest first, calm styling.
+// The on-screen view is usable on its own; "Print / Save PDF" calls the OS
+// print dialog (Save as PDF on phone and desktop). Print CSS hides everything
+// but .printable-sheet.
+function PrintableHistory({visits, restById, onClose}){
+  const rows = (visits || []).filter(v => v && v.date).slice().sort((a,b)=>{
+    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+    return (b.logged_at || 0) - (a.logged_at || 0);
+  });
+  function starText(n){
+    if (typeof n !== "number" || n <= 0) return "";
+    const full = Math.floor(n), half = (n - full) >= 0.5;
+    return "\u2605".repeat(full) + (half ? "\u00bd" : "");
+  }
+  return (
+    <div className="print-overlay">
+      <div className="print-bar no-print">
+        <button className="btn ghost sm" onClick={onClose}>Close</button>
+        <div className="print-title-sm">Printable history</div>
+        <button className="btn sm" onClick={()=> { logMsg("EXPORT","Print dialog opened"); window.print(); }}>
+          Print / Save PDF
+        </button>
+      </div>
+      <div className="print-sheet printable-sheet">
+        <div className="print-head">
+          <div className="print-h1">MenuCaptain</div>
+          <div className="print-h2">Dining history</div>
+          <div className="print-h3">{rows.length} {rows.length === 1 ? "visit" : "visits"} - exported {exportDateStamp()}</div>
+        </div>
+        {rows.length === 0 && <div className="print-empty">No visits logged yet.</div>}
+        {rows.map((v,vi) => {
+          const r = restById ? restById(v.restaurant_id) : null;
+          const name = (r && r.name) || v.restaurant_name || "A visit";
+          const city = (r && r.city) || "";
+          const dishes = Array.isArray(v.dishes) ? v.dishes.filter(d => d && d.name) : [];
+          const vn = v.nutrition || null;
+          const macros = vn ? ((vn.protein_g || 0) + (vn.carbs_g || 0) + (vn.fat_g || 0)) : 0;
+          return (
+            <div className="print-visit" key={v.id || (v.date + "-" + vi)}>
+              <div className="print-v-head">
+                <span className="print-v-name">{name}</span>
+                {city ? <span className="print-v-city">{city}</span> : null}
+              </div>
+              <div className="print-v-meta">
+                {v.date}{(typeof v.rating === "number" && v.rating > 0) ? "  -  " + starText(v.rating) : ""}
+              </div>
+              {dishes.length > 0 ? (
+                <ul className="print-dishes">
+                  {dishes.map((d,i)=>{
+                    const n = d.nutrition || null;
+                    const bits = [];
+                    if (d.verdict === "again") bits.push("Again");
+                    else if (d.verdict === "skip") bits.push("Skip");
+                    if (d.price) bits.push(String(d.price).trim());
+                    if (n && n.kcal) bits.push((n.source === "menu_stated" ? "" : "~") + n.kcal + " cal");
+                    return (
+                      <li className="print-dish" key={i}>
+                        <span className="print-d-name">{d.name}</span>
+                        {bits.length > 0 ? <span className="print-d-bits">{bits.join(" - ")}</span> : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+              {vn && vn.kcal ? (
+                <div className="print-plate">
+                  Whole plate: {(vn.source === "menu_stated" ? "" : "~") + vn.kcal} cal
+                  {macros > 0 ? "  (" + (vn.protein_g || 0) + "P / " + (vn.carbs_g || 0) + "C / " + (vn.fat_g || 0) + "F)" : ""}
+                </div>
+              ) : null}
+              {v.notes ? <div className="print-notes">{v.notes}</div> : null}
+            </div>
+          );
+        })}
+        <div className="print-foot">Exported from MenuCaptain - menucaptain.com</div>
+      </div>
+    </div>
+  );
+}
+
 // Theme palettes for the Appearance picker. dots = [bg, surface, accent] for
 // the little preview; literal hex so previews show true colors in any theme.
 const THEMES = [
@@ -8336,6 +8595,19 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
   const [theme,setTheme]     = useState(currentTheme());
+  const [showPrint,setShowPrint] = useState(false);   // printable-history overlay
+  const [expMsg,setExpMsg]       = useState("");      // export error message, if any
+
+  // Build and hand off the dish-level CSV. restById resolves restaurant detail
+  // (name/city/cuisine) from the visit's restaurant_id.
+  async function doExportCsv(){
+    setExpMsg("");
+    const restById = (id)=> (restaurants || []).find(r => r && r.id === id) || null;
+    const csv = buildHistoryCsv(visits, restById);
+    const ok = await shareOrDownloadFile(
+      "menucaptain-history-" + exportDateStamp() + ".csv", csv, "text/csv");
+    if (!ok) setExpMsg("Could not export the file. Try again.");
+  }
   const [showDel,setShowDel] = useState(false);   // delete-account card expanded
   const [delText,setDelText] = useState("");      // user must type DELETE
   const [delBusy,setDelBusy] = useState(false);
@@ -8493,6 +8765,26 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
           Sync now
         </button>
       </div>
+
+      <div className="card">
+        <div style={{fontWeight:600,marginBottom:6}}>Export your history</div>
+        <div className="small muted" style={{lineHeight:1.7,marginBottom:12}}>
+          Take your dining log with you. The spreadsheet has every visit and
+          dish in full detail; the printable is a clean page you can save as a
+          PDF. Photos are not included.
+        </div>
+        <div className="exp-acts">
+          <button className="btn ghost sm" onClick={doExportCsv}>Spreadsheet (CSV)</button>
+          <button className="btn ghost sm" onClick={()=> setShowPrint(true)}>Printable</button>
+        </div>
+        {expMsg ? <div className="small" style={{marginTop:10,color:"var(--danger)"}}>{expMsg}</div> : null}
+      </div>
+      {showPrint ? (
+        <PrintableHistory
+          visits={visits}
+          restById={(id)=> (restaurants || []).find(r => r && r.id === id) || null}
+          onClose={()=> setShowPrint(false)} />
+      ) : null}
 
       <div className="set-group">Appearance</div>
       <div className="card">
