@@ -601,6 +601,12 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .pub-mitem-head .inm{ font-size:15px; color:var(--text); font-weight:500; }
     .pub-mitem-head .ipr{ font-size:13px; color:var(--text-dim); white-space:nowrap; }
     .pub-mitem .idesc{ font-size:12.5px; color:var(--text-faint); margin-top:3px; line-height:1.4; }
+    /* special-instructions note that appears under a picked dish */
+    .pub-note{ display:block; width:100%; margin:-2px 0 8px; padding:9px 11px;
+      background:var(--surface); border:1px solid var(--line); border-radius:9px;
+      color:var(--text); font-size:13px; -webkit-appearance:none; }
+    .pub-note::placeholder{ color:var(--text-faint); }
+    .pub-note:focus{ outline:none; border-color:var(--accent); }
     .pub-cta{ margin-top:30px; padding:22px 18px; border-radius:14px; text-align:center;
       background:rgba(224,123,79,0.08); border:1px solid rgba(224,123,79,0.3); }
     .pub-cta-title{ font-family:'Fraunces',serif; font-size:21px; color:var(--text); }
@@ -626,7 +632,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.52.0";
+const APP_VERSION   = "1.53.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1087,10 +1093,12 @@ and hands the link to your share sheet, so you can text it like any other link.
 Whoever you send it to opens the menu right in their browser - no app, no
 account, no access to anything else of yours. They see the restaurant's menu:
 the sections, the dishes, descriptions, prices, and tags. They can **tap the
-dishes they would like**, which gather into a "your picks" strip at the bottom,
-and then tap **Send my picks** to fire their own share sheet with the list ready
-to text back to you - "My picks from [the restaurant]: ...". No typing, no
-account, just a quick answer back.
+dishes they would like**, which gather into a "your picks" strip at the bottom.
+Each dish they pick gets a small **note** field too, so they can add special
+instructions ("no onions," "dressing on the side"). They then tap **Send my
+picks** to fire their own share sheet with the list ready to text back to you,
+each note in parentheses - "Avocado Toast (no onions)". No account, just a quick
+answer back.
 
 The shared page is only the menu - your own private calorie estimates are never
 part of it. As with a published list, treat the link as public: anyone who has
@@ -7397,6 +7405,7 @@ function PublishedMenu({data}){
   const home = location.origin + location.pathname;
   // picks: "si:ii" -> dish name (object so order-of-tap is stable enough)
   const [picks, setPicks] = useState({});
+  const [notes, setNotes] = useState({});  // "si:ii" -> special-instructions note
   const [open,  setOpen]  = useState(()=>{
     const o = {}; ((data && data.s) || []).forEach((s,i)=> { o[i] = true; }); return o;
   });
@@ -7421,13 +7430,28 @@ function PublishedMenu({data}){
       if (n[key]) delete n[key]; else n[key] = name;
       return n;
     });
+    // Drop any note when a dish is un-picked so it doesn't linger or get sent.
+    setNotes(nt => {
+      if (!nt[key]) return nt;
+      const n = Object.assign({}, nt); delete n[key]; return n;
+    });
+    setSent(false);
+  }
+
+  function setNote(key, val){
+    setNotes(n => Object.assign({}, n, { [key]: val }));
     setSent(false);
   }
 
   async function sendPicks(){
     if (!pickNames.length) return;
     const rest = data.r || "the menu";
-    const text = "My picks from " + rest + ": " + pickNames.join(", ");
+    // One pick per line; a dish with a note reads "Dish (no onions)".
+    const lines = Object.keys(picks).map(k => {
+      const note = (notes[k] || "").trim();
+      return "- " + (note ? (picks[k] + " (" + note + ")") : picks[k]);
+    });
+    const text = "My picks from " + rest + ":\n" + lines.join("\n");
     // Text only, no url: the recipient's share-sheet link would resolve to the
     // root ?menu= app shell (generic preview card), which adds noise. The text
     // already names the restaurant and the dishes, so it stands on its own.
@@ -7465,7 +7489,8 @@ function PublishedMenu({data}){
               const key = si + ":" + ii;
               const on  = !!picks[key];
               return (
-                <div key={ii} className={"pub-mitem" + (on ? " on" : "")}
+                <React.Fragment key={ii}>
+                <div className={"pub-mitem" + (on ? " on" : "")}
                   onClick={()=> toggle(si, ii, it.n)}>
                   <div className="pub-mitem-tick">{on ? "\u2713" : "+"}</div>
                   <div style={{flex:1, minWidth:0}}>
@@ -7481,6 +7506,14 @@ function PublishedMenu({data}){
                     )}
                   </div>
                 </div>
+                {on && (
+                  <input className="pub-note" type="text"
+                    value={notes[key] || ""}
+                    placeholder="Add a note - no onions, dressing on the side..."
+                    onClick={(e)=> e.stopPropagation()}
+                    onChange={(e)=> setNote(key, e.target.value)} />
+                )}
+                </React.Fragment>
               );
             })}
           </div>
