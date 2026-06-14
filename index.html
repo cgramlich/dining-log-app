@@ -117,7 +117,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .badge-row.locked{ opacity:0.5; }
     .badge-row.locked .badge-ic{ background:var(--bg-2); }
     .badge-rtx{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
-    .badge-act{ flex:none; font-size:12.5px; padding:7px 11px; }
+    /* Higher specificity than .btn (which is width:100%) so the action button
+       sizes to its label instead of eating the whole row. */
+    .badge-row .badge-act{ flex:0 0 auto; width:auto; white-space:nowrap;
+                           font-size:12.5px; padding:8px 12px; }
 
     .row{display:flex; align-items:center; gap:12px;}
     .between{display:flex; align-items:center; justify-content:space-between; gap:10px;}
@@ -623,7 +626,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.51.0";
+const APP_VERSION   = "1.51.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4326,6 +4329,7 @@ function TopBar({tab}){
   const titles = {
     history:["MenuCaptain","Where you have been"],
     restaurants:["Places","Your restaurants & menus"],
+    discover:["Discover","Your badges & recaps"],
     settings:["Settings","Sync & configuration"],
   };
   const [t,s] = titles[tab] || titles.history;
