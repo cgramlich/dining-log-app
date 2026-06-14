@@ -50,6 +50,13 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       --amber:#e7b24c; --sage:#9aa877; --danger:#d9604e; --ok:#7faa6b;
       --shadow:0 8px 28px rgba(0,0,0,0.45);
     }
+    /* Theme palettes. Each overrides only the core surface/text/accent vars;
+       semantic colors (amber/sage/danger/ok) stay constant. Warm Brown is the
+       default :root above. Applied via data-theme on <html>. */
+    :root[data-theme="navy"]{ --bg:#121621; --bg-2:#161c29; --surface:#1c2433; --surface-2:#243041; --line:#334053; --line-soft:#2b3647; --text:#eef2f8; --text-dim:#aab6c8; --text-faint:#6f7c90; --accent:#e7b24c; --accent-dim:#c5923a; }
+    :root[data-theme="forest"]{ --bg:#121814; --bg-2:#171f19; --surface:#1c261f; --surface-2:#26332a; --line:#344538; --line-soft:#2c3a30; --text:#eef1e9; --text-dim:#a8b6a4; --text-faint:#6f7d6b; --accent:#86b06a; --accent-dim:#6a934f; }
+    :root[data-theme="plum"]{ --bg:#181219; --bg-2:#1f1721; --surface:#251c28; --surface-2:#2f2433; --line:#3f3144; --line-soft:#372a3b; --text:#f2eaf2; --text-dim:#bba7bd; --text-faint:#857089; --accent:#cf7aa6; --accent-dim:#ad5f87; }
+    :root[data-theme="slate"]{ --bg:#15181c; --bg-2:#1a1e24; --surface:#20252c; --surface-2:#2a313a; --line:#39414c; --line-soft:#313842; --text:#eef1f4; --text-dim:#aab2bd; --text-faint:#6f7884; --accent:#6f9fc9; --accent-dim:#577fa6; }
     *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
     html,body{margin:0; padding:0; background:var(--bg); color:var(--text);}
     body{
@@ -549,6 +556,14 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .yif-entry-s{ font-size:12px; color:var(--text-dim); margin-top:1px; }
     .set-group{ font-size:11px; letter-spacing:0.13em; text-transform:uppercase;
       color:var(--text-faint); margin:24px 4px 9px; }
+    .theme-row{ display:flex; align-items:center; gap:12px; padding:11px 2px; cursor:pointer; }
+    .theme-row + .theme-row{ border-top:1px solid var(--line); }
+    .theme-dots{ display:flex; flex:none; }
+    .theme-dot{ width:18px; height:18px; border-radius:50%; margin-left:-5px;
+      border:2px solid var(--surface); }
+    .theme-dot:first-child{ margin-left:0; }
+    .theme-name{ flex:1; font-size:15px; color:var(--text); }
+    .theme-check{ flex:none; color:var(--accent); font-size:16px; font-weight:700; }
     .sortbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
     .sortbar-lbl{ font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-faint); margin-right:2px; }
     .passport-month{ font-family:'Fraunces',serif; font-size:18px; color:var(--text); margin:20px 2px 11px; }
@@ -629,6 +644,16 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .pick-tray-names{ font-size:11.5px; color:var(--text-faint);
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   </style>
+  <script>
+    /* Apply the saved theme before first paint so there is no flash of the
+       default palette on reload. "brown" is the default (no attribute). */
+    (function(){
+      try {
+        var t = localStorage.getItem('dininglog_theme');
+        if (t && t !== 'brown') document.documentElement.setAttribute('data-theme', t);
+      } catch(e){}
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>
@@ -640,7 +665,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.54.1";
+const APP_VERSION   = "1.55.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -797,8 +822,8 @@ There is a bar across the bottom of the screen with five spots:
   add a restaurant, or scan a menu.
 - **Discover** - the home for your badges, Your Year in Food, and your Food
   passport.
-- **Settings** - your account and plan, the update check, this user guide, and
-  app info.
+- **Settings** - your account and plan, the look of the app (five color
+  themes under Appearance), the update check, this user guide, and app info.
 
 -----
 
@@ -8284,11 +8309,33 @@ function ProCard({config}){
   );
 }
 
+// Theme palettes for the Appearance picker. dots = [bg, surface, accent] for
+// the little preview; literal hex so previews show true colors in any theme.
+const THEMES = [
+  { key:"brown",  name:"Warm Brown",  dots:["#1b1714","#272019","#e0764a"] },
+  { key:"navy",   name:"Navy & Gold", dots:["#121621","#1c2433","#e7b24c"] },
+  { key:"forest", name:"Forest",      dots:["#121814","#1c261f","#86b06a"] },
+  { key:"plum",   name:"Plum",        dots:["#181219","#251c28","#cf7aa6"] },
+  { key:"slate",  name:"Slate",       dots:["#15181c","#20252c","#6f9fc9"] },
+];
+function currentTheme(){
+  try { return localStorage.getItem("dininglog_theme") || "brown"; } catch(e){ return "brown"; }
+}
+function applyTheme(key, setTheme){
+  const el = document.documentElement;
+  // "brown" is the default :root palette - no attribute needed.
+  if (key === "brown") el.removeAttribute("data-theme");
+  else el.setAttribute("data-theme", key);
+  try { localStorage.setItem("dininglog_theme", key); } catch(e){}
+  if (setTheme) setTheme(key);
+}
+
 function SettingsView({config, onEdit, counts, lastSync, onResync,
                        locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
+  const [theme,setTheme]     = useState(currentTheme());
   const [showDel,setShowDel] = useState(false);   // delete-account card expanded
   const [delText,setDelText] = useState("");      // user must type DELETE
   const [delBusy,setDelBusy] = useState(false);
@@ -8445,6 +8492,22 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         <button className="btn ghost sm" onClick={onResync} style={{marginTop:12}}>
           Sync now
         </button>
+      </div>
+
+      <div className="set-group">Appearance</div>
+      <div className="card">
+        {THEMES.map(t => {
+          const on = theme === t.key;
+          return (
+            <div key={t.key} className="theme-row" onClick={()=> applyTheme(t.key, setTheme)}>
+              <div className="theme-dots">
+                {t.dots.map((c,i)=> <span key={i} className="theme-dot" style={{background:c}} />)}
+              </div>
+              <div className="theme-name">{t.name}</div>
+              {on ? <span className="theme-check">{"\u2713"}</span> : null}
+            </div>
+          );
+        })}
       </div>
 
       <div className="set-group">More</div>
