@@ -773,7 +773,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.64.0";
+const APP_VERSION   = "1.65.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6951,7 +6951,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                 {nutBusy ? "Estimating..." : "Estimate from a photo"}
               </button>
               <div className="tiny faint" style={{marginTop:6}}>
-                Snap your plate and Claude estimates calories and macros - just for
+                Snap your plate and the app estimates calories and macros - just for
                 memory and curiosity.
               </div>
             </div>
@@ -7362,9 +7362,24 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       parsed.last_updated  = todayISO();
       parsed.source        = "photo_ocr";
       setResult(parsed);
-      // pre-fill restaurant name field if the menu showed one
+      // Pre-fill the destination if the menu showed a restaurant name.
+      // If we already have a restaurant whose name matches (case-insensitive,
+      // trimmed), default the "Save menu to" picker to THAT existing place so a
+      // second menu scan does not silently create a duplicate restaurant. Only
+      // an exact normalized match counts - no fuzzy guessing (predictable beats
+      // surprising). No match -> pre-fill the new-restaurant name field as before.
       if (!presetRestaurantId && parsed.restaurant_name){
-        setNewName(parsed.restaurant_name);
+        const norm = s => (s || "").trim().toLowerCase();
+        const hit = restaurants.find(r => norm(r.name) === norm(parsed.restaurant_name));
+        if (hit){
+          setRestId(hit.id);
+          logMsg("SCAN","Scanned name matches existing restaurant '" + hit.name +
+                        "' (id " + hit.id + ") - defaulting there to avoid a duplicate");
+        } else {
+          setNewName(parsed.restaurant_name);
+          logMsg("SCAN","No existing restaurant matches '" + parsed.restaurant_name +
+                        "' - defaulting to a new restaurant");
+        }
       }
       const itemCount = parsed.sections.reduce((n,s)=> n + s.items.length, 0);
       logMsg("SCAN","Digitized " + parsed.sections.length + " sections, " +
@@ -7597,7 +7612,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           <div className="empty" style={{paddingTop:"22vh"}}>
             <div className="spin" style={{margin:"0 auto 16px"}} />
             <div className="big">Reading the menu</div>
-            <div>Claude is digitizing your photos. This usually takes 10-30 seconds.</div>
+            <div>Scanning your menu - this usually takes 10-30 seconds.</div>
           </div>
         )}
 
