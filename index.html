@@ -385,6 +385,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .mitem .ihead{display:flex; justify-content:space-between; gap:12px; align-items:baseline;}
     .mitem .inm{font-weight:500; font-size:15px;}
     .mitem .ipr{color:var(--amber); font-size:13.5px; white-space:nowrap; font-variant-numeric:tabular-nums;}
+    .mitem .ipr.paid{color:var(--text-faint); font-weight:400; font-style:italic;}
     .mitem .idesc{font-size:13px; color:var(--text-dim); margin-top:3px; line-height:1.45;}
 
     /* ---- misc ---- */
@@ -570,7 +571,8 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .print-overlay{ position:fixed; inset:0; z-index:120; background:var(--bg); overflow:auto;
       -webkit-overflow-scrolling:touch; }
     .print-bar{ position:sticky; top:0; z-index:1; display:flex; align-items:center;
-      justify-content:space-between; gap:10px; padding:10px 14px;
+      justify-content:space-between; gap:10px;
+      padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
       background:var(--surface); border-bottom:1px solid var(--line); }
     .print-bar .btn{ width:auto; flex:0 0 auto; }
     .print-title-sm{ font-size:13px; color:var(--text-dim); }
@@ -633,6 +635,49 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     /* ---- Published list (recipient view, no app chrome) ---- */
     .pub-wrap{ max-width:560px; margin:0 auto; padding:32px 18px 64px; min-height:100vh; }
+    /* ---- group order (host overlay + guest screen) ---- */
+    .go-overlay{ position:fixed; inset:0; z-index:130; background:var(--bg); overflow:auto;
+      -webkit-overflow-scrolling:touch; }
+    .go-bar{ position:sticky; top:0; z-index:1; display:flex; align-items:center;
+      justify-content:space-between; gap:10px;
+      padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+      background:var(--surface); border-bottom:1px solid var(--line); }
+    .go-bar .btn{ width:auto; flex:0 0 auto; }
+    .go-bar-title{ font-size:14px; font-weight:600; color:var(--text); }
+    .go-body{ max-width:600px; margin:0 auto; padding:16px 16px 40px; }
+    .go-sec{ font-size:11px; letter-spacing:0.13em; text-transform:uppercase;
+      color:var(--text-faint); margin:22px 4px 9px; }
+    .go-link{ font-size:13px; color:var(--accent); word-break:break-all;
+      background:var(--bg-2); border:1px solid var(--line); border-radius:10px; padding:9px 11px; }
+    .go-item{ padding:8px 0; border-bottom:1px solid var(--line-soft); }
+    .go-item:last-child{ border-bottom:none; }
+    .go-item-head{ display:flex; align-items:baseline; gap:9px; }
+    .go-qty{ color:var(--accent); font-weight:700; font-variant-numeric:tabular-nums; min-width:28px; }
+    .go-name{ color:var(--text); font-size:14.5px; }
+    .go-notes{ margin:3px 0 0 37px; }
+    .go-guest{ padding:9px 0; border-bottom:1px solid var(--line-soft); }
+    .go-guest:last-child{ border-bottom:none; }
+    .go-guest-name{ font-weight:600; font-size:14px; color:var(--text); margin-bottom:2px; }
+    /* guest item rows */
+    .go-gsec{ margin-bottom:14px; }
+    .go-gsec-head{ font-size:12px; letter-spacing:0.08em; text-transform:uppercase;
+      color:var(--text-faint); margin:6px 2px 6px; }
+    .go-gitem{ border:1px solid var(--line); border-radius:12px; margin-bottom:8px;
+      overflow:hidden; background:var(--surface); }
+    .go-gitem.on{ border-color:var(--accent); }
+    .go-gitem-row{ display:flex; align-items:center; gap:11px; padding:11px 13px; cursor:pointer; }
+    .go-check{ width:22px; height:22px; flex:none; border-radius:6px; border:1.5px solid var(--line);
+      display:flex; align-items:center; justify-content:center; color:var(--accent); font-weight:700; }
+    .go-gitem.on .go-check{ border-color:var(--accent); }
+    .go-gitem-name{ font-size:15px; color:var(--text); }
+    .go-gitem-ctl{ display:flex; align-items:center; gap:10px; padding:0 13px 12px; flex-wrap:wrap; }
+    .go-stepper{ display:flex; align-items:center; gap:0; flex:none;
+      border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+    .go-step{ width:38px; height:36px; border:none; background:var(--bg-2); color:var(--text);
+      font-size:18px; line-height:1; cursor:pointer; }
+    .go-stepn{ width:36px; text-align:center; font-variant-numeric:tabular-nums; color:var(--text); }
+    .go-note{ flex:1; min-width:140px; margin:0; }
+    .go-submit{ margin-top:18px; }
     .pub-kicker{ font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--accent); text-align:center; }
     .pub-title{ font-family:'Fraunces',serif; font-weight:600; font-size:34px; line-height:1.12;
       color:var(--text); text-align:center; margin:8px 0 22px; }
@@ -704,7 +749,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.56.0";
+const APP_VERSION   = "1.58.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -945,7 +990,9 @@ The app answers using that restaurant's actual menu, and it takes your own
 dish ratings into account, so the more you log the more personal the answers
 get. When a menu item has calories on it - whether printed on the menu or
 estimated - the answers factor those in too, so a question like "something
-lighter" can weigh the actual numbers. It stays easygoing about it: the
+lighter" can weigh the actual numbers. Prices work the same way: ask for
+"best value" or "something cheap" and it weighs what dishes cost (filling in
+prices it has learned from your scanned checks). It stays easygoing about it: the
 calories inform the suggestion, they are never treated as a budget or a rule.
 
 -----
@@ -987,6 +1034,13 @@ the check. The receipt itself stays attached to the visit behind a quiet
 **Prices.** A dish can carry a price - typed in or picked up from a scanned
 check. Priced dishes show it beside the name in History and on the
 restaurant page.
+
+**Spending.** Once your visits carry prices, a quiet **Spending** link appears
+on a restaurant's page and inside Your Year in Food. Tap it to see what you
+have spent there (or that year) - it stays tucked away by default. When a
+visit has a scanned check, the total is the real one, tax and tip included;
+otherwise it is a "~" estimate added up from your dish prices. Like the
+calorie numbers, it is a memory, never a budget.
 
 **Estimate a dish from a photo.** Under each dish is an "Estimate from a photo"
 button. When the food arrives, tap it and snap a picture of that dish. The app
@@ -1177,6 +1231,23 @@ part of it. As with a published list, treat the link as public: anyone who has
 it can open that menu page.
 
 -----
+
+## Group order
+
+When you are out with a group, a **group order** is the live version of "what
+do you want me to bring home?" - instead of everyone texting you separately,
+they all add to one shared order you watch come together.
+
+Open a digitized menu and tap **Group order** at the top. Tap **Start group
+order** and the app gives you a link. Text it to the table. Each person opens
+it (no app, no account), sees the menu, taps what they want, sets a **quantity**
+and an optional **note** ("no onions"), enters their name, and taps **Send my
+order**. They can change their order and send again any time.
+
+On your screen the order builds **live** - a combined bring-home tally ("2x
+Avocado Toast, 1x Pollo - no onions") plus a by-person breakdown. When you are
+done, tap **Close order**; it also closes itself after a day. The shared link
+shows only the menu and the table's own picks - nothing else of yours.
 
 ## Publishing a list
 
@@ -2776,6 +2847,120 @@ function fmtPrice(p){
   return "$" + (Number.isInteger(n) ? String(n) : n.toFixed(2));
 }
 
+// ---- Price-data foundation -------------------------------------------------
+// Prices live as display strings (menu scan) and numbers (receipts). parsePrice
+// turns either into a dollar number for math, or null when there is no usable
+// number. We derive numbers on read - stored strings are never rewritten.
+function parsePrice(raw){
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return (isFinite(raw) && raw > 0) ? raw : null;
+  let s = String(raw).trim();
+  if (!s) return null;
+  // Placeholders that are not a number.
+  if (/^(mp|m\/p|market(\s*price)?|seasonal|ask|priceless|free|n\/a)$/i.test(s)) return null;
+  // A price range ("14-18", "14 to 18") is ambiguous - skip rather than guess.
+  if (/\d\s*(?:-|to|\u2013|\u2014)\s*\d/i.test(s)) return null;
+  const m = s.replace(/,/g, "").match(/\d+(?:\.\d+)?/);   // first numeric token
+  if (!m) return null;
+  const n = Number(m[0]);
+  return (isFinite(n) && n > 0) ? n : null;
+}
+
+// One visit's spend. Prefer the scanned check's grand total (real, incl. tax
+// and tip); otherwise sum the dish line prices (approximate, pre-tax).
+function visitSpendValue(v){
+  if (v && v.receipt && v.receipt.total){
+    const t = parsePrice(v.receipt.total);
+    if (t != null) return { amount:t, exact:true };
+  }
+  let sum = 0, any = false;
+  (v && Array.isArray(v.dishes) ? v.dishes : []).forEach(d => {
+    const p = parsePrice(d && d.price);
+    if (p != null){ sum += p; any = true; }
+  });
+  return any ? { amount:sum, exact:false } : { amount:0, exact:false };
+}
+
+// Total spend across a set of visits. approx=true when any contributing visit
+// was summed from dish prices rather than a scanned check total.
+function sumSpend(visits){
+  let amount = 0, count = 0, allExact = true;
+  (visits || []).forEach(v => {
+    const sv = visitSpendValue(v);
+    if (sv.amount > 0){ amount += sv.amount; count++; if (!sv.exact) allExact = false; }
+  });
+  return { amount, count, approx: !allExact };
+}
+
+// Subtle, opt-in spend reveal. Hidden behind a tap so the page stays calm -
+// money is for memory here, never a budget. Renders nothing without price data.
+function SpendReveal({visits, scope}){
+  const [open, setOpen] = useState(false);
+  const sp = sumSpend(visits);
+  if (sp.amount <= 0) return null;
+  const tilde = sp.approx ? "~" : "";
+  const avg = sp.count > 0 ? sp.amount / sp.count : 0;
+  const detail = scope === "restaurant"
+    ? (tilde + fmtPrice(sp.amount) + " across " + sp.count + " visit" + (sp.count === 1 ? "" : "s")
+       + (sp.count > 1 ? "  \u00b7  avg " + tilde + fmtPrice(avg) : ""))
+    : (tilde + fmtPrice(sp.amount) + " across " + sp.count + " visit" + (sp.count === 1 ? "" : "s"));
+  const foot = sp.approx
+    ? "~ estimated from dish prices - a number for memory, not a budget."
+    : "From your scanned checks - a number for memory, not a budget.";
+  const inner = (
+    <div>
+      <a href="#" className="tiny" style={{color:"var(--accent)"}}
+         onClick={(e)=>{ e.preventDefault(); setOpen(o=>!o); }}>
+        {open ? "Hide spending" : "Spending"}
+      </a>
+      {open ? (
+        <div className="tiny muted" style={{marginTop:5}}>
+          {detail}
+          <div className="tiny faint" style={{marginTop:3}}>{foot}</div>
+        </div>
+      ) : null}
+    </div>
+  );
+  if (scope === "year") return <div style={{textAlign:"center", margin:"4px 0 18px"}}>{inner}</div>;
+  return <div className="card">{inner}</div>;
+}
+
+// Backfill: write what was actually paid (from a saved visit's dishes) onto the
+// matching menu items by exact name - the same name-match the app already uses
+// to attach estimates. Additive only: a new `paid` record, never overwriting
+// the menu's scanned list price. Returns an updated menus object or null.
+function backfillPaidPrices(restId, dishes, menus, dateStr){
+  if (!restId || !Array.isArray(dishes) || !dishes.length) return null;
+  const list = menus[restId];
+  if (!list || !list.length) return null;
+  const paidByName = new Map();          // lowercased name -> paid amount
+  dishes.forEach(d => {
+    if (!d || !d.name) return;
+    const amt = parsePrice(d.price);
+    if (amt == null) return;
+    const k = d.name.trim().toLowerCase();
+    if (!paidByName.has(k)) paidByName.set(k, amt);
+  });
+  if (!paidByName.size) return null;
+  let changed = 0;
+  const nextList = list.map(m => {
+    const sections = (m.sections || []).map(s => Object.assign({}, s, {
+      items: (s.items || []).map(it => {
+        if (!it || !it.name) return it;
+        const amt = paidByName.get(it.name.trim().toLowerCase());
+        if (amt == null) return it;
+        if (it.paid && it.paid.amount === amt && it.paid.date === dateStr) return it; // idempotent
+        changed++;
+        return Object.assign({}, it, { paid:{ amount:amt, date:dateStr, source:"receipt" } });
+      }),
+    }));
+    return Object.assign({}, m, { sections:sections });
+  });
+  if (!changed) return null;
+  logMsg("PRICE","Backfilled paid price onto " + changed + " menu item(s) for " + restId);
+  return Object.assign({}, menus, { [restId]:nextList });
+}
+
 // Parse 1-2 photos of a restaurant check. menuItemNames (the restaurant's
 // digitized menu, may be empty) lets the model match receipt shorthand like
 // "CHKN PARM" to the real menu item so downstream features line up.
@@ -2899,6 +3084,7 @@ function menuToText(menu){
     (s.items || []).forEach(it => {
       let line = "- " + it.name;
       if (it.price)       line += " (" + it.price + ")";
+      else if (it.paid && it.paid.amount) line += " ($" + (Number.isInteger(it.paid.amount) ? it.paid.amount : it.paid.amount.toFixed(2)) + ")";
       if (it.description) line += ": " + it.description;
       if (it.tags && it.tags.length) line += " [tags: " + it.tags.join(", ") + "]";
       line += nutritionHint(it);   // phase-2: calorie/macro hint when known
@@ -2959,6 +3145,15 @@ async function askMenu(cfg, restaurant, menu, visits, question){
     "on record - never guess or invent calories. Keep it informative and "+
     "easygoing: this is for curiosity, never a diet, a budget, or a judgment. "+
     "Do not scold, warn, or imply any food is 'bad'.\n";
+
+  prompt +=
+    "- A menu item may show its price in parentheses (e.g. \"($14)\"). When the "+
+    "diner asks about value, price, what is cheap, what is worth it, splurging, "+
+    "or 'best value', weigh the price - alongside the calories when those are "+
+    "present - and suggest strong-value picks, mentioning the price naturally "+
+    "(e.g. \"the ceviche is a good deal at $12\"). Items without a price simply "+
+    "have none on record; do not guess one. Keep it easygoing - a friendly "+
+    "suggestion, never a budget or a judgment.\n";
 
   if (hasHist){
     prompt +=
@@ -4341,6 +4536,10 @@ function App(){
               flash("Visit logged");
             }
             commit({ visits:next }, ["visits"]);
+            // Flow actually-paid prices back onto matching menu items (additive;
+            // fills gaps the menu scan missed, records what was paid).
+            const menusWithPaid = backfillPaidPrices(rec.restaurant_id, rec.dishes, menus, todayISO());
+            if (menusWithPaid) commit({ menus:menusWithPaid }, ["menus"]);
             setOverlay(overlay.returnTo || null);
           }}
           onDelete={overlay.type==="editVisit" ? ()=>{
@@ -5235,6 +5434,8 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
 
         {r.notes && <div className="card small muted">{r.notes}</div>}
 
+        <SpendReveal visits={visits} scope="restaurant" />
+
         {showPicks && (
           <div className="card picks">
             {lovedDishes.length > 0 && (
@@ -5602,6 +5803,9 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition}){
 
   return (
     <div>
+      {cfg && menu && menu.menu_id ? (
+        <GroupOrderButton cfg={cfg} menu={menu} restaurantName={restaurantName} />
+      ) : null}
       <input className="input" placeholder="Search this menu..."
         value={filter} onChange={e=> setFilter(e.target.value)}
         style={{margin:"4px 0 6px"}} />
@@ -5623,7 +5827,11 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition}){
               <div key={oj} className="mitem">
                 <div className="ihead">
                   <span className="inm">{it.name}</span>
-                  {it.price && <span className="ipr">{it.price}</span>}
+                  {it.price
+                    ? <span className="ipr">{it.price}</span>
+                    : (it.paid && it.paid.amount
+                        ? <span className="ipr paid">paid {fmtPrice(it.paid.amount)}</span>
+                        : null)}
                 </div>
                 {it.description && <div className="idesc">{it.description}</div>}
                 {it.tags && it.tags.length > 0 && (
@@ -7554,6 +7762,426 @@ function PublishedList({data}){
    "Send my picks" to fire their OWN share sheet with the list pre-filled - they
    text it straight back. Purely client-side: no account, no backend write. A
    prominent "Create your free account" card bridges them into MenuCaptain. */
+// ============================================================
+// GROUP ORDER (shared menu v2) - live, multi-guest order session
+// ============================================================
+// Host starts a session from a menu; guests open the ?g=<code> link
+// (no account), pick with quantities + notes, and submit. The host
+// watches the aggregated order build live. All via the backend.
+
+// ---- API ----
+async function groupCreate(cfg, menu, restaurantName){
+  // Snapshot ONE menu (sections/items only - never private estimates).
+  const snapshot = {
+    menu_id: (menu && menu.menu_id) || null,
+    label: (menu && menu.label) || "Menu",
+    sections: ((menu && menu.sections) || []).map(s => ({
+      name: s.name || "",
+      items: (s.items || []).map(it => ({
+        name: it.name || "",
+        price: it.price || "",
+        description: it.description || "",
+        tags: Array.isArray(it.tags) ? it.tags : [],
+      })),
+    })),
+  };
+  const res = await fetch(apiBase(cfg) + "/api/group/create", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({
+      restaurant_name: restaurantName || "",
+      title: (menu && menu.label) || "",
+      menu_snapshot: snapshot,
+    }),
+  });
+  if (!res.ok) throw new Error("create failed: " + res.status);
+  return res.json();                                  // { code, expires_at }
+}
+async function groupFetch(cfg, code){
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code), { method:"GET" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("fetch failed: " + res.status);
+  return res.json();
+}
+async function groupSubmit(cfg, code, name, token, picks){
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/submit", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ guest_name:name, guest_token:token, picks:picks }),
+  });
+  if (!res.ok){
+    let msg = "Could not send your order.";
+    try { const j = await res.json(); if (j && j.detail) msg = j.detail; } catch(e){}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+async function groupClose(cfg, code){
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/close", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+  });
+  if (!res.ok) throw new Error("close failed: " + res.status);
+  return res.json();
+}
+
+// A stable per-device guest id, so a guest can edit their own order.
+function guestToken(){
+  try {
+    let t = localStorage.getItem("dininglog_guest_token");
+    if (!t){ t = "g_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+             localStorage.setItem("dininglog_guest_token", t); }
+    return t;
+  } catch(e){ return "g_" + Date.now().toString(36); }
+}
+
+// Combine everyone's picks into a single bring-home tally.
+function aggregatePicks(picks){
+  const byItem = new Map();          // item -> { qty, notes:[{name,note}] }
+  (picks || []).forEach(g => {
+    (g.picks || []).forEach(p => {
+      if (!p || !p.item) return;
+      const cur = byItem.get(p.item) || { qty:0, notes:[] };
+      cur.qty += (p.qty || 1);
+      if (p.note) cur.notes.push({ name:g.guest_name, note:p.note });
+      byItem.set(p.item, cur);
+    });
+  });
+  return Array.from(byItem.entries()).map(([item,v]) => ({ item, qty:v.qty, notes:v.notes }));
+}
+
+// Self-contained host launcher: a button that owns its own overlay, so it can
+// drop into any menu view without threading overlay state through the app.
+function GroupOrderButton({cfg, menu, restaurantName}){
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button className="btn ghost sm" onClick={()=> setShow(true)}
+        style={{flex:"none", padding:"6px 12px", margin:"0 0 12px"}}>
+        <span className="row" style={{gap:5}}><Icon name="nodes" size={14} />Group order</span>
+      </button>
+      {show ? <GroupOrderHost cfg={cfg} menu={menu} restaurantName={restaurantName}
+                onClose={()=> setShow(false)} /> : null}
+    </>
+  );
+}
+
+// Host overlay: start (or resume) a session, share the link, and watch the
+// order build live (polling). The active code is remembered per menu so the
+// host can reopen the same session.
+function GroupOrderHost({cfg, menu, restaurantName, onClose}){
+  const lsKey = "dininglog_group:" + ((menu && menu.menu_id) || "menu");
+  const [code, setCode]         = useState(()=> { try { return localStorage.getItem(lsKey) || ""; } catch(e){ return ""; } });
+  const [data, setData]         = useState(null);
+  const [starting, setStarting] = useState(false);
+  const [err, setErr]           = useState("");
+  const [copied, setCopied]     = useState(false);
+  const link = code ? (location.origin + location.pathname + "?g=" + code) : "";
+
+  useEffect(()=>{
+    if (!code) return;
+    let alive = true;
+    const tick = async ()=>{
+      try {
+        const d = await groupFetch(cfg, code);
+        if (!alive) return;
+        if (d === null){                       // session gone -> reset to start
+          try { localStorage.removeItem(lsKey); } catch(e){}
+          setData(null); setCode("");
+          return;
+        }
+        setData(d);
+      } catch(e){ if (alive) logMsg("GROUP","poll failed: " + e.message); }
+    };
+    tick();
+    const id = setInterval(tick, 5000);
+    return ()=> { alive = false; clearInterval(id); };
+  }, [code]);
+
+  async function start(){
+    setErr(""); setStarting(true);
+    try {
+      const r = await groupCreate(cfg, menu, restaurantName);
+      try { localStorage.setItem(lsKey, r.code); } catch(e){}
+      setCode(r.code);
+      logMsg("GROUP","started code=" + r.code);
+    } catch(e){
+      logMsg("ERROR","group create failed: " + e.message);
+      setErr("Could not start the group order. Try again.");
+    } finally { setStarting(false); }
+  }
+  async function shareLink(){
+    try {
+      if (navigator.share) await navigator.share({ title:"Group order", text:"Add your order: " + link });
+      else { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(()=> setCopied(false), 1500); }
+    } catch(e){}
+  }
+  async function copyLink(){
+    try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(()=> setCopied(false), 1500); } catch(e){}
+  }
+  async function closeOrder(){
+    if (code){
+      try { await groupClose(cfg, code); logMsg("GROUP","closed code=" + code); }
+      catch(e){ logMsg("GROUP","close failed: " + e.message); }
+      try { localStorage.removeItem(lsKey); } catch(e){}
+    }
+    onClose();
+  }
+
+  const agg    = data ? aggregatePicks(data.picks) : [];
+  const guests = data ? (data.picks || []) : [];
+  const closed = data && data.status === "closed";
+
+  return (
+    <div className="go-overlay">
+      <div className="go-bar">
+        <button className="btn ghost sm" onClick={onClose}>Done</button>
+        <div className="go-bar-title">Group order</div>
+        {code ? <button className="btn ghost sm" onClick={closeOrder}>Close order</button>
+              : <span style={{width:54}} />}
+      </div>
+      <div className="go-body">
+        {!code ? (
+          <div className="card">
+            <div style={{fontWeight:600, marginBottom:6}}>Start a group order</div>
+            <div className="small muted" style={{lineHeight:1.7, marginBottom:14}}>
+              Share a link to {restaurantName || "this menu"}. Everyone at the table opens it,
+              picks what they want - with quantities and notes - and you watch the order come
+              together here. No app needed on their end.
+            </div>
+            <button className="btn primary" onClick={start} disabled={starting}>
+              {starting ? <span className="spin" /> : "Start group order"}
+            </button>
+            {err ? <div className="small" style={{marginTop:10, color:"var(--danger)"}}>{err}</div> : null}
+          </div>
+        ) : (
+          <>
+            <div className="card">
+              <div className="small muted" style={{marginBottom:8}}>Share this link with the table:</div>
+              <div className="go-link">{link}</div>
+              <div className="row" style={{gap:8, marginTop:10}}>
+                <button className="btn sm" onClick={shareLink}>Share link</button>
+                <button className="btn ghost sm" onClick={copyLink}>{copied ? "Copied" : "Copy"}</button>
+              </div>
+              {closed ? <div className="tiny faint" style={{marginTop:10}}>This order is closed - guests can no longer add to it.</div> : null}
+            </div>
+
+            <div className="go-sec">Order so far</div>
+            {agg.length === 0 ? (
+              <div className="card small muted" style={{textAlign:"center"}}>
+                No picks yet. As people add theirs, they show up here.
+              </div>
+            ) : (
+              <div className="card">
+                {agg.map((a,i)=>(
+                  <div key={i} className="go-item">
+                    <div className="go-item-head">
+                      <span className="go-qty">{a.qty}&times;</span>
+                      <span className="go-name">{a.item}</span>
+                    </div>
+                    {a.notes.length > 0 ? (
+                      <div className="go-notes">
+                        {a.notes.map((n,j)=> <div key={j} className="tiny faint">{n.note}{n.name ? " (" + n.name + ")" : ""}</div>)}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {guests.length > 0 ? (
+              <>
+                <div className="go-sec">By person ({guests.length})</div>
+                <div className="card">
+                  {guests.map((g,i)=>(
+                    <div key={i} className="go-guest">
+                      <div className="go-guest-name">{g.guest_name || "Guest"}</div>
+                      <div className="tiny muted">
+                        {(g.picks || []).map(p => (p.qty > 1 ? p.qty + "x " : "") + p.item + (p.note ? " (" + p.note + ")" : "")).join(", ")}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
+
+            <div className="tiny faint" style={{textAlign:"center", margin:"14px 0 30px"}}>
+              Updates live. Closes on its own after a day, or tap Close order.
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Guest screen (no account). Opened by a ?g=<code> link: fetch the menu from
+// the backend, pick with quantity steppers + notes, submit. Re-submitting
+// updates the same order (matched by the device's guest token).
+function GroupOrderGuest({code}){
+  const home = location.origin + location.pathname;
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [picks, setPicks]     = useState({});     // "si:ii" -> { item, qty, note }
+  const [name, setName]       = useState(()=> { try { return localStorage.getItem("dininglog_guest_name") || ""; } catch(e){ return ""; } });
+  const [sending, setSending] = useState(false);
+  const [sent, setSent]       = useState(false);
+  const [err, setErr]         = useState("");
+  const [showOrder, setShowOrder] = useState(false);
+  const token = guestToken();
+
+  useEffect(()=>{
+    let alive = true;
+    (async ()=>{
+      try {
+        const d = await groupFetch(null, code);
+        if (!alive) return;
+        if (!d){ setNotFound(true); setLoading(false); return; }
+        setData(d); setLoading(false);
+      } catch(e){ if (alive){ setErr("Could not load this group order."); setLoading(false); } }
+    })();
+    return ()=> { alive = false; };
+  }, [code]);
+
+  const menu     = (data && data.menu_snapshot) || null;
+  const closed   = data && data.status === "closed";
+  const selected = Object.keys(picks).map(k => picks[k]).filter(Boolean);
+  const restName = (data && data.restaurant_name) || (menu && menu.label) || "the menu";
+
+  function toggle(si, ii, item){
+    const key = si + ":" + ii;
+    setPicks(p => {
+      const n = Object.assign({}, p);
+      if (n[key]) delete n[key]; else n[key] = { item:item, qty:1, note:"" };
+      return n;
+    });
+    setSent(false);
+  }
+  function bump(key, delta){
+    setPicks(p => {
+      if (!p[key]) return p;
+      const q = Math.max(1, Math.min(99, (p[key].qty || 1) + delta));
+      return Object.assign({}, p, { [key]: Object.assign({}, p[key], { qty:q }) });
+    });
+    setSent(false);
+  }
+  function setNote(key, val){
+    setPicks(p => p[key] ? Object.assign({}, p, { [key]: Object.assign({}, p[key], { note:val }) }) : p);
+    setSent(false);
+  }
+  async function submit(){
+    const nm = name.trim();
+    if (!nm){ setErr("Please add your name."); return; }
+    if (!selected.length){ setErr("Pick at least one item first."); return; }
+    setErr(""); setSending(true);
+    try {
+      const list = selected.map(s => ({ item:s.item, qty:s.qty || 1, note:(s.note || "").trim() }));
+      const r = await groupFetch(null, code);   // re-check it is still open before sending
+      if (!r || r.status === "closed"){ setErr("This group order is closed."); setSending(false); return; }
+      await groupSubmit(null, code, nm, token, list);
+      try { localStorage.setItem("dininglog_guest_name", nm); } catch(e){}
+      setData(await groupFetch(null, code));     // refresh the running order
+      setSent(true);
+      logMsg("GROUP","guest submitted " + list.length + " item(s)");
+    } catch(e){
+      setErr(e.message || "Could not send your order.");
+    } finally { setSending(false); }
+  }
+
+  if (loading) return <div className="pub-wrap"><div className="muted" style={{textAlign:"center", padding:"60px 0"}}><span className="spin" /> Loading...</div></div>;
+  if (notFound) return (
+    <div className="pub-wrap">
+      <div className="pub-title">This group order was not found</div>
+      <div className="muted" style={{textAlign:"center", marginBottom:20}}>The link may be wrong or the order may have ended.</div>
+      <div style={{textAlign:"center"}}><a className="btn primary" href={home}>Open MenuCaptain</a></div>
+    </div>
+  );
+
+  const running = data ? aggregatePicks(data.picks) : [];
+
+  return (
+    <div className="pub-wrap">
+      <div className="pub-kicker">Group order</div>
+      <div className="pub-title">{restName}</div>
+      <div className="muted" style={{textAlign:"center", marginBottom:18}}>
+        {closed ? "This order is closed." : "Pick what you'd like, then send it to the table."}
+      </div>
+
+      {!closed && (menu && Array.isArray(menu.sections)) ? (
+        <>
+          {menu.sections.map((s, si)=>(
+            <div key={si} className="go-gsec">
+              {s.name ? <div className="go-gsec-head">{s.name}</div> : null}
+              {(s.items || []).map((it, ii)=>{
+                const key = si + ":" + ii;
+                const on  = !!picks[key];
+                return (
+                  <div key={ii} className={"go-gitem" + (on ? " on" : "")}>
+                    <div className="go-gitem-row" onClick={()=> toggle(si, ii, it.name)}>
+                      <div className="go-check">{on ? "\u2713" : ""}</div>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div className="go-gitem-name">{it.name}</div>
+                        {it.price ? <div className="tiny faint">{it.price}</div> : null}
+                      </div>
+                    </div>
+                    {on ? (
+                      <div className="go-gitem-ctl">
+                        <div className="go-stepper">
+                          <button className="go-step" onClick={()=> bump(key, -1)}>&minus;</button>
+                          <span className="go-stepn">{picks[key].qty}</span>
+                          <button className="go-step" onClick={()=> bump(key, +1)}>+</button>
+                        </div>
+                        <input className="input go-note" placeholder="Add a note (no onions...)"
+                          value={picks[key].note} onChange={e=> setNote(key, e.target.value)} />
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          <div className="go-submit">
+            <input className="input" placeholder="Your name" value={name}
+              onChange={e=> { setName(e.target.value); setSent(false); }} style={{marginBottom:10}} />
+            <button className="btn primary" onClick={submit} disabled={sending || !selected.length || !name.trim()}>
+              {sending ? <span className="spin" /> : (sent ? "Update my order" : "Send my order")}
+            </button>
+            {sent ? <div className="small" style={{marginTop:10, color:"var(--ok)", textAlign:"center"}}>Sent! You can change it and send again.</div> : null}
+            {err ? <div className="small" style={{marginTop:10, color:"var(--danger)", textAlign:"center"}}>{err}</div> : null}
+          </div>
+        </>
+      ) : null}
+
+      {data && (data.picks || []).length > 0 ? (
+        <div style={{marginTop:22}}>
+          <a href="#" className="tiny" style={{color:"var(--accent)"}}
+             onClick={(e)=>{ e.preventDefault(); setShowOrder(o=>!o); }}>
+            {showOrder ? "Hide the table's order" : "See the table's order"}
+          </a>
+          {showOrder ? (
+            <div className="card" style={{marginTop:8}}>
+              {running.map((a,i)=>(
+                <div key={i} className="go-item">
+                  <div className="go-item-head">
+                    <span className="go-qty">{a.qty}&times;</span>
+                    <span className="go-name">{a.item}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="tiny faint" style={{textAlign:"center", margin:"22px 0 30px"}}>
+        Your name and picks are shared with whoever started this order. Nothing else.
+      </div>
+    </div>
+  );
+}
+
 function PublishedMenu({data}){
   const home = location.origin + location.pathname;
   // picks: "si:ii" -> dish name (object so order-of-tap is stable enough)
@@ -8171,6 +8799,10 @@ function YearInFood({visits, restaurants, onClose}){
                 <div className="yif-sub">{s.busiest.count} visit{s.busiest.count === 1 ? "" : "s"}</div>
               </div>
             )}
+
+            <SpendReveal
+              visits={period === "all" ? visits : (visits || []).filter(v => parseInt(String(v.date || "").slice(0,4), 10) === period)}
+              scope="year" />
 
             <div className="tiny faint" style={{textAlign:"center",margin:"6px 0 24px"}}>
               A look back for memory and joy &mdash; built from what you logged.
@@ -9312,6 +9944,12 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     const mm = (location.search || "").match(/[?&]menu=([^&]+)/);
     if (mm) publishedMenu = decodeMenuPayload(mm[1]);
   } catch(e){ publishedMenu = null; }
+  // Group-order links (?g=<code>) render the no-account guest screen.
+  let groupCode = null;
+  try {
+    const gm = (location.search || "").match(/[?&]g=([A-Za-z0-9]+)/);
+    if (gm) groupCode = gm[1];
+  } catch(e){ groupCode = null; }
   // Password-reset links land here with a recovery session in the hash.
   let recovery = null;
   try {
@@ -9334,6 +9972,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
                             expiresIn={recovery.expiresIn} />
             : published ? <PublishedList data={published} />
             : publishedMenu ? <PublishedMenu data={publishedMenu} />
+            : groupCode ? <GroupOrderGuest code={groupCode} />
             : <App />);
 })();
 logMsg("INIT","React mounted");
