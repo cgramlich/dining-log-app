@@ -766,7 +766,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.62.0";
+const APP_VERSION   = "1.63.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -920,8 +920,8 @@ There is a bar across the bottom of the screen with five spots:
 - **History** - everything you have logged, newest first.
 - **Places** - your list of restaurants.
 - **The plus (+) button** - the quick-action button. Tap it to log a visit,
-  pull up a menu (open a place to browse and order), add a restaurant, or scan
-  a menu.
+  pull up a menu (open a place to browse and order), start a group order, add a
+  restaurant, or scan a menu.
 - **Discover** - the home for your badges, Your Year in Food, and your Food
   passport.
 - **Settings** - your account and plan, the look of the app (five color
@@ -1256,7 +1256,11 @@ When you are out with a group, a **group order** is the live version of "what
 do you want me to bring home?" - instead of everyone texting you separately,
 they all add to one shared order you watch come together.
 
-Open a digitized menu and tap **Group order** at the top. Tap **Start group
+You can start a group order three ways: from the **restaurant page** (tap
+**Group order**), from the **+** button (**Start a group order**), or from any
+open menu (tap **Group order** at the top). If the place has more than one menu,
+the app asks which one to order from; if it has just one, it jumps straight in.
+Tap **Start group
 order** and the app gives you a link. Text it to the table. Each person opens
 it (no app, no account), sees the menu, taps what they want, sets a **quantity**
 and an optional **note** ("no onions"), enters their name, and taps **Send my
@@ -4381,6 +4385,22 @@ function App(){
           onPick={(id)=> setOverlay({ type:"restaurant", id:id })} />
       )}
 
+      {overlay && overlay.type === "groupStart" && (
+        <RestaurantPicker
+          restaurants={restaurants}
+          title="Start a group order"
+          onClose={()=> setOverlay(null)}
+          onPick={(id)=> setOverlay({ type:"groupStartMenu", id:id })} />
+      )}
+
+      {overlay && overlay.type === "groupStartMenu" && (
+        <GroupOrderStart
+          cfg={config}
+          restaurant={restaurantById(overlay.id)}
+          menus={menus[overlay.id] || []}
+          onClose={()=> setOverlay(null)} />
+      )}
+
       {overlay && overlay.type === "restaurant" && (
         <RestaurantDetail
           restaurant={restaurantById(overlay.id)}
@@ -5330,6 +5350,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
+  const [showGroup, setShowGroup]   = useState(false);   // group-order start overlay
   const [mShareErr, setMShareErr]   = useState(null);
   if (!restaurant){
     return (
@@ -5511,6 +5532,14 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         <button className="btn primary" onClick={onLogVisit} style={{marginTop:4}}>
           <Icon name="plus" size={18} color="#1b1714" />Log a visit here
         </button>
+
+        <button className="btn ghost" onClick={()=> setShowGroup(true)} style={{marginTop:8}}>
+          <Icon name="nodes" size={16} color="var(--accent)" />Group order
+        </button>
+        {showGroup ? (
+          <GroupOrderStart cfg={cfg} restaurant={restaurant} menus={menus}
+            onClose={()=> setShowGroup(false)} />
+        ) : null}
 
         {/* menus list - one menu shows expanded inline; 2+ stay as cards */}
         <div className="row between" style={{margin:"22px 0 10px",alignItems:"center"}}>
@@ -5915,7 +5944,7 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition}){
 // "Pull up a menu": a searchable list of your places. Picking one lands on its
 // page (menu + Help me order + Group order). No visit is created - this is the
 // "I just got here, show me the menu" path, separate from logging a meal.
-function RestaurantPicker({restaurants, onClose, onPick}){
+function RestaurantPicker({restaurants, onClose, onPick, title}){
   const [q, setQ] = useState("");
   const term = q.trim().toLowerCase();
   const list = (restaurants || [])
@@ -5927,7 +5956,7 @@ function RestaurantPicker({restaurants, onClose, onPick}){
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
-        <h2>Pull up a menu</h2>
+        <h2>{title || "Pull up a menu"}</h2>
         <span style={{width:34}} />
       </div>
       <div className="ovbody">
@@ -5967,6 +5996,11 @@ function ActionSheet({onClose, onPick}){
           <span className="ic"><Icon name="book" size={21} color="#e0764a" /></span>
           <div><div className="t1">Pull up a menu</div>
             <div className="t2">Open a place to browse and order</div></div>
+        </div>
+        <div className="sheet-item" onClick={()=> onPick("groupStart")}>
+          <span className="ic"><Icon name="nodes" size={21} color="#e0764a" /></span>
+          <div><div className="t1">Start a group order</div>
+            <div className="t2">Collect everyone's order from a menu</div></div>
         </div>
         <div className="sheet-item" onClick={()=> onPick("scanMenu")}>
           <span className="ic"><Icon name="camera" size={21} color="#e0764a" /></span>
@@ -7983,6 +8017,53 @@ function aggregatePicks(picks){
     });
   });
   return Array.from(byItem.entries()).map(([item,v]) => ({ item, qty:v.qty, notes:v.notes }));
+}
+
+// Shared entry into a group order from a place. A group order needs ONE menu,
+// so this resolves which menu first, then hands off to the existing host screen:
+//   0 digitized menus -> prompt to scan one
+//   1 menu            -> straight into the host
+//   2+ menus          -> "Which menu?" picker, then the host
+function GroupOrderStart({cfg, restaurant, menus, onClose}){
+  const usable = (menus || []).filter(m => m && m.menu_id);
+  const [chosen, setChosen] = useState(usable.length === 1 ? usable[0] : null);
+  const restaurantName = restaurant ? restaurant.name : "";
+
+  if (chosen){
+    return <GroupOrderHost cfg={cfg} menu={chosen} restaurantName={restaurantName} onClose={onClose} />;
+  }
+  if (usable.length === 0){
+    return (
+      <div className="overlay">
+        <div className="ovhead">
+          <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+          <h2>Group order</h2><span style={{width:34}} />
+        </div>
+        <div className="ovbody">
+          <div className="empty" style={{padding:"40px 0"}}>
+            <div className="big">No menu yet</div>
+            <div>Scan a menu for {restaurantName || "this place"} first, then you can start a group order from it.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>Which menu?</h2><span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        <div className="small muted" style={{marginBottom:12}}>Pick the menu your group will order from.</div>
+        {usable.map((m,i)=>(
+          <div key={m.menu_id || i} className="pick-row" onClick={()=> setChosen(m)}>
+            <div className="pick-row-name">{m.label || m.name || "Menu"}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // Active group orders home (top of the Places tab). Account-backed list of the
