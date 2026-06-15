@@ -670,6 +670,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       display:flex; align-items:center; justify-content:center; color:var(--accent); font-weight:700; }
     .go-gitem.on .go-check{ border-color:var(--accent); }
     .go-gitem-name{ font-size:15px; color:var(--text); }
+    .go-gitem-desc{ font-size:12.5px; color:var(--text-dim); line-height:1.45; margin-top:3px; }
     .go-gitem-ctl{ display:flex; align-items:center; gap:10px; padding:0 13px 12px; flex-wrap:wrap; }
     .go-stepper{ display:flex; align-items:center; gap:0; flex:none;
       border:1px solid var(--line); border-radius:9px; overflow:hidden; }
@@ -678,6 +679,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .go-stepn{ width:36px; text-align:center; font-variant-numeric:tabular-nums; color:var(--text); }
     .go-note{ flex:1; min-width:140px; margin:0; }
     .go-submit{ margin-top:18px; }
+    .pick-row{ padding:13px 4px; border-bottom:1px solid var(--line-soft); cursor:pointer; }
+    .pick-row:last-child{ border-bottom:none; }
+    .pick-row-name{ font-size:15.5px; color:var(--text); font-weight:500; }
     .pub-kicker{ font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--accent); text-align:center; }
     .pub-title{ font-family:'Fraunces',serif; font-weight:600; font-size:34px; line-height:1.12;
       color:var(--text); text-align:center; margin:8px 0 22px; }
@@ -749,7 +753,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.58.0";
+const APP_VERSION   = "1.60.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -903,7 +907,8 @@ There is a bar across the bottom of the screen with five spots:
 - **History** - everything you have logged, newest first.
 - **Places** - your list of restaurants.
 - **The plus (+) button** - the quick-action button. Tap it to log a visit,
-  add a restaurant, or scan a menu.
+  pull up a menu (open a place to browse and order), add a restaurant, or scan
+  a menu.
 - **Discover** - the home for your badges, Your Year in Food, and your Food
   passport.
 - **Settings** - your account and plan, the look of the app (five color
@@ -4340,6 +4345,13 @@ function App(){
       )}
 
       {/* overlays */}
+      {overlay && overlay.type === "pullMenu" && (
+        <RestaurantPicker
+          restaurants={restaurants}
+          onClose={()=> setOverlay(null)}
+          onPick={(id)=> setOverlay({ type:"restaurant", id:id })} />
+      )}
+
       {overlay && overlay.type === "restaurant" && (
         <RestaurantDetail
           restaurant={restaurantById(overlay.id)}
@@ -5870,6 +5882,47 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition}){
 /* ============================================================
    ACTION SHEET
    ============================================================ */
+// "Pull up a menu": a searchable list of your places. Picking one lands on its
+// page (menu + Help me order + Group order). No visit is created - this is the
+// "I just got here, show me the menu" path, separate from logging a meal.
+function RestaurantPicker({restaurants, onClose, onPick}){
+  const [q, setQ] = useState("");
+  const term = q.trim().toLowerCase();
+  const list = (restaurants || [])
+    .filter(r => r && r.name)
+    .filter(r => !term || (r.name + " " + (r.cuisine || "") + " " + (r.city || "")).toLowerCase().indexOf(term) !== -1)
+    .slice()
+    .sort((a,b)=> (a.name || "").localeCompare(b.name || ""));
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>Pull up a menu</h2>
+        <span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        <input className="input" placeholder="Search your places..." value={q}
+          onChange={e=> setQ(e.target.value)} style={{marginBottom:12}} />
+        {list.length === 0 ? (
+          <div className="empty" style={{padding:"40px 0"}}>
+            <div className="big">{term ? "No matches" : "No places yet"}</div>
+            <div>{term ? "Try a different search." : "Add a restaurant first, then you can pull up its menu."}</div>
+          </div>
+        ) : list.map(r => (
+          <div key={r.id} className="pick-row" onClick={()=> onPick(r.id)}>
+            <div className="pick-row-name">{r.name}</div>
+            {(r.cuisine || r.city) ? (
+              <div className="tiny faint" style={{marginTop:2}}>
+                {[r.cuisine, r.city].filter(Boolean).join("  \u00b7  ")}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ActionSheet({onClose, onPick}){
   return (
     <div className="sheet-bg" onClick={onClose}>
@@ -5879,6 +5932,11 @@ function ActionSheet({onClose, onPick}){
           <span className="ic"><Icon name="plate" size={21} color="#e0764a" /></span>
           <div><div className="t1">Log a visit</div>
             <div className="t2">Record a meal and rate it</div></div>
+        </div>
+        <div className="sheet-item" onClick={()=> onPick("pullMenu")}>
+          <span className="ic"><Icon name="book" size={21} color="#e0764a" /></span>
+          <div><div className="t1">Pull up a menu</div>
+            <div className="t2">Open a place to browse and order</div></div>
         </div>
         <div className="sheet-item" onClick={()=> onPick("scanMenu")}>
           <span className="ic"><Icon name="camera" size={21} color="#e0764a" /></span>
@@ -7912,7 +7970,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose}){
   }
   async function shareLink(){
     try {
-      if (navigator.share) await navigator.share({ title:"Group order", text:"Add your order: " + link });
+      if (navigator.share) await navigator.share({ title:"Group order", text:"I'm at " + (restaurantName || "the restaurant") + " - what do you want? Add your order here: " + link });
       else { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(()=> setCopied(false), 1500); }
     } catch(e){}
   }
@@ -7945,7 +8003,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose}){
           <div className="card">
             <div style={{fontWeight:600, marginBottom:6}}>Start a group order</div>
             <div className="small muted" style={{lineHeight:1.7, marginBottom:14}}>
-              Share a link to {restaurantName || "this menu"}. Everyone at the table opens it,
+              Share a link to {restaurantName || "this menu"}. Everyone you send it to opens it,
               picks what they want - with quantities and notes - and you watch the order come
               together here. No app needed on their end.
             </div>
@@ -7965,6 +8023,24 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose}){
               </div>
               {closed ? <div className="tiny faint" style={{marginTop:10}}>This order is closed - guests can no longer add to it.</div> : null}
             </div>
+
+            <div className="go-sec">Who's ordered ({guests.length})</div>
+            {guests.length === 0 ? (
+              <div className="card small muted" style={{textAlign:"center"}}>
+                Nobody's ordered yet. Share the link above and watch them come in.
+              </div>
+            ) : (
+              <div className="card">
+                {guests.map((g,i)=>(
+                  <div key={i} className="go-guest">
+                    <div className="go-guest-name">{g.guest_name || "Guest"}</div>
+                    <div className="tiny muted">
+                      {(g.picks || []).map(p => (p.qty > 1 ? p.qty + "x " : "") + p.item + (p.note ? " (" + p.note + ")" : "")).join(", ")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="go-sec">Order so far</div>
             {agg.length === 0 ? (
@@ -7989,21 +8065,6 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose}){
               </div>
             )}
 
-            {guests.length > 0 ? (
-              <>
-                <div className="go-sec">By person ({guests.length})</div>
-                <div className="card">
-                  {guests.map((g,i)=>(
-                    <div key={i} className="go-guest">
-                      <div className="go-guest-name">{g.guest_name || "Guest"}</div>
-                      <div className="tiny muted">
-                        {(g.picks || []).map(p => (p.qty > 1 ? p.qty + "x " : "") + p.item + (p.note ? " (" + p.note + ")" : "")).join(", ")}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : null}
 
             <div className="tiny faint" style={{textAlign:"center", margin:"14px 0 30px"}}>
               Updates live. Closes on its own after a day, or tap Close order.
@@ -8105,7 +8166,7 @@ function GroupOrderGuest({code}){
       <div className="pub-kicker">Group order</div>
       <div className="pub-title">{restName}</div>
       <div className="muted" style={{textAlign:"center", marginBottom:18}}>
-        {closed ? "This order is closed." : "Pick what you'd like, then send it to the table."}
+        {closed ? "This order is closed." : "Pick what you'd like and send your order back."}
       </div>
 
       {!closed && (menu && Array.isArray(menu.sections)) ? (
@@ -8122,7 +8183,11 @@ function GroupOrderGuest({code}){
                       <div className="go-check">{on ? "\u2713" : ""}</div>
                       <div style={{flex:1, minWidth:0}}>
                         <div className="go-gitem-name">{it.name}</div>
-                        {it.price ? <div className="tiny faint">{it.price}</div> : null}
+                        {it.description ? <div className="go-gitem-desc">{it.description}</div> : null}
+                        {it.price ? <div className="tiny faint" style={{marginTop:3}}>{it.price}</div> : null}
+                        {Array.isArray(it.tags) && it.tags.length ? (
+                          <div className="tiny faint" style={{marginTop:3}}>{it.tags.join("  \u00b7  ")}</div>
+                        ) : null}
                       </div>
                     </div>
                     {on ? (
@@ -8158,7 +8223,7 @@ function GroupOrderGuest({code}){
         <div style={{marginTop:22}}>
           <a href="#" className="tiny" style={{color:"var(--accent)"}}
              onClick={(e)=>{ e.preventDefault(); setShowOrder(o=>!o); }}>
-            {showOrder ? "Hide the table's order" : "See the table's order"}
+            {showOrder ? "Hide everyone's order" : "See everyone's order"}
           </a>
           {showOrder ? (
             <div className="card" style={{marginTop:8}}>
@@ -8168,6 +8233,11 @@ function GroupOrderGuest({code}){
                     <span className="go-qty">{a.qty}&times;</span>
                     <span className="go-name">{a.item}</span>
                   </div>
+                  {a.notes && a.notes.length > 0 ? (
+                    <div className="go-notes">
+                      {a.notes.map((n,j)=> <div key={j} className="tiny faint">{n.note}{n.name ? " (" + n.name + ")" : ""}</div>)}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
