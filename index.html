@@ -688,6 +688,13 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .ago-row:nth-child(2){ border-top:none; }
     .ago-row-main{ flex:1; min-width:0; }
     .ago-row-name{ font-size:15px; font-weight:600; color:var(--text); }
+    .go-roster-head{ font-weight:600; font-size:14px; margin-bottom:8px; }
+    .go-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+    .go-chip{ display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,0.06); border:1px solid var(--line-soft); border-radius:14px; padding:4px 6px 4px 11px; font-size:13.5px; color:var(--text); }
+    .go-chip-x{ border:none; background:none; color:var(--text-dim); font-size:16px; line-height:1; cursor:pointer; padding:0 2px; }
+    .go-waiting{ font-weight:600; color:var(--accent); padding:8px 10px; font-size:14px; }
+    .go-in{ font-size:11px; color:var(--text-faint); margin-left:8px; font-weight:500; }
+    .go-wait{ font-size:11px; color:var(--accent); margin-left:8px; font-weight:500; }
     .pub-kicker{ font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--accent); text-align:center; }
     .pub-title{ font-family:'Fraunces',serif; font-weight:600; font-size:34px; line-height:1.12;
       color:var(--text); text-align:center; margin:8px 0 22px; }
@@ -759,7 +766,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.61.0";
+const APP_VERSION   = "1.62.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1260,6 +1267,15 @@ first under **Who's ordered**, with a combined bring-home tally below ("2x
 Avocado Toast, 1x Pollo - no onions"). When you are done, tap **Close order**;
 it also closes itself after a day. The shared link shows only the menu and the
 table's own picks - nothing else of yours.
+
+**Knowing who you are still waiting on.** Optionally, add the people you are
+expecting under **Who's coming?** on your host screen. As orders arrive,
+each name is marked **ordered** or **waiting**, with a clear "Still waiting on:
+Molly" line until everyone is in. Matching is by name, so it lines up when a
+person types the same name you listed; anyone who orders under a name not on
+your list still shows up under **Also ordered**, so no order is ever missed.
+The roster is yours alone - guests never see it. Leave it empty and the order
+works exactly as before.
 
 **Getting back to a running order.** Any group order you start also appears under
 **Active group orders** at the top of your **Places** tab, with how many people
@@ -7870,7 +7886,11 @@ async function groupCreate(cfg, menu, restaurantName){
   return res.json();                                  // { code, expires_at }
 }
 async function groupFetch(cfg, code){
-  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code), { method:"GET" });
+  // Host calls pass cfg (sends auth -> server returns the roster); guests pass
+  // null (no auth -> roster omitted). Guarded: authHeaders() requires a cfg.
+  const headers = {};
+  if (cfg) { try { Object.assign(headers, await authHeaders(cfg)); } catch(e){} }
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code), { method:"GET", headers });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("fetch failed: " + res.status);
   return res.json();
@@ -7922,6 +7942,22 @@ function expiresInLabel(iso){
   const mins = Math.round(ms / 60000);
   if (mins < 60) return "expires in " + mins + "m";
   return "expires in " + Math.round(mins / 60) + "h";
+}
+async function groupSetRoster(cfg, code, names){
+  // Host-only whole-roster replace. Authed POST; returns the cleaned roster.
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/roster", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ names: names || [] }),
+  });
+  if (!res.ok) throw new Error("roster save failed: " + res.status);
+  return res.json();
+}
+// Normalize a name for matching roster <-> submitters (case/space-insensitive).
+function groupNorm(s){ return (s || "").trim().toLowerCase(); }
+// One-line summary of picks: "2x Toast, 1x Pollo (no onions)".
+function picksLine(picks){
+  return (picks || []).map(p => (p.qty > 1 ? p.qty + "x " : "") + p.item + (p.note ? " (" + p.note + ")" : "")).join(", ");
 }
 
 // A stable per-device guest id, so a guest can edit their own order.
@@ -8044,6 +8080,36 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
   const [err, setErr]           = useState("");
   const [copied, setCopied]     = useState(false);
   const link = code ? (location.origin + location.pathname + "?g=" + code) : "";
+  const [rosterInput, setRosterInput] = useState("");
+  const [rosterBusy, setRosterBusy]   = useState(false);
+  // Whole-roster replace on every add/remove: optimistic local update, server
+  // truth from the response. A failure logs and leaves the prior roster intact.
+  async function saveRoster(names){
+    if (!code) return;
+    setRosterBusy(true);
+    try {
+      const r = await groupSetRoster(cfg, code, names);
+      const next = (r && Array.isArray(r.roster)) ? r.roster : names;
+      setData(d => d ? { ...d, roster: next } : d);
+      logMsg("GROUP","roster saved count=" + next.length);
+    } catch(e){
+      logMsg("GROUP","roster save failed: " + e.message);
+    } finally {
+      setRosterBusy(false);
+    }
+  }
+  function addRosterName(){
+    const nm = rosterInput.trim();
+    if (!nm) return;
+    const cur = (data && Array.isArray(data.roster)) ? data.roster : [];
+    if (cur.some(x => groupNorm(x) === groupNorm(nm))) { setRosterInput(""); return; }
+    setRosterInput("");
+    saveRoster(cur.concat([nm]));
+  }
+  function removeRosterName(name){
+    const cur = (data && Array.isArray(data.roster)) ? data.roster : [];
+    saveRoster(cur.filter(x => groupNorm(x) !== groupNorm(name)));
+  }
 
   useEffect(()=>{
     if (!code) return;
@@ -8098,6 +8164,16 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
   const agg    = data ? aggregatePicks(data.picks) : [];
   const guests = data ? (data.picks || []) : [];
   const closed = data && data.status === "closed";
+  const roster    = (data && Array.isArray(data.roster)) ? data.roster : [];
+  const hasRoster = roster.length > 0;
+  // Reconcile expected names against who actually submitted. Match by normalized
+  // name; submitters not on the roster fall into "extras" so nothing is lost.
+  const subByName = {};
+  guests.forEach(g => { const k = groupNorm(g.guest_name); if (k && !(k in subByName)) subByName[k] = g; });
+  const rosterSet = new Set(roster.map(groupNorm));
+  const expected  = roster.map(name => ({ name, sub: subByName[groupNorm(name)] || null }));
+  const waiting   = expected.filter(r => !r.sub).map(r => r.name);
+  const extras    = guests.filter(g => !rosterSet.has(groupNorm(g.guest_name)));
 
   return (
     <div className="go-overlay">
@@ -8133,8 +8209,64 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
               {closed ? <div className="tiny faint" style={{marginTop:10}}>This order is closed - guests can no longer add to it.</div> : null}
             </div>
 
+            <div className="card go-roster">
+              <div className="go-roster-head">Who's coming?</div>
+              {roster.length ? (
+                <div className="go-chips">
+                  {roster.map((name,i)=>(
+                    <span key={i} className="go-chip">
+                      {name}
+                      <button className="go-chip-x" onClick={()=> removeRosterName(name)} disabled={rosterBusy}>&times;</button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {!closed ? (
+                <div className="row" style={{gap:8, marginTop: roster.length ? 10 : 0}}>
+                  <input className="input" placeholder="Add who you're expecting (optional)"
+                    value={rosterInput}
+                    onChange={e=> setRosterInput(e.target.value)}
+                    onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); addRosterName(); } }} />
+                  <button className="btn ghost sm" onClick={addRosterName} disabled={rosterBusy || !rosterInput.trim()}>Add</button>
+                </div>
+              ) : null}
+              {roster.length ? (
+                <div className="tiny faint" style={{marginTop:8}}>
+                  Names match what each person types when they order.
+                </div>
+              ) : null}
+            </div>
+
             <div className="go-sec">Who's ordered ({guests.length})</div>
-            {guests.length === 0 ? (
+            {hasRoster ? (
+              <div className="card">
+                {waiting.length ? (
+                  <div className="go-waiting">Still waiting on: {waiting.join(", ")}</div>
+                ) : (
+                  <div className="tiny faint" style={{padding:"2px 10px 8px"}}>Everyone on your list has ordered.</div>
+                )}
+                {expected.map((r,i)=>(
+                  <div key={"e"+i} className="go-guest">
+                    <div className="go-guest-name">
+                      {r.name}
+                      {r.sub ? <span className="go-in">ordered</span> : <span className="go-wait">waiting</span>}
+                    </div>
+                    {r.sub ? <div className="tiny muted">{picksLine(r.sub.picks)}</div> : null}
+                  </div>
+                ))}
+                {extras.length ? (
+                  <>
+                    <div className="tiny faint" style={{padding:"10px 10px 2px"}}>Also ordered</div>
+                    {extras.map((g,i)=>(
+                      <div key={"x"+i} className="go-guest">
+                        <div className="go-guest-name">{g.guest_name || "Guest"}</div>
+                        <div className="tiny muted">{picksLine(g.picks)}</div>
+                      </div>
+                    ))}
+                  </>
+                ) : null}
+              </div>
+            ) : guests.length === 0 ? (
               <div className="card small muted" style={{textAlign:"center"}}>
                 Nobody's ordered yet. Share the link above and watch them come in.
               </div>
@@ -8143,9 +8275,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
                 {guests.map((g,i)=>(
                   <div key={i} className="go-guest">
                     <div className="go-guest-name">{g.guest_name || "Guest"}</div>
-                    <div className="tiny muted">
-                      {(g.picks || []).map(p => (p.qty > 1 ? p.qty + "x " : "") + p.item + (p.note ? " (" + p.note + ")" : "")).join(", ")}
-                    </div>
+                    <div className="tiny muted">{picksLine(g.picks)}</div>
                   </div>
                 ))}
               </div>
