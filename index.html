@@ -682,6 +682,12 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .pick-row{ padding:13px 4px; border-bottom:1px solid var(--line-soft); cursor:pointer; }
     .pick-row:last-child{ border-bottom:none; }
     .pick-row-name{ font-size:15.5px; color:var(--text); font-weight:500; }
+    .ago-card{ padding:4px 0; margin-bottom:12px; }
+    .ago-head{ font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-faint); padding:8px 12px 4px; }
+    .ago-row{ display:flex; align-items:center; gap:10px; padding:11px 12px; border-top:1px solid var(--line-soft); cursor:pointer; }
+    .ago-row:nth-child(2){ border-top:none; }
+    .ago-row-main{ flex:1; min-width:0; }
+    .ago-row-name{ font-size:15px; font-weight:600; color:var(--text); }
     .pub-kicker{ font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--accent); text-align:center; }
     .pub-title{ font-family:'Fraunces',serif; font-weight:600; font-size:34px; line-height:1.12;
       color:var(--text); text-align:center; margin:8px 0 22px; }
@@ -753,7 +759,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.60.0";
+const APP_VERSION   = "1.61.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1249,10 +1255,17 @@ it (no app, no account), sees the menu, taps what they want, sets a **quantity**
 and an optional **note** ("no onions"), enters their name, and taps **Send my
 order**. They can change their order and send again any time.
 
-On your screen the order builds **live** - a combined bring-home tally ("2x
-Avocado Toast, 1x Pollo - no onions") plus a by-person breakdown. When you are
-done, tap **Close order**; it also closes itself after a day. The shared link
-shows only the menu and the table's own picks - nothing else of yours.
+On your screen the order builds **live** - the people who have ordered show up
+first under **Who's ordered**, with a combined bring-home tally below ("2x
+Avocado Toast, 1x Pollo - no onions"). When you are done, tap **Close order**;
+it also closes itself after a day. The shared link shows only the menu and the
+table's own picks - nothing else of yours.
+
+**Getting back to a running order.** Any group order you start also appears under
+**Active group orders** at the top of your **Places** tab, with how many people
+have ordered and when it expires - tap it to jump straight back into the live
+view. Because that list lives with your account, you can start an order on one
+device and pick it up on another.
 
 ## Publishing a list
 
@@ -5212,6 +5225,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
 
   return (
     <div>
+      <ActiveGroupOrders cfg={cfg} />
       <SearchBar value={query} onChange={setQuery}
         placeholder="Search places, cuisine, city" />
       {onOpenMap && (
@@ -7882,6 +7896,33 @@ async function groupClose(cfg, code){
   if (!res.ok) throw new Error("close failed: " + res.status);
   return res.json();
 }
+async function groupMine(cfg){
+  // The host's own open orders (account-backed, so the list follows the user
+  // across devices). Authed GET. Any failure is treated as "none" by callers,
+  // so a not-yet-deployed backend simply hides the card rather than erroring.
+  const res = await fetch(apiBase(cfg) + "/api/group/mine", {
+    method:"GET",
+    headers:{ ...(await authHeaders(cfg)) },
+  });
+  if (!res.ok) throw new Error("mine failed: " + res.status);
+  const j = await res.json();
+  return (j && Array.isArray(j.orders)) ? j.orders : [];
+}
+
+// "3 ordered" / "no orders yet" for an active-order row.
+function groupCountLabel(n){
+  n = n || 0;
+  return n <= 0 ? "no orders yet" : (n + " ordered");
+}
+// "expires in 22h" / "expires in 45m" / "ending soon" from an ISO timestamp.
+function expiresInLabel(iso){
+  if (!iso) return "";
+  const ms = new Date(iso).getTime() - Date.now();
+  if (isNaN(ms) || ms <= 0) return "ending soon";
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return "expires in " + mins + "m";
+  return "expires in " + Math.round(mins / 60) + "h";
+}
 
 // A stable per-device guest id, so a guest can edit their own order.
 function guestToken(){
@@ -7908,6 +7949,65 @@ function aggregatePicks(picks){
   return Array.from(byItem.entries()).map(([item,v]) => ({ item, qty:v.qty, notes:v.notes }));
 }
 
+// Active group orders home (top of the Places tab). Account-backed list of the
+// host's open orders, so it follows the user across devices. Renders only when
+// at least one order is live; any load failure (incl. a backend that predates
+// /api/group/mine) yields none and the card stays hidden - Places never breaks.
+function ActiveGroupOrders({cfg}){
+  const [orders, setOrders] = useState([]);
+  const [resume, setResume] = useState(null);   // the order currently opened in the host view
+
+  async function load(){
+    try {
+      const list = await groupMine(cfg);
+      setOrders(Array.isArray(list) ? list : []);
+    } catch(e){
+      logMsg("GROUP","mine load failed (hiding card): " + e.message);
+      setOrders([]);
+    }
+  }
+  useEffect(()=> {
+    load();
+    // Refresh when the user returns to the app (iOS PWA resume), so counts and
+    // the live/closed state stay current without manual action.
+    const onVis = ()=> { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVis);
+    return ()=> document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  if (!orders.length && !resume) return null;     // nothing live -> show nothing
+
+  return (
+    <>
+      {orders.length ? (
+        <div className="card ago-card">
+          <div className="ago-head">Active group orders</div>
+          {orders.map((o,i)=>(
+            <div key={o.code || i} className="ago-row" onClick={()=> setResume(o)}>
+              <div className="ago-row-main">
+                <div className="ago-row-name">{o.restaurant_name || "Group order"}</div>
+                <div className="tiny faint">
+                  {[o.title, groupCountLabel(o.ordered_count), expiresInLabel(o.expires_at)]
+                    .filter(Boolean).join("  \u00b7  ")}
+                </div>
+              </div>
+              <Icon name="nodes" size={15} color="var(--accent)" />
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {resume ? (
+        <GroupOrderHost
+          cfg={cfg}
+          menu={null}
+          restaurantName={resume.restaurant_name}
+          resumeCode={resume.code}
+          onClose={()=> { setResume(null); load(); }} />
+      ) : null}
+    </>
+  );
+}
+
 // Self-contained host launcher: a button that owns its own overlay, so it can
 // drop into any menu view without threading overlay state through the app.
 function GroupOrderButton({cfg, menu, restaurantName}){
@@ -7927,10 +8027,19 @@ function GroupOrderButton({cfg, menu, restaurantName}){
 // Host overlay: start (or resume) a session, share the link, and watch the
 // order build live (polling). The active code is remembered per menu so the
 // host can reopen the same session.
-function GroupOrderHost({cfg, menu, restaurantName, onClose}){
-  const lsKey = "dininglog_group:" + ((menu && menu.menu_id) || "menu");
-  const [code, setCode]         = useState(()=> { try { return localStorage.getItem(lsKey) || ""; } catch(e){ return ""; } });
+function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
+  const menuKey = (menu && menu.menu_id) || null;
   const [data, setData]         = useState(null);
+  const [code, setCode]         = useState(()=> {
+    if (resumeCode) return resumeCode;            // opened from the active-orders list (resume by code)
+    try { return menuKey ? (localStorage.getItem("dininglog_group:" + menuKey) || "") : ""; }
+    catch(e){ return ""; }
+  });
+  // Persistence key resolves to the order's OWN menu once fetched (so a
+  // resume-from-list close clears the right per-menu key), else the menu we
+  // opened from. Null -> skip localStorage; the live view runs off `code`.
+  const persistId = (data && data.menu_snapshot && data.menu_snapshot.menu_id) || menuKey || null;
+  const lsKey = persistId ? ("dininglog_group:" + persistId) : null;
   const [starting, setStarting] = useState(false);
   const [err, setErr]           = useState("");
   const [copied, setCopied]     = useState(false);
@@ -7944,7 +8053,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose}){
         const d = await groupFetch(cfg, code);
         if (!alive) return;
         if (d === null){                       // session gone -> reset to start
-          try { localStorage.removeItem(lsKey); } catch(e){}
+          if (lsKey) try { localStorage.removeItem(lsKey); } catch(e){}
           setData(null); setCode("");
           return;
         }
@@ -7960,7 +8069,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose}){
     setErr(""); setStarting(true);
     try {
       const r = await groupCreate(cfg, menu, restaurantName);
-      try { localStorage.setItem(lsKey, r.code); } catch(e){}
+      if (lsKey) try { localStorage.setItem(lsKey, r.code); } catch(e){}
       setCode(r.code);
       logMsg("GROUP","started code=" + r.code);
     } catch(e){
@@ -7981,7 +8090,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose}){
     if (code){
       try { await groupClose(cfg, code); logMsg("GROUP","closed code=" + code); }
       catch(e){ logMsg("GROUP","close failed: " + e.message); }
-      try { localStorage.removeItem(lsKey); } catch(e){}
+      if (lsKey) try { localStorage.removeItem(lsKey); } catch(e){}
     }
     onClose();
   }
