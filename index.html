@@ -695,6 +695,13 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .go-waiting{ font-weight:600; color:var(--accent); padding:8px 10px; font-size:14px; }
     .go-in{ font-size:11px; color:var(--text-faint); margin-left:8px; font-weight:500; }
     .go-wait{ font-size:11px; color:var(--accent); margin-left:8px; font-weight:500; }
+    .go-split-row{ display:flex; justify-content:space-between; align-items:center; padding:13px 4px; margin-top:8px; border-top:1px solid var(--line-soft); cursor:pointer; }
+    .go-split-title{ font-weight:600; font-size:14px; }
+    .go-split{ margin-top:10px; }
+    .go-split-line{ display:flex; justify-content:space-between; padding:7px 2px; font-size:14.5px; }
+    .go-split-name{ color:var(--text); }
+    .go-split-amt{ color:var(--text); font-variant-numeric:tabular-nums; }
+    .go-split-total{ border-top:1px solid var(--line-soft); margin-top:4px; padding-top:9px; font-weight:600; }
     .pub-kicker{ font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--accent); text-align:center; }
     .pub-title{ font-family:'Fraunces',serif; font-weight:600; font-size:34px; line-height:1.12;
       color:var(--text); text-align:center; margin:8px 0 22px; }
@@ -766,7 +773,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.63.0";
+const APP_VERSION   = "1.64.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1273,7 +1280,7 @@ it also closes itself after a day. The shared link shows only the menu and the
 table's own picks - nothing else of yours.
 
 **Knowing who you are still waiting on.** Optionally, add the people you are
-expecting under **Who's coming?** on your host screen. As orders arrive,
+expecting under **Who's in on the order?** on your host screen. As orders arrive,
 each name is marked **ordered** or **waiting**, with a clear "Still waiting on:
 Molly" line until everyone is in. Matching is by name, so it lines up when a
 person types the same name you listed; anyone who orders under a name not on
@@ -1286,6 +1293,13 @@ works exactly as before.
 have ordered and when it expires - tap it to jump straight back into the live
 view. Because that list lives with your account, you can start an order on one
 device and pick it up on another.
+
+**Splitting the check.** Open **Split the check** on your host screen to see who
+owes what. Tap **Scan the receipt** and the app reads the real total, assigns
+each line to whoever ordered it, and spreads tax and tip across everyone - so
+the per-person amounts add up to the actual check. Anything it can't match to a
+person is split evenly and labeled. Before the bill arrives it shows an estimate
+from menu prices (before tax), and you can switch to an even split any time.
 
 ## Publishing a list
 
@@ -7993,6 +8007,104 @@ function groupNorm(s){ return (s || "").trim().toLowerCase(); }
 function picksLine(picks){
   return (picks || []).map(p => (p.qty > 1 ? p.qty + "x " : "") + p.item + (p.note ? " (" + p.note + ")" : "")).join(", ");
 }
+// Split engine for a group order's check.
+//   menuSnapshot: { sections:[{ items:[{name, price}] }] }
+//   picks:        [{ guest_name, picks:[{item, qty}] }]
+//   receipt:      { items:[{name, qty, price, menu_match}], total } | null
+//   mode:         "itemized" | "even"
+// Returns { rows:[{name, amount}], shared, total, basis, note }. Per-person rows
+// always sum to `total` (shared items + tax/tip are baked into each person's
+// number), so the split reconciles to the real check.
+function computeSplit(menuSnapshot, picks, receipt, mode){
+  const guests = (picks || []).filter(g => g && g.guest_name != null);
+  const names  = guests.map(g => g.guest_name || "Guest");
+  const N = guests.length;
+  if (N === 0) return { rows:[], shared:0, total:0, basis:"none", note:"" };
+
+  // ---- Receipt-based split: authoritative, matches the real check ----
+  if (receipt && Array.isArray(receipt.items)){
+    // each guest's picked quantity by normalized menu-item name
+    const pickedQty = guests.map(g => {
+      const m = {};
+      (g.picks || []).forEach(p => {
+        const k = groupNorm(p.item);
+        if (k) m[k] = (m[k] || 0) + (Number(p.qty) || 1);
+      });
+      return m;
+    });
+    const itemsAmt = new Array(N).fill(0);   // each guest's matched line dollars
+    let shared = 0;                          // unmatched line dollars (split evenly)
+    let lineSubtotal = 0;
+    (receipt.items || []).forEach(line => {
+      const lineTotal = Number(line.price);
+      if (!isFinite(lineTotal) || lineTotal <= 0) return;   // unreadable line price
+      lineSubtotal += lineTotal;
+      const key = groupNorm(line.menu_match || "");
+      if (key){
+        let sumQty = 0;
+        const shares = pickedQty.map(m => { const q = m[key] || 0; sumQty += q; return q; });
+        if (sumQty > 0){
+          for (let i = 0; i < N; i++){ if (shares[i] > 0) itemsAmt[i] += lineTotal * (shares[i] / sumQty); }
+          return;
+        }
+      }
+      shared += lineTotal;                   // no menu_match, or nobody picked it
+    });
+    const total = (receipt.total != null && isFinite(Number(receipt.total)))
+      ? Number(receipt.total) : lineSubtotal;
+    const extra = total - lineSubtotal;      // tax + tip + fees (may be 0 or negative)
+    const sharedEach = shared / N;
+    const pre = itemsAmt.map(a => a + sharedEach);     // pre-tax/tip portion per guest
+    const preSum = pre.reduce((s, x) => s + x, 0);
+    const rows = names.map((nm, i) => {
+      let amt;
+      if (mode === "even"){
+        amt = total / N;
+      } else {
+        const extraShare = preSum > 0 ? extra * (pre[i] / preSum) : extra / N;
+        amt = pre[i] + extraShare;
+      }
+      return { name: nm, amount: amt };
+    });
+    return {
+      rows: rows, shared: shared, total: total, basis: "receipt",
+      note: (receipt.total != null
+        ? "From the receipt, including tax and tip."
+        : "From the receipt's line items (total not read, before tax).")
+    };
+  }
+
+  // ---- Menu-price estimate: used before a receipt is scanned ----
+  const priceByName = {};
+  ((menuSnapshot && menuSnapshot.sections) || []).forEach(s =>
+    (s.items || []).forEach(it => {
+      const k = groupNorm(it.name);
+      const v = parsePrice(it.price);
+      if (k && v != null) priceByName[k] = v;
+    }));
+  let anyPrice = false;
+  const subtotals = guests.map(g => {
+    let sum = 0;
+    (g.picks || []).forEach(p => {
+      const v = priceByName[groupNorm(p.item)];
+      if (v != null){ sum += v * (Number(p.qty) || 1); anyPrice = true; }
+    });
+    return sum;
+  });
+  const total = subtotals.reduce((s, x) => s + x, 0);
+  if (!anyPrice){
+    return {
+      rows: names.map(nm => ({ name: nm, amount: 0 })),
+      shared: 0, total: 0, basis: "noprice",
+      note: "This menu doesn't have prices, so amounts aren't available yet. Scan the receipt to split the real check."
+    };
+  }
+  return {
+    rows: names.map((nm, i) => ({ name: nm, amount: mode === "even" ? (total / N) : subtotals[i] })),
+    shared: 0, total: total, basis: "estimate",
+    note: "Estimate from menu prices, before tax. Scan the receipt to match the real check."
+  };
+}
 
 // A stable per-device guest id, so a guest can edit their own order.
 function guestToken(){
@@ -8017,6 +8129,103 @@ function aggregatePicks(picks){
     });
   });
   return Array.from(byItem.entries()).map(([item,v]) => ({ item, qty:v.qty, notes:v.notes }));
+}
+
+// Split the check on a group order. Reuses the receipt scanner: scanning gives
+// the real total + line items matched to the menu, which we assign to whoever
+// ordered each item, distributing tax/tip proportionally so the per-person
+// amounts add up to the actual check. Before a receipt is scanned it shows a
+// menu-price estimate. Host-only (rendered inside the host screen).
+function SplitCheck({cfg, menuSnapshot, picks}){
+  const [open, setOpen]       = useState(false);
+  const [receipt, setReceipt] = useState(null);     // { items, total } | null
+  const [mode, setMode]       = useState("itemized");
+  const [busy, setBusy]       = useState(false);
+  const [err, setErr]         = useState("");
+  const fileRef = useRef(null);
+
+  const guests = (picks || []).filter(g => g && g.guest_name != null);
+  const menuNames = [];
+  ((menuSnapshot && menuSnapshot.sections) || []).forEach(s =>
+    (s.items || []).forEach(it => { if (it.name) menuNames.push(it.name); }));
+
+  async function onPick(e){
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true); setErr("");
+    try {
+      const blob = await resizeImageToBlob(file, 1200, 0.82);
+      const dataUrl = await blobToDataUrl(blob);
+      const parsed = await parseReceiptPhotos(cfg, [dataUrl], menuNames);
+      setReceipt({ items: parsed.items || [], total: parsed.total != null ? parsed.total : null });
+      logMsg("SPLIT","receipt parsed items=" + (parsed.items || []).length + " total=" + parsed.total);
+    } catch(e2){
+      logMsg("SPLIT","receipt scan failed: " + e2.message);
+      setErr(e2.message);
+    }
+    setBusy(false);
+  }
+
+  if (!open){
+    return (
+      <div className="go-split-row" onClick={()=> setOpen(true)}>
+        <span className="go-split-title">Split the check</span>
+        <Icon name="back" size={15} />
+      </div>
+    );
+  }
+
+  const split = computeSplit(menuSnapshot, picks, receipt, mode);
+
+  return (
+    <div className="card go-split">
+      <div className="between" style={{marginBottom:10}}>
+        <span className="go-split-title">Split the check</span>
+        <a href="#" className="tiny" style={{color:"var(--accent)"}}
+           onClick={(e)=>{ e.preventDefault(); setOpen(false); }}>Hide</a>
+      </div>
+
+      {guests.length === 0 ? (
+        <div className="tiny faint">No orders yet to split.</div>
+      ) : (
+        <>
+          <div className="row" style={{gap:8, marginBottom:12}}>
+            <button className={"chip" + (mode === "itemized" ? " on" : "")}
+              onClick={()=> setMode("itemized")}>By what each ordered</button>
+            <button className={"chip" + (mode === "even" ? " on" : "")}
+              onClick={()=> setMode("even")}>Even</button>
+          </div>
+
+          {split.rows.map((r, i)=>(
+            <div key={i} className="go-split-line">
+              <span className="go-split-name">{r.name}</span>
+              <span className="go-split-amt">{fmtPrice(r.amount)}</span>
+            </div>
+          ))}
+          <div className="go-split-line go-split-total">
+            <span className="go-split-name">Total</span>
+            <span className="go-split-amt">{fmtPrice(split.total)}</span>
+          </div>
+
+          {split.note ? <div className="tiny faint" style={{marginTop:8}}>{split.note}</div> : null}
+          {split.shared > 0 ? (
+            <div className="tiny faint" style={{marginTop:4}}>
+              Includes {fmtPrice(split.shared)} of items we couldn't match to a person, split evenly.
+            </div>
+          ) : null}
+          {err ? <div className="tiny" style={{color:"#d98a6a", marginTop:8}}>{err}</div> : null}
+
+          <input ref={fileRef} type="file" accept="image/*" capture="environment"
+            style={{display:"none"}} onChange={onPick} />
+          <button className="btn ghost sm" style={{marginTop:12}} disabled={busy}
+            onClick={()=> fileRef.current && fileRef.current.click()}>
+            {busy ? <span className="spin" /> : (receipt ? "Re-scan the receipt" : "Scan the receipt")}
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
 
 // Shared entry into a group order from a place. A group order needs ONE menu,
@@ -8291,7 +8500,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
             </div>
 
             <div className="card go-roster">
-              <div className="go-roster-head">Who's coming?</div>
+              <div className="go-roster-head">Who's in on the order?</div>
               {roster.length ? (
                 <div className="go-chips">
                   {roster.map((name,i)=>(
@@ -8385,6 +8594,8 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
               </div>
             )}
 
+
+            <SplitCheck cfg={cfg} menuSnapshot={data.menu_snapshot} picks={data.picks} />
 
             <div className="tiny faint" style={{textAlign:"center", margin:"14px 0 30px"}}>
               Updates live. Closes on its own after a day, or tap Close order.
