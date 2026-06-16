@@ -692,6 +692,20 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .go-chips{ display:flex; flex-wrap:wrap; gap:6px; }
     .go-chip{ display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,0.06); border:1px solid var(--line-soft); border-radius:14px; padding:4px 6px 4px 11px; font-size:13.5px; color:var(--text); }
     .go-chip-x{ border:none; background:none; color:var(--text-dim); font-size:16px; line-height:1; cursor:pointer; padding:0 2px; }
+    /* Split a check (standalone) */
+    .spl-line{ padding:11px 0; border-bottom:1px solid var(--line-soft); }
+    .spl-line:last-child{ border-bottom:none; }
+    .spl-row{ display:flex; align-items:center; gap:8px; }
+    .spl-pricebox{ width:88px; text-align:right; flex:0 0 auto; }
+    .spl-who{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .spl-shared{ font-size:12px; color:var(--text-dim); margin-top:7px; }
+    .spl-res{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:11px 2px; border-bottom:1px solid var(--line-soft); }
+    .spl-res:last-child{ border-bottom:none; }
+    .spl-nm{ font-weight:600; color:var(--text); }
+    .spl-amt{ font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
+    .spl-sub{ font-size:11.5px; color:var(--text-dim); margin-top:2px; }
+    .spl-total{ display:flex; justify-content:space-between; align-items:baseline; padding:12px 2px 2px; font-weight:700; color:var(--text); }
+    .spl-x{ border:none; background:none; color:var(--text-dim); font-size:18px; line-height:1; cursor:pointer; padding:0 4px; flex:0 0 auto; }
     .go-waiting{ font-weight:600; color:var(--accent); padding:8px 10px; font-size:14px; }
     .go-in{ font-size:11px; color:var(--text-faint); margin-left:8px; font-weight:500; }
     .go-wait{ font-size:11px; color:var(--accent); margin-left:8px; font-weight:500; }
@@ -773,7 +787,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.65.0";
+const APP_VERSION   = "1.66.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1301,9 +1315,24 @@ the per-person amounts add up to the actual check. Anything it can't match to a
 person is split evenly and labeled. Before the bill arrives it shows an estimate
 from menu prices (before tax), and you can switch to an even split any time.
 
-## Publishing a list
+## Splitting a check (no group needed)
 
-Want to send someone your favorites? On the **Places** tab tap **Publish a
+Sometimes everyone's at the table and you just want to split the bill - no group
+order required. Tap the **+** button and choose **Split a check**.
+
+Scan the receipt (or tap **Enter by hand**) and the app reads the line items and
+the total. Type in who's at the table, then tap the names under each item to say
+who shared it - anything you leave unassigned is split evenly across everyone.
+There's an optional **tip** field for when the tip was written on by hand, and an
+**Everyone shares everything** shortcut for the simplest case.
+
+Tap **See the split** and you get each person's total - their items plus a
+proportional share of tax and tip - adding up exactly to the real check. **Share**
+hands a plain-text breakdown to your phone so you can drop it in the group chat.
+
+It's just a calculator: nothing is saved, and it never touches your logged visits.
+
+## Publishing a list
 list**, give it a title, and tick the restaurants to include (your favorites and
 highest-rated are listed first). Tap **Create link**, then **Copy** or **Share**.
 
@@ -3510,6 +3539,7 @@ function Icon({name, size, color}){
     sparkle: <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/>,
     heart:   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
     nodes:   <g><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5L15.4 6.5"/><path d="M8.6 13.5L15.4 17.5"/></g>,
+    receipt: <g><path d="M6 3h12v18l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3L6 21Z"/><path d="M9 8h6M9 12h6"/></g>,
     compass: <g><circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2.1 4.7-4.7 2.1 2.1-4.7z"/></g>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
@@ -4648,6 +4678,12 @@ function App(){
           }} />
       )}
 
+      {overlay && overlay.type === "splitCheck" && (
+        <SplitCheckFlow
+          config={config}
+          flash={flash}
+          onClose={()=> setOverlay(null)} />
+      )}
       {overlay && overlay.type === "scanMenu" && (
         <ScanMenuFlow
           config={config}
@@ -5996,6 +6032,385 @@ function RestaurantPicker({restaurants, onClose, onPick, title}){
   );
 }
 
+// ============================================================
+//   SPLIT A CHECK (standalone - no group order, no menu)
+// ============================================================
+// Pure split engine. Works entirely in integer CENTS so the per-person rows
+// reconcile EXACTLY to the grand total (the one property a user notices
+// instantly if it is wrong). No fuzzy matching - assignment is explicit.
+//
+//   lines  : [{ id, name, price }]   price = that line's total (dollars; "" / 0 ok)
+//   people : [name]                  who is at the table
+//   assign : { [lineId]: [name,...] } who shares each line; missing/empty = everyone
+//   tip    : dollars to add on top (0 if none)
+//   receiptTotal : the scanned grand total (dollars, incl. tax) or null/""
+// Returns { people:[{name,lineCents,shareCents,totalCents}], grandCents,
+//           lineSubtotalCents, overageCents }.
+function computeManualSplit(lines, people, assign, tip, receiptTotal){
+  const names = (people || []).filter(n => (n || "").trim());
+  const toCents = d => Math.round((Number(d) || 0) * 100);
+
+  // each person's share of the itemized (priced) lines
+  const lineCents = {};
+  names.forEach(n => { lineCents[n] = 0; });
+
+  let lineSubtotalCents = 0;
+  (lines || []).forEach(ln => {
+    const cents = Math.max(0, toCents(ln.price));
+    if (!cents) return;                     // unpriced line contributes nothing
+    lineSubtotalCents += cents;
+    // who shares this line: the assigned subset still present at the table,
+    // else everyone. Never drop a line - empty/stale assignment falls back to
+    // the whole table (the visible "Shared" behavior).
+    let who = (assign && assign[ln.id] ? assign[ln.id] : [])
+      .filter(n => lineCents.hasOwnProperty(n));
+    if (!who.length) who = names.slice();
+    if (!who.length) return;
+    const base = Math.floor(cents / who.length);
+    let rem = cents - base * who.length;    // spread the odd cents
+    who.forEach((n, j) => { lineCents[n] += base + (j < rem ? 1 : 0); });
+  });
+
+  // grand total: the receipt total (already includes tax) when we have one,
+  // else the line subtotal; then add any explicit tip on top.
+  const tipCents = Math.max(0, toCents(tip));
+  const rtCents = toCents(receiptTotal);
+  const baseTotalCents = (receiptTotal != null && receiptTotal !== "" && rtCents > 0)
+    ? Math.max(lineSubtotalCents, rtCents)
+    : lineSubtotalCents;
+  const grandCents = baseTotalCents + tipCents;
+
+  // overage = everything above the itemized lines (tax + service + tip),
+  // distributed proportionally to each person's line share so rows still sum
+  // to the grand total. No priced lines -> split the whole thing evenly.
+  const overageCents = grandCents - lineSubtotalCents;
+  const shareCents = {};
+  names.forEach(n => { shareCents[n] = 0; });
+
+  if (overageCents !== 0 && names.length){
+    if (lineSubtotalCents > 0){
+      let assigned = 0;
+      names.forEach(n => {
+        const portion = Math.round(overageCents * (lineCents[n] / lineSubtotalCents));
+        shareCents[n] = portion;
+        assigned += portion;
+      });
+      // rounding remainder -> the largest line-share person, so totals match
+      const drift = overageCents - assigned;
+      if (drift !== 0){
+        const big = names.slice().sort((a, b) => lineCents[b] - lineCents[a])[0];
+        shareCents[big] += drift;
+      }
+    } else {
+      const base = Math.floor(overageCents / names.length);
+      let rem = overageCents - base * names.length;
+      names.forEach((n, j) => { shareCents[n] = base + (j < rem ? 1 : 0); });
+    }
+  }
+
+  const out = names.map(n => ({
+    name: n,
+    lineCents: lineCents[n],
+    shareCents: shareCents[n],
+    totalCents: lineCents[n] + shareCents[n],
+  }));
+  // Final guard: force the sum to EXACTLY grandCents (push any 1-cent drift to
+  // the largest total, without reordering). Cheap insurance.
+  const sum = out.reduce((a, p) => a + p.totalCents, 0);
+  if (sum !== grandCents && out.length){
+    let bi = 0;
+    for (let i = 1; i < out.length; i++){ if (out[i].totalCents > out[bi].totalCents) bi = i; }
+    const drift = grandCents - sum;
+    out[bi].totalCents += drift;
+    out[bi].shareCents += drift;
+  }
+  return { people: out, grandCents, lineSubtotalCents, overageCents };
+}
+
+function SplitCheckFlow({config, onClose, flash}){
+  const [step, setStep]       = useState("pick");     // pick | edit | result
+  const [busy, setBusy]       = useState(false);
+  const [processing, setProcessing] = useState(null); // {done,total} | null
+  const [errMsg, setErrMsg]   = useState("");
+  const [lines, setLines]     = useState([]);         // [{id,name,price}]
+  const [rtotal, setRtotal]   = useState("");         // scanned grand total (string)
+  const [people, setPeople]   = useState([]);         // [name]
+  const [nameDraft, setNameDraft] = useState("");
+  const [assign, setAssign]   = useState({});         // {lineId:[name]}
+  const [tip, setTip]         = useState("");         // dollars (string)
+  const [split, setSplit]     = useState(null);       // computeManualSplit result
+  const fileRef = useRef(null);
+
+  const money = c => "$" + (Math.round(c) / 100).toFixed(2);
+
+  // ---- scan the receipt (reuses the existing OCR relay) ----
+  async function onFiles(e){
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    logMsg("SPLIT","Selected " + files.length + " receipt photo(s)");
+    setBusy(true); setErrMsg(""); setProcessing({done:0, total:files.length});
+    try {
+      const dataUrls = [];
+      for (let i = 0; i < files.length; i++){
+        const blob = await resizeImageToBlob(files[i], 1200, 0.82);
+        dataUrls.push(await blobToDataUrl(blob));
+        setProcessing({done:i+1, total:files.length});
+      }
+      // standalone: no menu, so pass [] for menu names (menu_match stays null)
+      const parsed = await parseReceiptPhotos(config, dataUrls, []);
+      const newLines = (parsed.items || []).map(it => ({
+        id: uid("spl"),
+        name: it.name,
+        price: (it.price != null ? String(it.price) : ""),
+      }));
+      setLines(newLines);
+      setRtotal(parsed.total != null ? String(parsed.total) : "");
+      setAssign({});
+      logMsg("SPLIT","Receipt parsed: " + newLines.length + " lines, total=" + parsed.total);
+      setStep("edit");
+    } catch(err){
+      logMsg("ERROR","Split receipt scan failed: " + err.message);
+      setErrMsg(err.message || "Couldn't read that receipt.");
+    } finally {
+      setBusy(false); setProcessing(null);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  function startManual(){
+    setLines([{ id:uid("spl"), name:"", price:"" }]);
+    setRtotal(""); setAssign({}); setErrMsg(""); setStep("edit");
+  }
+
+  // ---- people editor ----
+  function addPerson(){
+    const nm = (nameDraft || "").trim().slice(0, 40);
+    if (!nm) return;
+    const exists = people.some(p => p.toLowerCase() === nm.toLowerCase());
+    if (exists){ setNameDraft(""); return; }
+    if (people.length >= 20){ flash && flash("That's a lot of people - 20 max"); return; }
+    setPeople(people.concat([nm]));
+    setNameDraft("");
+  }
+  function removePerson(nm){
+    setPeople(people.filter(p => p !== nm));
+    // drop them from every line assignment so nothing goes stale
+    const next = {};
+    Object.keys(assign).forEach(k => {
+      const kept = assign[k].filter(n => n !== nm);
+      if (kept.length) next[k] = kept;
+    });
+    setAssign(next);
+  }
+
+  // ---- line editing ----
+  function setLineField(id, field, val){
+    setLines(lines.map(l => l.id === id ? Object.assign({}, l, {[field]:val}) : l));
+  }
+  function addLine(){ setLines(lines.concat([{ id:uid("spl"), name:"", price:"" }])); }
+  function removeLine(id){
+    setLines(lines.filter(l => l.id !== id));
+    const next = Object.assign({}, assign); delete next[id]; setAssign(next);
+  }
+
+  // ---- assignment toggle ----
+  function toggleAssign(lineId, nm){
+    const cur = assign[lineId] || [];
+    const on = cur.includes(nm);
+    const nextFor = on ? cur.filter(n => n !== nm) : cur.concat([nm]);
+    const next = Object.assign({}, assign);
+    if (nextFor.length) next[lineId] = nextFor; else delete next[lineId];
+    setAssign(next);
+  }
+  function shareEverything(){ setAssign({}); flash && flash("Everyone shares everything"); }
+
+  // ---- compute ----
+  const tipCents = Math.max(0, Math.round((Number(tip)||0)*100));
+  const subtotalCents = lines.reduce((a,l)=> a + Math.max(0, Math.round((Number(l.price)||0)*100)), 0);
+  const rtotalCents = Math.round((Number(rtotal)||0)*100);
+  const grandPreview = (rtotalCents > 0 ? Math.max(subtotalCents, rtotalCents) : subtotalCents) + tipCents;
+  const canSplit = people.length >= 2 && grandPreview > 0;
+
+  function doSplit(){
+    const res = computeManualSplit(lines, people, assign, tip, rtotal);
+    setSplit(res);
+    logMsg("SPLIT","Computed split across " + res.people.length +
+           " people, grand=" + money(res.grandCents));
+    setStep("result");
+  }
+
+  async function shareSplit(){
+    if (!split) return;
+    const out = ["Check split:"];
+    split.people.forEach(p => out.push("- " + p.name + ": " + money(p.totalCents)));
+    out.push("Total: " + money(split.grandCents));
+    out.push("");
+    out.push("Split with MenuCaptain - menucaptain.com");
+    const text = out.join("\n");
+    try {
+      if (navigator.share){ await navigator.share({ text }); return; }
+    } catch(err){ if (err && err.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(text); flash && flash("Split copied"); }
+    catch(e){ flash && flash("Couldn't share - copy it by hand"); }
+  }
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={step === "result" ? ()=> setStep("edit") : onClose}>
+          {step === "result" ? "Back" : "Cancel"}
+        </button>
+        <h2>Split a check</h2>
+        {step === "result"
+          ? <button className="x" onClick={shareSplit}>Share</button>
+          : <span style={{width:54}} />}
+      </div>
+      <div className="ovbody">
+
+        {step === "pick" && (
+          <div>
+            <div className="card small muted">
+              Scan the receipt (or enter it by hand), say who's at the table, and
+              tap to assign each item. Tax and tip are split proportionally so it
+              adds up to the real total. Nothing is saved - it's just a calculator.
+            </div>
+            {errMsg && <div className="card" style={{borderColor:"var(--danger)",color:"var(--danger)"}}>{errMsg}</div>}
+            {busy ? (
+              <div className="card" style={{textAlign:"center",padding:"22px 14px"}}>
+                <div className="spin" style={{margin:"0 auto 14px"}} />
+                <div className="big">Reading the check</div>
+                <div>{processing ? ("Preparing photo " + processing.done + " of " + processing.total + "...") : "This usually takes 10-30 seconds."}</div>
+              </div>
+            ) : (
+              <div>
+                <button className="btn" onClick={()=> fileRef.current && fileRef.current.click()}>
+                  Scan the check
+                </button>
+                <button className="btn ghost" style={{marginTop:10}} onClick={startManual}>
+                  Enter by hand
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" multiple
+                  style={{display:"none"}} onChange={onFiles} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === "edit" && (
+          <div>
+            {/* people */}
+            <label className="fld"><span className="lbl">Who's at the table?</span></label>
+            <div className="go-chips" style={{marginBottom:8}}>
+              {people.map(p => (
+                <span key={p} className="go-chip">{p}
+                  <button className="go-chip-x" onClick={()=> removePerson(p)}>&times;</button>
+                </span>
+              ))}
+            </div>
+            <div className="spl-row" style={{marginBottom:14}}>
+              <input className="input" value={nameDraft} placeholder="Add a name"
+                onChange={e=> setNameDraft(e.target.value)}
+                onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); addPerson(); } }} />
+              <button className="btn" style={{width:"auto",padding:"0 16px"}} onClick={addPerson}>Add</button>
+            </div>
+
+            {/* lines */}
+            <div className="card" style={{padding:"6px 14px"}}>
+              {!lines.length && <div className="small muted" style={{padding:"8px 0"}}>No items yet - add one below.</div>}
+              {lines.map(l => {
+                const who = assign[l.id] || [];
+                return (
+                  <div key={l.id} className="spl-line">
+                    <div className="spl-row">
+                      <input className="input" value={l.name} placeholder="Item"
+                        onChange={e=> setLineField(l.id, "name", e.target.value)} />
+                      <input className="input spl-pricebox" value={l.price} placeholder="0.00"
+                        inputMode="decimal"
+                        onChange={e=> setLineField(l.id, "price", e.target.value)} />
+                      <button className="spl-x" onClick={()=> removeLine(l.id)}>&times;</button>
+                    </div>
+                    {people.length > 0 && (
+                      <div className="spl-who">
+                        {people.map(p => (
+                          <span key={p}
+                            className={"chip" + (who.includes(p) ? " on" : "")}
+                            onClick={()=> toggleAssign(l.id, p)}>{p}</span>
+                        ))}
+                      </div>
+                    )}
+                    {people.length > 0 && !who.length && (
+                      <div className="spl-shared">Shared by everyone</div>
+                    )}
+                  </div>
+                );
+              })}
+              <div style={{padding:"10px 0 4px"}}>
+                <button className="btn ghost" style={{width:"auto",padding:"0 14px"}} onClick={addLine}>+ Add item</button>
+                {lines.length > 0 && people.length > 1 &&
+                  <button className="btn ghost" style={{width:"auto",padding:"0 14px",marginLeft:8}}
+                    onClick={shareEverything}>Everyone shares everything</button>}
+              </div>
+            </div>
+
+            {/* tip + total */}
+            <div className="spl-row" style={{marginTop:12,gap:12}}>
+              <label className="fld" style={{flex:1,marginBottom:0}}>
+                <span className="lbl">Tip to add (optional)</span>
+                <input className="input" value={tip} placeholder="0.00" inputMode="decimal"
+                  onChange={e=> setTip(e.target.value)} />
+              </label>
+              <label className="fld" style={{flex:1,marginBottom:0}}>
+                <span className="lbl">Check total</span>
+                <input className="input" value={rtotal} placeholder="0.00" inputMode="decimal"
+                  onChange={e=> setRtotal(e.target.value)} />
+              </label>
+            </div>
+            <div className="small muted" style={{margin:"8px 2px 0"}}>
+              Splitting {money(grandPreview)}{tipCents>0 ? " (incl. tip)" : ""}.
+              {rtotalCents>0 && rtotalCents>subtotalCents ? " Tax/extra above the items is split across everyone's share." : ""}
+            </div>
+
+            <button className="btn" style={{marginTop:14}} disabled={!canSplit} onClick={doSplit}>
+              See the split
+            </button>
+            {!canSplit && <div className="tiny faint" style={{textAlign:"center",marginTop:8}}>
+              Add at least two people and a total to split.
+            </div>}
+          </div>
+        )}
+
+        {step === "result" && split && (
+          <div>
+            <div className="card" style={{padding:"4px 14px"}}>
+              {split.people.map(p => (
+                <div key={p.name} className="spl-res">
+                  <div>
+                    <div className="spl-nm">{p.name}</div>
+                    <div className="spl-sub">
+                      items {money(p.lineCents)}{p.shareCents ? " + tax/tip " + money(p.shareCents) : ""}
+                    </div>
+                  </div>
+                  <div className="spl-amt">{money(p.totalCents)}</div>
+                </div>
+              ))}
+              <div className="spl-total">
+                <span>Total</span><span>{money(split.grandCents)}</span>
+              </div>
+            </div>
+            <div className="tiny faint" style={{textAlign:"center",marginTop:8}}>
+              Adds up to the check total{split.overageCents>0 ? " - tax and tip included" : ""}.
+            </div>
+            <button className="btn" style={{marginTop:14}} onClick={shareSplit}>Share the split</button>
+            <button className="btn ghost" style={{marginTop:10}} onClick={()=> setStep("edit")}>Edit</button>
+            <button className="btn ghost" style={{marginTop:10}} onClick={onClose}>Done</button>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
 function ActionSheet({onClose, onPick}){
   return (
     <div className="sheet-bg" onClick={onClose}>
@@ -6020,6 +6435,11 @@ function ActionSheet({onClose, onPick}){
           <span className="ic"><Icon name="camera" size={21} color="#e0764a" /></span>
           <div><div className="t1">Scan a menu</div>
             <div className="t2">Photograph a menu and digitize it</div></div>
+        </div>
+        <div className="sheet-item" onClick={()=> onPick("splitCheck")}>
+          <span className="ic"><Icon name="receipt" size={21} color="#e0764a" /></span>
+          <div><div className="t1">Split a check</div>
+            <div className="t2">Scan a receipt and split it by who had what</div></div>
         </div>
         <div className="sheet-item" onClick={()=> onPick("addRestaurant")}>
           <span className="ic"><Icon name="pin" size={21} color="#e0764a" /></span>
