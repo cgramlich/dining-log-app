@@ -790,7 +790,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.69.0";
+const APP_VERSION   = "1.70.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1339,6 +1339,11 @@ tap **Save to a visit**: choose a place and either start a new visit for today o
 attach it to a recent one. The split is stored on that visit - you'll find it in
 your History under a **Check split** line - and the total is recorded as that
 visit's spend.
+
+You can also split a check straight from a visit you've already logged: open the
+visit (in History or on the restaurant page) and tap **Split the check**. It opens
+the splitter already filled in with that visit's dishes and total - just add who
+was there, and saving goes right back to that visit.
 
 ## Publishing a list
 list**, give it a title, and tick the restaurants to include (your favorites and
@@ -4343,6 +4348,7 @@ function App(){
         {tab === "history" && (
           <HistoryView visits={visits} restaurantById={restaurantById}
             cfg={config} syncing={sync.status === "busy"}
+            onSplitVisit={(v)=> setOverlay({ type:"splitCheck", fromVisit:v })}
             onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
         )}
         {tab === "restaurants" && (
@@ -4502,6 +4508,8 @@ function App(){
           onOpenMenu={(menuId)=> setOverlay({
             type:"menuDetail", restaurantId:overlay.id, menuId:menuId })}
           onOpenVisit={(v)=> setOverlay({ type:"editVisit", visit:v,
+            returnTo:{ type:"restaurant", id:overlay.id } })}
+          onSplitVisit={(v)=> setOverlay({ type:"splitCheck", fromVisit:v,
             returnTo:{ type:"restaurant", id:overlay.id } })}
           onToggleFav={()=>{
             const next = restaurants.map(r =>
@@ -4727,12 +4735,19 @@ function App(){
           flash={flash}
           restaurants={restaurants}
           visits={visits}
+          initialLines={overlay.fromVisit
+            ? (overlay.fromVisit.dishes || []).filter(d => parsePrice(d.price))
+                .map(d => ({ name: d.name, price: parsePrice(d.price) }))
+            : null}
+          initialTotal={overlay.fromVisit && overlay.fromVisit.receipt ? overlay.fromVisit.receipt.total : null}
+          presetRestId={overlay.fromVisit ? overlay.fromVisit.restaurant_id : ""}
+          presetVisitId={overlay.fromVisit ? overlay.fromVisit.id : "new"}
           onSaveToVisit={(rec, isNew)=>{
             const next = isNew ? [rec].concat(visits) : visits.map(v=> v.id===rec.id ? rec : v);
             commit({ visits:next }, ["visits"]);
             flash(isNew ? "Saved as a new visit" : "Split saved to your visit");
           }}
-          onClose={()=> setOverlay(null)} />
+          onClose={()=> setOverlay(overlay.returnTo || null)} />
       )}
       {overlay && overlay.type === "scanMenu" && (
         <ScanMenuFlow
@@ -4992,7 +5007,7 @@ function VisitSplit({split}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport}){
+function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   if (!visits.length){
@@ -5118,6 +5133,9 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
             <ReceiptReveal cfg={cfg} receipt={v.receipt} />
             <VisitSplit split={v.split} />
+            {onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
+              <button className="btn ghost sm" style={{marginTop:9}} onClick={()=> onSplitVisit(v)}>Split the check</button>
+            ) : null}
           </div>
         );
       })}
@@ -5473,7 +5491,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
    ============================================================ */
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onOpenMenu, onOpenVisit,
-                           onToggleFav, onDelete, onSaveItemNutrition}){
+                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
@@ -5772,6 +5790,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
               <ReceiptReveal cfg={cfg} receipt={v.receipt} />
               <VisitSplit split={v.split} />
+              {onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
+                <button className="btn ghost sm" style={{marginTop:9}} onClick={()=> onSplitVisit(v)}>Split the check</button>
+              ) : null}
             </div>
           );
         })}
@@ -6205,20 +6226,28 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal){
   return { people: out, grandCents, lineSubtotalCents, overageCents };
 }
 
-function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, flash}){
-  const [step, setStep]       = useState("pick");     // pick | edit | result | save
+function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, flash,
+                         initialLines, initialTotal, presetRestId, presetVisitId}){
+  // When launched FROM a visit we arrive pre-loaded with that visit's priced
+  // dishes and total, jump straight to the edit step, and default the save back
+  // to that same visit.
+  const preloaded = !!(initialLines && initialLines.length);
+  const [step, setStep]       = useState(preloaded ? "edit" : "pick");  // pick | edit | result | save
   const [busy, setBusy]       = useState(false);
   const [processing, setProcessing] = useState(null); // {done,total} | null
   const [errMsg, setErrMsg]   = useState("");
-  const [lines, setLines]     = useState([]);         // [{id,name,price}]
-  const [rtotal, setRtotal]   = useState("");         // scanned grand total (string)
+  const [lines, setLines]     = useState(() => preloaded
+    ? initialLines.map(l => ({ id: uid("spl"), name: l.name || "",
+        price: (l.price != null && l.price !== "") ? String(l.price) : "" }))
+    : []);                                            // [{id,name,price}]
+  const [rtotal, setRtotal]   = useState(initialTotal != null ? String(initialTotal) : "");
   const [people, setPeople]   = useState([]);         // [name]
   const [nameDraft, setNameDraft] = useState("");
   const [assign, setAssign]   = useState({});         // {lineId:[name]}
   const [tip, setTip]         = useState("");         // dollars (string)
   const [split, setSplit]     = useState(null);       // computeManualSplit result
-  const [saveRest, setSaveRest]   = useState("");     // restaurant id chosen on the save step
-  const [saveVisit, setSaveVisit] = useState("new");  // "new" or an existing visit id
+  const [saveRest, setSaveRest]   = useState(presetRestId || "");     // restaurant id on the save step
+  const [saveVisit, setSaveVisit] = useState(presetVisitId || "new"); // "new" or an existing visit id
   const fileRef = useRef(null);
 
   const money = c => "$" + (Math.round(c) / 100).toFixed(2);
@@ -6319,10 +6348,19 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
     setStep("result");
   }
 
-  // Recent visits at the chosen restaurant (newest first; visits is already in
-  // newest-first order). Used to offer "attach to an existing visit".
-  const recentForSave = (saveRest && Array.isArray(visits))
-    ? visits.filter(v => v.restaurant_id === saveRest).slice(0, 5) : [];
+  // Recent visits at the chosen restaurant (newest first). Always include the
+  // currently-selected visit (e.g. the one we were launched from) so its radio
+  // can show as selected even if it falls outside the most-recent few.
+  const recentForSave = (() => {
+    if (!saveRest || !Array.isArray(visits)) return [];
+    const list = visits.filter(v => v.restaurant_id === saveRest);
+    const top = list.slice(0, 5);
+    if (saveVisit && saveVisit !== "new" && !top.some(v => v.id === saveVisit)){
+      const sel = list.find(v => v.id === saveVisit);
+      if (sel) top.unshift(sel);
+    }
+    return top;
+  })();
 
   // Persist the computed split onto a visit - a new one today (default) or an
   // existing one the user picks. The split rides inside the visit JSON, and the
