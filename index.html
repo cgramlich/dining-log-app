@@ -699,6 +699,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .spl-pricebox{ width:88px; text-align:right; flex:0 0 auto; }
     .spl-who{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
     .spl-shared{ font-size:12px; color:var(--text-dim); margin-top:7px; }
+    .spl-qty{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:7px 2px 2px; }
     .spl-res{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:11px 2px; border-bottom:1px solid var(--line-soft); }
     .spl-res:last-child{ border-bottom:none; }
     .spl-nm{ font-weight:600; color:var(--text); }
@@ -790,7 +791,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.72.0";
+const APP_VERSION   = "1.73.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1328,7 +1329,10 @@ Scan the receipt (or tap **Enter by hand**) and the app reads the line items and
 the total. Type in who's at the table, then tap the names under each item to say
 who shared it - anything you leave unassigned is split evenly across everyone.
 There's an optional **tip** field for when the tip was written on by hand, and an
-**Everyone shares everything** shortcut for the simplest case.
+**Everyone shares everything** shortcut for the simplest case. When a line covers
+several of the same item (like **3 GL Prisoner** at one price), a **Split into 3**
+button breaks it into separate per-unit rows so you can give each one to a
+different person.
 
 Tap **See the split** and you get each person's total - their items plus a
 proportional share of tax and tip - adding up exactly to the real check. **Share**
@@ -6303,6 +6307,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
         id: uid("spl"),
         name: it.name,
         price: (it.price != null ? String(it.price) : ""),
+        qty: it.qty || 1,   // carried so a bundled line ("3 GL x $66") can be split into units
       }));
       setLines(newLines);
       setRtotal(parsed.total != null ? String(parsed.total) : "");
@@ -6352,6 +6357,29 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
   function removeLine(id){
     setLines(lines.filter(l => l.id !== id));
     const next = Object.assign({}, assign); delete next[id]; setAssign(next);
+  }
+  // Explode a multi-quantity line (e.g. "3 GL Prisoner $66") into that many
+  // per-unit rows ($22 each) so each unit can be assigned to a different person.
+  // Cents are distributed so the unit rows still sum to the original line total.
+  function splitLineIntoUnits(id){
+    const l = lines.find(x => x.id === id);
+    if (!l) return;
+    const qty = Math.max(2, parseInt(l.qty, 10) || 1);
+    const totalCents = Math.max(0, Math.round((Number(l.price) || 0) * 100));
+    const base = Math.floor(totalCents / qty);
+    const rem  = totalCents - base * qty;        // leftover pennies after even division
+    const units = [];
+    for (let i = 0; i < qty; i++){
+      const cents = base + (i < rem ? 1 : 0);    // first `rem` units carry the extra penny
+      units.push({ id: uid("spl"), name: l.name, price: (cents / 100).toFixed(2), qty: 1 });
+    }
+    // splice the unit rows in where the original line sat, preserving order
+    const next = [];
+    lines.forEach(x => { if (x.id === id) Array.prototype.push.apply(next, units); else next.push(x); });
+    setLines(next);
+    // the original line's assignment no longer applies - units start unassigned
+    const na = Object.assign({}, assign); delete na[id]; setAssign(na);
+    logMsg("SPLIT","Split '" + l.name + "' into " + qty + " units, total_cents=" + totalCents);
   }
 
   // ---- assignment toggle ----
@@ -6534,6 +6562,8 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
               {!lines.length && <div className="small muted" style={{padding:"8px 0"}}>No items yet - add one below.</div>}
               {lines.map(l => {
                 const who = assign[l.id] || [];
+                const lqty = Math.max(1, parseInt(l.qty, 10) || 1);
+                const perUnitCents = Math.round((Number(l.price) || 0) * 100) / lqty;
                 return (
                   <div key={l.id} className="spl-line">
                     <div className="spl-row">
@@ -6544,6 +6574,14 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
                         onChange={e=> setLineField(l.id, "price", e.target.value)} />
                       <button className="spl-x" onClick={()=> removeLine(l.id)}>&times;</button>
                     </div>
+                    {lqty > 1 && (
+                      <div className="spl-qty">
+                        <span className="tiny faint">{lqty} &times; {money(perUnitCents)} each</span>
+                        <button className="btn ghost"
+                          style={{width:"auto",padding:"0 12px",height:"30px",fontSize:"13px",flex:"none"}}
+                          onClick={()=> splitLineIntoUnits(l.id)}>Split into {lqty}</button>
+                      </div>
+                    )}
                     {people.length > 0 && (
                       <div className="spl-who">
                         {people.map(p => (
