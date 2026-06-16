@@ -795,7 +795,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.77.0";
+const APP_VERSION   = "1.78.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1351,6 +1351,10 @@ already filled in with that visit's dishes and total, and a **Show receipt** lin
 lets you check the prices against the actual check. Add who was there, tap **See
 the split**, then **Save to this visit** - it is stored right on that visit (you'll
 see a **Check split** line in History) without touching the rest of the meal.
+
+You can also split while you are logging: under the scanned receipt in **Log a
+visit**, tap **Split the check**, build the split, and tap **Use this split** - it
+rides along on the visit and is saved when you save the visit.
 
 ## Publishing a list
 list**, give it a title, and tick the restaurants to include (your favorites and
@@ -6268,7 +6272,7 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal){
   return { people: out, grandCents, lineSubtotalCents, overageCents };
 }
 
-function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, flash,
+function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraft, onClose, flash,
                          initialLines, initialTotal, presetRestId, presetVisitId,
                          initialReceiptPhoto}){
   // When launched FROM a visit we arrive pre-loaded with that visit's priced
@@ -6481,6 +6485,23 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
     onClose();
   }
 
+  // Form-launched (draft) mode: build the same split object but hand it back to
+  // the visit form instead of committing, so it saves WITH the visit.
+  function doApplyDraft(){
+    if (!split || !onApplyDraft) return;
+    const toDollars = c => Math.round(c) / 100;
+    const splitObj = {
+      people: split.people.map(p => ({ name: p.name, amount: toDollars(p.totalCents) })),
+      grand: toDollars(split.grandCents),
+      items: lines.filter(l => (l.name || "").trim())
+        .map(l => ({ name: l.name.trim(), price: (Number(l.price) || 0) })),
+      saved_at: Date.now(),
+    };
+    logMsg("SPLIT","Applied split to visit draft, grand=" + money(split.grandCents));
+    onApplyDraft(splitObj);
+    onClose();
+  }
+
   async function shareSplit(){
     if (!split) return;
     const out = ["Check split:"];
@@ -6666,7 +6687,11 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
               Adds up to the check total{split.overageCents>0 ? " - tax and tip included" : ""}.
             </div>
             <button className="btn" style={{marginTop:14}} onClick={shareSplit}>Share the split</button>
-            {fromVisit && onSaveToVisit ? (
+            {onApplyDraft ? (
+              <button className="btn ghost" style={{marginTop:10}} onClick={doApplyDraft}>
+                Use this split
+              </button>
+            ) : fromVisit && onSaveToVisit ? (
               <button className="btn ghost" style={{marginTop:10}} onClick={doSaveToVisit}>
                 Save to this visit
               </button>
@@ -7060,6 +7085,11 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
   const [dishes,setDishes] = useState(existing ? existing.dishes.slice() : []);
   const [dishInput,setDishInput] = useState("");
   const [confirmDel,setConfirmDel] = useState(false);
+  // Split-the-check draft: built by the splitter launched from this form (as a
+  // layer), held here, and saved onto the visit when the form is saved. Seeded
+  // from an existing visit's split so editing never silently drops it.
+  const [splitDraft,setSplitDraft] = useState(existing && existing.split ? existing.split : null);
+  const [splitOpen,setSplitOpen]   = useState(false);
 
   // ---- receipt scan state ---------------------------------------------
   // receiptSlot: null | {kind:"existing", path} | {kind:"pending", blob, previewUrl}
@@ -7518,6 +7548,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
       receipt: receipt,                          // {photo, total} or null
       nutrition: nutrition || null,              // meal-photo estimate (or null)
       logged_at: existing ? existing.logged_at : Date.now(),
+      split: splitDraft || null,                 // who-pays-what split, saved with the visit
     };
     onSave(rec, { pendingUploads: pendingUploads });
   }
@@ -7779,8 +7810,22 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
             {receiptBusy ? <span className="spin" />
               : <Icon name={(scannedItems && scannedItems.length) ? "receipt" : "camera"} size={16} />}
             {receiptBusy ? "Reading the check..."
-              : ((scannedItems && scannedItems.length) ? "From check" : "Scan the check")}
+              : ((scannedItems && scannedItems.length) ? "From Receipt Image" : "Scan the check")}
           </button>
+          <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
+            onClick={()=> setSplitOpen(true)}>Split the check</button>
+          {splitDraft && (
+            <div className="tiny muted" style={{marginTop:8}}>
+              Check split{splitDraft.grand ? " \u00b7 " + fmtPrice(splitDraft.grand) : ""}
+              {splitDraft.people && splitDraft.people.length ? " across " + splitDraft.people.length : ""}
+              {" \u00b7 "}
+              <a href="#" style={{color:"var(--accent)"}}
+                 onClick={(e)=>{ e.preventDefault(); setSplitOpen(true); }}>edit</a>
+              {" \u00b7 "}
+              <a href="#" style={{color:"var(--accent)"}}
+                 onClick={(e)=>{ e.preventDefault(); setSplitDraft(null); }}>remove</a>
+            </div>
+          )}
           {receiptErr && (
             <div className="small" style={{color:"#e7a99e", marginTop:6}}>{receiptErr}</div>
           )}
@@ -8013,6 +8058,24 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
         )}
         <div style={{height:24}} />
       </div>
+      {splitOpen && (
+        <div style={{position:"fixed", inset:0, zIndex:60}}>
+          <SplitCheckFlow
+            config={cfg}
+            flash={(m)=> logMsg("SPLIT", m || "")}
+            restaurants={restaurants}
+            visits={[]}
+            initialLines={(scannedItems && scannedItems.length)
+              ? scannedItems.map(it => ({ name: it.useName, price: it.price, qty: it.qty || 1 }))
+              : null}
+            initialTotal={receiptTotal != null ? receiptTotal : null}
+            presetRestId={restId}
+            presetVisitId={"new"}
+            initialReceiptPhoto={receiptSlot && receiptSlot.kind === "existing" ? receiptSlot.path : null}
+            onApplyDraft={(splitObj)=>{ setSplitDraft(splitObj); setSplitOpen(false); }}
+            onClose={()=> setSplitOpen(false)} />
+        </div>
+      )}
     </div>
   );
 }
