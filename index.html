@@ -791,7 +791,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.73.0";
+const APP_VERSION   = "1.74.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4766,7 +4766,7 @@ function App(){
           visits={visits}
           initialLines={overlay.fromVisit
             ? (overlay.fromVisit.dishes || []).filter(d => parsePrice(d.price))
-                .map(d => ({ name: d.name, price: parsePrice(d.price) }))
+                .map(d => ({ name: d.name, price: parsePrice(d.price), qty: d.qty || 1 }))
             : null}
           initialTotal={overlay.fromVisit && overlay.fromVisit.receipt ? overlay.fromVisit.receipt.total : null}
           presetRestId={overlay.fromVisit ? overlay.fromVisit.restaurant_id : ""}
@@ -6274,7 +6274,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
   const [errMsg, setErrMsg]   = useState("");
   const [lines, setLines]     = useState(() => preloaded
     ? initialLines.map(l => ({ id: uid("spl"), name: l.name || "",
-        price: (l.price != null && l.price !== "") ? String(l.price) : "" }))
+        price: (l.price != null && l.price !== "") ? String(l.price) : "", qty: l.qty || 1 }))
     : []);                                            // [{id,name,price}]
   const [rtotal, setRtotal]   = useState(initialTotal != null ? String(initialTotal) : "");
   const [people, setPeople]   = useState([]);         // [name]
@@ -7107,6 +7107,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
         have[n] = true;
         const dish = { name:n, note:"", verdict:null };
         if (it.price != null) dish.price = it.price;
+        if (it.qty > 1) dish.qty = it.qty;   // keep quantity so the splitter can break it into per-unit rows
         added.push(dish);
       });
       return d.concat(added);
