@@ -790,7 +790,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.70.0";
+const APP_VERSION   = "1.71.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3876,6 +3876,32 @@ function App(){
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(()=> setToast(""), 2600);
   }
+
+  /* ---- auto scroll-to-top ---------------------------------- */
+  // WHY: pop-up screens were opening partway down, so the first controls
+  // (e.g. "Who's at the table?" at the top of the check splitter) sat
+  // off-screen and looked missing. `overlay` is a fresh object on every
+  // open, so this fires each time one opens. useEffect runs after React
+  // commits the DOM, and the rAF gives the slide-up animation a frame to
+  // settle before we reset the scroll container(s) to the top.
+  useEffect(()=>{
+    if (!overlay) return;
+    const id = requestAnimationFrame(()=>{
+      // A standard overlay scrolls inside .ovbody; the group-order and
+      // print overlays scroll themselves. Only the matching one(s) exist
+      // in the DOM at any time, so resetting all matches is safe.
+      document.querySelectorAll(".ovbody, .print-overlay, .go-overlay")
+        .forEach((el)=>{ el.scrollTop = 0; });
+    });
+    return ()=> cancelAnimationFrame(id);
+  }, [overlay]);
+
+  // WHY: switching bottom-nav tabs (History/Places/etc.) kept the old
+  // scroll position. The page/window is what scrolls for tab content,
+  // so jump it back to the top on every tab change.
+  useEffect(()=>{
+    window.scrollTo(0, 0);
+  }, [tab]);
 
   /* ---- update check ---------------------------------------- */
   // manual=true surfaces a result message (for the Settings button);
