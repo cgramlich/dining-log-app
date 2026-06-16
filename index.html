@@ -700,6 +700,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .spl-who{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
     .spl-shared{ font-size:12px; color:var(--text-dim); margin-top:7px; }
     .spl-qty{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:7px 2px 2px; }
+    .rcpt-step{ width:30px; height:30px; border-radius:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--text); font-size:18px; line-height:1; padding:0; display:flex; align-items:center; justify-content:center; }
     .spl-res{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:11px 2px; border-bottom:1px solid var(--line-soft); }
     .spl-res:last-child{ border-bottom:none; }
     .spl-nm{ font-weight:600; color:var(--text); }
@@ -791,7 +792,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.74.0";
+const APP_VERSION   = "1.76.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7061,7 +7062,8 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
   const [receiptBusy,setReceiptBusy] = useState(false);
   const [receiptErr,setReceiptErr] = useState("");
   const [receiptShow,setReceiptShow] = useState(false);     // inline preview toggle
-  const [receiptReview,setReceiptReview] = useState(null);  // null | [{...item, checked}]
+  const [receiptReview,setReceiptReview] = useState(null);  // null | [{...item, count}]  count = how many of the line you ate
+  const [scannedItems,setScannedItems] = useState(null);    // persistent parsed items, so the picker re-opens without a re-scan
   const receiptRef = useRef(null);
 
   async function onReceiptPicked(e){
@@ -7082,11 +7084,13 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
       const prev = URL.createObjectURL(blob);
       setReceiptSlot({ kind:"pending", blob:blob, previewUrl:prev });
       if (parsed.total != null) setReceiptTotal(parsed.total);
-      setReceiptReview(parsed.items.map((it, i) => Object.assign({}, it, {
-        rid:"r"+i, checked:false,
+      const mappedItems = parsed.items.map((it, i) => Object.assign({}, it, {
+        rid:"r"+i, count:0,
         // the name the dish will be logged under; menu match wins
         useName: it.menu_match || it.name,
-      })));
+      }));
+      setScannedItems(mappedItems);   // persist so the picker re-opens without a re-scan
+      setReceiptReview(mappedItems);
       logMsg("RECEIPT","Review open with " + parsed.items.length + " item(s)");
     } catch(err){
       logMsg("ERROR","Receipt scan failed: " + err.message);
@@ -7096,7 +7100,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
   }
 
   function confirmReceiptDishes(){
-    const picked = (receiptReview || []).filter(it => it.checked);
+    const picked = (receiptReview || []).filter(it => it.count > 0);
     setDishes(d => {
       const have = {};
       d.forEach(x => { have[x.name] = true; });
@@ -7105,9 +7109,13 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
         const n = (it.useName || "").trim();
         if (!n || have[n]) return;
         have[n] = true;
+        // count = how many of this line you actually ate (1..lineQty)
+        const lineQty = Math.max(1, parseInt(it.qty, 10) || 1);
+        const count   = Math.max(1, Math.min(lineQty, parseInt(it.count, 10) || 1));
         const dish = { name:n, note:"", verdict:null };
-        if (it.price != null) dish.price = it.price;
-        if (it.qty > 1) dish.qty = it.qty;   // keep quantity so the splitter can break it into per-unit rows
+        // log only your portion: per-unit price x how many you had (not the whole line)
+        if (it.price != null) dish.price = Math.round((Number(it.price) * count / lineQty) * 100) / 100;
+        if (count > 1) dish.qty = count;   // your own quantity, so the splitter can break it into per-unit rows
         added.push(dish);
       });
       return d.concat(added);
@@ -7116,11 +7124,21 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     setReceiptReview(null);
   }
 
+  // Re-open the "Which were yours?" picker from the already-scanned check, so
+  // more items can be added later without paying for another scan. Already-added
+  // dishes appear greyed in the picker and are skipped on add.
+  function openCheckPicker(){
+    if (!scannedItems || !scannedItems.length) return;
+    setReceiptReview(scannedItems.map(it => Object.assign({}, it, { count:0 })));
+    logMsg("RECEIPT","Re-opened check picker with " + scannedItems.length + " item(s)");
+  }
+
   function removeReceipt(){
     if (receiptSlot && receiptSlot.kind === "pending" && receiptSlot.previewUrl){
       try { URL.revokeObjectURL(receiptSlot.previewUrl); } catch(e){}
     }
     setReceiptSlot(null); setReceiptTotal(null); setReceiptShow(false);
+    setScannedItems(null); setReceiptReview(null);
   }
 
   // ---- photo state -----------------------------------------------------
@@ -7716,6 +7734,10 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
               placeholder="Type a dish, then Add" />
             <button className="btn ghost sm" onClick={()=> addDish(dishInput)}
               style={{flex:"none"}}>Add</button>
+            {scannedItems && scannedItems.length > 0 && (
+              <button className="btn ghost sm" onClick={openCheckPicker}
+                style={{flex:"none"}}>From check</button>
+            )}
           </div>
           <input ref={receiptRef} type="file" accept="image/*"
             style={{display:"none"}} onChange={onReceiptPicked} />
@@ -7737,6 +7759,12 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
               {" \u00b7 "}
               <a href="#" style={{color:"var(--accent)"}}
                  onClick={(e)=>{ e.preventDefault(); removeReceipt(); }}>remove</a>
+              {scannedItems && scannedItems.length > 0 && (
+                <span>{" \u00b7 "}
+                  <a href="#" style={{color:"var(--accent)"}}
+                     onClick={(e)=>{ e.preventDefault(); openCheckPicker(); }}>pick items</a>
+                </span>
+              )}
               {receiptShow && (
                 <div style={{marginTop:8}}>
                   {receiptSlot.kind === "pending"
@@ -7777,44 +7805,74 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                 <div className="modal-body">
                   <div className="row" style={{gap:8, marginBottom:10}}>
                     <button className="btn ghost sm" onClick={()=>
-                      setReceiptReview(rr => rr.map(it => Object.assign({}, it, {checked:true})))}>
+                      setReceiptReview(rr => rr.map(it => Object.assign({}, it, {count: Math.max(1, parseInt(it.qty,10)||1)})))}>
                       Select all</button>
                     <button className="btn ghost sm" onClick={()=>
-                      setReceiptReview(rr => rr.map(it => Object.assign({}, it, {checked:false})))}>
+                      setReceiptReview(rr => rr.map(it => Object.assign({}, it, {count:0})))}>
                       Clear</button>
                   </div>
                   <div style={{maxHeight:"46vh", overflowY:"auto"}}>
-                    {receiptReview.map(it => (
+                    {receiptReview.map(it => {
+                      // already on the visit? show it greyed and non-selectable
+                      const added   = dishes.some(d => (d.name||"").trim() === (it.useName||"").trim());
+                      const lineQty = Math.max(1, parseInt(it.qty, 10) || 1);
+                      const count   = Math.max(0, Math.min(lineQty, parseInt(it.count, 10) || 0));
+                      const perUnit = it.price != null ? (Number(it.price) / lineQty) : null;  // dollars per unit
+                      const yourPrice = perUnit != null ? perUnit * count : null;
+                      // clamp + write this line's count (how many of it you ate)
+                      const setCount = (n)=>{ if (added) return;
+                        const c = Math.max(0, Math.min(lineQty, n));
+                        setReceiptReview(rr => rr.map(x => x.rid === it.rid ? Object.assign({}, x, {count:c}) : x)); };
+                      // tapping the name / checkmark is a quick all-or-none toggle
+                      const toggle = added ? undefined : ()=> setCount(count > 0 ? 0 : lineQty);
+                      return (
                       <div key={it.rid} className="row"
                            style={{gap:9, alignItems:"center", padding:"7px 0",
-                                   borderBottom:"1px solid rgba(255,255,255,0.06)"}}
-                           onClick={()=> setReceiptReview(rr => rr.map(x =>
-                             x.rid === it.rid ? Object.assign({}, x, {checked:!x.checked}) : x))}>
-                        <div className={"verdict-btn" + (it.checked ? " on again" : "")}
-                             style={{flex:"none", minWidth:34, textAlign:"center"}}>
-                          {it.checked ? "\u2713" : ""}
+                                   borderBottom:"1px solid rgba(255,255,255,0.06)",
+                                   opacity: added ? 0.45 : 1}}>
+                        <div className={"verdict-btn" + (count > 0 && !added ? " on again" : "")}
+                             style={{flex:"none", minWidth:34, textAlign:"center", cursor: added ? "default" : "pointer"}}
+                             onClick={toggle}>
+                          {(added || count > 0) ? "\u2713" : ""}
                         </div>
-                        <div style={{flex:1, minWidth:0}}>
+                        <div style={{flex:1, minWidth:0, cursor: added ? "default" : "pointer"}} onClick={toggle}>
                           <div className="small" style={{fontWeight:600}}>
-                            {it.useName}{it.qty > 1 ? " \u00d7" + it.qty : ""}
+                            {it.useName}{lineQty > 1 ? " \u00d7" + lineQty : ""}
                           </div>
-                          {it.menu_match && it.menu_match !== it.name && (
-                            <div className="tiny faint">on the check: {it.name}</div>
-                          )}
+                          {added
+                            ? <div className="tiny faint">already added</div>
+                            : lineQty > 1
+                              ? <div className="tiny faint">
+                                  {count > 0 ? (count + " of " + lineQty + (yourPrice ? " \u00b7 " + fmtPrice(yourPrice) : "")) : "none"}
+                                </div>
+                              : (it.menu_match && it.menu_match !== it.name && (
+                                  <div className="tiny faint">on the check: {it.name}</div>
+                                ))}
                         </div>
-                        <div className="small muted" style={{flex:"none"}}>
-                          {it.price != null ? fmtPrice(it.price) : ""}
-                        </div>
+                        {lineQty > 1 && !added ? (
+                          <div style={{flex:"none", display:"flex", alignItems:"center", gap:8}}>
+                            <button type="button" className="rcpt-step"
+                              onClick={(e)=>{ e.stopPropagation(); setCount(count - 1); }}>&minus;</button>
+                            <span className="small" style={{minWidth:16, textAlign:"center", fontVariantNumeric:"tabular-nums"}}>{count}</span>
+                            <button type="button" className="rcpt-step"
+                              onClick={(e)=>{ e.stopPropagation(); setCount(count + 1); }}>+</button>
+                          </div>
+                        ) : (
+                          <div className="small muted" style={{flex:"none"}}>
+                            {it.price != null ? fmtPrice(it.price) : ""}
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="row" style={{gap:9, marginTop:12}}>
                   <button className="btn ghost" onClick={()=> setReceiptReview(null)}>Cancel</button>
                   <button className="btn primary"
-                    disabled={!receiptReview.some(it => it.checked)}
+                    disabled={!receiptReview.some(it => it.count > 0)}
                     onClick={confirmReceiptDishes}>
-                    Add {receiptReview.filter(it => it.checked).length || ""} dish{receiptReview.filter(it => it.checked).length === 1 ? "" : "es"}
+                    Add {receiptReview.filter(it => it.count > 0).length || ""} dish{receiptReview.filter(it => it.count > 0).length === 1 ? "" : "es"}
                   </button>
                 </div>
               </div>
