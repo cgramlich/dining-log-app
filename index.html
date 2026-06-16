@@ -790,7 +790,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.71.0";
+const APP_VERSION   = "1.71.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3724,7 +3724,7 @@ function ReceiptReveal({cfg, receipt}){
   return (
     <div style={{marginTop:8}}>
       <a href="#" className="tiny" style={{color:"var(--accent)"}}
-         onClick={(e)=>{ e.preventDefault(); setOpen(o=>!o); }}>
+         onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); setOpen(o=>!o); }}>
         {open ? "Hide receipt" : "Show receipt"}
       </a>
       {open && (
@@ -5015,7 +5015,7 @@ function VisitSplit({split}){
   const money = n => "$" + (Number(n) || 0).toFixed(2);
   return (
     <div className="vsplit">
-      <button className="vsplit-head" onClick={()=> setOpen(o => !o)}>
+      <button className="vsplit-head" onClick={(e)=>{ e.stopPropagation(); setOpen(o => !o); }}>
         <span>Check split{split.grand ? " - " + money(split.grand) : ""}</span>
         <Icon name={open ? "chevd" : "chev"} size={15} />
       </button>
@@ -5160,7 +5160,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             <ReceiptReveal cfg={cfg} receipt={v.receipt} />
             <VisitSplit split={v.split} />
             {onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
-              <button className="btn ghost sm" style={{marginTop:9}} onClick={()=> onSplitVisit(v)}>Split the check</button>
+              <button className="btn ghost sm" style={{marginTop:9}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>Split the check</button>
             ) : null}
           </div>
         );
@@ -5817,7 +5817,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <ReceiptReveal cfg={cfg} receipt={v.receipt} />
               <VisitSplit split={v.split} />
               {onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
-                <button className="btn ghost sm" style={{marginTop:9}} onClick={()=> onSplitVisit(v)}>Split the check</button>
+                <button className="btn ghost sm" style={{marginTop:9}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>Split the check</button>
               ) : null}
             </div>
           );
