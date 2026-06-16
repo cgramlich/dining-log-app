@@ -790,7 +790,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.68.0";
+const APP_VERSION   = "1.69.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1027,15 +1027,16 @@ so you can tell them apart from real ones.
 ## Help me order
 
 On any digitized menu you can ask a plain-English question - things like
-"something healthy," "not too heavy," "best value," or "what did I love here?"
-The app answers using that restaurant's actual menu, and it takes your own
-dish ratings into account, so the more you log the more personal the answers
-get. When a menu item has calories on it - whether printed on the menu or
-estimated - the answers factor those in too, so a question like "something
-lighter" can weigh the actual numbers. Prices work the same way: ask for
-"best value" or "something cheap" and it weighs what dishes cost (filling in
-prices it has learned from your scanned checks). It stays easygoing about it: the
-calories inform the suggestion, they are never treated as a budget or a rule.
+"something healthy," "not too heavy," "best value," "what did I love here?," or
+"what do I usually get?" The app answers using that restaurant's actual menu, and
+it draws on your own history there - which dishes you marked Again or Skip, how
+often you've ordered them, and what you've paid - so the more you log, the more
+personal the answers get. When a menu item has calories on it - whether printed
+on the menu or estimated - the answers factor those in too, so a question like
+"something lighter" can weigh the actual numbers. Prices work the same way: ask
+for "best value" or "something cheap" and it weighs what dishes cost, leaning on
+the real prices it has learned from your scanned checks. It stays easygoing about
+it: the numbers inform the suggestion, they are never treated as a budget or a rule.
 
 -----
 
@@ -3189,18 +3190,34 @@ function dishHistory(visits){
   const byDate = (visits || []).slice().sort((a,b)=>
     (b.date || "").localeCompare(a.date || "") ||
     ((b.logged_at || 0) - (a.logged_at || 0)));
-  const memo = new Map();                  // key -> { name, latest }
+  // key -> rolling stats. byDate is newest-first, so the FIRST verdict/date we
+  // see for a dish is the most recent one.
+  const memo = new Map();
   byDate.forEach(v => (v.dishes || []).forEach(d => {
-    if (!d || !d.name || !d.verdict) return;
+    if (!d || !d.name) return;
     const k = d.name.trim().toLowerCase();
-    if (!memo.has(k)) memo.set(k, { name:d.name, latest:d.verdict }); // newest-first
+    let e = memo.get(k);
+    if (!e){ e = { name:d.name, latest:null, count:0, lastDate:"",
+                   priceSum:0, priceN:0, rateSum:0, rateN:0 }; memo.set(k, e); }
+    e.count += 1;
+    if (!e.latest && d.verdict) e.latest = d.verdict;     // newest verdict wins
+    if (!e.lastDate && v.date)  e.lastDate = v.date;       // newest date wins
+    const p = parsePrice(d.price);                         // typed or from a check
+    if (p){ e.priceSum += p; e.priceN += 1; }
+    if (typeof v.rating === "number" && v.rating > 0){ e.rateSum += v.rating; e.rateN += 1; }
   }));
-  const loved = [], disliked = [];
-  memo.forEach(x => {
-    if (x.latest === "again") loved.push(x.name);
-    else if (x.latest === "skip") disliked.push(x.name);
-  });
-  return { loved, disliked };
+  const detail = [];
+  memo.forEach(e => detail.push({
+    name: e.name,
+    verdict: e.latest,                                     // "again" | "skip" | null
+    count: e.count,
+    lastDate: e.lastDate,
+    paid: e.priceN ? (e.priceSum / e.priceN) : null,       // avg paid, dollars
+    rating: e.rateN ? (e.rateSum / e.rateN) : null,        // avg visit rating
+  }));
+  const loved    = detail.filter(x => x.verdict === "again").map(x => x.name);
+  const disliked = detail.filter(x => x.verdict === "skip").map(x => x.name);
+  return { loved, disliked, detail };
 }
 
 // Ask Claude to recommend from THIS menu. `question` may be a question, a
@@ -3209,7 +3226,18 @@ async function askMenu(cfg, restaurant, menu, visits, question){
   const rName    = (restaurant && restaurant.name) ? restaurant.name : "this restaurant";
   const menuText = menuToText(menu);
   const hist     = dishHistory(visits);
-  const hasHist  = hist.loved.length > 0 || hist.disliked.length > 0;
+  // Rank what they have actually ordered here: loved first, then by how often.
+  // Keep only dishes with a real signal (a verdict, ordered more than once, or
+  // a known price) so the hint stays compact and factual.
+  const histRanked = (hist.detail || [])
+    .filter(d => d.verdict || d.count > 1 || d.paid)
+    .sort((a,b)=>{
+      const va = a.verdict === "again" ? 2 : (a.verdict === "skip" ? 0 : 1);
+      const vb = b.verdict === "again" ? 2 : (b.verdict === "skip" ? 0 : 1);
+      return vb - va || b.count - a.count;
+    })
+    .slice(0, 12);
+  const hasHist  = histRanked.length > 0;
 
   let prompt =
     "You are a warm, knowledgeable dining companion helping someone decide what "+
@@ -3245,16 +3273,24 @@ async function askMenu(cfg, restaurant, menu, visits, question){
 
   if (hasHist){
     prompt +=
-      "- Personal history at this restaurant (use only as a LIGHT hint, and only "+
-      "if it is relevant to what they asked - do not force it in):\n";
-    if (hist.loved.length)
-      prompt += "    Dishes they previously LOVED: " + hist.loved.join("; ") + "\n";
-    if (hist.disliked.length)
-      prompt += "    Dishes they previously did NOT like: " + hist.disliked.join("; ") + "\n";
+      "- Personal history at this restaurant - what they have actually ordered "+
+      "here (use as a LIGHT hint, only if relevant to what they asked; always "+
+      "answer their request first):\n";
+    histRanked.forEach(d => {
+      const bits = [];
+      if (d.verdict === "again") bits.push("LOVED it");
+      else if (d.verdict === "skip") bits.push("did not like it");
+      if (d.count > 1) bits.push("ordered " + d.count + " times");
+      if (d.paid) bits.push("usually pays about $" + d.paid.toFixed(2));
+      const tail = bits.length ? " - " + bits.join(", ") : " - ordered before";
+      prompt += "    " + d.name + tail +
+        (d.lastDate ? " (last on " + d.lastDate + ")" : "") + "\n";
+    });
     prompt +=
-      "  If one of their loved dishes genuinely fits their request, you may note "+
-      "they enjoyed it before. Do not recommend a disliked dish unless they "+
-      "explicitly ask for it. Always answer their actual request first.\n";
+      "  Do not recommend a disliked dish unless they explicitly ask for it. If a "+
+      "loved or frequently-ordered dish genuinely fits their request, you may note "+
+      "they have enjoyed it before. For value or 'best deal' questions, the real "+
+      "prices they have paid above are stronger evidence than the menu's price.\n";
   }
 
   prompt +=
@@ -5780,8 +5816,8 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
   const [answer,   setAnswer]   = useState(null);
   const [askErr,   setAskErr]   = useState(null);
   const hasKey = configComplete(cfg);
-  const hasHistory = dishHistory(visits).loved.length > 0 ||
-                     dishHistory(visits).disliked.length > 0;
+  const _dh = dishHistory(visits);
+  const hasHistory = _dh.loved.length > 0 || _dh.disliked.length > 0;
 
   async function runAsk(override){
     const q = ((override != null ? override : askInput) || "").trim();
@@ -5887,7 +5923,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
             onKeyDown={e=>{ if (e.key === "Enter" && (e.metaKey || e.ctrlKey)){ e.preventDefault(); runAsk(); } }} />
           <div className="chips ask-egs">
             {["Something healthy","Not too heavy","Something for sharing","Best value"]
-              .concat(hasHistory ? ["What did I love here?"] : [])
+              .concat(hasHistory ? ["What did I love here?","What do I usually get?"] : [])
               .map((eg,i)=>(
                 <span key={i} className="chip pick" onClick={()=> runAsk(eg)}>{eg}</span>
               ))}
