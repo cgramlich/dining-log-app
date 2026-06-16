@@ -787,7 +787,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.67.0";
+const APP_VERSION   = "1.67.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9033,7 +9033,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
             )}
 
 
-            <SplitCheck cfg={cfg} menuSnapshot={data.menu_snapshot} picks={data.picks} />
+            {data ? <SplitCheck cfg={cfg} menuSnapshot={data.menu_snapshot} picks={data.picks} /> : null}
 
             <div className="tiny faint" style={{textAlign:"center", margin:"14px 0 30px"}}>
               Updates live. Closes on its own after a day, or tap Close order.
