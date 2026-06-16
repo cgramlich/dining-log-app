@@ -696,6 +696,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .spl-line{ padding:11px 0; border-bottom:1px solid var(--line-soft); }
     .spl-line:last-child{ border-bottom:none; }
     .spl-row{ display:flex; align-items:center; gap:8px; }
+    .amt-seg{ display:flex; align-items:stretch; flex:none; border:1px solid var(--line); border-radius:11px; overflow:hidden; }
+    .amt-seg-b{ width:40px; padding:0; background:transparent; color:var(--text-dim); font-size:15px; font-weight:600; border:none; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .amt-seg-b.on{ background:var(--accent); color:#fff; }
     .spl-pricebox{ width:88px; text-align:right; flex:0 0 auto; }
     .spl-who{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
     .spl-shared{ font-size:12px; color:var(--text-dim); margin-top:7px; }
@@ -795,7 +798,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.78.0";
+const APP_VERSION   = "1.79.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1332,7 +1335,8 @@ order required. Tap the **+** button and choose **Split a check**.
 Scan the receipt (or tap **Enter by hand**) and the app reads the line items and
 the total. Type in who's at the table, then tap the names under each item to say
 who shared it - anything you leave unassigned is split evenly across everyone.
-There's an optional **tip** field for when the tip was written on by hand, and an
+There are **Tax** and **Tip** fields - each can be a dollar amount or a percent -
+and the **Total** updates as you go, or you can type your own to hard-code it. An
 **Everyone shares everything** shortcut for the simplest case. When a line covers
 several of the same item (like **3 GL Prisoner** at one price), a **Split into 3**
 button breaks it into separate per-unit rows so you can give each one to a
@@ -5169,7 +5173,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
                 {v.dishes.map((d,i)=> (
                   <span key={i} className={"chip dish" +
                     (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
-                    {d.name}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + d.nutrition.kcal : ""}{d.price ? " \u00b7 " + fmtPrice(d.price) : ""}
+                    {d.name}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + d.nutrition.kcal : ""}
                   </span>
                 ))}
               </div>
@@ -6296,7 +6300,10 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const [people, setPeople]   = useState([]);         // [name]
   const [nameDraft, setNameDraft] = useState("");
   const [assign, setAssign]   = useState({});         // {lineId:[name]}
-  const [tip, setTip]         = useState("");         // dollars (string)
+  const [tip, setTip]         = useState("");         // amount string ($ or %)
+  const [tipMode, setTipMode] = useState("$");        // "$" | "%" (tip % is on the pre-tax subtotal)
+  const [tax, setTax]         = useState("");         // amount string ($ or %)
+  const [taxMode, setTaxMode] = useState("$");        // "$" | "%"
   const [split, setSplit]     = useState(null);       // computeManualSplit result
   const [saveRest, setSaveRest]   = useState(presetRestId || "");     // restaurant id on the save step
   const [saveVisit, setSaveVisit] = useState(presetVisitId || "new"); // "new" or an existing visit id
@@ -6410,14 +6417,24 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   function shareEverything(){ setAssign({}); flash && flash("Everyone shares everything"); }
 
   // ---- compute ----
-  const tipCents = Math.max(0, Math.round((Number(tip)||0)*100));
   const subtotalCents = lines.reduce((a,l)=> a + Math.max(0, Math.round((Number(l.price)||0)*100)), 0);
-  const rtotalCents = Math.round((Number(rtotal)||0)*100);
-  const grandPreview = (rtotalCents > 0 ? Math.max(subtotalCents, rtotalCents) : subtotalCents) + tipCents;
+  // Tax and tip each in $ or %. Percent is of the pre-tax items subtotal.
+  const taxCents = Math.max(0, taxMode === "%"
+    ? Math.round(subtotalCents * (Number(tax)||0) / 100)
+    : Math.round((Number(tax)||0)*100));
+  const tipCents = Math.max(0, tipMode === "%"
+    ? Math.round(subtotalCents * (Number(tip)||0) / 100)
+    : Math.round((Number(tip)||0)*100));
+  const computedGrandCents = subtotalCents + taxCents + tipCents;
+  const computedGrandStr = (computedGrandCents/100).toFixed(2);
+  // rtotal is the hard-coded override; blank means "use the calculated total".
+  const overrideCents = Math.round((Number(rtotal)||0)*100);
+  const overriding = rtotal !== "" && overrideCents > 0;
+  const grandPreview = overriding ? Math.max(subtotalCents, overrideCents) : computedGrandCents;
   const canSplit = people.length >= 2 && grandPreview > 0;
 
   function doSplit(){
-    const res = computeManualSplit(lines, people, assign, tip, rtotal);
+    const res = computeManualSplit(lines, people, assign, "", String(grandPreview/100));
     setSplit(res);
     logMsg("SPLIT","Computed split across " + res.people.length +
            " people, grand=" + money(res.grandCents));
@@ -6638,22 +6655,51 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               </div>
             </div>
 
-            {/* tip + total */}
-            <div className="spl-row" style={{marginTop:12,gap:12}}>
+            {/* tax + tip ($ or %), then a live (hard-codeable) total */}
+            <div className="spl-row" style={{marginTop:12,gap:12,alignItems:"flex-start"}}>
               <label className="fld" style={{flex:1,marginBottom:0}}>
-                <span className="lbl">Tip to add (optional)</span>
-                <input className="input" value={tip} placeholder="0.00" inputMode="decimal"
-                  onChange={e=> setTip(e.target.value)} />
+                <span className="lbl">Tax</span>
+                <div style={{display:"flex",gap:8,alignItems:"stretch"}}>
+                  <input className="input" value={tax} placeholder="0.00" inputMode="decimal"
+                    onChange={e=> setTax(e.target.value)} />
+                  <div className="amt-seg">
+                    <button type="button" className={"amt-seg-b" + (taxMode==="$" ? " on" : "")}
+                      onClick={()=> setTaxMode("$")}>$</button>
+                    <button type="button" className={"amt-seg-b" + (taxMode==="%" ? " on" : "")}
+                      onClick={()=> setTaxMode("%")}>%</button>
+                  </div>
+                </div>
               </label>
               <label className="fld" style={{flex:1,marginBottom:0}}>
-                <span className="lbl">Check total</span>
-                <input className="input" value={rtotal} placeholder="0.00" inputMode="decimal"
-                  onChange={e=> setRtotal(e.target.value)} />
+                <span className="lbl">Tip</span>
+                <div style={{display:"flex",gap:8,alignItems:"stretch"}}>
+                  <input className="input" value={tip} placeholder="0.00" inputMode="decimal"
+                    onChange={e=> setTip(e.target.value)} />
+                  <div className="amt-seg">
+                    <button type="button" className={"amt-seg-b" + (tipMode==="$" ? " on" : "")}
+                      onClick={()=> setTipMode("$")}>$</button>
+                    <button type="button" className={"amt-seg-b" + (tipMode==="%" ? " on" : "")}
+                      onClick={()=> setTipMode("%")}>%</button>
+                  </div>
+                </div>
               </label>
             </div>
+            <label className="fld" style={{marginTop:12,marginBottom:0}}>
+              <span className="lbl">
+                Total
+                {overriding && (
+                  <a href="#" style={{color:"var(--accent)",marginLeft:8,fontWeight:400}}
+                     onClick={(e)=>{ e.preventDefault(); setRtotal(""); }}>auto</a>
+                )}
+              </span>
+              <input className="input" value={overriding ? rtotal : computedGrandStr}
+                placeholder="0.00" inputMode="decimal"
+                onChange={e=> setRtotal(e.target.value)} />
+            </label>
             <div className="small muted" style={{margin:"8px 2px 0"}}>
-              Splitting {money(grandPreview)}{tipCents>0 ? " (incl. tip)" : ""}.
-              {rtotalCents>0 && rtotalCents>subtotalCents ? " Tax/extra above the items is split across everyone's share." : ""}
+              Splitting {money(grandPreview)}.
+              {(taxCents>0 || tipCents>0 || grandPreview>subtotalCents)
+                ? " Tax and tip are split across everyone's share." : ""}
             </div>
 
             <button className="btn" style={{marginTop:14}} disabled={!canSplit} onClick={doSplit}>
