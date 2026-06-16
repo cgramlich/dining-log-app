@@ -706,6 +706,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .spl-sub{ font-size:11.5px; color:var(--text-dim); margin-top:2px; }
     .spl-total{ display:flex; justify-content:space-between; align-items:baseline; padding:12px 2px 2px; font-weight:700; color:var(--text); }
     .spl-x{ border:none; background:none; color:var(--text-dim); font-size:18px; line-height:1; cursor:pointer; padding:0 4px; flex:0 0 auto; }
+    .vsplit{ margin-top:9px; }
+    .vsplit-head{ width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px; background:none; border:1px solid var(--line-soft); border-radius:10px; padding:8px 12px; color:var(--text-dim); font-size:13px; cursor:pointer; }
+    .vsplit-body{ padding:2px 8px 0; }
     .go-waiting{ font-weight:600; color:var(--accent); padding:8px 10px; font-size:14px; }
     .go-in{ font-size:11px; color:var(--text-faint); margin-left:8px; font-weight:500; }
     .go-wait{ font-size:11px; color:var(--accent); margin-left:8px; font-weight:500; }
@@ -787,7 +790,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.67.1";
+const APP_VERSION   = "1.68.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1330,7 +1333,11 @@ Tap **See the split** and you get each person's total - their items plus a
 proportional share of tax and tip - adding up exactly to the real check. **Share**
 hands a plain-text breakdown to your phone so you can drop it in the group chat.
 
-It's just a calculator: nothing is saved, and it never touches your logged visits.
+By default it's just a calculator - nothing is saved. But if you want to keep it,
+tap **Save to a visit**: choose a place and either start a new visit for today or
+attach it to a recent one. The split is stored on that visit - you'll find it in
+your History under a **Check split** line - and the total is recorded as that
+visit's spend.
 
 ## Publishing a list
 list**, give it a title, and tick the restaurants to include (your favorites and
@@ -4682,6 +4689,13 @@ function App(){
         <SplitCheckFlow
           config={config}
           flash={flash}
+          restaurants={restaurants}
+          visits={visits}
+          onSaveToVisit={(rec, isNew)=>{
+            const next = isNew ? [rec].concat(visits) : visits.map(v=> v.id===rec.id ? rec : v);
+            commit({ visits:next }, ["visits"]);
+            flash(isNew ? "Saved as a new visit" : "Split saved to your visit");
+          }}
           onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "scanMenu" && (
@@ -4916,6 +4930,32 @@ function DiscoverView({ restaurants, visits, menus, lists, meta,
   );
 }
 
+// Collapsible "Check split" block shown on a visit that has a saved split.
+// Renders nothing when there is no split, so it is safe to drop on every card.
+function VisitSplit({split}){
+  const [open, setOpen] = useState(false);
+  if (!split || !Array.isArray(split.people) || !split.people.length) return null;
+  const money = n => "$" + (Number(n) || 0).toFixed(2);
+  return (
+    <div className="vsplit">
+      <button className="vsplit-head" onClick={()=> setOpen(o => !o)}>
+        <span>Check split{split.grand ? " - " + money(split.grand) : ""}</span>
+        <Icon name={open ? "chevd" : "chev"} size={15} />
+      </button>
+      {open ? (
+        <div className="vsplit-body">
+          {split.people.map((p,i)=>(
+            <div key={i} className="spl-res">
+              <div className="spl-nm">{p.name}</div>
+              <div className="spl-amt">{money(p.amount)}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
@@ -5041,6 +5081,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             <NutriLine n={v.nutrition} />
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
             <ReceiptReveal cfg={cfg} receipt={v.receipt} />
+            <VisitSplit split={v.split} />
           </div>
         );
       })}
@@ -5694,6 +5735,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <NutriLine n={v.nutrition} />
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
               <ReceiptReveal cfg={cfg} receipt={v.receipt} />
+              <VisitSplit split={v.split} />
             </div>
           );
         })}
@@ -6127,8 +6169,8 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal){
   return { people: out, grandCents, lineSubtotalCents, overageCents };
 }
 
-function SplitCheckFlow({config, onClose, flash}){
-  const [step, setStep]       = useState("pick");     // pick | edit | result
+function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, flash}){
+  const [step, setStep]       = useState("pick");     // pick | edit | result | save
   const [busy, setBusy]       = useState(false);
   const [processing, setProcessing] = useState(null); // {done,total} | null
   const [errMsg, setErrMsg]   = useState("");
@@ -6139,6 +6181,8 @@ function SplitCheckFlow({config, onClose, flash}){
   const [assign, setAssign]   = useState({});         // {lineId:[name]}
   const [tip, setTip]         = useState("");         // dollars (string)
   const [split, setSplit]     = useState(null);       // computeManualSplit result
+  const [saveRest, setSaveRest]   = useState("");     // restaurant id chosen on the save step
+  const [saveVisit, setSaveVisit] = useState("new");  // "new" or an existing visit id
   const fileRef = useRef(null);
 
   const money = c => "$" + (Math.round(c) / 100).toFixed(2);
@@ -6239,6 +6283,58 @@ function SplitCheckFlow({config, onClose, flash}){
     setStep("result");
   }
 
+  // Recent visits at the chosen restaurant (newest first; visits is already in
+  // newest-first order). Used to offer "attach to an existing visit".
+  const recentForSave = (saveRest && Array.isArray(visits))
+    ? visits.filter(v => v.restaurant_id === saveRest).slice(0, 5) : [];
+
+  // Persist the computed split onto a visit - a new one today (default) or an
+  // existing one the user picks. The split rides inside the visit JSON, and the
+  // grand total becomes the visit's spend (so it flows into spend + Year in Food).
+  function doSaveToVisit(){
+    if (!split || !saveRest || !onSaveToVisit) return;
+    const r = (restaurants || []).find(x => x.id === saveRest);
+    const toDollars = c => Math.round(c) / 100;
+    const grand = toDollars(split.grandCents);
+    const splitObj = {
+      people: split.people.map(p => ({ name: p.name, amount: toDollars(p.totalCents) })),
+      grand: grand,
+      items: lines.filter(l => (l.name || "").trim())
+        .map(l => ({ name: l.name.trim(), price: (Number(l.price) || 0) })),
+      saved_at: Date.now(),
+    };
+    if (saveVisit === "new"){
+      const rec = {
+        id: uid("visit"),
+        restaurant_id: saveRest,
+        restaurant_name: r ? r.name : "",
+        date: todayISO(),
+        rating: null,
+        dishes: [],
+        notes: "",
+        photos: [],
+        receipt: { photo: null, total: grand },   // sets the visit's spend
+        nutrition: null,
+        logged_at: Date.now(),
+        split: splitObj,
+      };
+      logMsg("SPLIT","Saving split to a NEW visit at " + (r ? r.name : saveRest) + ", grand=" + money(split.grandCents));
+      onSaveToVisit(rec, true);
+    } else {
+      const v = (visits || []).find(x => x.id === saveVisit);
+      if (!v){ flash && flash("That visit is no longer here"); return; }
+      // Keep an existing receipt total if there is one; otherwise record the
+      // split's grand total as the spend. Never clobber a real scanned total.
+      const receipt = (v.receipt && v.receipt.total)
+        ? v.receipt
+        : { photo: (v.receipt && v.receipt.photo) || null, total: grand };
+      const rec = Object.assign({}, v, { split: splitObj, receipt: receipt });
+      logMsg("SPLIT","Saving split to existing visit " + saveVisit + ", grand=" + money(split.grandCents));
+      onSaveToVisit(rec, false);
+    }
+    onClose();
+  }
+
   async function shareSplit(){
     if (!split) return;
     const out = ["Check split:"];
@@ -6257,8 +6353,11 @@ function SplitCheckFlow({config, onClose, flash}){
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={step === "result" ? ()=> setStep("edit") : onClose}>
-          {step === "result" ? "Back" : "Cancel"}
+        <button className="x" onClick={
+          step === "result" ? ()=> setStep("edit")
+          : step === "save" ? ()=> setStep("result")
+          : onClose}>
+          {step === "result" || step === "save" ? "Back" : "Cancel"}
         </button>
         <h2>Split a check</h2>
         {step === "result"
@@ -6404,8 +6503,52 @@ function SplitCheckFlow({config, onClose, flash}){
               Adds up to the check total{split.overageCents>0 ? " - tax and tip included" : ""}.
             </div>
             <button className="btn" style={{marginTop:14}} onClick={shareSplit}>Share the split</button>
+            {onSaveToVisit && restaurants && restaurants.length ? (
+              <button className="btn ghost" style={{marginTop:10}}
+                onClick={()=> { setSaveRest(""); setSaveVisit("new"); setStep("save"); }}>
+                Save to a visit
+              </button>
+            ) : null}
             <button className="btn ghost" style={{marginTop:10}} onClick={()=> setStep("edit")}>Edit</button>
             <button className="btn ghost" style={{marginTop:10}} onClick={onClose}>Done</button>
+          </div>
+        )}
+
+        {step === "save" && (
+          <div>
+            <div className="card small muted">
+              Save this split onto a visit so you can find it later in History. The
+              total is recorded as that visit's spend too.
+            </div>
+            <label className="fld"><span className="lbl">Restaurant</span>
+              <select className="input" value={saveRest}
+                onChange={e=> { setSaveRest(e.target.value); setSaveVisit("new"); }}>
+                <option value="">Choose a place...</option>
+                {(restaurants || []).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </label>
+            {saveRest ? (
+              <label className="fld"><span className="lbl">Which visit?</span>
+                <div className="card" style={{padding:"4px 14px"}}>
+                  <label className="row" style={{gap:10, padding:"8px 0"}}>
+                    <input type="radio" checked={saveVisit === "new"}
+                      onChange={()=> setSaveVisit("new")} />
+                    <span className="small">New visit (today)</span>
+                  </label>
+                  {recentForSave.map(v => (
+                    <label key={v.id} className="row"
+                      style={{gap:10, padding:"8px 0", borderTop:"1px solid var(--line-soft)"}}>
+                      <input type="radio" checked={saveVisit === v.id}
+                        onChange={()=> setSaveVisit(v.id)} />
+                      <span className="small">{v.date}{v.rating ? "  \u00b7  " + v.rating + "\u2605" : ""}</span>
+                    </label>
+                  ))}
+                </div>
+              </label>
+            ) : null}
+            <button className="btn" style={{marginTop:14}} disabled={!saveRest} onClick={doSaveToVisit}>
+              Save the split
+            </button>
           </div>
         )}
 
@@ -6436,8 +6579,8 @@ function ActionSheet({onClose, onPick}){
         </div>
         <div className="sheet-item" onClick={()=> onPick("scanMenu")}>
           <span className="ic"><Icon name="camera" size={21} color="#e0764a" /></span>
-          <div><div className="t1">Scan a menu</div>
-            <div className="t2">Photograph a menu and digitize it</div></div>
+          <div><div className="t1">Add a menu</div>
+            <div className="t2">Scan or pick photos to digitize a menu</div></div>
         </div>
         <div className="sheet-item" onClick={()=> onPick("splitCheck")}>
           <span className="ic"><Icon name="receipt" size={21} color="#e0764a" /></span>
@@ -7972,7 +8115,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}>Cancel</button>
-        <h2>{presetMenu ? "Re-scan " + (presetMenu.label || "menu") : "Scan a menu"}</h2>
+        <h2>{presetMenu ? "Re-scan " + (presetMenu.label || "menu") : "Add a menu"}</h2>
         {step === "review"
           ? <button className="x" onClick={save}
               style={{color: canSave ? "var(--accent)" : "var(--text-faint)"}}>Save</button>
