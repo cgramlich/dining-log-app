@@ -787,7 +787,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.66.0";
+const APP_VERSION   = "1.67.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2925,7 +2925,7 @@ async function digitizeMenu(cfg, dataUrls){
 function fmtPrice(p){
   const n = Number(p);
   if (!isFinite(n) || n <= 0) return "";
-  return "$" + (Number.isInteger(n) ? String(n) : n.toFixed(2));
+  return "$" + n.toFixed(2);
 }
 
 // ---- Price-data foundation -------------------------------------------------
@@ -3165,7 +3165,7 @@ function menuToText(menu){
     (s.items || []).forEach(it => {
       let line = "- " + it.name;
       if (it.price)       line += " (" + it.price + ")";
-      else if (it.paid && it.paid.amount) line += " ($" + (Number.isInteger(it.paid.amount) ? it.paid.amount : it.paid.amount.toFixed(2)) + ")";
+      else if (it.paid && it.paid.amount) line += " ($" + Number(it.paid.amount).toFixed(2) + ")";
       if (it.description) line += ": " + it.description;
       if (it.tags && it.tags.length) line += " [tags: " + it.tags.join(", ") + "]";
       line += nutritionHint(it);   // phase-2: calorie/macro hint when known
@@ -6263,7 +6263,10 @@ function SplitCheckFlow({config, onClose, flash}){
         <h2>Split a check</h2>
         {step === "result"
           ? <button className="x" onClick={shareSplit}>Share</button>
-          : <span style={{width:54}} />}
+          : step === "edit"
+            ? <button className="x" onClick={doSplit} disabled={!canSplit}
+                style={{opacity: canSplit ? 1 : 0.4}}>{split ? "Update" : "Split"}</button>
+            : <span style={{width:54}} />}
       </div>
       <div className="ovbody">
 
@@ -6371,7 +6374,7 @@ function SplitCheckFlow({config, onClose, flash}){
             </div>
 
             <button className="btn" style={{marginTop:14}} disabled={!canSplit} onClick={doSplit}>
-              See the split
+              {split ? "Update the split" : "See the split"}
             </button>
             {!canSplit && <div className="tiny faint" style={{textAlign:"center",marginTop:8}}>
               Add at least two people and a total to split.
