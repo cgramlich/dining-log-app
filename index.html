@@ -790,7 +790,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.71.1";
+const APP_VERSION   = "1.72.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1334,16 +1334,15 @@ Tap **See the split** and you get each person's total - their items plus a
 proportional share of tax and tip - adding up exactly to the real check. **Share**
 hands a plain-text breakdown to your phone so you can drop it in the group chat.
 
-By default it's just a calculator - nothing is saved. But if you want to keep it,
-tap **Save to a visit**: choose a place and either start a new visit for today or
-attach it to a recent one. The split is stored on that visit - you'll find it in
-your History under a **Check split** line - and the total is recorded as that
-visit's spend.
+This standalone splitter is just a calculator - it works out who owes what and
+hands you a breakdown to share. It doesn't save anything to your History.
 
-You can also split a check straight from a visit you've already logged: open the
+To keep a split, split straight from a visit you've already logged: open the
 visit (in History or on the restaurant page) and tap **Split the check**. It opens
-the splitter already filled in with that visit's dishes and total - just add who
-was there, and saving goes right back to that visit.
+already filled in with that visit's dishes and total, and a **Show receipt** link
+lets you check the prices against the actual check. Add who was there, tap **See
+the split**, then **Save to this visit** - it is stored right on that visit (you'll
+see a **Check split** line in History) without touching the rest of the meal.
 
 ## Publishing a list
 list**, give it a title, and tick the restaurants to include (your favorites and
@@ -4768,6 +4767,7 @@ function App(){
           initialTotal={overlay.fromVisit && overlay.fromVisit.receipt ? overlay.fromVisit.receipt.total : null}
           presetRestId={overlay.fromVisit ? overlay.fromVisit.restaurant_id : ""}
           presetVisitId={overlay.fromVisit ? overlay.fromVisit.id : "new"}
+          initialReceiptPhoto={overlay.fromVisit && overlay.fromVisit.receipt ? overlay.fromVisit.receipt.photo : null}
           onSaveToVisit={(rec, isNew)=>{
             const next = isNew ? [rec].concat(visits) : visits.map(v=> v.id===rec.id ? rec : v);
             commit({ visits:next }, ["visits"]);
@@ -6253,12 +6253,18 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal){
 }
 
 function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, flash,
-                         initialLines, initialTotal, presetRestId, presetVisitId}){
+                         initialLines, initialTotal, presetRestId, presetVisitId,
+                         initialReceiptPhoto}){
   // When launched FROM a visit we arrive pre-loaded with that visit's priced
   // dishes and total, jump straight to the edit step, and default the save back
   // to that same visit.
   const preloaded = !!(initialLines && initialLines.length);
-  const [step, setStep]       = useState(preloaded ? "edit" : "pick");  // pick | edit | result | save
+  // Opened from a real logged visit (vs. the standalone "+ menu" splitter)?
+  // From a visit, saving attaches the split back to THAT visit and never makes
+  // a separate card. presetVisitId is "new" only for the standalone splitter,
+  // which is now a calculator + share only (no save).
+  const fromVisit = !!(presetVisitId && presetVisitId !== "new");
+  const [step, setStep]       = useState((preloaded || fromVisit) ? "edit" : "pick");  // pick | edit | result
   const [busy, setBusy]       = useState(false);
   const [processing, setProcessing] = useState(null); // {done,total} | null
   const [errMsg, setErrMsg]   = useState("");
@@ -6455,9 +6461,8 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
       <div className="ovhead">
         <button className="x" onClick={
           step === "result" ? ()=> setStep("edit")
-          : step === "save" ? ()=> setStep("result")
           : onClose}>
-          {step === "result" || step === "save" ? "Back" : "Cancel"}
+          {step === "result" ? "Back" : "Cancel"}
         </button>
         <h2>Split a check</h2>
         {step === "result"
@@ -6515,6 +6520,14 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
                 onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); addPerson(); } }} />
               <button className="btn" style={{width:"auto",padding:"0 16px"}} onClick={addPerson}>Add</button>
             </div>
+
+            {/* receipt photo, when this split came from a logged visit - lets
+                you check item prices against the actual check */}
+            {initialReceiptPhoto ? (
+              <div style={{marginBottom:10}}>
+                <ReceiptReveal cfg={config} receipt={{ photo: initialReceiptPhoto, total: null }} />
+              </div>
+            ) : null}
 
             {/* lines */}
             <div className="card" style={{padding:"6px 14px"}}>
@@ -6603,10 +6616,9 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
               Adds up to the check total{split.overageCents>0 ? " - tax and tip included" : ""}.
             </div>
             <button className="btn" style={{marginTop:14}} onClick={shareSplit}>Share the split</button>
-            {onSaveToVisit && restaurants && restaurants.length ? (
-              <button className="btn ghost" style={{marginTop:10}}
-                onClick={()=> { setSaveRest(""); setSaveVisit("new"); setStep("save"); }}>
-                Save to a visit
+            {fromVisit && onSaveToVisit ? (
+              <button className="btn ghost" style={{marginTop:10}} onClick={doSaveToVisit}>
+                Save to this visit
               </button>
             ) : null}
             <button className="btn ghost" style={{marginTop:10}} onClick={()=> setStep("edit")}>Edit</button>
@@ -6614,43 +6626,6 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onClose, fl
           </div>
         )}
 
-        {step === "save" && (
-          <div>
-            <div className="card small muted">
-              Save this split onto a visit so you can find it later in History. The
-              total is recorded as that visit's spend too.
-            </div>
-            <label className="fld"><span className="lbl">Restaurant</span>
-              <select className="input" value={saveRest}
-                onChange={e=> { setSaveRest(e.target.value); setSaveVisit("new"); }}>
-                <option value="">Choose a place...</option>
-                {(restaurants || []).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-            </label>
-            {saveRest ? (
-              <label className="fld"><span className="lbl">Which visit?</span>
-                <div className="card" style={{padding:"4px 14px"}}>
-                  <label className="row" style={{gap:10, padding:"8px 0"}}>
-                    <input type="radio" checked={saveVisit === "new"}
-                      onChange={()=> setSaveVisit("new")} />
-                    <span className="small">New visit (today)</span>
-                  </label>
-                  {recentForSave.map(v => (
-                    <label key={v.id} className="row"
-                      style={{gap:10, padding:"8px 0", borderTop:"1px solid var(--line-soft)"}}>
-                      <input type="radio" checked={saveVisit === v.id}
-                        onChange={()=> setSaveVisit(v.id)} />
-                      <span className="small">{v.date}{v.rating ? "  \u00b7  " + v.rating + "\u2605" : ""}</span>
-                    </label>
-                  ))}
-                </div>
-              </label>
-            ) : null}
-            <button className="btn" style={{marginTop:14}} disabled={!saveRest} onClick={doSaveToVisit}>
-              Save the split
-            </button>
-          </div>
-        )}
 
       </div>
     </div>
