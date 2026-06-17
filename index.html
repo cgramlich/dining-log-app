@@ -707,6 +707,13 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .rcpt-check{ flex:none; width:26px; height:26px; border-radius:50%; border:1.5px solid var(--line); background:transparent; color:transparent; display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform 0.08s; }
     .rcpt-check:active{ transform:scale(0.9); }
     .rcpt-check.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+    .rcpt-share{ margin:4px 0 2px 35px; }
+    .rcpt-share-toggle{ background:transparent; border:none; color:var(--accent); font-size:12px; padding:2px 0; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .rcpt-share-line{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .rcpt-frac{ border:1px solid var(--line); background:var(--surface-2); color:var(--text); border-radius:7px; font-size:12px; padding:3px 8px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .rcpt-frac:active{ transform:scale(0.94); }
+    .rcpt-pct{ width:46px; border:1px solid var(--line); background:var(--surface-2); color:var(--text); border-radius:7px; font-size:13px; padding:3px 6px; text-align:right; }
+    .rcpt-share-off{ border:none; background:transparent; color:var(--text-dim); font-size:15px; line-height:1; cursor:pointer; padding:0 2px; }
     .spl-res{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:11px 2px; border-bottom:1px solid var(--line-soft); }
     .spl-res:last-child{ border-bottom:none; }
     .spl-nm{ font-weight:600; color:var(--text); }
@@ -798,7 +805,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.79.1";
+const APP_VERSION   = "1.80.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -921,7 +928,7 @@ async function authHeaders(cfg){
 // In-app user guide (source of truth: menucaptain-help.md). Re-sync this when the .md changes.
 const HELP_DOC = `# MenuCaptain - User Guide
 
-*Updated June 11, 2026*
+*Updated June 17, 2026*
 
 MenuCaptain is your private notebook for eating out. You log the places you go,
 scan their menus, remember which dishes you loved, and - if you want - get a
@@ -1075,12 +1082,27 @@ free-typed name needs tidying up. The dish keeps its price, verdict, and any
 estimate. This works while logging and later, from any past visit.
 
 **Scan the check.** When the bill arrives, tap "Scan the check" (under the
-dish list) and snap a photo of the receipt. The app reads it and asks "Which
-were yours?" - tick the lines you ordered, and they are added as dishes with
-their prices. When a line matches the restaurant's digitized menu, the dish
-takes the menu's proper name, with a small note showing how it appeared on
-the check. The receipt itself stays attached to the visit behind a quiet
-"Show receipt" link - it never appears in your photo strip or Food passport.
+dish list) and snap a photo of the receipt. The app reads it and opens a
+"Which were yours?" editor: each line has a round checkbox - tap the ones you
+ordered (or use Select all / Clear), and tap Done to add them as dishes with
+their prices. When a line has more than one of an item, a small - / + stepper
+lets you say how many of them were yours ("2 of 3"). When a line matches the
+restaurant's digitized menu, the dish takes the menu's proper name, with a
+small note showing how it appeared on the check. The editor works both ways:
+after a scan the button reads "From Receipt Image", and re-opening it shows
+your current picks already ticked, so you can add or remove items later without
+paying for another scan. The receipt itself stays attached to the visit behind
+a quiet "Show receipt" link - it never appears in your photo strip or Food
+passport.
+
+**Shared a dish?** If you split something - half a sea bass, a third of a
+seafood tower - tap "Was this shared?" under that line in the picker and set
+your share. It starts at 50 percent, with quick 1/2, 1/3, and 1/4 taps, or
+type any percent. Your price becomes just your share of the line (30 percent of
+a $44 fish is $13.20), and the dish shows the percent beside its name. If you
+estimate that dish's calories from the menu description, the number is scaled
+to your share too; a photo of your own plate is already your portion, so it is
+left as is.
 
 **Prices.** A dish can carry a price - typed in or picked up from a scanned
 check. Priced dishes show it beside the name in History and on the
@@ -3678,6 +3700,45 @@ function NutriLine({n}){
   );
 }
 
+/* Shared-dish portion scaling. A dish split on the receipt picker carries
+   share:{pct} = the percent of the item that was YOURS. The stored price is
+   already your portion; the cached nutrition estimate is the FULL serving, so
+   menu-based calorie numbers are scaled to your share at DISPLAY time. A photo
+   of your own plate is already your portion (never scaled), and a hand-entered
+   number is taken as typed. share and qty are mutually exclusive in v1. */
+function dishSharePct(d){
+  var p = d && d.share && d.share.pct;
+  return (typeof p === "number" && p > 0 && p < 100) ? p : null;
+}
+function dishShareLabel(d){
+  var p = dishSharePct(d);
+  return p == null ? "" : (" \u00b7 " + Math.round(p) + "%");
+}
+// true when this nutrition source is a FULL serving (so a share scales it)
+function shareScales(n){
+  return !!(n && (n.source === "menu_estimate" || n.source === "menu_stated"));
+}
+function dishKcalNum(d){
+  var n = d && d.nutrition;
+  if (!n || !n.kcal) return null;
+  var p = dishSharePct(d);
+  return (p != null && shareScales(n)) ? Math.round(n.kcal * p / 100) : n.kcal;
+}
+function dishMacNum(d, key){
+  var n = d && d.nutrition;
+  if (!n || !n[key]) return 0;
+  var p = dishSharePct(d);
+  return (p != null && shareScales(n)) ? Math.round(n[key] * p / 100) : n[key];
+}
+// "~" marker: estimates are always approximate, and a shared per-menu number
+// becomes an estimate of your share (so it stops being an exact figure).
+function dishKcalApprox(d){
+  var n = d && d.nutrition;
+  if (!n) return true;
+  if (n.source === "menu_stated") return dishSharePct(d) != null;
+  return true;
+}
+
 /* DishTotal - sums the per-dish estimates on a visit into one calm line.
    Shown only when 2+ dishes are estimated (a single dish's total just
    repeats the chip). Informative, never a budget: no colors, no verdicts. */
@@ -3685,9 +3746,11 @@ function DishTotal({dishes, min}){
   const floor = min || 2;
   const est = (dishes || []).filter(d => d && d.nutrition && d.nutrition.kcal);
   if (est.length < floor) return null;
-  const sum = (k)=> est.reduce((s,d)=> s + (d.nutrition[k] || 0), 0);
-  const kcal = sum("kcal");
-  const p = sum("protein_g"), c = sum("carbs_g"), f = sum("fat_g");
+  // sum the share-scaled per-dish numbers so a "I had 50%" dish counts as half
+  const kcal = est.reduce((s,d)=> s + (dishKcalNum(d) || 0), 0);
+  const p = est.reduce((s,d)=> s + dishMacNum(d,"protein_g"), 0);
+  const c = est.reduce((s,d)=> s + dishMacNum(d,"carbs_g"), 0);
+  const f = est.reduce((s,d)=> s + dishMacNum(d,"fat_g"), 0);
   const hasMacros = (p + c + f) > 0;
   return (
     <div className="dish-total">
@@ -5173,7 +5236,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
                 {v.dishes.map((d,i)=> (
                   <span key={i} className={"chip dish" +
                     (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
-                    {d.name}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + d.nutrition.kcal : ""}
+                    {d.name}{dishShareLabel(d)}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + dishKcalNum(d) : ""}
                   </span>
                 ))}
               </div>
@@ -5830,7 +5893,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   {v.dishes.map((d,i)=> (
                     <span key={i} className={"chip dish" +
                       (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
-                      {d.name}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + d.nutrition.kcal : ""}{d.price ? " \u00b7 " + fmtPrice(d.price) : ""}
+                      {d.name}{dishShareLabel(d)}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + dishKcalNum(d) : ""}{d.price ? " \u00b7 " + fmtPrice(d.price) : ""}
                     </span>
                   ))}
                 </div>
@@ -7210,21 +7273,30 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
         const lineQty = Math.max(1, parseInt(it.qty, 10) || 1);
         const count   = Math.max(0, Math.min(lineQty, parseInt(it.count, 10) || 0));
         const perUnit = it.price != null ? (Number(it.price) / lineQty) : null;
-        const price   = perUnit != null ? Math.round(perUnit * count * 100) / 100 : null;
+        // shared-portion: single-unit lines only. sharePct = percent of the
+        // item that was yours; your price is that fraction of the line total.
+        const shared  = (lineQty === 1 && count > 0 && typeof it.sharePct === "number"
+                          && it.sharePct > 0 && it.sharePct < 100);
+        const price   = shared
+          ? Math.round(Number(it.price) * (it.sharePct / 100) * 100) / 100
+          : (perUnit != null ? Math.round(perUnit * count * 100) / 100 : null);
         const idx     = next.findIndex(d => d.fromCheck && (d.name||"").trim() === name);
         if (count > 0){
           if (idx >= 0){
             // update the existing check dish in place, keeping verdict/note/estimate
             const upd = Object.assign({}, next[idx]);
             if (price != null) upd.price = price; else delete upd.price;
-            if (count > 1) upd.qty = count; else delete upd.qty;
+            // share and qty are mutually exclusive in v1
+            if (shared) upd.share = { pct: it.sharePct }; else delete upd.share;
+            if (!shared && count > 1) upd.qty = count; else delete upd.qty;
             next[idx] = upd;
           } else {
             // don't duplicate a dish the user already added some other way
             if (next.some(d => !d.fromCheck && (d.name||"").trim() === name)) return;
             const dish = { name:name, note:"", verdict:null, fromCheck:true };
             if (price != null) dish.price = price;
-            if (count > 1) dish.qty = count;
+            if (shared) dish.share = { pct: it.sharePct };
+            else if (count > 1) dish.qty = count;
             next.push(dish);
           }
         } else if (idx >= 0){
@@ -7249,7 +7321,9 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     setReceiptReview(scannedItems.map(it => {
       const ex = byName[(it.useName||"").trim()];
       const c  = ex ? Math.max(1, parseInt(ex.qty, 10) || 1) : 0;
-      return Object.assign({}, it, { count:c });
+      // restore the saved "my share" percent so the two-way editor round-trips
+      const sp = (ex && ex.share && typeof ex.share.pct === "number") ? ex.share.pct : null;
+      return Object.assign({}, it, { count:c, sharePct:sp });
     }));
     logMsg("RECEIPT","Re-opened check picker (editor) with " + scannedItems.length + " item(s)");
   }
@@ -7953,10 +8027,16 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                         setReceiptReview(rr => rr.map(x => x.rid === it.rid ? Object.assign({}, x, {count:c}) : x)); };
                       // tapping the name / checkmark is a quick all-or-none toggle
                       const toggle = ()=> setCount(count > 0 ? 0 : lineQty);
+                      // shared-portion: set/clear this line's "my share" percent.
+                      // null = not shared (whole line is yours). Preset fraction
+                      // taps store the TRUE fraction (1/3 = 100/3) so the price is
+                      // an exact third; the chip rounds the display to a whole %.
+                      const setSharePct = (p)=>{ setReceiptReview(rr => rr.map(x =>
+                        x.rid === it.rid ? Object.assign({}, x, {sharePct: p}) : x)); };
                       return (
-                      <div key={it.rid} className="row"
-                           style={{gap:9, alignItems:"center", padding:"7px 0",
-                                   borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                      <div key={it.rid} style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                      <div className="row"
+                           style={{gap:9, alignItems:"center", padding:"7px 0"}}>
                         <div className={"rcpt-check" + (count > 0 ? " on" : "")} onClick={toggle}>
                           {count > 0 ? "\u2713" : ""}
                         </div>
@@ -7986,6 +8066,34 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                           </div>
                         )}
                       </div>
+                      {lineQty === 1 && count > 0 && (
+                        <div className="rcpt-share">
+                          {it.sharePct == null ? (
+                            <button type="button" className="rcpt-share-toggle"
+                              onClick={()=> setSharePct(50)}>Was this shared?</button>
+                          ) : (
+                            <div>
+                              <div className="rcpt-share-line">
+                                <span className="tiny faint">My share</span>
+                                <button type="button" className="rcpt-frac" onClick={()=> setSharePct(50)}>1/2</button>
+                                <button type="button" className="rcpt-frac" onClick={()=> setSharePct(100/3)}>1/3</button>
+                                <button type="button" className="rcpt-frac" onClick={()=> setSharePct(25)}>1/4</button>
+                                <input className="rcpt-pct" inputMode="numeric" type="text"
+                                  value={Math.round(it.sharePct)}
+                                  onChange={(e)=>{ const v = parseInt((e.target.value||"").replace(/[^0-9]/g,""),10);
+                                    if (!isNaN(v)) setSharePct(Math.max(1, Math.min(99, v))); }} />
+                                <span className="tiny faint">%</span>
+                                <button type="button" className="rcpt-share-off"
+                                  onClick={()=> setSharePct(null)}>&times;</button>
+                              </div>
+                              <div className="tiny faint" style={{marginTop:3}}>
+                                {Math.round(it.sharePct)}% {it.price != null ? "\u00b7 " + fmtPrice(Number(it.price) * it.sharePct / 100) : ""}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      </div>
                       );
                     })}
                   </div>
@@ -8007,7 +8115,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                     <span className="dish-row-name"
                       onClick={()=> setEditDish({ orig:d.name, draft:d.name, err:"" })}
                       style={{cursor:"pointer"}}>
-                      {d.name}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}</span>
+                      {d.name}{dishShareLabel(d)}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}</span>
                     <div className="dish-verdict">
                       <button
                         className={"verdict-btn again" + (d.verdict==="again" ? " on" : "")}
@@ -8028,10 +8136,10 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                     ) : (d.nutrition && d.nutrition.kcal) ? (
                       <span className="dish-est">
                         <Icon name="check" size={13} color="#8fb08a" />
-                        <span className="dish-est-num">~{d.nutrition.kcal} cal</span>
-                        {(d.nutrition.protein_g || d.nutrition.carbs_g || d.nutrition.fat_g) ? (
+                        <span className="dish-est-num">~{dishKcalNum(d)} cal</span>
+                        {(dishMacNum(d,"protein_g") || dishMacNum(d,"carbs_g") || dishMacNum(d,"fat_g")) ? (
                           <span className="dish-est-mac">
-                            {d.nutrition.protein_g}P / {d.nutrition.carbs_g}C / {d.nutrition.fat_g}F
+                            {dishMacNum(d,"protein_g")}P / {dishMacNum(d,"carbs_g")}C / {dishMacNum(d,"fat_g")}F
                           </span>
                         ) : null}
                         <button className="dish-redo" onClick={()=> clearDishEstimate(d.name)}>Redo</button>
@@ -10546,9 +10654,10 @@ function buildHistoryCsv(visits, restById){
     dishes.forEach(d => {
       const n = d.nutrition || null;
       out.push(lead.concat([
-        d.name || "", exportVerdictLabel(d.verdict), exportPriceCell(d.price),
-        (n && n.kcal) || "", (n && n.protein_g) || "",
-        (n && n.carbs_g) || "", (n && n.fat_g) || "",
+        (d.name || "") + (dishSharePct(d) != null ? " (" + Math.round(dishSharePct(d)) + "%)" : ""),
+        exportVerdictLabel(d.verdict), exportPriceCell(d.price),
+        (dishKcalNum(d) || ""), (dishMacNum(d,"protein_g") || ""),
+        (dishMacNum(d,"carbs_g") || ""), (dishMacNum(d,"fat_g") || ""),
         exportSourceLabel(n), notes,
       ]).map(csvCell).join(","));
       dishRows++;
@@ -10665,10 +10774,10 @@ function PrintableHistory({visits, restById, onClose}){
                     if (d.verdict === "again") bits.push("Again");
                     else if (d.verdict === "skip") bits.push("Skip");
                     if (d.price) bits.push(String(d.price).trim());
-                    if (n && n.kcal) bits.push((n.source === "menu_stated" ? "" : "~") + n.kcal + " cal");
+                    if (n && n.kcal) bits.push((dishKcalApprox(d) ? "~" : "") + dishKcalNum(d) + " cal");
                     return (
                       <li className="print-dish" key={i}>
-                        <span className="print-d-name">{d.name}</span>
+                        <span className="print-d-name">{d.name}{dishSharePct(d) != null ? " (" + Math.round(dishSharePct(d)) + "%)" : ""}</span>
                         {bits.length > 0 ? <span className="print-d-bits">{bits.join(" - ")}</span> : null}
                       </li>
                     );
