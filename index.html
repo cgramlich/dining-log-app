@@ -714,6 +714,16 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .rcpt-frac:active{ transform:scale(0.94); }
     .rcpt-pct{ width:46px; border:1px solid var(--line); background:var(--surface-2); color:var(--text); border-radius:7px; font-size:13px; padding:3px 6px; text-align:right; }
     .rcpt-share-off{ border:none; background:transparent; color:var(--text-dim); font-size:15px; line-height:1; cursor:pointer; padding:0 2px; }
+    .wheel-wrap{ position:relative; width:280px; height:280px; margin:10px auto 4px; }
+    .wheel-spin{ width:100%; height:100%; transform-origin:50% 50%; will-change:transform; transition:transform 3.9s cubic-bezier(0.16, 1, 0.3, 1); }
+    .wheel-pointer{ position:absolute; top:-3px; left:50%; transform:translateX(-50%); width:0; height:0; border-left:13px solid transparent; border-right:13px solid transparent; border-top:21px solid var(--accent); z-index:3; filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
+    .wheel-hub{ position:absolute; top:50%; left:50%; width:34px; height:34px; margin:-17px 0 0 -17px; border-radius:50%; background:var(--surface-2); border:2px solid var(--accent); z-index:2; }
+    .spin-btn{ display:block; margin:8px auto 0; min-width:150px; }
+    .spin-result{ text-align:center; margin-top:12px; animation:spinpop 0.4s ease; }
+    .spin-result .winner{ font-size:22px; font-weight:700; color:var(--text); margin:2px 0 11px; }
+    @keyframes spinpop{ 0%{ transform:scale(0.82); opacity:0; } 100%{ transform:scale(1); opacity:1; } }
+    .spin-pick-row{ display:flex; align-items:center; gap:11px; padding:9px 2px; border-bottom:1px solid rgba(255,255,255,0.06); cursor:pointer; }
+    .spin-count{ font-size:13px; color:var(--text-dim); margin-left:auto; }
     .spl-res{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:11px 2px; border-bottom:1px solid var(--line-soft); }
     .spl-res:last-child{ border-bottom:none; }
     .spl-nm{ font-weight:600; color:var(--text); }
@@ -805,7 +815,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.80.0";
+const APP_VERSION   = "1.81.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -960,7 +970,7 @@ There is a bar across the bottom of the screen with five spots:
 - **Places** - your list of restaurants.
 - **The plus (+) button** - the quick-action button. Tap it to log a visit,
   pull up a menu (open a place to browse and order), start a group order, add a
-  restaurant, or scan a menu.
+  restaurant, scan a menu, or spin a wheel to pick a place when you can't decide.
 - **Discover** - the home for your badges, Your Year in Food, and your Food
   passport.
 - **Settings** - your account and plan, the look of the app (five color
@@ -1302,6 +1312,16 @@ answer back.
 The shared page is only the menu - your own private calorie estimates are never
 part of it. As with a published list, treat the link as public: anyone who has
 it can open that menu page.
+
+## Can't decide? (spin to pick where to eat)
+
+Stuck on where to eat? Tap the **+** button and choose **Can't decide?** Pick
+the places you want in the running - your favorites are ticked to start, and
+you can search to add or remove any others - then tap **Spin**. The wheel spins
+and lands on one of them, and you get its name with quick buttons to open the
+place, get directions, or spin again. It is a coin-flip with two on the wheel
+and a proper wheel of fortune when you load up a whole neighborhood. Nothing is
+saved - it is just a fun way to settle the "I don't care, you pick" stalemate.
 
 -----
 
@@ -4583,6 +4603,12 @@ function App(){
       )}
 
       {/* overlays */}
+      {overlay && overlay.type === "spinPick" && (
+        <SpinPicker
+          restaurants={restaurants}
+          onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+          onClose={()=> setOverlay(null)} />
+      )}
       {overlay && overlay.type === "pullMenu" && (
         <RestaurantPicker
           restaurants={restaurants}
@@ -6862,6 +6888,223 @@ function ActionSheet({onClose, onPick}){
           <div><div className="t1">Add a restaurant</div>
             <div className="t2">Save a place without a menu yet</div></div>
         </div>
+        <div className="sheet-item" onClick={()=> onPick("spinPick")}>
+          <span className="ic"><Icon name="compass" size={21} color="#e0764a" /></span>
+          <div><div className="t1">Can't decide?</div>
+            <div className="t2">Spin a wheel to pick a place to eat</div></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   SPIN PICKER - "Can't decide?" wheel to randomly pick a place.
+   Opened from the + menu. You curate a set of places (favorites
+   pre-ticked), then spin an SVG wheel that lands on a uniformly
+   random winner. Pure presentation - nothing is written to data.
+   ============================================================ */
+function SpinPicker({restaurants, onOpenRestaurant, onClose}){
+  const places = (restaurants || []).filter(r => r && r.name);
+  // favorites pre-ticked (signed-off default); the user adjusts freely
+  const [picked, setPicked] = useState(()=>{
+    const s = {};
+    places.forEach(r => { if (r.favorite) s[r.id] = true; });
+    return s;
+  });
+  const [q, setQ]                 = useState("");
+  const [stage, setStage]         = useState("pick");   // "pick" | "wheel"
+  const [wheelList, setWheelList] = useState([]);        // frozen set for the wheel
+  const [rotation, setRotation]   = useState(0);
+  const [spinning, setSpinning]   = useState(false);
+  const [winner, setWinner]       = useState(null);
+  const spinTimer = useRef(null);
+
+  // clear any pending reveal timer if the overlay unmounts mid-spin
+  useEffect(()=> ()=> { if (spinTimer.current) clearTimeout(spinTimer.current); }, []);
+
+  const ql = q.trim().toLowerCase();
+  const shown = ql
+    ? places.filter(r => ((r.name||"") + " " + (r.location||"") + " " + (r.cuisine||""))
+        .toLowerCase().indexOf(ql) !== -1)
+    : places;
+  const pickedList = places.filter(r => picked[r.id]);
+  const count = pickedList.length;
+
+  function toggle(id){
+    setPicked(p => { const m = Object.assign({}, p);
+      if (m[id]) delete m[id]; else m[id] = true; return m; });
+  }
+  function selectAllShown(){
+    setPicked(p => { const m = Object.assign({}, p);
+      shown.forEach(r => { m[r.id] = true; }); return m; });
+  }
+  function clearAll(){ setPicked({}); }
+
+  function goWheel(){
+    if (count < 2) return;
+    setWheelList(pickedList.slice());   // freeze the set so the wheel is stable
+    setWinner(null); setRotation(0); setSpinning(false);
+    setStage("wheel");
+  }
+
+  // SPIN: choose the winner first (uniform over the frozen set), then compute
+  // the exact landing angle so the pointer ends on that wedge. Several full
+  // turns + a small jitter keep it off dead-centre; rotation accumulates
+  // forward so re-spin never snaps backwards.
+  function spin(){
+    if (spinning || wheelList.length < 2) return;
+    const total = wheelList.length;
+    const w = 360 / total;
+    const widx = Math.floor(Math.random() * total);
+    const centre = widx * w + w / 2;                 // angle from top, clockwise
+    const turns = 4 + Math.floor(Math.random() * 3); // 4-6 full turns
+    const jitter = (Math.random() - 0.5) * w * 0.7;
+    const current = rotation;
+    let delta = (((-centre - current) % 360) + 360) % 360;
+    const target = current + 360 * turns + delta + jitter;
+    setWinner(null);
+    setSpinning(true);
+    setRotation(target);
+    if (spinTimer.current) clearTimeout(spinTimer.current);
+    spinTimer.current = setTimeout(()=>{ setSpinning(false); setWinner(wheelList[widx]); }, 4000);
+  }
+
+  // ---- wheel geometry ----
+  const SZ = 200, CX = 100, R = 96;
+  function pt(angFromTop, rad){
+    const a = (angFromTop - 90) * Math.PI / 180;
+    return [CX + rad * Math.cos(a), CX + rad * Math.sin(a)];
+  }
+  const n = wheelList.length;
+  const w = n ? 360 / n : 360;
+  const showLabels = n > 0 && n <= 12;
+
+  const dirHref = winner
+    ? "https://maps.google.com/?q=" + encodeURIComponent(
+        (winner.name ? winner.name + ", " : "") + (winner.address || winner.location || ""))
+    : "#";
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={stage === "wheel" ? (()=> setStage("pick")) : onClose}>
+          <Icon name="back" size={20} />
+        </button>
+        <h2>Can't decide?</h2>
+        <button className="x" onClick={onClose} aria-label="Close">
+          <Icon name="close" size={20} color="#b3a591" />
+        </button>
+      </div>
+      <div className="ovbody">
+        {stage === "pick" ? (
+          <div>
+            <div className="tiny faint" style={{margin:"2px 2px 10px"}}>
+              Pick the places to put on the wheel, then spin. Your favorites are
+              ticked to start - add or remove any you like.
+            </div>
+            <label className="fld" style={{marginBottom:10}}>
+              <input className="input" value={q} onChange={e=> setQ(e.target.value)}
+                placeholder="Search your places" />
+            </label>
+            <div className="row" style={{gap:8, alignItems:"center", marginBottom:6}}>
+              <button className="btn ghost sm" onClick={selectAllShown}>Select all</button>
+              <button className="btn ghost sm" onClick={clearAll}>Clear</button>
+              <span className="spin-count">{count} on the wheel</span>
+            </div>
+            {places.length === 0 ? (
+              <div className="small muted" style={{padding:"16px 2px"}}>
+                No places yet - add a restaurant first, then come back to spin.
+              </div>
+            ) : (
+              <div style={{maxHeight:"52vh", overflowY:"auto"}}>
+                {shown.map(r => (
+                  <div key={r.id} className="spin-pick-row" onClick={()=> toggle(r.id)}>
+                    <div className={"rcpt-check" + (picked[r.id] ? " on" : "")}>
+                      {picked[r.id] ? "\u2713" : ""}
+                    </div>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div className="small" style={{fontWeight:600}}>
+                        {r.name}
+                        {r.favorite ? <span style={{color:"var(--accent)"}}>{" \u2605"}</span> : null}
+                      </div>
+                      {(r.cuisine || r.location) ? (
+                        <div className="tiny faint">
+                          {[r.cuisine, r.location].filter(Boolean).join(" \u00b7 ")}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+                {shown.length === 0 ? (
+                  <div className="small muted" style={{padding:"12px 2px"}}>
+                    No places match that search.
+                  </div>
+                ) : null}
+              </div>
+            )}
+            <button className="btn primary" style={{marginTop:14, width:"100%"}}
+              disabled={count < 2} onClick={goWheel}>
+              {count < 2 ? "Pick at least two" : "Spin (" + count + ")"}
+            </button>
+          </div>
+        ) : (
+          <div style={{textAlign:"center"}}>
+            <div className="wheel-wrap">
+              <div className="wheel-pointer" />
+              <div className="wheel-spin" style={{transform:"rotate(" + rotation + "deg)"}}>
+                <svg viewBox={"0 0 " + SZ + " " + SZ} width="280" height="280">
+                  {wheelList.map((r, i) => {
+                    const a0 = i * w, a1 = (i + 1) * w;
+                    const p0 = pt(a0, R), p1 = pt(a1, R);
+                    const large = w > 180 ? 1 : 0;
+                    const d = "M " + CX + " " + CX +
+                              " L " + p0[0].toFixed(2) + " " + p0[1].toFixed(2) +
+                              " A " + R + " " + R + " 0 " + large + " 1 " +
+                              p1[0].toFixed(2) + " " + p1[1].toFixed(2) + " Z";
+                    let lrot = a0 + w / 2;
+                    if (lrot > 90 && lrot < 270) lrot += 180;
+                    const lp = pt(a0 + w / 2, R * 0.62);
+                    const nm = (r.name || "").length > 11 ? (r.name || "").slice(0, 10) + "\u2026" : (r.name || "");
+                    return (
+                      <g key={r.id}>
+                        <path d={d} fill="var(--accent)" fillOpacity={i % 2 === 0 ? 1 : 0.5}
+                          stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
+                        {showLabels ? (
+                          <text x={lp[0].toFixed(2)} y={lp[1].toFixed(2)}
+                            fill="#fff" fontSize="8.5" fontWeight="600"
+                            textAnchor="middle" dominantBaseline="middle"
+                            transform={"rotate(" + lrot.toFixed(1) + " " + lp[0].toFixed(2) + " " + lp[1].toFixed(2) + ")"}
+                            style={{pointerEvents:"none"}}>{nm}</text>
+                        ) : null}
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+              <div className="wheel-hub" />
+            </div>
+
+            {winner ? (
+              <div className="spin-result">
+                <div className="tiny faint">Tonight it's</div>
+                <div className="winner">{winner.name}</div>
+                <div className="row" style={{gap:8, justifyContent:"center", flexWrap:"wrap"}}>
+                  <button className="btn primary sm" onClick={()=> onOpenRestaurant(winner.id)}>Open this place</button>
+                  <a className="btn ghost sm" href={dirHref} target="_blank" rel="noopener noreferrer">Directions</a>
+                  <button className="btn ghost sm" onClick={spin}>Spin again</button>
+                </div>
+              </div>
+            ) : (
+              <button className="btn primary spin-btn" disabled={spinning} onClick={spin}>
+                {spinning ? "Spinning..." : "Spin"}
+              </button>
+            )}
+            <div style={{marginTop:12}}>
+              <button className="btn ghost sm" onClick={()=> setStage("pick")}>Back to picks</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
