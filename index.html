@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.83.1";
+const APP_VERSION   = "1.83.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -992,7 +992,7 @@ async function authHeaders(cfg){
 // In-app user guide (source of truth: menucaptain-help.md). Re-sync this when the .md changes.
 const HELP_DOC = `# MenuCaptain - User Guide
 
-*Updated June 17, 2026*
+*Updated June 18, 2026*
 
 MenuCaptain is your private notebook for eating out. You log the places you go,
 scan their menus, remember which dishes you loved, and - if you want - get a
@@ -1068,6 +1068,36 @@ place's address later, the map quietly re-locates it.
 If the active city filter is set on the Places tab, the map shows just that
 city. Places with no address (or one that could not be found) are not pinned;
 the bottom of the map tells you how many are not mapped.
+
+-----
+
+## Near me
+
+**Near me** helps you discover restaurants, cafes, bars, and bakeries close to
+wherever you are, and add the good ones to your places in a tap. It is a **Pro**
+feature - open it from the **+** button and choose **Near me**.
+
+The first time, your phone asks to share your location; allow it and the app
+finds what is nearby. Set how far to look (from half a mile up to five miles),
+choose what you are after (all food, or just restaurants, cafes, bars, or
+bakeries), and flip **Open now** if you only want places open right now. Tap
+**Search nearby** and the results come back as a list, nearest first - each with
+its rating, price, distance, and whether it is open.
+
+Tap any place to see its details - address, hours, phone, website, a link to
+Google Maps, and a short blurb. From there, **Add to my places** saves it
+straight into your restaurants, already filled in (name, cuisine, address,
+phone, website, hours) and pinned on your map, so there is nothing to type. If a
+place is already in your list it is marked **In your places**, and tapping it
+opens the one you already have.
+
+Switch between **List** and **Map** any time - the map shows the results as
+orange pins with a blue dot for where you are; tap a pin to open that place. The
+list is sorted nearest-first, and the List/Map toggle is instant. Changing the
+distance or type starts a fresh search (tap **Search** again).
+
+Near me is the one place in the app that reaches out to find somewhere new -
+everything else stays your own private record.
 
 -----
 
