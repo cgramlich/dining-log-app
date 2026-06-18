@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.82.3";
+const APP_VERSION   = "1.83.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -875,6 +875,44 @@ async function openBillingPortal(cfg){
 
 function apiBase(cfg){
   return (((cfg && cfg.apiBase) || API_BASE_DEFAULT)).replace(/\/+$/, "");
+}
+
+/* ---- places / discovery (Pro-only, via backend relay) ------
+   Browser -> backend -> Google. The key lives ONLY in server env; we just send
+   the user's bearer token. On a non-2xx we throw an Error carrying .status and
+   .detail so the caller can map the backend's distinct conditions (402 Pro-gate
+   vs 402 cap, 503 breaker, 502 upstream) to specific copy. Mirrors the shape of
+   startCheckout()/openBillingPortal() above. */
+async function placesNearby(cfg, body){
+  const headers = await authHeaders(cfg);
+  headers["Content-Type"] = "application/json";
+  const res = await fetch(apiBase(cfg) + "/api/places/nearby", {
+    method:"POST", headers, body:JSON.stringify(body),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok){
+    const err = new Error(data.detail || ("nearby failed (" + res.status + ")"));
+    err.status = res.status; err.detail = data.detail || "";
+    logMsg("PLACES","nearby HTTP " + res.status + ": " + (data.detail || ""));
+    throw err;
+  }
+  return data;   // { places:[...], cached }
+}
+
+async function placesDetails(cfg, placeId){
+  const headers = await authHeaders(cfg);
+  headers["Content-Type"] = "application/json";
+  const res = await fetch(apiBase(cfg) + "/api/places/details", {
+    method:"POST", headers, body:JSON.stringify({ place_id: placeId }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok){
+    const err = new Error(data.detail || ("details failed (" + res.status + ")"));
+    err.status = res.status; err.detail = data.detail || "";
+    logMsg("PLACES","details HTTP " + res.status + ": " + (data.detail || ""));
+    throw err;
+  }
+  return data;   // { place:{...}, cached }
 }
 // Supabase Auth. The publishable key is public by design - safe to ship.
 const SUPABASE_URL = "https://kpkwevlhfhvybhovtwhj.supabase.co";
@@ -3671,6 +3709,7 @@ function Icon({name, size, color}){
     nodes:   <g><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5L15.4 6.5"/><path d="M8.6 13.5L15.4 17.5"/></g>,
     receipt: <g><path d="M6 3h12v18l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3L6 21Z"/><path d="M9 8h6M9 12h6"/></g>,
     compass: <g><circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2.1 4.7-4.7 2.1 2.1-4.7z"/></g>,
+    locate:  <g><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="2.3"/></g>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
 }
@@ -4605,7 +4644,7 @@ function App(){
           <span className="add"><Icon name="plus" size={24} color="#1b1714" /></span>
         </button>
         <button className={tab==="discover" ? "on" : ""} onClick={()=> setTab("discover")}>
-          <span className="navicon"><Icon name="compass" size={23} /></span>Discover
+          <span className="navicon"><Icon name="compass" size={23} /></span>You
         </button>
         <button className={tab==="settings" ? "on" : ""} onClick={()=> setTab("settings")}>
           <span className="navicon"><Icon name="gear" size={23} /></span>Settings
@@ -4624,6 +4663,15 @@ function App(){
         <SpinPicker
           restaurants={restaurants}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+          onClose={()=> setOverlay(null)} />
+      )}
+      {overlay && overlay.type === "nearMe" && (
+        <NearMeView
+          cfg={config}
+          restaurants={restaurants}
+          onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+          onAddPlace={(prefill)=> setOverlay({ type:"addRestaurant", prefill:prefill })}
+          onUpgrade={()=>{ setOverlay(null); setTab("settings"); }}
           onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "pullMenu" && (
@@ -4737,6 +4785,7 @@ function App(){
       {overlay && (overlay.type === "addRestaurant" || overlay.type === "editRestaurant") && (
         <RestaurantForm
           existing={overlay.type==="editRestaurant" ? restaurantById(overlay.id) : null}
+          prefill={overlay.type==="addRestaurant" ? (overlay.prefill || null) : null}
           locations={locations}
           cfg={config}
           onClose={()=> setOverlay(null)}
@@ -4809,8 +4858,12 @@ function App(){
               files.push("locations");
             }
             commit(updates, files);
-            setOverlay(overlay.type==="editRestaurant"
-              ? { type:"restaurant", id:recOut.id } : null);
+            // Editing returns to the restaurant; a fresh add normally returns to
+            // wherever the user was. A discovery add (carries google_place_id) is
+            // worth landing on so the user sees the place they just saved.
+            setOverlay(
+              (overlay.type==="editRestaurant" || recOut.google_place_id)
+                ? { type:"restaurant", id:recOut.id } : null);
           }} /> 
       )}
 
@@ -6870,6 +6923,598 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   );
 }
 
+/* ============================================================
+   NEAR ME  (Discovery Phase 1) - Pro-only
+   Find nearby places on the Phase 0 /api/places/* relay, then add
+   one to your places (prefilled, with google_place_id + coords
+   stamped so the map never re-geocodes it). All cost discipline
+   lives on the backend (Pro gate, per-user cap, breaker, field
+   mask, cache); the UI keeps searches EXPLICIT - radius/type need a
+   Search tap - so we never auto-bill on a stray render.
+   ============================================================ */
+
+// Google "PRICE_LEVEL_*" enum -> $ symbols. Returns "" when unknown so callers
+// can guard the surrounding text (no dangling separators).
+function priceLevelToDollars(level){
+  switch(level){
+    case "PRICE_LEVEL_INEXPENSIVE":    return "$";
+    case "PRICE_LEVEL_MODERATE":       return "$$";
+    case "PRICE_LEVEL_EXPENSIVE":      return "$$$";
+    case "PRICE_LEVEL_VERY_EXPENSIVE": return "$$$$";
+    case "PRICE_LEVEL_FREE":           return "Free";
+    default:                           return "";
+  }
+}
+
+// "italian_restaurant" -> "Italian restaurant"
+function humanizeType(t){
+  if (!t) return "";
+  const s = String(t).replace(/_/g, " ").trim();
+  return s ? (s.charAt(0).toUpperCase() + s.slice(1)) : "";
+}
+
+// Best-effort cuisine word for the Add-a-place prefill. We want "Italian", not
+// "Italian restaurant": strip the generic suffix words, title-case the rest.
+function cuisineFromType(primaryType, types){
+  const pick = primaryType || (Array.isArray(types) && types.length ? types[0] : "");
+  if (!pick) return "";
+  let s = String(pick).replace(/_/g, " ")
+    .replace(/\b(restaurant|food|store|shop|place)\b/gi, "").trim();
+  if (!s) return "";
+  return s.split(/\s+/).map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1)) : "").join(" ");
+}
+
+// Haversine distance in miles. Returns null if any coord is missing.
+function distanceMiles(lat1, lng1, lat2, lng2){
+  if (lat1==null || lng1==null || lat2==null || lng2==null) return null;
+  const R = 3958.8;                         // earth radius, miles
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const sLat = Math.sin(dLat / 2);
+  const sLng = Math.sin(dLng / 2);
+  const a = (sLat * sLat) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * (sLng * sLng);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function fmtMiles(mi){
+  if (mi == null) return "";
+  if (mi < 0.1) return "<0.1 mi";
+  if (mi < 10)  return mi.toFixed(1) + " mi";
+  return Math.round(mi) + " mi";
+}
+
+function hhmm(ts){
+  try { return new Date(ts).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }); }
+  catch(e){ return ""; }
+}
+
+// Radius chips (label + meters; all under Google's 50km cap). Default 1 mi.
+const NEARME_RADII = [
+  { label:"0.5 mi", m:800 },
+  { label:"1 mi",   m:1600 },
+  { label:"3 mi",   m:4800 },
+  { label:"5 mi",   m:8000 },
+];
+// Type chips -> Google includedTypes. The relay applies NO default, so even
+// "All food" must send a food-type set or non-food places leak in.
+const NEARME_TYPES = [
+  { key:"all",    label:"All food",    types:["restaurant","cafe","bar","bakery","meal_takeaway"] },
+  { key:"rest",   label:"Restaurants", types:["restaurant"] },
+  { key:"cafe",   label:"Cafes",       types:["cafe","coffee_shop"] },
+  { key:"bar",    label:"Bars",        types:["bar"] },
+  { key:"bakery", label:"Bakeries",    types:["bakery"] },
+];
+
+// Map a thrown places error (carries .status/.detail) to UI intent + copy.
+function mapPlacesError(err){
+  const s = err && err.status;
+  const d = (err && err.detail) || "";
+  if (s === 401) return { kind:"auth",     msg:"Your session expired - sign in again." };
+  if (s === 402){
+    // Two distinct 402s, told apart by the backend's detail string.
+    if (/limit/i.test(d)) return { kind:"limit", msg:d || "You have reached this month's discovery limit." };
+    return { kind:"upsell" };
+  }
+  if (s === 503) return { kind:"down",     msg:"Discovery is taking a short break. Try again in a bit." };
+  if (s === 502) return { kind:"upstream", msg:"Couldn't search just now. Try again." };
+  return { kind:"generic", msg:(err && err.message) || "Something went wrong." };
+}
+
+// The compact Leaflet map for the current result set. Mirrors MapView's init
+// (same tiles, same circleMarker+popup pattern) but adds a distinct "you are
+// here" marker and skips the geocode backfill - results already carry coords.
+function NearbyMap({ user, results, onOpen }){
+  const divRef = useRef(null), mapRef = useRef(null), layerRef = useRef(null);
+  const leafletReady = typeof L !== "undefined";
+
+  useEffect(function(){
+    if (!leafletReady || !divRef.current || !user) return;
+    const map = L.map(divRef.current, { zoomControl:true, attributionControl:true });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom:19, attribution:"&copy; OpenStreetMap contributors"
+    }).addTo(map);
+    map.setView([user.lat, user.lng], 14);
+    layerRef.current = L.layerGroup().addTo(map);
+    mapRef.current = map;
+    logMsg("MAP", "Near me map initialised");
+    setTimeout(function(){ try { map.invalidateSize(); } catch(e){} }, 60);
+    return function(){ try { map.remove(); } catch(e){} mapRef.current = null; };
+  }, [leafletReady]);  // eslint-disable-line
+
+  useEffect(function(){
+    const map = mapRef.current, layer = layerRef.current;
+    if (!map || !layer) return;
+    layer.clearLayers();
+    const pts = [];
+    if (user){
+      const um = L.circleMarker([user.lat, user.lng], {
+        radius:7, weight:3, color:"#4a90e0", fillColor:"#4a90e0", fillOpacity:0.55
+      });
+      um.bindPopup("<div class='mappop'><div class='mappop-name'>You are here</div></div>");
+      um.addTo(layer);
+      pts.push([user.lat, user.lng]);
+    }
+    results.forEach(function(p){
+      if (p.lat == null || p.lng == null) return;
+      const m = L.circleMarker([p.lat, p.lng], {
+        radius:8, weight:2, color:"#e0764a", fillColor:"#e0764a", fillOpacity:0.85
+      });
+      const el = document.createElement("div");
+      el.className = "mappop";
+      el.innerHTML =
+        "<div class='mappop-name'>" + escapeHtml(p.name || "") + "</div>" +
+        (p.primary_type ? "<div class='mappop-sub'>" + escapeHtml(humanizeType(p.primary_type)) + "</div>" : "") +
+        "<button class='mappop-open'>Details</button>";
+      const btn = el.querySelector(".mappop-open");
+      if (btn) btn.addEventListener("click", function(){ onOpen(p.place_id); });
+      m.bindPopup(el);
+      m.addTo(layer);
+      pts.push([p.lat, p.lng]);
+    });
+    if (pts.length){ try { map.fitBounds(pts, { padding:[40,40], maxZoom:16 }); } catch(e){} }
+  }, [results, user]);
+
+  if (!leafletReady){
+    return (
+      <div className="empty" style={{padding:"40px 22px"}}>
+        <div className="big">Map unavailable</div>
+        <div>The map library could not load. Check your connection and reopen.</div>
+      </div>
+    );
+  }
+  return <div ref={divRef} className="map-canvas" style={{flex:1, minHeight:280}} />;
+}
+
+function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade, onClose }){
+  // Tier gate. null = loading; "pro" shows search; anything else shows upsell.
+  // We fetch it once so a free user never wastes a search round-trip; any stray
+  // 402 mid-flow also flips us to the upsell.
+  const [tier, setTier] = useState(null);
+
+  // Location.
+  const [userLoc, setUserLoc]   = useState(null);
+  const [geoState, setGeoState] = useState("idle");   // idle|locating|ok|denied|unavailable
+
+  // Filters.
+  const [radiusM, setRadiusM] = useState(1600);       // 1 mi default
+  const [typeKey, setTypeKey] = useState("all");
+  const [openNow, setOpenNow] = useState(false);
+
+  // Results + status.
+  const [results, setResults]       = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState(null);
+  const [fetchedAt, setFetchedAt]   = useState(null);
+  const [lastSearch, setLastSearch] = useState(null);
+  const [view, setView]             = useState("list");   // list (default) | map
+
+  // Details sheet (nested layer over the list).
+  const [detail, setDetail]             = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailErr, setDetailErr]       = useState(null);
+
+  // Resolve tier on open. On failure, fall through to the search UI and let the
+  // backend's hard gate (402) protect spend - better than blocking a real Pro.
+  useEffect(function(){
+    let alive = true;
+    fetchBillingStatus(cfg)
+      .then(d => { if (alive) setTier((d && d.tier) || "unknown"); })
+      .catch(()=> { if (alive) setTier("unknown"); });
+    return function(){ alive = false; };
+  }, []);  // eslint-disable-line
+
+  // Once we know the user can search, ask for location straight away.
+  useEffect(function(){
+    if (tier === "pro" || tier === "unknown"){ if (geoState === "idle") requestLocation(); }
+  }, [tier]);  // eslint-disable-line
+
+  function requestLocation(){
+    if (!navigator.geolocation){ setGeoState("unavailable"); return; }
+    setGeoState("locating");
+    navigator.geolocation.getCurrentPosition(
+      function(pos){
+        const la = pos.coords.latitude, ln = pos.coords.longitude;
+        logMsg("PLACES", "geolocation ok lat=" + la.toFixed(4) + " lng=" + ln.toFixed(4));
+        setUserLoc({ lat:la, lng:ln });
+        setGeoState("ok");
+      },
+      function(err){
+        logMsg("PLACES", "geolocation error code=" + err.code + " " + err.message);
+        setGeoState(err.code === 1 ? "denied" : "unavailable");
+      },
+      { enableHighAccuracy:false, timeout:10000, maximumAge:60000 }
+    );
+  }
+
+  async function runSearch(){
+    if (!userLoc){ requestLocation(); return; }
+    setLoading(true); setError(null);
+    const tdef = NEARME_TYPES.find(t => t.key === typeKey) || NEARME_TYPES[0];
+    const body = {
+      lat:userLoc.lat, lng:userLoc.lng,
+      radius_m:radiusM, open_now:openNow,
+      included_types:tdef.types, max_results:20,
+    };
+    try {
+      const data = await placesNearby(cfg, body);
+      const raw = (data.places || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      const withDist = raw.map(p => Object.assign({}, p, {
+        _dist: distanceMiles(userLoc.lat, userLoc.lng, p.lat, p.lng),
+      })).sort((a,b)=> (a._dist==null?1e9:a._dist) - (b._dist==null?1e9:b._dist));
+      setResults(withDist);
+      setFetchedAt(Date.now());
+      setLastSearch({ radiusM, typeKey, openNow });
+      logMsg("PLACES", "nearby returned " + withDist.length + " (cached=" + (data.cached?"y":"n") + ")");
+    } catch(err){
+      const e = mapPlacesError(err);
+      setError(e);
+      if (e.kind === "upsell") setTier("free");   // surface the upsell panel
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function openDetails(placeId){
+    setDetail({ place_id:placeId });   // open sheet immediately in loading state
+    setDetailLoading(true); setDetailErr(null);
+    try {
+      const data = await placesDetails(cfg, placeId);
+      setDetail(data.place);
+    } catch(err){
+      const e = mapPlacesError(err);
+      if (e.kind === "upsell"){ setDetail(null); setError(e); setTier("free"); }
+      else setDetailErr(e);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  // ---- dedup against the user's saved places ----
+  function normName(s){ return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
+  function hardMatch(placeId){
+    if (!placeId) return null;
+    return restaurants.find(r => r.google_place_id && r.google_place_id === placeId) || null;
+  }
+  function softMatch(p){
+    if (!p) return null;
+    const pn = normName(p.name);
+    if (!pn) return null;
+    return restaurants.find(r => {
+      if (r.google_place_id && r.google_place_id === p.place_id) return false;  // that's a hard match
+      const rn = normName(r.name);
+      if (!rn) return false;
+      const nameClose = rn === pn || rn.indexOf(pn) >= 0 || pn.indexOf(rn) >= 0;
+      if (!nameClose) return false;
+      if (r.lat == null || r.lng == null || p.lat == null || p.lng == null) return false;
+      const d = distanceMiles(r.lat, r.lng, p.lat, p.lng);
+      return d != null && d < 0.15;   // ~240m and a close name = very likely the same spot
+    }) || null;
+  }
+
+  function addFromPlace(p){
+    const hard = hardMatch(p.place_id);
+    if (hard){ onOpenRestaurant(hard.id); return; }
+    const soft = softMatch(p);
+    if (soft){
+      const addAnyway = window.confirm(
+        "You may already have \"" + soft.name + "\" saved.\n\n" +
+        "OK = add this as a new place anyway.\n" +
+        "Cancel = open the one you already have.");
+      if (!addAnyway){ onOpenRestaurant(soft.id); return; }
+    }
+    const prefill = {
+      name: p.name || "",
+      cuisine: cuisineFromType(p.primary_type, p.types),
+      location: p.city || "",
+      address: p.address || "",
+      phone: p.phone || "",
+      website: p.website || "",
+      notes: (p.hours && p.hours.length) ? ("Hours: " + p.hours.join("; ")) : "",
+      lat: p.lat, lng: p.lng,
+      google_place_id: p.place_id,
+    };
+    logMsg("PLACES", "Add to my places from discovery: " + (p.name || "") + " place_id=" + p.place_id);
+    onAddPlace(prefill);
+  }
+
+  const dirty = !lastSearch
+    || lastSearch.radiusM !== radiusM
+    || lastSearch.typeKey !== typeKey
+    || lastSearch.openNow !== openNow;
+  const searchLabel = loading ? "Searching..."
+    : (!results.length ? "Search nearby" : (dirty ? "Update results" : "Refresh"));
+
+  // ---- small inline style helpers (avoid touching the CSS block) ----
+  const chip = (on)=> ({
+    padding:"7px 12px", borderRadius:999, fontSize:13, fontWeight:600,
+    border:"1px solid " + (on ? "var(--accent)" : "var(--line)"),
+    background: on ? "var(--accent)" : "transparent",
+    color: on ? "#1b1714" : "var(--text-dim)", cursor:"pointer", whiteSpace:"nowrap",
+  });
+
+  // ---------- render: gate first ----------
+  function Header(){
+    return (
+      <div className="ovhead">
+        <button className="x" onClick={onClose}>Back</button>
+        <h2>Near me</h2>
+        <span style={{width:54}} />
+      </div>
+    );
+  }
+
+  if (tier === null){
+    return (
+      <div className="overlay">
+        <Header />
+        <div className="ovbody"><div className="empty"><span className="spin" /></div></div>
+      </div>
+    );
+  }
+
+  if (tier !== "pro" && tier !== "unknown"){
+    // Free (or comped-but-not-pro should not occur): the upsell panel. No Google
+    // call has been made, so this costs nothing.
+    return (
+      <div className="overlay">
+        <Header />
+        <div className="ovbody">
+          <div className="card" style={{textAlign:"center", padding:"26px 20px"}}>
+            <div style={{display:"flex", justifyContent:"center", marginBottom:10}}>
+              <Icon name="locate" size={34} color="var(--accent)" />
+            </div>
+            <div className="big" style={{marginBottom:6}}>Near me is a Pro feature</div>
+            <div style={{color:"var(--text-dim)", lineHeight:1.5, marginBottom:18}}>
+              Discover restaurants, cafes, and bars around you - then add the good
+              ones to your places with one tap, address and all.
+            </div>
+            <button className="btn" style={{width:"100%"}} onClick={onUpgrade}>
+              See Pro
+            </button>
+            <button className="btn ghost" style={{width:"100%", marginTop:8}} onClick={onClose}>
+              Maybe later
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- render: search UI (Pro / unknown) ----------
+  const tdef = NEARME_TYPES.find(t => t.key === typeKey) || NEARME_TYPES[0];
+
+  return (
+    <div className="overlay">
+      <Header />
+      <div className="ovbody" style={{display:"flex", flexDirection:"column", padding:0}}>
+
+        {/* Location states */}
+        {geoState !== "ok" && (
+          <div className="card" style={{margin:14}}>
+            {geoState === "locating" && (
+              <div className="row" style={{gap:10}}><span className="spin" /> Finding your location...</div>
+            )}
+            {geoState === "idle" && (
+              <div>
+                <div style={{marginBottom:10}}>Find places around you right now.</div>
+                <button className="btn" onClick={requestLocation}>Use my location</button>
+              </div>
+            )}
+            {geoState === "denied" && (
+              <div>
+                <div className="big" style={{marginBottom:6}}>Location is off</div>
+                <div style={{color:"var(--text-dim)", marginBottom:12, lineHeight:1.5}}>
+                  Near me needs your location. Turn it on for this site in your
+                  browser settings, then try again.
+                </div>
+                <button className="btn ghost" onClick={requestLocation}>Try again</button>
+              </div>
+            )}
+            {geoState === "unavailable" && (
+              <div>
+                <div className="big" style={{marginBottom:6}}>Couldn't get your location</div>
+                <div style={{color:"var(--text-dim)", marginBottom:12}}>It may be a momentary glitch.</div>
+                <button className="btn ghost" onClick={requestLocation}>Try again</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Filters + search (only once we have a location) */}
+        {geoState === "ok" && (
+          <div style={{padding:"12px 14px", borderBottom:"1px solid var(--line-soft)"}}>
+            <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
+              {NEARME_RADII.map(r => (
+                <button key={r.m} style={chip(radiusM === r.m)} onClick={()=> setRadiusM(r.m)}>{r.label}</button>
+              ))}
+            </div>
+            <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
+              {NEARME_TYPES.map(t => (
+                <button key={t.key} style={chip(typeKey === t.key)} onClick={()=> setTypeKey(t.key)}>{t.label}</button>
+              ))}
+            </div>
+            <div className="row" style={{gap:10, justifyContent:"space-between", alignItems:"center"}}>
+              <button style={chip(openNow)} onClick={()=> setOpenNow(v => !v)}>
+                {openNow ? "Open now: on" : "Open now"}
+              </button>
+              <button className="btn" style={{flex:1, opacity: loading ? 0.7 : 1}}
+                disabled={loading} onClick={runSearch}>
+                {searchLabel}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Results header: count + freshness + view toggle */}
+        {geoState === "ok" && (fetchedAt || loading) && (
+          <div className="row" style={{justifyContent:"space-between", alignItems:"center", padding:"8px 14px"}}>
+            <span className="faint" style={{fontSize:12}}>
+              {loading ? "Searching..."
+                : (results.length
+                    ? results.length + " place" + (results.length===1?"":"s") + " - as of " + hhmm(fetchedAt)
+                    : "")}
+            </span>
+            <div className="row" style={{gap:6}}>
+              <button style={chip(view === "list")} onClick={()=> setView("list")}>List</button>
+              <button style={chip(view === "map")}  onClick={()=> setView("map")}>Map</button>
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && error.kind !== "upsell" && (
+          <div className="card" style={{margin:14}}>
+            <div style={{color:"var(--text-dim)"}}>{error.msg}</div>
+            {(error.kind === "down" || error.kind === "upstream" || error.kind === "generic") && (
+              <button className="btn ghost" style={{marginTop:10}} onClick={runSearch}>Try again</button>
+            )}
+          </div>
+        )}
+
+        {/* Body: list or map */}
+        <div style={{flex:1, minHeight:0, display:"flex", flexDirection:"column", overflowY: view==="list" ? "auto" : "hidden"}}>
+          {loading && (
+            <div className="empty"><span className="spin" /></div>
+          )}
+
+          {!loading && view === "list" && fetchedAt && !results.length && !error && (
+            <div className="empty" style={{padding:"30px 22px"}}>
+              <div className="big">Nothing found here</div>
+              <div>Try a wider radius or a different type.</div>
+            </div>
+          )}
+
+          {!loading && view === "list" && results.map(p => {
+            const hard = hardMatch(p.place_id);
+            const soft = !hard && softMatch(p);
+            const dollars = priceLevelToDollars(p.price_level);
+            const sub = [humanizeType(p.primary_type), dollars].filter(Boolean).join(" - ");
+            return (
+              <div key={p.place_id} className="card tap" style={{margin:"8px 14px"}}
+                onClick={()=> openDetails(p.place_id)}>
+                <div className="row" style={{justifyContent:"space-between", alignItems:"flex-start", gap:10}}>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontWeight:700, marginBottom:2}}>{p.name}</div>
+                    {sub && <div className="faint" style={{fontSize:13}}>{sub}</div>}
+                    <div className="row" style={{gap:10, marginTop:4, fontSize:12.5}}>
+                      {p.rating != null && (
+                        <span className="row" style={{gap:3}}>
+                          <Icon name="star" size={12} color="var(--accent)" />
+                          {p.rating}{p.rating_count != null ? " (" + p.rating_count + ")" : ""}
+                        </span>
+                      )}
+                      {p._dist != null && <span className="faint">{fmtMiles(p._dist)}</span>}
+                      {p.open_now === true  && <span style={{color:"var(--accent)"}}>Open</span>}
+                      {p.open_now === false && <span className="faint">Closed</span>}
+                    </div>
+                    {soft && <div className="faint" style={{fontSize:11.5, marginTop:4}}>Maybe already in your places</div>}
+                  </div>
+                  <button className="btn ghost" style={{flex:"none"}}
+                    onClick={(e)=>{ e.stopPropagation(); hard ? onOpenRestaurant(hard.id) : openDetails(p.place_id); }}>
+                    {hard ? "In your places" : "View"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {!loading && view === "map" && (
+            (results.length || userLoc)
+              ? <NearbyMap user={userLoc} results={results} onOpen={openDetails} />
+              : <div className="empty" style={{padding:"30px 22px"}}><div>Search to see places on the map.</div></div>
+          )}
+        </div>
+      </div>
+
+      {/* Details sheet - nested layer above the list (own scroll, higher z) */}
+      {detail && (
+        <div className="overlay" style={{zIndex:60}}>
+          <div className="ovhead">
+            <button className="x" onClick={()=>{ setDetail(null); setDetailErr(null); }}>Back</button>
+            <h2>Details</h2>
+            <span style={{width:54}} />
+          </div>
+          <div className="ovbody">
+            {detailLoading && <div className="empty"><span className="spin" /></div>}
+            {!detailLoading && detailErr && (
+              <div className="card"><div style={{color:"var(--text-dim)"}}>{detailErr.msg}</div></div>
+            )}
+            {!detailLoading && !detailErr && detail && detail.name && (() => {
+              const hard = hardMatch(detail.place_id);
+              const dollars = priceLevelToDollars(detail.price_level);
+              const sub = [humanizeType(detail.primary_type), dollars].filter(Boolean).join(" - ");
+              return (
+                <div>
+                  <div className="card">
+                    <div style={{fontWeight:700, fontSize:17, marginBottom:3}}>{detail.name}</div>
+                    {sub && <div className="faint" style={{marginBottom:6}}>{sub}</div>}
+                    <div className="row" style={{gap:12, marginBottom:8, fontSize:13}}>
+                      {detail.rating != null && (
+                        <span className="row" style={{gap:3}}>
+                          <Icon name="star" size={13} color="var(--accent)" />
+                          {detail.rating}{detail.rating_count != null ? " (" + detail.rating_count + ")" : ""}
+                        </span>
+                      )}
+                      {detail.open_now === true  && <span style={{color:"var(--accent)"}}>Open now</span>}
+                      {detail.open_now === false && <span className="faint">Closed now</span>}
+                    </div>
+                    {detail.address && <div style={{color:"var(--text-dim)", marginBottom:8}}>{detail.address}</div>}
+                    <div className="row" style={{gap:14, flexWrap:"wrap"}}>
+                      {detail.phone && <a href={"tel:" + detail.phone} className="row" style={{gap:5, color:"var(--accent)"}}>
+                        <Icon name="phone" size={14} color="var(--accent)" />Call</a>}
+                      {detail.website && <a href={detail.website} target="_blank" rel="noopener noreferrer" className="row" style={{gap:5, color:"var(--accent)"}}>
+                        <Icon name="link" size={14} color="var(--accent)" />Website</a>}
+                      {detail.google_maps_uri && <a href={detail.google_maps_uri} target="_blank" rel="noopener noreferrer" className="row" style={{gap:5, color:"var(--accent)"}}>
+                        <Icon name="pin" size={14} color="var(--accent)" />Maps</a>}
+                    </div>
+                  </div>
+
+                  {detail.hours && detail.hours.length > 0 && (
+                    <div className="card">
+                      <div style={{fontWeight:600, marginBottom:6}}>Hours</div>
+                      {detail.hours.map((h,i)=> <div key={i} className="faint" style={{fontSize:13, lineHeight:1.6}}>{h}</div>)}
+                    </div>
+                  )}
+
+                  {detail.summary && (
+                    <div className="card"><div style={{color:"var(--text-dim)", lineHeight:1.5}}>{detail.summary}</div></div>
+                  )}
+
+                  <button className="btn" style={{width:"100%", marginTop:6}}
+                    onClick={()=>{ addFromPlace(detail); }}>
+                    {hard ? "Open in MenuCaptain" : "Add to my places"}
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ActionSheet({onClose, onPick}){
   return (
     <div className="sheet-bg" onClick={onClose}>
@@ -6899,6 +7544,11 @@ function ActionSheet({onClose, onPick}){
           <span className="ic"><Icon name="receipt" size={21} color="#e0764a" /></span>
           <div><div className="t1">Split a check</div>
             <div className="t2">Scan a receipt and split it by who had what</div></div>
+        </div>
+        <div className="sheet-item" onClick={()=> onPick("nearMe")}>
+          <span className="ic"><Icon name="locate" size={21} color="#e0764a" /></span>
+          <div><div className="t1">Near me</div>
+            <div className="t2">Discover places nearby and add them</div></div>
         </div>
         <div className="sheet-item" onClick={()=> onPick("addRestaurant")}>
           <span className="ic"><Icon name="pin" size={21} color="#e0764a" /></span>
@@ -7170,23 +7820,34 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
 /* ============================================================
    RESTAURANT FORM (add / edit)
    ============================================================ */
-function RestaurantForm({existing, locations, cfg, onClose, onSave}){
-  const [name,setName]         = useState(existing ? existing.name : "");
-  const [cuisine,setCuisine]   = useState(existing ? existing.cuisine : "");
-  const [location,setLocation] = useState(existing ? (existing.location || "") : "");
-  const [address,setAddress]   = useState(existing ? existing.address : "");
-  const [phone,setPhone]       = useState(existing ? existing.phone : "");
-  const [website,setWebsite]   = useState(existing ? existing.website : "");
-  const [notes,setNotes]       = useState(existing ? existing.notes : "");
+function RestaurantForm({existing, prefill, locations, cfg, onClose, onSave}){
+  // Field seeds come from `existing` (Edit) OR `prefill` (a fresh Add seeded from
+  // Google discovery). Identity-shaped things (id, photo, added_date, the "Edit"
+  // title) stay keyed on `existing` ONLY, so a prefill is still a brand-new place.
+  const seed = existing || prefill || null;
+  const [name,setName]         = useState(seed ? (seed.name || "") : "");
+  const [cuisine,setCuisine]   = useState(seed ? (seed.cuisine || "") : "");
+  const [location,setLocation] = useState(seed ? (seed.location || "") : "");
+  const [address,setAddress]   = useState(seed ? (seed.address || "") : "");
+  const [phone,setPhone]       = useState(seed ? (seed.phone || "") : "");
+  const [website,setWebsite]   = useState(seed ? (seed.website || "") : "");
+  const [notes,setNotes]       = useState(seed ? (seed.notes || "") : "");
   const [fav,setFav]           = useState(existing ? !!existing.favorite : false);
+
+  // The google_place_id rides inside the restaurant JSONB (migration-free). It is
+  // stamped by a discovery prefill on a new place, and preserved across edits.
+  const googlePlaceId = existing
+    ? (existing.google_place_id || null)
+    : (prefill ? (prefill.google_place_id || null) : null);
 
   // Coordinates for the map. Initialised from the saved record so editing a
   // restaurant preserves its pin. "Find address" sets these directly; the map's
-  // backfill also fills them in later. If the address changes, geo_addr won't
-  // match and the map re-geocodes (self-healing) - see geoNeedsUpdate().
+  // backfill also fills them in later. A discovery prefill arrives WITH coords
+  // (lat/lng from Google), so the map never has to geocode it. If the address
+  // changes, geo_addr won't match and the map re-geocodes (self-healing).
   const [geo,setGeo] = useState(
-    (existing && existing.lat != null && existing.lng != null)
-      ? { lat:existing.lat, lng:existing.lng, geo_addr: existing.geo_addr || existing.address || "" }
+    (seed && seed.lat != null && seed.lng != null)
+      ? { lat:seed.lat, lng:seed.lng, geo_addr: seed.geo_addr || seed.address || "" }
       : null
   );
   const [findBusy,setFindBusy] = useState(false);
@@ -7346,6 +8007,8 @@ function RestaurantForm({existing, locations, cfg, onClose, onSave}){
       geo_addr:   geo ? geo.geo_addr : (existing ? (existing.geo_addr || null) : null),
       geo_ok:     geo ? true : (existing ? !!existing.geo_ok : false),
       geo_failed: (existing && !geo) ? !!existing.geo_failed : false,
+      // Discovery linkage (dedup / future re-enrich). Null for hand-added places.
+      google_place_id: googlePlaceId,
     };
     onSave(rec, {
       newLocationsToAdd: newLocationsToAdd,
