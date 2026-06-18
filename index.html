@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.83.0";
+const APP_VERSION   = "1.83.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7289,7 +7289,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
               Discover restaurants, cafes, and bars around you - then add the good
               ones to your places with one tap, address and all.
             </div>
-            <button className="btn" style={{width:"100%"}} onClick={onUpgrade}>
+            <button className="btn primary" style={{width:"100%"}} onClick={onUpgrade}>
               See Pro
             </button>
             <button className="btn ghost" style={{width:"100%", marginTop:8}} onClick={onClose}>
@@ -7318,7 +7318,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
             {geoState === "idle" && (
               <div>
                 <div style={{marginBottom:10}}>Find places around you right now.</div>
-                <button className="btn" onClick={requestLocation}>Use my location</button>
+                <button className="btn primary" onClick={requestLocation}>Use my location</button>
               </div>
             )}
             {geoState === "denied" && (
@@ -7358,7 +7358,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
               <button style={chip(openNow)} onClick={()=> setOpenNow(v => !v)}>
                 {openNow ? "Open now: on" : "Open now"}
               </button>
-              <button className="btn" style={{flex:1, opacity: loading ? 0.7 : 1}}
+              <button className="btn primary" style={{flex:1, opacity: loading ? 0.7 : 1}}
                 disabled={loading} onClick={runSearch}>
                 {searchLabel}
               </button>
@@ -7412,12 +7412,14 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
             const sub = [humanizeType(p.primary_type), dollars].filter(Boolean).join(" - ");
             return (
               <div key={p.place_id} className="card tap" style={{margin:"8px 14px"}}
-                onClick={()=> openDetails(p.place_id)}>
-                <div className="row" style={{justifyContent:"space-between", alignItems:"flex-start", gap:10}}>
-                  <div style={{minWidth:0}}>
+                onClick={()=> hard ? onOpenRestaurant(hard.id) : openDetails(p.place_id)}>
+                <div className="row" style={{justifyContent:"space-between", alignItems:"center", gap:12}}>
+                  {/* flex:1 + minWidth:0 lets the text take the row and wrap normally
+                      instead of being crushed to one word per line by the button. */}
+                  <div style={{flex:1, minWidth:0}}>
                     <div style={{fontWeight:700, marginBottom:2}}>{p.name}</div>
                     {sub && <div className="faint" style={{fontSize:13}}>{sub}</div>}
-                    <div className="row" style={{gap:10, marginTop:4, fontSize:12.5}}>
+                    <div className="row" style={{gap:10, marginTop:4, fontSize:12.5, flexWrap:"wrap"}}>
                       {p.rating != null && (
                         <span className="row" style={{gap:3}}>
                           <Icon name="star" size={12} color="var(--accent)" />
@@ -7430,10 +7432,12 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
                     </div>
                     {soft && <div className="faint" style={{fontSize:11.5, marginTop:4}}>Maybe already in your places</div>}
                   </div>
-                  <button className="btn ghost" style={{flex:"none"}}
-                    onClick={(e)=>{ e.stopPropagation(); hard ? onOpenRestaurant(hard.id) : openDetails(p.place_id); }}>
-                    {hard ? "In your places" : "View"}
-                  </button>
+                  {/* .btn sm carries width:auto, so it sizes to its label instead of
+                      inheriting the global .btn{width:100%}. Saved places show a tag. */}
+                  {hard
+                    ? <span style={{flex:"0 0 auto", fontSize:12, fontWeight:600, color:"var(--accent)", maxWidth:90, textAlign:"right"}}>In your places</span>
+                    : <button className="btn ghost sm" style={{flex:"0 0 auto"}}
+                        onClick={(e)=>{ e.stopPropagation(); openDetails(p.place_id); }}>View</button>}
                 </div>
               </div>
             );
@@ -7501,7 +7505,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
                     <div className="card"><div style={{color:"var(--text-dim)", lineHeight:1.5}}>{detail.summary}</div></div>
                   )}
 
-                  <button className="btn" style={{width:"100%", marginTop:6}}
+                  <button className="btn primary" style={{width:"100%", marginTop:6}}
                     onClick={()=>{ addFromPlace(detail); }}>
                     {hard ? "Open in MenuCaptain" : "Add to my places"}
                   </button>
