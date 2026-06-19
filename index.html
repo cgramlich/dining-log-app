@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.85.0";
+const APP_VERSION   = "1.86.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5031,7 +5031,7 @@ function App(){
             commit({ visits:next }, ["visits"]);
             flash(isNew ? "Saved as a new visit" : "Split saved to your visit");
           }}
-          initialSplit={overlay.editSplit || null}
+          initialSplit={overlay.editSplit || (overlay.fromVisit && overlay.fromVisit.split) || null}
           onSaveSplit={(entity)=>{ upsertSplit(entity); flash(overlay.editSplit ? "Split updated" : "Split saved"); }}
           onClose={()=> setOverlay(overlay.returnTo || null)} />
       )}
@@ -6573,6 +6573,14 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   // From a visit, saving attaches the split back to THAT visit and never makes
   // a separate card. presetVisitId is "new" only for the standalone splitter.
   const fromVisit = !!(presetVisitId && presetVisitId !== "new");
+  // An OLD split (saved before inputs existed) carries only the summary - we
+  // can't restore item assignments, but at least bring back who was at the
+  // table so reopening isn't a blank slate.
+  const fallbackPeople = (!reopened && initialSplit)
+    ? (Array.isArray(initialSplit.people) ? initialSplit.people
+        : (initialSplit.summary && Array.isArray(initialSplit.summary.people) ? initialSplit.summary.people : []))
+        .map(p => (p && p.name) ? p.name : null).filter(Boolean)
+    : [];
   const [step, setStep]       = useState((reopened || preloaded || fromVisit) ? "edit" : "pick");  // pick | edit | result
   const [busy, setBusy]       = useState(false);
   const [processing, setProcessing] = useState(null); // {done,total} | null
@@ -6585,7 +6593,8 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
           price: (l.price != null && l.price !== "") ? String(l.price) : "", qty: l.qty || 1 }))
       : []);                                          // [{id,name,price,qty}]
   const [rtotal, setRtotal]   = useState(reopened && reopened.rtotal != null ? String(reopened.rtotal) : "");
-  const [people, setPeople]   = useState(reopened && Array.isArray(reopened.people) ? reopened.people.slice() : []);
+  const [people, setPeople]   = useState(reopened && Array.isArray(reopened.people) ? reopened.people.slice()
+    : (fallbackPeople.length ? fallbackPeople.slice() : []));
   const [nameDraft, setNameDraft] = useState("");
   const [assign, setAssign]   = useState(reopened && reopened.assign ? reopened.assign : {});  // {lineId:[name]}
   const [tip, setTip]         = useState(reopened && reopened.tip != null ? String(reopened.tip) : "");
@@ -6759,6 +6768,20 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   // Persist the computed split onto a visit - a new one today (default) or an
   // existing one the user picks. The split rides inside the visit JSON, and the
   // grand total becomes the visit's spend (so it flows into spend + Year in Food).
+  // The editable calculator state, captured so a saved split can be reopened
+  // and TRULY edited later (people, per-item assignment, tip, tax) - not just
+  // the who-owes-what summary. Stored on standalone splits AND visit splits.
+  function buildSplitInputs(){
+    return {
+      lines: lines.map(l => ({ id: l.id, name: l.name, price: l.price, qty: l.qty || 1 })),
+      rtotal: rtotal,
+      people: people.slice(),
+      assign: assign,
+      tip: tip, tipMode: tipMode,
+      tax: tax, taxMode: taxMode,
+    };
+  }
+
   function doSaveToVisit(){
     if (!split || !saveRest || !onSaveToVisit) return;
     const r = (restaurants || []).find(x => x.id === saveRest);
@@ -6769,6 +6792,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       grand: grand,
       items: lines.filter(l => (l.name || "").trim())
         .map(l => ({ name: l.name.trim(), price: (Number(l.price) || 0) })),
+      inputs: buildSplitInputs(),   // so the split can be reopened and edited later
       saved_at: Date.now(),
     };
     if (saveVisit === "new"){
@@ -6813,6 +6837,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       grand: toDollars(split.grandCents),
       items: lines.filter(l => (l.name || "").trim())
         .map(l => ({ name: l.name.trim(), price: (Number(l.price) || 0) })),
+      inputs: buildSplitInputs(),   // so the split can be reopened and edited later
       saved_at: Date.now(),
     };
     logMsg("SPLIT","Applied split to visit draft, grand=" + money(split.grandCents));
@@ -6833,14 +6858,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   function doSaveSplit(){
     if (!split || !onSaveSplit) return;
     const toDollars = c => Math.round(c) / 100;
-    const inputs = {
-      lines: lines.map(l => ({ id: l.id, name: l.name, price: l.price, qty: l.qty || 1 })),
-      rtotal: rtotal,
-      people: people.slice(),
-      assign: assign,
-      tip: tip, tipMode: tipMode,
-      tax: tax, taxMode: taxMode,
-    };
+    const inputs = buildSplitInputs();
     const summary = {
       grand: toDollars(split.grandCents),
       people: split.people.map(p => ({ name: p.name, amount: toDollars(p.totalCents) })),
@@ -7079,11 +7097,11 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
             </div>
             <button className="btn" style={{marginTop:14}} onClick={shareSplit}>Share the split</button>
             {onApplyDraft ? (
-              <button className="btn ghost" style={{marginTop:10}} onClick={doApplyDraft}>
+              <button className="btn primary" style={{marginTop:10}} onClick={doApplyDraft}>
                 Use this split
               </button>
             ) : fromVisit && onSaveToVisit ? (
-              <button className="btn ghost" style={{marginTop:10}} onClick={doSaveToVisit}>
+              <button className="btn primary" style={{marginTop:10}} onClick={doSaveToVisit}>
                 Save to this visit
               </button>
             ) : onSaveSplit ? (
@@ -7096,10 +7114,13 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 <button className="btn primary" onClick={doSaveSplit}>
                   {initialSplit ? "Update saved split" : "Save split"}
                 </button>
+                <div className="tiny faint" style={{textAlign:"center",marginTop:8}}>
+                  Saved splits live under You. Not kept unless you save.
+                </div>
               </div>
             ) : null}
             <button className="btn ghost" style={{marginTop:10}} onClick={()=> setStep("edit")}>Edit</button>
-            <button className="btn ghost" style={{marginTop:10}} onClick={onClose}>Done</button>
+            <button className="btn ghost" style={{marginTop:10}} onClick={onClose}>Close without saving</button>
           </div>
         )}
 
@@ -9390,6 +9411,7 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
             presetRestId={restId}
             presetVisitId={"new"}
             initialReceiptPhoto={receiptSlot && receiptSlot.kind === "existing" ? receiptSlot.path : null}
+            initialSplit={splitDraft || null}
             onApplyDraft={(splitObj)=>{ setSplitDraft(splitObj); setSplitOpen(false); }}
             onClose={()=> setSplitOpen(false)} />
         </div>
