@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.86.1";
+const APP_VERSION   = "1.87.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10137,6 +10137,17 @@ async function groupClose(cfg, code){
   if (!res.ok) throw new Error("close failed: " + res.status);
   return res.json();
 }
+async function groupRemovePick(cfg, code, token){
+  // Host-only: take one guest off the order. guest_token comes from the
+  // host-only fields the server returns in GET /api/group/{code}.
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code)
+    + "/pick?guest_token=" + encodeURIComponent(token), {
+    method:"DELETE",
+    headers:{ ...(await authHeaders(cfg)) },
+  });
+  if (!res.ok) throw new Error("remove failed: " + res.status);
+  return res.json();
+}
 async function groupMine(cfg){
   // The host's own open orders (account-backed, so the list follows the user
   // across devices). Authed GET. Any failure is treated as "none" by callers,
@@ -10543,6 +10554,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
   const [err, setErr]           = useState("");
   const [copied, setCopied]     = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);   // gate the finalizing "Close order"
+  const [confirmRemove, setConfirmRemove] = useState(null);  // guest_token pending remove-confirm
   const link = code ? (location.origin + location.pathname + "?g=" + code) : "";
   const [rosterInput, setRosterInput] = useState("");
   const [rosterBusy, setRosterBusy]   = useState(false);
@@ -10574,6 +10586,27 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
     const cur = (data && Array.isArray(data.roster)) ? data.roster : [];
     saveRoster(cur.filter(x => groupNorm(x) !== groupNorm(name)));
   }
+  // Host removes one person's submitted order (the Carson case). Optimistic
+  // local prune; the 5s poll reconciles if the server disagrees. guest_token
+  // comes from the host-only fields in GET /api/group/{code}.
+  async function removePick(token){
+    if (!code || !token) return;
+    setData(d => d ? { ...d, picks: (d.picks || []).filter(p => p.guest_token !== token) } : d);
+    setConfirmRemove(null);
+    try { await groupRemovePick(cfg, code, token); logMsg("GROUP","removed pick token=" + token.slice(0,8)); }
+    catch(e){ logMsg("GROUP","remove pick failed: " + e.message); }
+  }
+  // Small inline remove control for a guest card (per-row confirm).
+  const removeCtl = (token) => (!token ? null : (
+    confirmRemove === token ? (
+      <span style={{display:"inline-flex",gap:6,flex:"none"}}>
+        <button className="btn ghost sm" onClick={()=> setConfirmRemove(null)}>Cancel</button>
+        <button className="btn danger sm" onClick={()=> removePick(token)}>Remove</button>
+      </span>
+    ) : (
+      <button className="btn ghost sm" style={{flex:"none"}} onClick={()=> setConfirmRemove(token)}>Remove</button>
+    )
+  ));
 
   useEffect(()=>{
     if (!code) return;
@@ -10729,11 +10762,16 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
                 )}
                 {expected.map((r,i)=>(
                   <div key={"e"+i} className="go-guest">
-                    <div className="go-guest-name">
-                      {r.name}
-                      {r.sub ? <span className="go-in">ordered</span> : <span className="go-wait">waiting</span>}
+                    <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div className="go-guest-name">
+                          {r.name}
+                          {r.sub ? <span className="go-in">ordered</span> : <span className="go-wait">waiting</span>}
+                        </div>
+                        {r.sub ? <div className="tiny muted">{picksLine(r.sub.picks)}</div> : null}
+                      </div>
+                      {r.sub ? removeCtl(r.sub.guest_token) : null}
                     </div>
-                    {r.sub ? <div className="tiny muted">{picksLine(r.sub.picks)}</div> : null}
                   </div>
                 ))}
                 {extras.length ? (
@@ -10741,8 +10779,13 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
                     <div className="tiny faint" style={{padding:"10px 10px 2px"}}>Also ordered</div>
                     {extras.map((g,i)=>(
                       <div key={"x"+i} className="go-guest">
-                        <div className="go-guest-name">{g.guest_name || "Guest"}</div>
-                        <div className="tiny muted">{picksLine(g.picks)}</div>
+                        <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div className="go-guest-name">{g.guest_name || "Guest"}</div>
+                            <div className="tiny muted">{picksLine(g.picks)}</div>
+                          </div>
+                          {removeCtl(g.guest_token)}
+                        </div>
                       </div>
                     ))}
                   </>
@@ -10756,8 +10799,13 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
               <div className="card">
                 {guests.map((g,i)=>(
                   <div key={i} className="go-guest">
-                    <div className="go-guest-name">{g.guest_name || "Guest"}</div>
-                    <div className="tiny muted">{picksLine(g.picks)}</div>
+                    <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div className="go-guest-name">{g.guest_name || "Guest"}</div>
+                        <div className="tiny muted">{picksLine(g.picks)}</div>
+                      </div>
+                      {removeCtl(g.guest_token)}
+                    </div>
                   </div>
                 ))}
               </div>
