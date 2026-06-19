@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.87.0";
+const APP_VERSION   = "1.88.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10148,6 +10148,16 @@ async function groupRemovePick(cfg, code, token){
   if (!res.ok) throw new Error("remove failed: " + res.status);
   return res.json();
 }
+async function groupHostPick(cfg, code, name, token, picks){
+  // Host-only: replace a guest's picks (edit on their behalf).
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/host-pick", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ guest_name:name, guest_token:token, picks:picks }),
+  });
+  if (!res.ok) throw new Error("host edit failed: " + res.status);
+  return res.json();
+}
 async function groupMine(cfg){
   // The host's own open orders (account-backed, so the list follows the user
   // across devices). Authed GET. Any failure is treated as "none" by callers,
@@ -10555,6 +10565,9 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
   const [copied, setCopied]     = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);   // gate the finalizing "Close order"
   const [confirmRemove, setConfirmRemove] = useState(null);  // guest_token pending remove-confirm
+  const [editTarget, setEditTarget] = useState(null);        // the pick being host-edited, or null
+  const [editItems, setEditItems]   = useState([]);          // working copy of that pick's items
+  const [editBusy, setEditBusy]     = useState(false);
   const link = code ? (location.origin + location.pathname + "?g=" + code) : "";
   const [rosterInput, setRosterInput] = useState("");
   const [rosterBusy, setRosterBusy]   = useState(false);
@@ -10596,17 +10609,41 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
     try { await groupRemovePick(cfg, code, token); logMsg("GROUP","removed pick token=" + token.slice(0,8)); }
     catch(e){ logMsg("GROUP","remove pick failed: " + e.message); }
   }
-  // Small inline remove control for a guest card (per-row confirm).
-  const removeCtl = (token) => (!token ? null : (
-    confirmRemove === token ? (
+  function openEdit(g){
+    if (!g || !g.guest_token) return;
+    setEditItems((g.picks || []).map(p => ({ item: p.item, qty: p.qty || 1, note: p.note || "" })));
+    setEditTarget(g);
+  }
+  async function saveEdit(){
+    if (!editTarget || !code) return;
+    const token = editTarget.guest_token;
+    const list = editItems.map(it => ({ item: it.item, qty: it.qty || 1, note: (it.note || "").trim() }));
+    if (!list.length) return;
+    setEditBusy(true);
+    try {
+      await groupHostPick(cfg, code, editTarget.guest_name || "", token, list);
+      setData(d => d ? { ...d, picks: (d.picks || []).map(p => p.guest_token === token ? { ...p, picks: list } : p) } : d);
+      setEditTarget(null);
+      logMsg("GROUP","host edited pick token=" + token.slice(0,8));
+    } catch(e){ logMsg("GROUP","host edit failed: " + e.message); }
+    finally { setEditBusy(false); }
+  }
+  // Per-card host controls: Edit + Remove (Remove has a row-level confirm).
+  const cardCtls = (g) => {
+    const token = g && g.guest_token;
+    if (!token) return null;
+    return (confirmRemove === token ? (
       <span style={{display:"inline-flex",gap:6,flex:"none"}}>
         <button className="btn ghost sm" onClick={()=> setConfirmRemove(null)}>Cancel</button>
         <button className="btn danger sm" onClick={()=> removePick(token)}>Remove</button>
       </span>
     ) : (
-      <button className="btn ghost sm" style={{flex:"none"}} onClick={()=> setConfirmRemove(token)}>Remove</button>
-    )
-  ));
+      <span style={{display:"inline-flex",gap:6,flex:"none"}}>
+        <button className="btn ghost sm" style={{flex:"none"}} onClick={()=> openEdit(g)}>Edit</button>
+        <button className="btn ghost sm" style={{flex:"none"}} onClick={()=> setConfirmRemove(token)}>Remove</button>
+      </span>
+    ));
+  };
 
   useEffect(()=>{
     if (!code) return;
@@ -10696,6 +10733,45 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
           </div>
         ) : (
           <>
+            {editTarget && (
+              <div style={{position:"fixed", inset:0, zIndex:70, background:"rgba(0,0,0,0.55)",
+                   display:"flex", alignItems:"flex-end", justifyContent:"center"}}
+                   onClick={()=> setEditTarget(null)}>
+                <div className="card" style={{width:"100%", maxWidth:520, margin:0,
+                     borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:"85vh", overflowY:"auto"}}
+                     onClick={(e)=> e.stopPropagation()}>
+                  <div style={{fontWeight:600, marginBottom:10}}>
+                    Edit {editTarget.guest_name || "guest"}'s order
+                  </div>
+                  {editItems.length === 0 ? (
+                    <div className="small muted" style={{marginBottom:10}}>
+                      No items left - remove this person instead, or cancel.
+                    </div>
+                  ) : editItems.map((it, idx)=>(
+                    <div key={idx} className="go-guest" style={{display:"flex", alignItems:"center", gap:8}}>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div className="go-guest-name">{it.item}</div>
+                        <input className="input" style={{marginTop:6}} placeholder="Note (optional)"
+                          value={it.note}
+                          onChange={e=> setEditItems(arr => arr.map((x,j)=> j===idx ? {...x, note:e.target.value} : x))} />
+                      </div>
+                      <div style={{display:"inline-flex", alignItems:"center", gap:6, flex:"none"}}>
+                        <button className="btn ghost sm" onClick={()=> setEditItems(arr => arr.map((x,j)=> j===idx ? {...x, qty:Math.max(1,(x.qty||1)-1)} : x))}>-</button>
+                        <span style={{minWidth:18, textAlign:"center"}}>{it.qty||1}</span>
+                        <button className="btn ghost sm" onClick={()=> setEditItems(arr => arr.map((x,j)=> j===idx ? {...x, qty:Math.min(99,(x.qty||1)+1)} : x))}>+</button>
+                        <button className="btn ghost sm" onClick={()=> setEditItems(arr => arr.filter((x,j)=> j!==idx))}>&times;</button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="row" style={{gap:9, marginTop:14}}>
+                    <button className="btn ghost" onClick={()=> setEditTarget(null)}>Cancel</button>
+                    <button className="btn primary" disabled={editItems.length===0 || editBusy} onClick={saveEdit}>
+                      {editBusy ? <span className="spin" /> : "Save changes"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {confirmClose && (
               <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)", marginBottom:12}}>
                 <div className="small" style={{marginBottom:11}}>
@@ -10770,7 +10846,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
                         </div>
                         {r.sub ? <div className="tiny muted">{picksLine(r.sub.picks)}</div> : null}
                       </div>
-                      {r.sub ? removeCtl(r.sub.guest_token) : null}
+                      {r.sub ? cardCtls(r.sub) : null}
                     </div>
                   </div>
                 ))}
@@ -10784,7 +10860,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
                             <div className="go-guest-name">{g.guest_name || "Guest"}</div>
                             <div className="tiny muted">{picksLine(g.picks)}</div>
                           </div>
-                          {removeCtl(g.guest_token)}
+                          {cardCtls(g)}
                         </div>
                       </div>
                     ))}
@@ -10804,7 +10880,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
                         <div className="go-guest-name">{g.guest_name || "Guest"}</div>
                         <div className="tiny muted">{picksLine(g.picks)}</div>
                       </div>
-                      {removeCtl(g.guest_token)}
+                      {cardCtls(g)}
                     </div>
                   </div>
                 ))}
