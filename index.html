@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.84.0";
+const APP_VERSION   = "1.85.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1473,10 +1473,13 @@ Tap **See the split** and you get each person's total - their items plus a
 proportional share of tax and tip - adding up exactly to the real check. **Share**
 hands a plain-text breakdown to your phone so you can drop it in the group chat.
 
-This standalone splitter is just a calculator - it works out who owes what and
-hands you a breakdown to share. It doesn't save anything to your History.
+**Save split** keeps it: give the split a name and it lands under **You ->
+Your splits**, where you can tap it to reopen and edit it later, or delete it.
+Saved splits are their own thing - they live separately from your visits and
+don't touch your History. (Don't need to keep it? Just **Share** or tap **Done**
+and nothing is saved.)
 
-To keep a split, split straight from a visit you've already logged: open the
+You can also attach a split to a visit you've already logged: open the
 visit (in History or on the restaurant page) and tap **Split the check**. It opens
 already filled in with that visit's dishes and total, and a **Show receipt** link
 lets you check the prices against the actual check. Add who was there, tap **See
@@ -4116,10 +4119,28 @@ function App(){
       }
     }
   }
-  // check once on launch (slight delay so it doesn't compete with first sync)
+  // Check on launch AND whenever the app is re-shown or has been open a while.
+  // WHY: installed PWAs are usually RESUMED from the background, not cold-
+  // launched, so a launch-only check means testers never see the "Update
+  // available" banner. Re-checking on visibilitychange (debounced) and on a
+  // periodic timer makes the banner surface on its own - no Settings trip.
   useEffect(()=>{
-    const t = setTimeout(()=> checkForUpdate(false), 1500);
-    return ()=> clearTimeout(t);
+    let lastCheck = 0;
+    const MIN_GAP = 60 * 1000;                 // never refetch more than once a minute
+    const maybeCheck = ()=>{
+      const now = Date.now();
+      if (now - lastCheck < MIN_GAP) return;
+      lastCheck = now;
+      checkForUpdate(false);
+    };
+    const t = setTimeout(maybeCheck, 1500);    // initial launch check (after first sync)
+    const onVis = ()=>{ if (document.visibilityState === "visible") maybeCheck(); };
+    document.addEventListener("visibilitychange", onVis);
+    const iv = setInterval(maybeCheck, 20 * 60 * 1000);  // periodic while open
+    return ()=>{
+      clearTimeout(t); clearInterval(iv);
+      document.removeEventListener("visibilitychange", onVis);
+    };
     // eslint-disable-next-line
   },[]);
 
@@ -6881,7 +6902,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
             <div className="card small muted">
               Scan the receipt (or enter it by hand), say who's at the table, and
               tap to assign each item. Tax and tip are split proportionally so it
-              adds up to the real total. Nothing is saved - it's just a calculator.
+              adds up to the real total. Save it at the end to keep it, or just share it.
             </div>
             {errMsg && <div className="card" style={{borderColor:"var(--danger)",color:"var(--danger)"}}>{errMsg}</div>}
             {busy ? (
