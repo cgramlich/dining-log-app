@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.83.2";
+const APP_VERSION   = "1.84.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4048,6 +4048,7 @@ function App(){
   const [locations, setLocations]     = useState([]);      // array of city names
   const [lists, setLists]             = useState([]);      // saved published lists
   const [meta, setMeta]               = useState({});      // small per-user state (app_shares)
+  const [splits, setSplits]           = useState([]);      // saved standalone check splits
   const [auxLoaded, setAuxLoaded]     = useState(false);   // lists+meta fetched (gates badge eval)
   const [shas, setShas]               = useState({});      // path -> sha
   const [dirty, setDirty]             = useState({});      // logical name -> bool (unpushed)
@@ -4166,6 +4167,10 @@ function App(){
         const mr = await ghGetFile(cfg, "data/meta.json");
         setMeta((mr.data && typeof mr.data === "object" && !Array.isArray(mr.data)) ? mr.data : {});
       } catch(e){ logMsg("WARN","meta load failed: " + e.message); }
+      try {
+        const sr = await ghGetFile(cfg, "data/splits.json");
+        setSplits(Array.isArray(sr.data) ? sr.data : []);
+      } catch(e){ logMsg("WARN","splits load failed: " + e.message); }
       setAuxLoaded(true);
     })();
     // eslint-disable-next-line
@@ -4216,6 +4221,22 @@ function App(){
     setMeta(next);
     try { await ghPutFile(config, "data/meta.json", next, null); logMsg("META","Saved meta"); }
     catch(e){ logMsg("ERROR","meta save failed: " + e.message); }
+  }
+  // Saved standalone check splits. Same direct-persistence pattern as lists:
+  // the client owns the whole array and PUTs it on every change (the backend
+  // "splits" collection). upsertSplit replaces by id; deleteSplit drops one.
+  async function saveSplits(next){
+    setSplits(next);
+    try { await ghPutFile(config, "data/splits.json", next, null); logMsg("SPLITS","Saved " + next.length + " splits"); }
+    catch(e){ logMsg("ERROR","splits save failed: " + e.message); flash("Could not save the split"); }
+  }
+  function upsertSplit(entity){
+    if (!entity || !entity.id) return;
+    const rest = (splits || []).filter(s => s.id !== entity.id);
+    saveSplits([entity].concat(rest));
+  }
+  function deleteSplit(id){
+    saveSplits((splits || []).filter(s => s.id !== id));
   }
   // Called by PublishBuilder after a deliberate publish succeeds. Dedup by url
   // so re-publishing the same list updates it instead of adding a duplicate.
@@ -4651,14 +4672,17 @@ function App(){
         {tab === "discover" && (
           <DiscoverView
             restaurants={restaurants} visits={visits} menus={menus}
-            lists={lists} meta={meta}
+            lists={lists} meta={meta} splits={splits}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             onOpenPassport={()=> setOverlay({ type:"passport" })}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
             onLogVisit={()=> setOverlay({ type:"logVisit" })}
             onAddPlace={()=> setOverlay({ type:"addRestaurant" })}
             onPublishList={()=> setOverlay({ type:"publish" })}
-            onShareApp={shareApp} />
+            onShareApp={shareApp}
+            onOpenSplit={(s)=> setOverlay({ type:"splitCheck", editSplit:s })}
+            onNewSplit={()=> setOverlay({ type:"splitCheck" })}
+            onDeleteSplit={deleteSplit} />
         )}
       </div>
 
@@ -4986,6 +5010,8 @@ function App(){
             commit({ visits:next }, ["visits"]);
             flash(isNew ? "Saved as a new visit" : "Split saved to your visit");
           }}
+          initialSplit={overlay.editSplit || null}
+          onSaveSplit={(entity)=>{ upsertSplit(entity); flash(overlay.editSplit ? "Split updated" : "Split saved"); }}
           onClose={()=> setOverlay(overlay.returnTo || null)} />
       )}
       {overlay && overlay.type === "scanMenu" && (
@@ -5156,9 +5182,11 @@ function SearchBar({value, onChange, placeholder}){
 // passport) and the badges. Each badge is paired with a quiet "doorway" action
 // that opens the thing it is about - an inviting button, never a "go earn this"
 // nag. Earned state is derived the same pure way Settings used to compute it.
-function DiscoverView({ restaurants, visits, menus, lists, meta,
+function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
                         onOpenYearInFood, onOpenPassport,
-                        onScanMenu, onLogVisit, onAddPlace, onPublishList, onShareApp }){
+                        onScanMenu, onLogVisit, onAddPlace, onPublishList, onShareApp,
+                        onOpenSplit, onNewSplit, onDeleteSplit }){
+  const [confirmDel, setConfirmDel] = useState(null);   // split id pending delete confirm
   const earnedIds = earnedBadgeIds({ restaurants, visits, menus, lists, meta });
   // Badge id -> its doorway action. Keep labels matching the real entry points.
   const ACTIONS = {
@@ -5190,6 +5218,50 @@ function DiscoverView({ restaurants, visits, menus, lists, meta,
         <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
           <Icon name="back" size={15} color="var(--text-faint)" />
         </span>
+      </div>
+
+      <div className="set-group" style={{marginTop:18}}>Your splits</div>
+      <div className="card">
+        {(!splits || !splits.length) ? (
+          <div className="badge-row">
+            <div className="badge-rtx">
+              <div className="badge-name">No saved splits yet</div>
+              <div className="badge-sub">Split a check, then tap Save to keep it here.</div>
+            </div>
+            {onNewSplit ? (
+              <button className="btn ghost badge-act" onClick={onNewSplit}>Split a check</button>
+            ) : null}
+          </div>
+        ) : (
+          splits.slice().sort((a,b)=> (b.updated_at||0) - (a.updated_at||0)).map(s => {
+            const money = n => "$" + (Number(n) || 0).toFixed(2);
+            const grand = s.summary ? s.summary.grand : null;
+            const np = (s.summary && Array.isArray(s.summary.people)) ? s.summary.people.length : 0;
+            const sub = [grand != null ? money(grand) : null,
+                         np ? (np + (np === 1 ? " person" : " people")) : null]
+                        .filter(Boolean).join(" · ");
+            return (
+              <div key={s.id} className="badge-row tap" onClick={()=> onOpenSplit && onOpenSplit(s)}>
+                <div className="badge-ic"><Icon name="receipt" size={20} color="var(--accent)" /></div>
+                <div className="badge-rtx">
+                  <div className="badge-name">{s.label || "Check split"}</div>
+                  <div className="badge-sub">{sub || "Tap to open"}</div>
+                </div>
+                {confirmDel === s.id ? (
+                  <span style={{display:"inline-flex",gap:6,flex:"none"}}>
+                    <button className="btn ghost badge-act"
+                      onClick={(e)=>{ e.stopPropagation(); setConfirmDel(null); }}>Cancel</button>
+                    <button className="btn danger badge-act"
+                      onClick={(e)=>{ e.stopPropagation(); setConfirmDel(null); if (onDeleteSplit) onDeleteSplit(s.id); }}>Delete</button>
+                  </span>
+                ) : (
+                  <button className="btn ghost badge-act"
+                    onClick={(e)=>{ e.stopPropagation(); setConfirmDel(s.id); }}>Delete</button>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
 
       <div className="set-group" style={{marginTop:18}}>Your badges</div>
@@ -6467,40 +6539,48 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal){
 
 function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraft, onClose, flash,
                          initialLines, initialTotal, presetRestId, presetVisitId,
-                         initialReceiptPhoto}){
+                         initialReceiptPhoto, initialSplit, onSaveSplit}){
   // When launched FROM a visit we arrive pre-loaded with that visit's priced
   // dishes and total, jump straight to the edit step, and default the save back
   // to that same visit.
   const preloaded = !!(initialLines && initialLines.length);
+  // Reopened from a SAVED standalone split (the "Your splits" list on You)?
+  // Its stored inputs seed every field so the calculator returns exactly as
+  // it was saved, fully editable.
+  const reopened = (initialSplit && initialSplit.inputs) ? initialSplit.inputs : null;
   // Opened from a real logged visit (vs. the standalone "+ menu" splitter)?
   // From a visit, saving attaches the split back to THAT visit and never makes
-  // a separate card. presetVisitId is "new" only for the standalone splitter,
-  // which is now a calculator + share only (no save).
+  // a separate card. presetVisitId is "new" only for the standalone splitter.
   const fromVisit = !!(presetVisitId && presetVisitId !== "new");
-  const [step, setStep]       = useState((preloaded || fromVisit) ? "edit" : "pick");  // pick | edit | result
+  const [step, setStep]       = useState((reopened || preloaded || fromVisit) ? "edit" : "pick");  // pick | edit | result
   const [busy, setBusy]       = useState(false);
   const [processing, setProcessing] = useState(null); // {done,total} | null
   const [errMsg, setErrMsg]   = useState("");
-  const [lines, setLines]     = useState(() => preloaded
-    ? initialLines.map(l => ({ id: uid("spl"), name: l.name || "",
+  const [lines, setLines]     = useState(() => reopened
+    ? (reopened.lines || []).map(l => ({ id: l.id || uid("spl"), name: l.name || "",
         price: (l.price != null && l.price !== "") ? String(l.price) : "", qty: l.qty || 1 }))
-    : []);                                            // [{id,name,price}]
-  const [rtotal, setRtotal]   = useState("");        // hard-code override; blank = calculated total
-  const [people, setPeople]   = useState([]);         // [name]
+    : preloaded
+      ? initialLines.map(l => ({ id: uid("spl"), name: l.name || "",
+          price: (l.price != null && l.price !== "") ? String(l.price) : "", qty: l.qty || 1 }))
+      : []);                                          // [{id,name,price,qty}]
+  const [rtotal, setRtotal]   = useState(reopened && reopened.rtotal != null ? String(reopened.rtotal) : "");
+  const [people, setPeople]   = useState(reopened && Array.isArray(reopened.people) ? reopened.people.slice() : []);
   const [nameDraft, setNameDraft] = useState("");
-  const [assign, setAssign]   = useState({});         // {lineId:[name]}
-  const [tip, setTip]         = useState("");         // amount string ($ or %)
-  const [tipMode, setTipMode] = useState("$");        // "$" | "%" (tip % is on the pre-tax subtotal)
+  const [assign, setAssign]   = useState(reopened && reopened.assign ? reopened.assign : {});  // {lineId:[name]}
+  const [tip, setTip]         = useState(reopened && reopened.tip != null ? String(reopened.tip) : "");
+  const [tipMode, setTipMode] = useState(reopened && reopened.tipMode ? reopened.tipMode : "$");
   const [tax, setTax]         = useState(() => {
+    if (reopened) return reopened.tax != null ? String(reopened.tax) : "";
     if (initialTotal == null) return "";
     const sub = (initialLines||[]).reduce((a,l)=> a + (Number(l.price)||0), 0);
     const extra = Number(initialTotal) - sub;            // tax/extra baked into the printed total
     return extra > 0.005 ? extra.toFixed(2) : "";
   });         // amount string ($ or %)
-  const [taxMode, setTaxMode] = useState("$");        // "$" | "%"
+  const [taxMode, setTaxMode] = useState(reopened && reopened.taxMode ? reopened.taxMode : "$");
   const [split, setSplit]     = useState(null);       // computeManualSplit result
-  const [saveRest, setSaveRest]   = useState(presetRestId || "");     // restaurant id on the save step
+  const [saveRest, setSaveRest]   = useState(presetRestId || (initialSplit && initialSplit.restaurant_id) || "");  // restaurant id on the save step
   const [saveVisit, setSaveVisit] = useState(presetVisitId || "new"); // "new" or an existing visit id
+  const [splitLabel, setSplitLabel] = useState(initialSplit && initialSplit.label ? initialSplit.label : "");  // standalone save label
   const fileRef = useRef(null);
 
   const money = c => "$" + (Math.round(c) / 100).toFixed(2);
@@ -6716,6 +6796,50 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     };
     logMsg("SPLIT","Applied split to visit draft, grand=" + money(split.grandCents));
     onApplyDraft(splitObj);
+    onClose();
+  }
+
+  // Standalone save: persist this split as its own record (the "Your splits"
+  // list on You). Stores the calculator INPUTS so it reopens fully editable,
+  // plus a SUMMARY for the list card. Reuses the entity id/created_at on re-save.
+  function defaultSplitLabel(){
+    if (people.length){
+      const head = people.slice(0,2).join(", ");
+      return head + (people.length > 2 ? " +" + (people.length - 2) : "");
+    }
+    return "Check split";
+  }
+  function doSaveSplit(){
+    if (!split || !onSaveSplit) return;
+    const toDollars = c => Math.round(c) / 100;
+    const inputs = {
+      lines: lines.map(l => ({ id: l.id, name: l.name, price: l.price, qty: l.qty || 1 })),
+      rtotal: rtotal,
+      people: people.slice(),
+      assign: assign,
+      tip: tip, tipMode: tipMode,
+      tax: tax, taxMode: taxMode,
+    };
+    const summary = {
+      grand: toDollars(split.grandCents),
+      people: split.people.map(p => ({ name: p.name, amount: toDollars(p.totalCents) })),
+      items: lines.filter(l => (l.name || "").trim())
+        .map(l => ({ name: l.name.trim(), price: (Number(l.price) || 0) })),
+    };
+    const now = Date.now();
+    const rmatch = (restaurants || []).find(r => r.id === saveRest);
+    const entity = {
+      id: (initialSplit && initialSplit.id) || uid("split"),
+      label: (splitLabel || "").trim() || defaultSplitLabel(),
+      restaurant_id: saveRest || null,
+      restaurant_name: rmatch ? rmatch.name : ((initialSplit && initialSplit.restaurant_name) || ""),
+      inputs: inputs,
+      summary: summary,
+      created_at: (initialSplit && initialSplit.created_at) || now,
+      updated_at: now,
+    };
+    logMsg("SPLIT","Saved standalone split id=" + entity.id + " grand=" + money(split.grandCents));
+    onSaveSplit(entity);
     onClose();
   }
 
@@ -6941,6 +7065,17 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               <button className="btn ghost" style={{marginTop:10}} onClick={doSaveToVisit}>
                 Save to this visit
               </button>
+            ) : onSaveSplit ? (
+              <div style={{marginTop:10}}>
+                <label className="fld" style={{marginBottom:8}}>
+                  <span className="lbl">Name this split</span>
+                  <input className="input" value={splitLabel} placeholder={defaultSplitLabel()}
+                    onChange={e=> setSplitLabel(e.target.value)} />
+                </label>
+                <button className="btn primary" onClick={doSaveSplit}>
+                  {initialSplit ? "Update saved split" : "Save split"}
+                </button>
+              </div>
             ) : null}
             <button className="btn ghost" style={{marginTop:10}} onClick={()=> setStep("edit")}>Edit</button>
             <button className="btn ghost" style={{marginTop:10}} onClick={onClose}>Done</button>
