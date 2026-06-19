@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.86.0";
+const APP_VERSION   = "1.86.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10542,6 +10542,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
   const [starting, setStarting] = useState(false);
   const [err, setErr]           = useState("");
   const [copied, setCopied]     = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);   // gate the finalizing "Close order"
   const link = code ? (location.origin + location.pathname + "?g=" + code) : "";
   const [rosterInput, setRosterInput] = useState("");
   const [rosterBusy, setRosterBusy]   = useState(false);
@@ -10641,9 +10642,9 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
   return (
     <div className="go-overlay">
       <div className="go-bar">
-        <button className="btn ghost sm" onClick={onClose}>Done</button>
+        <button className="btn ghost sm" onClick={onClose}>{code ? "Leave open" : "Cancel"}</button>
         <div className="go-bar-title">Group order</div>
-        {code ? <button className="btn ghost sm" onClick={closeOrder}>Close order</button>
+        {code ? <button className="btn ghost sm" onClick={()=> setConfirmClose(true)}>Close order</button>
               : <span style={{width:54}} />}
       </div>
       <div className="go-body">
@@ -10662,6 +10663,24 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
           </div>
         ) : (
           <>
+            {confirmClose && (
+              <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)", marginBottom:12}}>
+                <div className="small" style={{marginBottom:11}}>
+                  Close this order? Guests won't be able to add or change items, and it leaves
+                  your Active group orders. To keep collecting, leave it open instead.
+                </div>
+                <div className="row" style={{gap:9}}>
+                  <button className="btn ghost" onClick={()=> setConfirmClose(false)}>Keep collecting</button>
+                  <button className="btn danger" onClick={closeOrder}>Close order</button>
+                </div>
+              </div>
+            )}
+            {!closed && (
+              <div className="small muted" style={{marginBottom:10, textAlign:"center"}}>
+                This order stays open until you close it. Tap <b>Leave open</b> to step away and
+                pick it back up later from <b>Active group orders</b>.
+              </div>
+            )}
             <div className="card">
               <div className="small muted" style={{marginBottom:8}}>Share this link with the table:</div>
               <div className="go-link">{link}</div>
