@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.97.0";
+const APP_VERSION   = "1.98.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -913,6 +913,23 @@ async function placesDetails(cfg, placeId){
     throw err;
   }
   return data;   // { place:{...}, cached }
+}
+
+async function placesSearchText(cfg, body){
+  // body: { query, lat?, lng?, max_results? } -> candidate places for linking
+  const headers = await authHeaders(cfg);
+  headers["Content-Type"] = "application/json";
+  const res = await fetch(apiBase(cfg) + "/api/places/search-text", {
+    method:"POST", headers, body:JSON.stringify(body),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok){
+    const err = new Error(data.detail || ("search failed (" + res.status + ")"));
+    err.status = res.status; err.detail = data.detail || "";
+    logMsg("PLACES","search-text HTTP " + res.status + ": " + (data.detail || ""));
+    throw err;
+  }
+  return data;   // { places:[...], cached }
 }
 // Supabase Auth. The publishable key is public by design - safe to ship.
 const SUPABASE_URL = "https://kpkwevlhfhvybhovtwhj.supabase.co";
@@ -4789,6 +4806,19 @@ function App(){
             returnTo:{ type:"restaurant", id:overlay.id } })}
           onEdit={()=> setOverlay({ type:"editRestaurant", id:overlay.id })}
           onEnrich={(enrich)=> setOverlay({ type:"editRestaurant", id:overlay.id, enrich:enrich })}
+          onLinkGoogle={(placeId, cand)=>{
+            const next = restaurants.map(x => {
+              if (x.id !== overlay.id) return x;
+              const patch = { google_place_id: placeId };
+              if (cand){
+                if (!x.address && cand.address) patch.address = cand.address;
+                if ((x.lat == null || x.lng == null) && cand.lat != null){ patch.lat = cand.lat; patch.lng = cand.lng; }
+              }
+              return Object.assign({}, x, patch);
+            });
+            commit({ restaurants:next }, ["restaurants"]);
+            flash("Linked to Google - tap Update from Google to pull details");
+          }}
           onAddMenu={()=> setOverlay({ type:"scanMenu", restaurantId:overlay.id })}
           onOpenMenu={(menuId)=> setOverlay({
             type:"menuDetail", restaurantId:overlay.id, menuId:menuId })}
@@ -5846,13 +5876,16 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
    ============================================================ */
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onOpenMenu, onOpenVisit,
-                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich}){
+                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
   const [mShareErr, setMShareErr]   = useState(null);
   const [enrichBusy, setEnrichBusy] = useState(false);
   const [enrichErr, setEnrichErr]   = useState("");
+  const [linkBusy, setLinkBusy]     = useState(false);
+  const [linkErr, setLinkErr]       = useState("");
+  const [candidates, setCandidates] = useState(null);   // Google match candidates, or null
   if (!restaurant){
     return (
       <div className="overlay">
@@ -5883,6 +5916,23 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         : (e && e.detail) ? e.detail
         : "Couldn't reach Google - try again.");
     } finally { setEnrichBusy(false); }
+  }
+  // "Find on Google": for a place with NO google_place_id, text-search by name
+  // (+ city + coords bias) and let the user confirm the match. The pick stamps
+  // google_place_id (via onLinkGoogle); "Update from Google" can then enrich.
+  async function linkSearch(){
+    if (linkBusy) return;
+    setLinkBusy(true); setLinkErr(""); setCandidates(null);
+    try {
+      const body = { query: r.name + (r.location ? (" " + r.location) : "") };
+      if (r.lat != null && r.lng != null) { body.lat = r.lat; body.lng = r.lng; }
+      const data = await placesSearchText(cfg, body);
+      setCandidates((data && data.places) || []);
+    } catch(e){
+      setLinkErr(e && e.status === 402 ? "Linking to Google is a Pro feature."
+        : (e && e.detail) ? e.detail
+        : "Couldn't search Google - try again.");
+    } finally { setLinkBusy(false); }
   }
   // A menu labeled "Main" pins to the top; everything else keeps its order
   // (Array.sort is stable, so non-Main menus stay as they were).
@@ -6080,6 +6130,36 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           </button>
         )}
         {enrichErr ? <div className="tiny faint" style={{marginTop:6}}>{enrichErr}</div> : null}
+
+        {!r.google_place_id && (
+          <button className="btn ghost" onClick={linkSearch} disabled={linkBusy} style={{marginTop:8}}>
+            {linkBusy
+              ? <span className="spin" />
+              : <><Icon name="locate" size={16} color="var(--accent)" />Find on Google</>}
+          </button>
+        )}
+        {linkErr ? <div className="tiny faint" style={{marginTop:6}}>{linkErr}</div> : null}
+        {candidates && candidates.length > 0 && (
+          <div className="card" style={{marginTop:8}}>
+            <div className="small muted" style={{marginBottom:8}}>Pick the match (links it to Google):</div>
+            {candidates.map(c => (
+              <div key={c.place_id} className="badge-row" style={{display:"flex", alignItems:"flex-start", gap:8}}>
+                <div style={{flex:1, minWidth:0}}>
+                  <div className="badge-name">{c.name}</div>
+                  {c.address ? <div className="badge-sub">{c.address}</div> : null}
+                </div>
+                <button className="btn primary sm" style={{flex:"none"}}
+                  onClick={()=>{ if (onLinkGoogle) onLinkGoogle(c.place_id, c); setCandidates(null); }}>
+                  This one
+                </button>
+              </div>
+            ))}
+            <button className="btn ghost sm" style={{marginTop:6}} onClick={()=> setCandidates(null)}>None of these</button>
+          </div>
+        )}
+        {candidates && candidates.length === 0 && (
+          <div className="tiny faint" style={{marginTop:6}}>No Google matches for that name - try editing the name or city.</div>
+        )}
 
         {/* menus list - one menu shows expanded inline; 2+ stay as cards */}
         <div className="row between" style={{margin:"22px 0 10px",alignItems:"center"}}>
