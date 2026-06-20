@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.90.1";
+const APP_VERSION   = "1.91.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10975,6 +10975,7 @@ function GroupOrderGuest({code}){
   const [placed, setPlaced]   = useState(false);   // ever submitted (sticky); sent = unchanged-since-submit
   const [err, setErr]         = useState("");
   const [showOrder, setShowOrder] = useState(false);
+  const [openSec, setOpenSec]     = useState({});  // si -> open; undefined = use default
   const token = guestToken();
 
   useEffect(()=>{
@@ -10991,6 +10992,11 @@ function GroupOrderGuest({code}){
   }, [code]);
 
   const menu     = (data && data.menu_snapshot) || null;
+  // Long / combined menus start with sections collapsed so guests can scan; a
+  // short single menu stays open. Per-section taps override this default.
+  const totalItems = menu ? (menu.sections || []).reduce((a,s)=> a + ((s.items || []).length), 0) : 0;
+  const isMultiMenu = !!(menu && String(menu.menu_id || "").indexOf("multi:") === 0);
+  const collapseDefault = !!(menu && (isMultiMenu || totalItems > 12));
   const closed   = data && data.status === "closed";
   const selected = Object.keys(picks).map(k => picks[k]).filter(Boolean);
   const restName = (data && data.restaurant_name) || (menu && menu.label) || "the menu";
@@ -11056,10 +11062,18 @@ function GroupOrderGuest({code}){
 
       {!closed && (menu && Array.isArray(menu.sections)) ? (
         <>
-          {menu.sections.map((s, si)=>(
+          {menu.sections.map((s, si)=>{
+            const secOpen = (si in openSec) ? openSec[si] : !collapseDefault;
+            const secSel  = Object.keys(picks).filter(k => picks[k] && k.indexOf(si + ":") === 0).length;
+            return (
             <div key={si} className="go-gsec">
-              {s.name ? <div className="go-gsec-head">{s.name}</div> : null}
-              {(s.items || []).map((it, ii)=>{
+              <div className="go-gsec-head" style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer"}}
+                onClick={()=> setOpenSec(o => Object.assign({}, o, { [si]: !((si in o) ? o[si] : !collapseDefault) }))}>
+                <span style={{flex:1, minWidth:0}}>{s.name || "Menu"}</span>
+                {secSel ? <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>{secSel} added</span> : null}
+                <Icon name={secOpen ? "chevd" : "chev"} size={15} />
+              </div>
+              {secOpen ? (s.items || []).map((it, ii)=>{
                 const key = si + ":" + ii;
                 const on  = !!picks[key];
                 return (
@@ -11088,9 +11102,10 @@ function GroupOrderGuest({code}){
                     ) : null}
                   </div>
                 );
-              })}
+              }) : null}
             </div>
-          ))}
+            );
+          })}
 
           {/* name + Send live in the sticky bottom bar so they're reachable without scrolling */}
         </>
@@ -11143,8 +11158,14 @@ function GroupOrderGuest({code}){
               </div>
             ) : (
               <>
+                {!name.trim() && selected.length ? (
+                  <div className="tiny" style={{color:"var(--accent)", textAlign:"center", marginBottom:6}}>
+                    Add your name so they know whose order this is
+                  </div>
+                ) : null}
                 <input className="input" placeholder="Your name" value={name}
-                  onChange={e=> { setName(e.target.value); setSent(false); }} style={{marginBottom:8}} />
+                  onChange={e=> { setName(e.target.value); setSent(false); }}
+                  style={{marginBottom:8, borderColor:(!name.trim() && selected.length) ? "var(--accent)" : undefined}} />
                 <button className="btn primary" onClick={submit}
                   disabled={sending || !selected.length || !name.trim()}>
                   {sending ? <span className="spin" />
