@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.104.0";
+const APP_VERSION   = "1.105.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4786,6 +4786,11 @@ function App(){
           onClose={()=> setOverlay(null)}
           onPick={(id)=> setOverlay({ type:"groupStartMenu", id:id })} />
       )}
+      {overlay && overlay.type === "quickGroup" && (
+        <QuickGroupStart cfg={config}
+          presetName={overlay.presetName || ""}
+          onClose={()=> setOverlay(overlay.returnTo || null)} />
+      )}
 
       {overlay && overlay.type === "groupStartMenu" && (
         <GroupOrderStart
@@ -8024,6 +8029,11 @@ function ActionSheet({onClose, onPick}){
           <div><div className="t1">Start a group order</div>
             <div className="t2">Collect everyone's order from a menu</div></div>
         </div>
+        <div className="sheet-item" onClick={()=> onPick("quickGroup")}>
+          <span className="ic"><Icon name="nodes" size={21} color="#e0764a" /></span>
+          <div><div className="t1">Quick group order</div>
+            <div className="t2">No menu - everyone types what they want</div></div>
+        </div>
         <div className="sheet-item" onClick={()=> onPick("scanMenu")}>
           <span className="ic"><Icon name="camera" size={21} color="#e0764a" /></span>
           <div><div className="t1">Add a menu</div>
@@ -10398,6 +10408,21 @@ function PublishedList({data}){
 // watches the aggregated order build live. All via the backend.
 
 // ---- API ----
+async function groupCreateFreeForm(cfg, restaurantName, note){
+  // Menu-less quick order: no snapshot, just a name (+ optional note). Guests
+  // type their order in free text.
+  const res = await fetch(apiBase(cfg) + "/api/group/create", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ restaurant_name: restaurantName || "", title: note || "", menu_snapshot: null }),
+  });
+  if (!res.ok){
+    let msg = "Could not start the group order.";
+    try { const j = await res.json(); if (j && j.detail) msg = j.detail; } catch(e){}
+    throw new Error(msg);
+  }
+  return res.json();   // { code, expires_at }
+}
 async function groupCreate(cfg, menu, restaurantName){
   // Snapshot ONE menu (sections/items only - never private estimates).
   const snapshot = {
@@ -10758,6 +10783,57 @@ function SplitCheck({cfg, menuSnapshot, picks}){
           </button>
         </>
       )}
+    </div>
+  );
+}
+
+// Quick (free-form) group order: no menu - just a restaurant name (+ optional
+// note). Guests type what they want in free text. On start we create a menu-less
+// order and hand off to the host screen by code (resume mode).
+function QuickGroupStart({cfg, presetName, onClose}){
+  const [name, setName] = useState(presetName || "");
+  const [note, setNote] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState("");
+  if (code){
+    return <GroupOrderHost cfg={cfg} resumeCode={code} restaurantName={name} onClose={onClose} />;
+  }
+  async function start(){
+    const nm = name.trim();
+    if (!nm){ setErr("Add the restaurant name."); return; }
+    setBusy(true); setErr("");
+    try {
+      const r = await groupCreateFreeForm(cfg, nm, note.trim());
+      setCode(r.code);
+      logMsg("GROUP","quick order started code=" + r.code);
+    } catch(e){ setErr(e.message || "Could not start. Try again."); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>Quick group order</h2><span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        <div className="small muted" style={{marginBottom:14, lineHeight:1.6}}>
+          No menu needed - name the place and share the link. Everyone types what
+          they want in their own words and you watch the orders come in.
+        </div>
+        <label className="fld"><span className="lbl">Restaurant</span>
+          <input className="input" value={name} placeholder="e.g. Gloria's Latin Cuisine"
+            onChange={e=> setName(e.target.value)} />
+        </label>
+        <label className="fld"><span className="lbl">Note (optional)</span>
+          <input className="input" value={note} placeholder="e.g. text me your order by 6"
+            onChange={e=> setNote(e.target.value)} />
+        </label>
+        <button className="btn primary" onClick={start} disabled={busy || !name.trim()}>
+          {busy ? <span className="spin" /> : "Start group order"}
+        </button>
+        {err ? <div className="small" style={{marginTop:10, color:"var(--danger)"}}>{err}</div> : null}
+      </div>
     </div>
   );
 }
@@ -11414,6 +11490,7 @@ function GroupOrderGuest({code}){
   const [helpAnswer, setHelpAnswer] = useState("");
   const [helpBusy, setHelpBusy]     = useState(false);
   const [helpErr, setHelpErr]       = useState("");
+  const [freeText, setFreeText]     = useState("");      // free-form (menu-less) order
   const token = guestToken();
 
   useEffect(()=>{
@@ -11438,6 +11515,11 @@ function GroupOrderGuest({code}){
   const closed   = data && data.status === "closed";
   const selected = Object.keys(picks).map(k => picks[k]).filter(Boolean);
   const restName = (data && data.restaurant_name) || (menu && menu.label) || "the menu";
+  // Free-form (quick) order: no scanned menu, so guests type their order in their
+  // own words. menu_snapshot is {free_form:true} (no usable sections).
+  const hasMenu  = !!(menu && Array.isArray(menu.sections) && menu.sections.length);
+  const freeForm = !!data && !hasMenu;
+  const hasOrder = freeForm ? !!freeText.trim() : !!selected.length;
 
   function toggle(si, ii, item){
     const key = si + ":" + ii;
@@ -11463,10 +11545,17 @@ function GroupOrderGuest({code}){
   async function submit(){
     const nm = name.trim();
     if (!nm){ setErr("Please add your name."); return; }
-    if (!selected.length){ setErr("Pick at least one item first."); return; }
+    let list;
+    if (freeForm){
+      const t = freeText.trim();
+      if (!t){ setErr("Type your order first."); return; }
+      list = [{ item:t, qty:1, note:"" }];
+    } else {
+      if (!selected.length){ setErr("Pick at least one item first."); return; }
+      list = selected.map(s => ({ item:s.item, qty:s.qty || 1, note:(s.note || "").trim() }));
+    }
     setErr(""); setSending(true);
     try {
-      const list = selected.map(s => ({ item:s.item, qty:s.qty || 1, note:(s.note || "").trim() }));
       const r = await groupFetch(null, code);   // re-check it is still open before sending
       if (!r || r.status === "closed"){ setErr("This group order is closed."); setSending(false); return; }
       await groupSubmit(null, code, nm, token, list);
@@ -11506,8 +11595,22 @@ function GroupOrderGuest({code}){
       <div className="pub-title">{restName}</div>
       <div className="muted" style={{textAlign:"center", marginBottom:18}}>
         {closed ? "This order is closed."
-          : "Pick what you'd like and send it back. You can change your order any time until the host closes it."}
+          : freeForm
+            ? "Type your order and send it back. You can change it any time until the host closes it."
+            : "Pick what you'd like and send it back. You can change your order any time until the host closes it."}
       </div>
+
+      {!closed && freeForm ? (
+        <div className="card" style={{marginBottom:12}}>
+          <div className="lbl" style={{marginBottom:6}}>Your order</div>
+          <textarea className="input" rows={4}
+            placeholder="Type whatever you'd like - e.g. Chicken burrito, no beans, extra salsa, and a horchata."
+            value={freeText} onChange={e=>{ setFreeText(e.target.value); setSent(false); }} />
+          <div className="tiny faint" style={{marginTop:6}}>
+            No menu for this one - just write your order in your own words.
+          </div>
+        </div>
+      ) : null}
 
       {!closed && (menu && Array.isArray(menu.sections)) ? (
         <>
@@ -11622,8 +11725,8 @@ function GroupOrderGuest({code}){
       </div>
 
       {/* spacer so the last items clear the fixed submit bar */}
-      {!closed && menu && Array.isArray(menu.sections) ? <div style={{height:150}} /> : null}
-      {!closed && menu && Array.isArray(menu.sections) ? (
+      {!closed && (hasMenu || freeForm) ? <div style={{height:150}} /> : null}
+      {!closed && (hasMenu || freeForm) ? (
         <div style={{position:"fixed", left:0, right:0, bottom:0, zIndex:50,
              background:"var(--surface)", borderTop:"1px solid var(--line)",
              padding:"10px 16px calc(12px + env(safe-area-inset-bottom))",
@@ -11639,19 +11742,19 @@ function GroupOrderGuest({code}){
             ) : (
               <>
                 <div className="tiny" style={{textAlign:"center", marginBottom:6,
-                     color:(!name.trim() && selected.length) ? "var(--accent)" : "var(--text-faint)"}}>
-                  {(!name.trim() && selected.length)
+                     color:(!name.trim() && hasOrder) ? "var(--accent)" : "var(--text-faint)"}}>
+                  {(!name.trim() && hasOrder)
                     ? "Add your name so the host knows whose order this is"
                     : "Use your real name so the host knows whose order this is"}
                 </div>
                 <input className="input" placeholder="Your name" value={name}
                   onChange={e=> { setName(e.target.value); setSent(false); }}
-                  style={{marginBottom:8, borderColor:(!name.trim() && selected.length) ? "var(--accent)" : undefined}} />
+                  style={{marginBottom:8, borderColor:(!name.trim() && hasOrder) ? "var(--accent)" : undefined}} />
                 <button className="btn primary" onClick={submit}
-                  disabled={sending || !selected.length || !name.trim()}>
+                  disabled={sending || !hasOrder || !name.trim()}>
                   {sending ? <span className="spin" />
                     : (placed ? "Update my order" : "Send my order")
-                      + (selected.length ? " (" + selected.length + ")" : "")}
+                      + (!freeForm && selected.length ? " (" + selected.length + ")" : "")}
                 </button>
                 {placed ? <div className="tiny faint" style={{textAlign:"center", marginTop:6}}>You have unsent changes.</div> : null}
               </>
