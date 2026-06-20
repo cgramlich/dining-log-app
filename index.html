@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.90.0";
+const APP_VERSION   = "1.90.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4769,7 +4769,7 @@ function App(){
           cfg={config}
           restaurant={restaurantById(overlay.id)}
           menus={menus[overlay.id] || []}
-          onClose={()=> setOverlay(null)} />
+          onClose={()=> setOverlay(overlay.returnTo || null)} />
       )}
 
       {overlay && overlay.type === "restaurant" && (
@@ -4788,6 +4788,8 @@ function App(){
           onOpenVisit={(v)=> setOverlay({ type:"editVisit", visit:v,
             returnTo:{ type:"restaurant", id:overlay.id } })}
           onSplitVisit={(v)=> setOverlay({ type:"splitCheck", fromVisit:v,
+            returnTo:{ type:"restaurant", id:overlay.id } })}
+          onStartGroup={()=> setOverlay({ type:"groupStartMenu", id:overlay.id,
             returnTo:{ type:"restaurant", id:overlay.id } })}
           onToggleFav={()=>{
             const next = restaurants.map(r =>
@@ -5823,11 +5825,10 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
    ============================================================ */
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onOpenMenu, onOpenVisit,
-                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit}){
+                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
-  const [showGroup, setShowGroup]   = useState(false);   // group-order start overlay
   const [mShareErr, setMShareErr]   = useState(null);
   if (!restaurant){
     return (
@@ -6010,13 +6011,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <Icon name="plus" size={18} color="#1b1714" />Log a visit here
         </button>
 
-        <button className="btn ghost" onClick={()=> setShowGroup(true)} style={{marginTop:8}}>
+        <button className="btn ghost" onClick={onStartGroup} style={{marginTop:8}}>
           <Icon name="nodes" size={16} color="var(--accent)" />Group order
         </button>
-        {showGroup ? (
-          <GroupOrderStart cfg={cfg} restaurant={restaurant} menus={menus}
-            onClose={()=> setShowGroup(false)} />
-        ) : null}
 
         {/* menus list - one menu shows expanded inline; 2+ stay as cards */}
         <div className="row between" style={{margin:"22px 0 10px",alignItems:"center"}}>
