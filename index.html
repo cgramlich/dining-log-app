@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.91.1";
+const APP_VERSION   = "1.91.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1419,7 +1419,9 @@ they all add to one shared order you watch come together.
 You can start a group order three ways: from the **restaurant page** (tap
 **Group order**), from the **+** button (**Start a group order**), or from any
 open menu (tap **Group order** at the top). If the place has more than one menu,
-the app asks which one to order from; if it has just one, it jumps straight in.
+you pick which menus to include - all of them by default - so your group can
+order across several at once (say pasta and pizza in one list); a place with a
+single menu jumps straight in.
 Tap **Start group
 order** and the app gives you a link. Text it to the table. Each person opens
 it (no app, no account), sees the menu, taps what they want, sets a **quantity**
@@ -1428,8 +1430,11 @@ order**. They can change their order and send again any time.
 
 On your screen the order builds **live** - the people who have ordered show up
 first under **Who's ordered**, with a combined bring-home tally below ("2x
-Avocado Toast, 1x Pollo - no onions"). When you are done, tap **Close order**;
-it also closes itself after a day. The shared link shows only the menu and the
+Avocado Toast, 1x Pollo - no onions"). Need to fix an order? Tap **Edit** on their card to change quantities or items,
+or **Remove** to take them off - the tally updates. Step away any time with
+**Leave open** (the order keeps collecting and waits under Active group orders);
+tap **Close order** only when you are done - it stops new picks and also closes
+itself after a day. The shared link shows only the menu and the
 table's own picks - nothing else of yours.
 
 **Knowing who you are still waiting on.** Optionally, add the people you are
