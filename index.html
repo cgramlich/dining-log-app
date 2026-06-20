@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.100.0";
+const APP_VERSION   = "1.101.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4877,6 +4877,14 @@ function App(){
             setOverlay({ type:"restaurant", id:overlay.restaurantId });
             flash("Menu removed");
           }}
+          onRenameMenu={(newLabel)=>{
+            const lbl = (newLabel || "").trim().slice(0,40);
+            if (!lbl) return;
+            const restMenus = (menus[overlay.restaurantId] || []).map(m =>
+              m.menu_id === overlay.menuId ? Object.assign({}, m, { label:lbl, last_updated:todayISO() }) : m);
+            commit({ menus: Object.assign({}, menus, { [overlay.restaurantId]:restMenus }) }, ["menus"]);
+            flash("Menu renamed");
+          }}
           onSaveItemNutrition={(si, ii, nutrition)=>{
             // cache the per-item estimate onto the menu item in the repo so it
             // computes only once. Identify the item by section + item index.
@@ -6302,10 +6310,12 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition}){
+function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onRenameMenu}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
+  const [renaming, setRenaming] = useState(false);    // rename this menu's name
+  const [renameText, setRenameText] = useState(menu.label || "");
   // "help me order" state
   const [askInput, setAskInput] = useState("");
   const [asking,   setAsking]   = useState(false);
@@ -6374,6 +6384,12 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
               onClick={onReScan} title="Re-scan this menu">
               <Icon name="camera" size={15} />
             </button>
+            {onRenameMenu && (
+              <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                onClick={()=>{ setRenameText(menu.label || ""); setRenaming(r => !r); }} title="Rename this menu">
+                <Icon name="edit" size={15} />
+              </button>
+            )}
             <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
               onClick={()=> setConfirmDel(c => !c)} title="Delete this menu">
               <Icon name="trash" size={15}
@@ -6381,6 +6397,21 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
             </button>
           </div>
         </div>
+
+        {renaming && (
+          <div className="card" style={{marginBottom:10}}>
+            <div className="small muted" style={{marginBottom:8}}>Rename this menu</div>
+            <input className="input" value={renameText} autoFocus
+              placeholder="Menu name (e.g. Main)"
+              onChange={e=> setRenameText(e.target.value)}
+              onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); const v=(renameText||"").trim(); if (v){ onRenameMenu(v); setRenaming(false); } } }} />
+            <div className="row" style={{gap:8, marginTop:10}}>
+              <button className="btn ghost sm" onClick={()=> setRenaming(false)}>Cancel</button>
+              <button className="btn primary sm" disabled={!(renameText||"").trim()}
+                onClick={()=>{ const v=(renameText||"").trim(); if (v){ onRenameMenu(v); setRenaming(false); } }}>Save name</button>
+            </div>
+          </div>
+        )}
 
         {shareErr && (
           <div className="tiny faint" style={{marginBottom:10}}>{shareErr}</div>
