@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.91.0";
+const APP_VERSION   = "1.91.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -11057,7 +11057,8 @@ function GroupOrderGuest({code}){
       <div className="pub-kicker">Group order</div>
       <div className="pub-title">{restName}</div>
       <div className="muted" style={{textAlign:"center", marginBottom:18}}>
-        {closed ? "This order is closed." : "Pick what you'd like and send your order back."}
+        {closed ? "This order is closed."
+          : "Pick what you'd like and send it back. You can change your order any time until the host closes it."}
       </div>
 
       {!closed && (menu && Array.isArray(menu.sections)) ? (
@@ -11158,11 +11159,12 @@ function GroupOrderGuest({code}){
               </div>
             ) : (
               <>
-                {!name.trim() && selected.length ? (
-                  <div className="tiny" style={{color:"var(--accent)", textAlign:"center", marginBottom:6}}>
-                    Add your name so they know whose order this is
-                  </div>
-                ) : null}
+                <div className="tiny" style={{textAlign:"center", marginBottom:6,
+                     color:(!name.trim() && selected.length) ? "var(--accent)" : "var(--text-faint)"}}>
+                  {(!name.trim() && selected.length)
+                    ? "Add your name so the host knows whose order this is"
+                    : "Use your real name so the host knows whose order this is"}
+                </div>
                 <input className="input" placeholder="Your name" value={name}
                   onChange={e=> { setName(e.target.value); setSent(false); }}
                   style={{marginBottom:8, borderColor:(!name.trim() && selected.length) ? "var(--accent)" : undefined}} />
