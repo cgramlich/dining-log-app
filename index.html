@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.105.0";
+const APP_VERSION   = "1.105.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1439,6 +1439,14 @@ open menu (tap **Group order** at the top). If the place has more than one menu,
 you pick which menus to include - all of them by default - so your group can
 order across several at once (say pasta and pizza in one list); a place with a
 single menu jumps straight in.
+
+**No menu? Start a quick order.** If you have not scanned the place's menu - or
+there is no menu to scan - tap **Quick group order** on the **+** button (or
+**Start a quick order** from the "No menu yet" screen). Just enter the
+restaurant name and an optional note ("text me by 6"), share the link, and
+everyone types their order in their own words in a single **Your order** box.
+Same live tally on your side, no menu needed.
+
 Tap **Start group
 order** and the app gives you a link. Text it to the table. Each person opens
 it (no app, no account), sees the menu, taps what they want, sets a **quantity**
@@ -10874,8 +10882,12 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
     const s = {}; usable.forEach(m => { s[m.menu_id] = true; }); return s;
   });
   const [chosenAuto, setChosenAuto] = useState(false);   // confirmed via the menu picker -> auto-start
+  const [quick, setQuick] = useState(false);             // free-form (no menu) quick order
   const restaurantName = restaurant ? restaurant.name : "";
 
+  if (quick){
+    return <QuickGroupStart cfg={cfg} presetName={restaurantName} onClose={onClose} />;
+  }
   if (chosen){
     return <GroupOrderHost cfg={cfg} menu={chosen} restaurantName={restaurantName} onClose={onClose} allMenus={usable} autoStart={chosenAuto} />;
   }
@@ -10889,7 +10901,10 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
         <div className="ovbody">
           <div className="empty" style={{padding:"40px 0"}}>
             <div className="big">No menu yet</div>
-            <div>Scan a menu for {restaurantName || "this place"} first, then you can start a group order from it.</div>
+            <div>Scan a menu for {restaurantName || "this place"} to order from it - or start a quick order where everyone just types what they want.</div>
+            <button className="btn primary" style={{marginTop:16}} onClick={()=> setQuick(true)}>
+              Start a quick order
+            </button>
           </div>
         </div>
       </div>
