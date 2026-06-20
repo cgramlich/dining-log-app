@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.89.0";
+const APP_VERSION   = "1.90.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10427,9 +10427,36 @@ function SplitCheck({cfg, menuSnapshot, picks}){
 //   0 digitized menus -> prompt to scan one
 //   1 menu            -> straight into the host
 //   2+ menus          -> "Which menu?" picker, then the host
+// Merge several of a restaurant's menus into one snapshot so a group order can
+// span them all (e.g. pasta + pizza). Section names get the menu label prefixed
+// when combining 2+ so guests can tell which menu an item is from. A single menu
+// is returned untouched (same shape/id as before).
+function combineGroupMenus(list){
+  if (!list || !list.length) return null;
+  if (list.length === 1) return list[0];
+  const sections = [];
+  list.forEach(m => {
+    const lbl = (m.label || m.name || "").trim();
+    (m.sections || []).forEach(s => {
+      const base = (s.name || "").trim();
+      const name = lbl ? (base ? (lbl + " - " + base) : lbl) : base;
+      sections.push(Object.assign({}, s, { name: name }));
+    });
+  });
+  return {
+    menu_id: "multi:" + list.map(m => m.menu_id).join("+"),
+    label: list.map(m => (m.label || m.name || "").trim()).filter(Boolean).join(" + ") || "Full menu",
+    sections: sections,
+  };
+}
+
 function GroupOrderStart({cfg, restaurant, menus, onClose}){
   const usable = (menus || []).filter(m => m && m.menu_id);
   const [chosen, setChosen] = useState(usable.length === 1 ? usable[0] : null);
+  // Which menus to include - default ALL on, so the whole restaurant is shared.
+  const [picked, setPicked] = useState(()=> {
+    const s = {}; usable.forEach(m => { s[m.menu_id] = true; }); return s;
+  });
   const restaurantName = restaurant ? restaurant.name : "";
 
   if (chosen){
@@ -10451,19 +10478,32 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
       </div>
     );
   }
+  const chosenList = usable.filter(m => picked[m.menu_id]);
   return (
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
-        <h2>Which menu?</h2><span style={{width:34}} />
+        <h2>Which menus?</h2><span style={{width:34}} />
       </div>
       <div className="ovbody">
-        <div className="small muted" style={{marginBottom:12}}>Pick the menu your group will order from.</div>
-        {usable.map((m,i)=>(
-          <div key={m.menu_id || i} className="pick-row" onClick={()=> setChosen(m)}>
-            <div className="pick-row-name">{m.label || m.name || "Menu"}</div>
-          </div>
-        ))}
+        <div className="small muted" style={{marginBottom:12}}>
+          Pick the menus your group can order from. Leave them all on to share the whole menu.
+        </div>
+        {usable.map((m,i)=>{
+          const on = !!picked[m.menu_id];
+          return (
+            <div key={m.menu_id || i} className="pick-row"
+              style={{display:"flex", alignItems:"center", gap:10}}
+              onClick={()=> setPicked(p => Object.assign({}, p, { [m.menu_id]: !p[m.menu_id] }))}>
+              <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
+              <span className="pick-row-name" style={{flex:1, minWidth:0}}>{m.label || m.name || "Menu"}</span>
+            </div>
+          );
+        })}
+        <button className="btn primary" style={{marginTop:14}} disabled={!chosenList.length}
+          onClick={()=> setChosen(combineGroupMenus(chosenList))}>
+          {chosenList.length > 1 ? ("Start with these " + chosenList.length + " menus") : "Start group order"}
+        </button>
       </div>
     </div>
   );
