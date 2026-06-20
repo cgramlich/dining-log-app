@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.111.0";
+const APP_VERSION   = "1.112.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4105,6 +4105,7 @@ function App(){
   const [updMsg, setUpdMsg]   = useState("");              // transient text for manual check
   const [offline, setOffline] = useState(()=> typeof navigator !== "undefined" && navigator.onLine === false);
   const [usernameNudge, setUsernameNudge] = useState(false);  // first-run "pick a username" prompt
+  const [profile, setProfile] = useState(null);               // {username, display_name} for greetings/identity
 
   const toastTimer = useRef(null);
   const onlineFlushRef = useRef(()=>{});   // Phase 3: latest auto-flush fn for the reconnect listener
@@ -4224,15 +4225,16 @@ function App(){
   // set up yet or we're offline.
   useEffect(()=>{
     if (!ready || needSetup || !configComplete(config)) return;
-    let skipped = false;
-    try { skipped = localStorage.getItem("dininglog_username_nudge") != null; } catch(e){}
-    if (skipped) return;
     let alive = true;
     (async ()=>{
       try {
         const p = await getMyProfile(config);
-        if (alive && p && !p.username) setUsernameNudge(true);
-      } catch(e){ /* table missing / offline -> don't prompt */ }
+        if (!alive) return;
+        setProfile(p);                                    // power greetings / identity app-wide
+        let dismissed = false;
+        try { dismissed = localStorage.getItem("dininglog_username_nudge") != null; } catch(e){}
+        if (!dismissed && p && !p.username) setUsernameNudge(true);
+      } catch(e){ /* table missing / offline -> skip */ }
     })();
     return ()=>{ alive = false; };
     // eslint-disable-next-line
@@ -4702,7 +4704,7 @@ function App(){
       {usernameNudge && (
         <UsernameNudge config={config}
           onClose={()=>{ try{ localStorage.setItem("dininglog_username_nudge","skipped"); }catch(e){} setUsernameNudge(false); }}
-          onClaimed={()=>{ try{ localStorage.setItem("dininglog_username_nudge","done"); }catch(e){} setUsernameNudge(false); flash("Username claimed"); }} />
+          onClaimed={(r)=>{ try{ localStorage.setItem("dininglog_username_nudge","done"); }catch(e){} setProfile(r); setUsernameNudge(false); flash("Username claimed"); }} />
       )}
 
       {/* sync status banner */}
@@ -4726,11 +4728,19 @@ function App(){
 
       <div className="content">
         {tab === "history" && (
-          <HistoryView visits={visits} restaurantById={restaurantById}
-            cfg={config} syncing={sync.status === "busy"}
-            onSplitVisit={(v)=> setOverlay({ type:"splitCheck", fromVisit:v })}
-            onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
-            onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
+          <>
+            {profileName(profile) ? (
+              <div style={{margin:"2px 2px 12px", fontFamily:"'Fraunces', serif",
+                   fontSize:21, fontWeight:600, color:"var(--text)"}}>
+                Hi, {profileName(profile)}
+              </div>
+            ) : null}
+            <HistoryView visits={visits} restaurantById={restaurantById}
+              cfg={config} syncing={sync.status === "busy"}
+              onSplitVisit={(v)=> setOverlay({ type:"splitCheck", fromVisit:v })}
+              onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+              onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
+          </>
         )}
         {tab === "restaurants" && (
           <RestaurantsView restaurants={restaurants} visits={visits}
@@ -4746,6 +4756,7 @@ function App(){
         )}
         {tab === "settings" && (
           <SettingsView config={config}
+            profile={profile} onProfileChange={setProfile}
             onEdit={()=> setOverlay({ type:"settings" })}
             onOpenHelp={()=> setOverlay({ type:"help" })}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
@@ -11696,7 +11707,7 @@ function GroupOrderGuest({code}){
 
   return (
     <div className="pub-wrap">
-      <div className="pub-kicker">Group order</div>
+      <div className="pub-kicker">{data && data.host_name ? data.host_name + "'s group order" : "Group order"}</div>
       <div className="pub-title">{restName}</div>
       <div className="muted" style={{textAlign:"center", marginBottom:18}}>
         {closed ? "This order is closed."
@@ -12937,7 +12948,17 @@ async function updateMyProfile(cfg, username, displayName){
   return data;
 }
 
-function ProfileCard({config}){
+// Friendly identity: a display name's first word ("Chris Gramlich" -> "Chris"),
+// else the @handle, else "". Used wherever we greet or label the user.
+function profileName(profile){
+  if (!profile) return "";
+  const dn = (profile.display_name || "").trim();
+  if (dn) return dn.split(/\s+/)[0];
+  if (profile.username) return "@" + profile.username;
+  return "";
+}
+
+function ProfileCard({config, onProfileChange}){
   const [loaded, setLoaded]     = useState(false);
   const [current, setCurrent]   = useState(null);    // server copy {username, display_name}
   const [handle, setHandle]     = useState("");
@@ -12985,6 +13006,7 @@ function ProfileCard({config}){
       const r = await updateMyProfile(config, handle.trim().toLowerCase(), dname.trim());
       setCurrent(r); setHandle(r.username || ""); setDname(r.display_name || ""); setCheck(null);
       setMsg("Saved");
+      onProfileChange && onProfileChange(r);
       logMsg("PROFILE","saved username=" + r.username);
     } catch(e){ setErr(e.message); }
     finally { setBusy(false); }
@@ -13134,7 +13156,7 @@ function UsernameNudge({config, onClose, onClaimed}){
   );
 }
 
-function SettingsView({config, onEdit, counts, lastSync, onResync,
+function SettingsView({config, profile, onProfileChange, onEdit, counts, lastSync, onResync,
                        locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood, onOpenPassport}){
@@ -13213,11 +13235,12 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
         </div>
         <div className="small muted" style={{marginTop:12,lineHeight:1.8}}>
           Account: <b style={{color:"var(--text)"}}>{config.email || config.userId}</b><br/>
+          {profile && profile.username ? <>Username: <b style={{color:"var(--text)"}}>@{profile.username}</b><br/></> : null}
           Servers: <b style={{color:"var(--text)"}}>MenuCaptain</b>
         </div>
       </div>
 
-      <ProfileCard config={config} />
+      <ProfileCard config={config} onProfileChange={onProfileChange} />
 
       <div className="card">
         <div style={{fontWeight:600,marginBottom:4}}>Locations</div>
