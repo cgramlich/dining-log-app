@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.98.0";
+const APP_VERSION   = "1.99.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10377,6 +10377,17 @@ async function groupSubmit(cfg, code, name, token, picks){
   }
   return res.json();
 }
+async function groupHelp(code, prompt, token){
+  // Guest AI ordering help (no account). Host-funded + capped on the server.
+  const res = await fetch(apiBase(null) + "/api/group/" + encodeURIComponent(code) + "/help", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ prompt: prompt, guest_token: token }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((data && data.detail) || "Couldn't get a suggestion right now.");
+  return data;   // { answer }
+}
 async function groupClose(cfg, code){
   const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/close", {
     method:"POST",
@@ -11227,6 +11238,11 @@ function GroupOrderGuest({code}){
   const [err, setErr]         = useState("");
   const [showOrder, setShowOrder] = useState(false);
   const [openSec, setOpenSec]     = useState({});  // si -> open; undefined = use default
+  const [helpOpen, setHelpOpen]     = useState(false);   // "Help me decide" card
+  const [helpInput, setHelpInput]   = useState("");
+  const [helpAnswer, setHelpAnswer] = useState("");
+  const [helpBusy, setHelpBusy]     = useState(false);
+  const [helpErr, setHelpErr]       = useState("");
   const token = guestToken();
 
   useEffect(()=>{
@@ -11291,6 +11307,16 @@ function GroupOrderGuest({code}){
       setErr(e.message || "Could not send your order.");
     } finally { setSending(false); }
   }
+  async function runHelp(preset){
+    const p = (preset || helpInput || "").trim();
+    if (!p){ setHelpErr("Tell me what you're in the mood for."); return; }
+    setHelpErr(""); setHelpBusy(true); setHelpAnswer("");
+    try {
+      const data = await groupHelp(code, p, token);
+      setHelpAnswer((data && data.answer) || "");
+    } catch(e){ setHelpErr(e.message || "Couldn't get a suggestion."); }
+    finally { setHelpBusy(false); }
+  }
 
   if (loading) return <div className="pub-wrap"><div className="muted" style={{textAlign:"center", padding:"60px 0"}}><span className="spin" /> Loading...</div></div>;
   if (notFound) return (
@@ -11314,6 +11340,37 @@ function GroupOrderGuest({code}){
 
       {!closed && (menu && Array.isArray(menu.sections)) ? (
         <>
+          <div className="card ask" style={{marginBottom:12}}>
+            <div className="ask-head" style={{cursor:"pointer", display:"flex", alignItems:"center", gap:8}}
+              onClick={()=> setHelpOpen(o=>!o)}>
+              <Icon name="sparkle" size={15} color="#e0764a" />
+              <span style={{flex:1}}>Help me decide</span>
+              <Icon name={helpOpen ? "chevd" : "chev"} size={14} />
+            </div>
+            {helpOpen && (
+              <>
+                <textarea className="input ask-input" rows={2}
+                  placeholder="What are you in the mood for? e.g. something light, no pork, best value"
+                  value={helpInput} onChange={e=> setHelpInput(e.target.value)} />
+                <div className="chips ask-egs">
+                  {["Something light","Best value","For sharing","Most popular"].map((eg,i)=>(
+                    <span key={i} className="chip pick" onClick={()=> runHelp(eg)}>{eg}</span>
+                  ))}
+                </div>
+                <button className="btn primary sm" disabled={helpBusy || !helpInput.trim()} onClick={()=> runHelp()}>
+                  {helpBusy ? <span className="spin" /> : "Ask"}
+                </button>
+                {helpErr && <div className="ask-err">{helpErr}</div>}
+                {helpAnswer && (
+                  <div className="ask-answer">
+                    {helpAnswer.split("\n").filter(Boolean).map((line,i)=>(
+                      <p key={i} style={{margin:i?"8px 0 0":0}}>{line}</p>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
           {menu.sections.map((s, si)=>{
             const secOpen = (si in openSec) ? openSec[si] : !collapseDefault;
             const secSel  = Object.keys(picks).filter(k => picks[k] && k.indexOf(si + ":") === 0).length;
