@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.93.0";
+const APP_VERSION   = "1.94.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6034,6 +6034,14 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <Icon name="nodes" size={16} color="var(--accent)" />Group order
         </button>
 
+        {/* Direct path to the AI "Help me order" (it lives on the menu page).
+            Single-menu only: with 2+ menus, tap a menu card for that menu's helper. */}
+        {menuList.length === 1 && (
+          <button className="btn ghost" onClick={()=> onOpenMenu(menuList[0].menu_id)} style={{marginTop:8}}>
+            <Icon name="sparkle" size={16} color="var(--accent)" />Help me order
+          </button>
+        )}
+
         {/* menus list - one menu shows expanded inline; 2+ stay as cards */}
         <div className="row between" style={{margin:"22px 0 10px",alignItems:"center"}}>
           <div className="divider-label" style={{margin:0,flex:1}}>
@@ -6052,7 +6060,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           {menuList.length === 1 && (
             <button className="btn ghost sm" onClick={()=> onOpenMenu(menuList[0].menu_id)}
               style={{flex:"none",padding:"6px 12px",margin:0,marginRight:8}}>
-              Manage
+              Open menu
             </button>
           )}
           <button className="btn ghost sm" onClick={onAddMenu}
