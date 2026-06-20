@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.112.0";
+const APP_VERSION   = "1.113.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4757,6 +4757,7 @@ function App(){
         {tab === "settings" && (
           <SettingsView config={config}
             profile={profile} onProfileChange={setProfile}
+            onOpenConnections={()=> setOverlay({ type:"connections" })}
             onEdit={()=> setOverlay({ type:"settings" })}
             onOpenHelp={()=> setOverlay({ type:"help" })}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
@@ -4899,6 +4900,10 @@ function App(){
         <QuickGroupStart cfg={config}
           presetName={overlay.presetName || ""}
           onClose={()=> setOverlay(overlay.returnTo || null)} />
+      )}
+      {overlay && overlay.type === "connections" && (
+        <ConnectionsScreen config={config} profile={profile}
+          onClose={()=> setOverlay(null)} />
       )}
 
       {overlay && overlay.type === "groupStartMenu" && (
@@ -13156,7 +13161,179 @@ function UsernameNudge({config, onClose, onClaimed}){
   );
 }
 
-function SettingsView({config, profile, onProfileChange, onEdit, counts, lastSync, onResync,
+/* ============================================================
+   CONNECTIONS (mutual friend graph) - Phase B.
+   ============================================================ */
+async function getConnections(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/connections", { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("Could not load connections.");
+  return res.json();   // {connections, incoming, outgoing}
+}
+async function requestConnection(cfg, username){
+  const res = await fetch(apiBase(cfg) + "/api/connections/request", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ username }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((data && data.detail) || "Could not send the request.");
+  return data;
+}
+async function acceptConnection(cfg, id){
+  const res = await fetch(apiBase(cfg) + "/api/connections/" + id + "/accept",
+    { method:"POST", headers: await authHeaders(cfg) });
+  if (!res.ok){ const d = await res.json().catch(()=>({})); throw new Error((d && d.detail) || "Could not accept."); }
+  return res.json();
+}
+async function removeConnection(cfg, id){
+  const res = await fetch(apiBase(cfg) + "/api/connections/" + id,
+    { method:"DELETE", headers: await authHeaders(cfg) });
+  if (!res.ok){ const d = await res.json().catch(()=>({})); throw new Error((d && d.detail) || "Could not remove."); }
+  return res.json();
+}
+
+// A connection's display: full display name as the primary line, @handle as the
+// secondary (or @handle alone if there's no display name).
+function connLabel(c){
+  const dn = (c.display_name || "").trim();
+  const at = c.username ? "@" + c.username : "";
+  if (dn) return { primary: dn, secondary: at };
+  return { primary: at || "Unknown", secondary: "" };
+}
+
+function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub}){
+  const l = connLabel(c);
+  return (
+    <div className="between" style={{padding:"9px 0", borderBottom:"1px solid var(--line-soft)"}}>
+      <div style={{minWidth:0, flex:1}}>
+        <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{l.primary}</div>
+        {sub ? <div className="tiny faint">{sub}</div> : (l.secondary ? <div className="tiny faint">{l.secondary}</div> : null)}
+      </div>
+      <div style={{display:"flex", gap:6, flex:"none"}}>
+        {primaryBtn ? <button className="btn primary sm" disabled={busy} onClick={onPrimary}>{primaryBtn}</button> : null}
+        {secondaryBtn ? <button className="btn ghost sm" disabled={busy} onClick={onSecondary}>{secondaryBtn}</button> : null}
+      </div>
+    </div>
+  );
+}
+
+function ConnectionsScreen({config, profile, onClose}){
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr]         = useState("");
+  const [handle, setHandle]   = useState("");
+  const [adding, setAdding]   = useState(false);
+  const [addMsg, setAddMsg]   = useState("");
+  const [addErr, setAddErr]   = useState("");
+  const [busyId, setBusyId]   = useState(null);
+
+  async function load(){
+    try { setData(await getConnections(config)); setErr(""); }
+    catch(e){ setErr(e.message); }
+    finally { setLoading(false); }
+  }
+  useEffect(()=>{ load(); /* eslint-disable-next-line */ },[]);
+
+  async function add(){
+    const h = handle.trim().toLowerCase().replace(/^@/, "");
+    if (!h) return;
+    setAdding(true); setAddErr(""); setAddMsg("");
+    try {
+      const r = await requestConnection(config, h);
+      setAddMsg(r.status === "accepted" ? "Connected!" : "Request sent");
+      setHandle("");
+      await load();
+    } catch(e){ setAddErr(e.message); }
+    finally { setAdding(false); }
+  }
+  async function act(fn, id){
+    setBusyId(id);
+    try { await fn(config, id); await load(); }
+    catch(e){ setErr(e.message); }
+    finally { setBusyId(null); }
+  }
+
+  const noHandle    = !(profile && profile.username);
+  const incoming    = (data && data.incoming) || [];
+  const connections = (data && data.connections) || [];
+  const outgoing    = (data && data.outgoing) || [];
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>Connections</h2><span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        {noHandle ? (
+          <div className="card" style={{marginBottom:14}}>
+            <div className="small">Claim a username first (Settings &rarr; Your profile) so people can find and connect with you.</div>
+          </div>
+        ) : null}
+
+        <div className="set-group" style={{marginTop:0}}>Add by username</div>
+        <div className="card">
+          <div style={{display:"flex", gap:8, alignItems:"center"}}>
+            <span style={{color:"var(--text-faint)", fontSize:18}}>@</span>
+            <input className="input" value={handle} placeholder="username" style={{flex:1}}
+              autoCapitalize="none" autoCorrect="off" spellCheck={false}
+              onChange={e=> setHandle(e.target.value.replace(/[^a-zA-Z0-9_@]/g,"").toLowerCase())} />
+            <button className="btn primary sm" onClick={add} disabled={adding || !handle.trim()}>
+              {adding ? <span className="spin" /> : "Add"}
+            </button>
+          </div>
+          {addMsg ? <div className="tiny" style={{marginTop:8, color:"var(--ok)"}}>{addMsg}</div> : null}
+          {addErr ? <div className="tiny" style={{marginTop:8, color:"var(--danger)"}}>{addErr}</div> : null}
+        </div>
+
+        {loading ? (
+          <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
+        ) : (
+          <>
+            {incoming.length ? (
+              <>
+                <div className="set-group">Requests ({incoming.length})</div>
+                <div className="card">
+                  {incoming.map(c => (
+                    <ConnRow key={c.id} c={c} busy={busyId===c.id}
+                      primaryBtn="Accept" onPrimary={()=> act(acceptConnection, c.id)}
+                      secondaryBtn="Decline" onSecondary={()=> act(removeConnection, c.id)} />
+                  ))}
+                </div>
+              </>
+            ) : null}
+
+            <div className="set-group">Your connections{connections.length ? " (" + connections.length + ")" : ""}</div>
+            <div className="card">
+              {connections.length === 0 ? (
+                <div className="small faint">No connections yet. Add someone by their username above.</div>
+              ) : connections.map(c => (
+                <ConnRow key={c.id} c={c} busy={busyId===c.id}
+                  secondaryBtn="Remove" onSecondary={()=> act(removeConnection, c.id)} />
+              ))}
+            </div>
+
+            {outgoing.length ? (
+              <>
+                <div className="set-group">Pending</div>
+                <div className="card">
+                  {outgoing.map(c => (
+                    <ConnRow key={c.id} c={c} busy={busyId===c.id}
+                      sub={"Requested" + (c.username ? " · @" + c.username : "")}
+                      secondaryBtn="Cancel" onSecondary={()=> act(removeConnection, c.id)} />
+                  ))}
+                </div>
+              </>
+            ) : null}
+
+            {err ? <div className="small" style={{marginTop:10, color:"var(--danger)"}}>{err}</div> : null}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SettingsView({config, profile, onProfileChange, onOpenConnections, onEdit, counts, lastSync, onResync,
                        locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood, onOpenPassport}){
@@ -13241,6 +13418,16 @@ function SettingsView({config, profile, onProfileChange, onEdit, counts, lastSyn
       </div>
 
       <ProfileCard config={config} onProfileChange={onProfileChange} />
+
+      <div className="card" style={{cursor:"pointer"}} onClick={onOpenConnections}>
+        <div className="between">
+          <div>
+            <div style={{fontWeight:600}}>Connections</div>
+            <div className="tiny faint" style={{marginTop:3}}>Find friends and manage requests</div>
+          </div>
+          <Icon name="chev" size={18} />
+        </div>
+      </div>
 
       <div className="card">
         <div style={{fontWeight:600,marginBottom:4}}>Locations</div>
