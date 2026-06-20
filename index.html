@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.113.0";
+const APP_VERSION   = "1.114.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10575,9 +10575,12 @@ async function groupFetch(cfg, code){
   return res.json();
 }
 async function groupSubmit(cfg, code, name, token, picks){
+  // When cfg is present (a signed-in invitee), send auth so the server binds
+  // the order to their identity instead of the anonymous device token.
+  const headers = { "Content-Type":"application/json" };
+  if (cfg) { try { Object.assign(headers, await authHeaders(cfg)); } catch(e){} }
   const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/submit", {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
+    method:"POST", headers,
     body: JSON.stringify({ guest_name:name, guest_token:token, picks:picks }),
   });
   if (!res.ok){
@@ -10586,6 +10589,21 @@ async function groupSubmit(cfg, code, name, token, picks){
     throw new Error(msg);
   }
   return res.json();
+}
+// Phase C: host invites connections; invitees list the orders they're invited to.
+async function inviteToGroup(cfg, code, userIds){
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/invite", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ user_ids: userIds }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((data && data.detail) || "Could not invite.");
+  return data;   // { invited }
+}
+async function getInvitations(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/invitations", { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("Could not load invitations.");
+  return res.json();   // { invitations: [{code, restaurant_name, host_name}] }
 }
 async function groupHelp(code, prompt, token){
   // Guest AI ordering help (no account). Host-funded + capped on the server.
@@ -11052,8 +11070,11 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
 // at least one order is live; any load failure (incl. a backend that predates
 // /api/group/mine) yields none and the card stays hidden - Places never breaks.
 function ActiveGroupOrders({cfg}){
-  const [orders, setOrders] = useState([]);
-  const [resume, setResume] = useState(null);   // the order currently opened in the host view
+  const [orders, setOrders]   = useState([]);
+  const [invites, setInvites] = useState([]);     // orders this user was invited to (Phase C)
+  const [profile, setProfile] = useState(null);   // for join-as-yourself prefill
+  const [resume, setResume]   = useState(null);   // hosted order opened in the host view
+  const [openInvite, setOpenInvite] = useState(null);  // invited order opened as participant
 
   async function load(){
     try {
@@ -11063,6 +11084,9 @@ function ActiveGroupOrders({cfg}){
       logMsg("GROUP","mine load failed (hiding card): " + e.message);
       setOrders([]);
     }
+    try { const d = await getInvitations(cfg); setInvites((d && d.invitations) || []); }
+    catch(e){ setInvites([]); }
+    try { setProfile(await getMyProfile(cfg)); } catch(e){}
   }
   useEffect(()=> {
     load();
@@ -11073,7 +11097,7 @@ function ActiveGroupOrders({cfg}){
     return ()=> document.removeEventListener("visibilitychange", onVis);
   }, []);
 
-  if (!orders.length && !resume) return null;     // nothing live -> show nothing
+  if (!orders.length && !invites.length && !resume && !openInvite) return null;
 
   return (
     <>
@@ -11094,6 +11118,22 @@ function ActiveGroupOrders({cfg}){
           ))}
         </div>
       ) : null}
+
+      {invites.length ? (
+        <div className="card ago-card">
+          <div className="ago-head">Invited to</div>
+          {invites.map((o,i)=>(
+            <div key={o.code || i} className="ago-row" onClick={()=> setOpenInvite(o)}>
+              <div className="ago-row-main">
+                <div className="ago-row-name">{o.restaurant_name || "Group order"}</div>
+                <div className="tiny faint">{o.host_name ? o.host_name + "'s order" : "Tap to add your order"}</div>
+              </div>
+              <Icon name="nodes" size={15} color="var(--accent)" />
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {resume ? (
         <GroupOrderHost
           cfg={cfg}
@@ -11101,6 +11141,18 @@ function ActiveGroupOrders({cfg}){
           restaurantName={resume.restaurant_name}
           resumeCode={resume.code}
           onClose={()=> { setResume(null); load(); }} />
+      ) : null}
+
+      {openInvite ? (
+        <div style={{position:"fixed", inset:0, zIndex:60, background:"var(--bg)", overflowY:"auto"}}>
+          <div style={{maxWidth:600, margin:"0 auto"}}>
+            <button className="btn ghost sm" style={{margin:"12px 16px 0"}}
+              onClick={()=> { setOpenInvite(null); load(); }}>
+              <Icon name="back" size={14} /> Back
+            </button>
+            <GroupOrderGuest code={openInvite.code} cfg={cfg} profile={profile} />
+          </div>
+        </div>
       ) : null}
     </>
   );
@@ -11118,6 +11170,80 @@ function GroupOrderButton({cfg, menu, restaurantName}){
       </button>
       {show ? <GroupOrderHost cfg={cfg} menu={menu} restaurantName={restaurantName}
                 onClose={()=> setShow(false)} /> : null}
+    </>
+  );
+}
+
+// Host control: invite your connections to this order. They get it in their
+// in-app "Active group orders" list and can join as themselves.
+function GroupInvitePicker({cfg, code}){
+  const [open, setOpen] = useState(false);
+  const [conns, setConns] = useState(null);
+  const [pick, setPick] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg]   = useState("");
+  async function openPicker(){
+    setOpen(true); setMsg("");
+    if (conns === null){
+      try { const d = await getConnections(cfg); setConns(d.connections || []); }
+      catch(e){ setConns([]); }
+    }
+  }
+  async function send(){
+    const ids = Object.keys(pick).filter(k => pick[k]);
+    if (!ids.length) return;
+    setBusy(true); setMsg("");
+    try {
+      const r = await inviteToGroup(cfg, code, ids);
+      setMsg("Invited " + (r.invited || 0));
+      setPick({});
+      setTimeout(()=> setOpen(false), 800);
+    } catch(e){ setMsg(e.message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <>
+      <button className="btn ghost sm" style={{marginBottom:2}} onClick={openPicker}>
+        <Icon name="nodes" size={14} color="var(--accent)" />Invite connections
+      </button>
+      {open && (
+        <div style={{position:"fixed", inset:0, zIndex:70, background:"rgba(0,0,0,0.55)",
+             display:"flex", alignItems:"flex-end", justifyContent:"center"}}
+             onClick={()=> setOpen(false)}>
+          <div className="card" style={{width:"100%", maxWidth:520, margin:0,
+               borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:"85vh", overflowY:"auto"}}
+               onClick={(e)=> e.stopPropagation()}>
+            <div style={{fontWeight:600, marginBottom:4}}>Invite connections</div>
+            <div className="small muted" style={{marginBottom:10}}>
+              They'll see this order in their app and can join as themselves.
+            </div>
+            {conns === null ? (
+              <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
+            ) : conns.length === 0 ? (
+              <div className="small faint" style={{padding:"4px 0 12px"}}>
+                No connections yet. Add some in Settings &rarr; Connections.
+              </div>
+            ) : conns.map(c => {
+              const l = connLabel(c);
+              const on = !!pick[c.user_id];
+              return (
+                <div key={c.user_id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+                  onClick={()=> setPick(p => Object.assign({}, p, { [c.user_id]: !p[c.user_id] }))}>
+                  <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
+                  <span style={{flex:1, minWidth:0}}>{l.primary}{l.secondary ? <span className="tiny faint"> {l.secondary}</span> : null}</span>
+                </div>
+              );
+            })}
+            <div className="row" style={{gap:9, marginTop:14}}>
+              <button className="btn ghost" onClick={()=> setOpen(false)}>Close</button>
+              <button className="btn primary" disabled={busy || !Object.keys(pick).some(k=>pick[k])} onClick={send}>
+                {busy ? <span className="spin" /> : "Invite"}
+              </button>
+            </div>
+            {msg ? <div className="tiny" style={{marginTop:8, color:"var(--ok)"}}>{msg}</div> : null}
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -11431,6 +11557,8 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               {closed ? <div className="tiny faint" style={{marginTop:10}}>This order is closed - guests can no longer add to it.</div> : null}
             </div>
 
+            {!closed && code ? <GroupInvitePicker cfg={cfg} code={code} /> : null}
+
             {!closed && (allMenus || []).length > 1 && (
               <button className="btn ghost sm" style={{marginBottom:2}} onClick={openMenuEdit}>
                 <Icon name="camera" size={14} color="var(--accent)" />Edit menus
@@ -11593,13 +11721,17 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
 // Guest screen (no account). Opened by a ?g=<code> link: fetch the menu from
 // the backend, pick with quantity steppers + notes, submit. Re-submitting
 // updates the same order (matched by the device's guest token).
-function GroupOrderGuest({code}){
+function GroupOrderGuest({code, cfg, profile}){
   const home = location.origin + location.pathname;
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [picks, setPicks]     = useState({});     // "si:ii" -> { item, qty, note }
-  const [name, setName]       = useState(()=> { try { return localStorage.getItem("dininglog_guest_name") || ""; } catch(e){ return ""; } });
+  const [name, setName]       = useState(()=> {
+    const dn = profile && (profile.display_name || "").trim();
+    if (dn) return dn.split(/\s+/)[0];            // signed-in invitee: prefill first name
+    try { return localStorage.getItem("dininglog_guest_name") || ""; } catch(e){ return ""; }
+  });
   const [sending, setSending] = useState(false);
   const [sent, setSent]       = useState(false);
   const [placed, setPlaced]   = useState(false);   // ever submitted (sticky); sent = unchanged-since-submit
@@ -11618,7 +11750,7 @@ function GroupOrderGuest({code}){
     let alive = true;
     (async ()=>{
       try {
-        const d = await groupFetch(null, code);
+        const d = await groupFetch(cfg || null, code);
         if (!alive) return;
         if (!d){ setNotFound(true); setLoading(false); return; }
         setData(d); setLoading(false);
@@ -11677,11 +11809,11 @@ function GroupOrderGuest({code}){
     }
     setErr(""); setSending(true);
     try {
-      const r = await groupFetch(null, code);   // re-check it is still open before sending
+      const r = await groupFetch(cfg || null, code);   // re-check it is still open before sending
       if (!r || r.status === "closed"){ setErr("This group order is closed."); setSending(false); return; }
-      await groupSubmit(null, code, nm, token, list);
+      await groupSubmit(cfg || null, code, nm, token, list);
       try { localStorage.setItem("dininglog_guest_name", nm); } catch(e){}
-      setData(await groupFetch(null, code));     // refresh the running order
+      setData(await groupFetch(cfg || null, code));     // refresh the running order
       setSent(true); setPlaced(true);
       logMsg("GROUP","guest submitted " + list.length + " item(s)");
     } catch(e){
