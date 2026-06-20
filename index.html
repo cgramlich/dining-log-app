@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.99.0";
+const APP_VERSION   = "1.100.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10396,6 +10396,16 @@ async function groupClose(cfg, code){
   if (!res.ok) throw new Error("close failed: " + res.status);
   return res.json();
 }
+async function groupUpdateMenu(cfg, code, snapshot, title){
+  // Host-only: change which menus a running order uses.
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/menu", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ menu_snapshot: snapshot, title: title || null }),
+  });
+  if (!res.ok) throw new Error("menu update failed: " + res.status);
+  return res.json();
+}
 async function groupRemovePick(cfg, code, token){
   // Host-only: take one guest off the order. guest_token comes from the
   // host-only fields the server returns in GET /api/group/{code}.
@@ -10719,7 +10729,7 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
   const restaurantName = restaurant ? restaurant.name : "";
 
   if (chosen){
-    return <GroupOrderHost cfg={cfg} menu={chosen} restaurantName={restaurantName} onClose={onClose} />;
+    return <GroupOrderHost cfg={cfg} menu={chosen} restaurantName={restaurantName} onClose={onClose} allMenus={usable} />;
   }
   if (usable.length === 0){
     return (
@@ -10846,7 +10856,7 @@ function GroupOrderButton({cfg, menu, restaurantName}){
 // Host overlay: start (or resume) a session, share the link, and watch the
 // order build live (polling). The active code is remembered per menu so the
 // host can reopen the same session.
-function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
+function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenus}){
   const menuKey = (menu && menu.menu_id) || null;
   const [data, setData]         = useState(null);
   const [code, setCode]         = useState(()=> {
@@ -10863,6 +10873,31 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
   const [err, setErr]           = useState("");
   const [copied, setCopied]     = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);   // gate the finalizing "Close order"
+  const [menuEditOpen, setMenuEditOpen] = useState(false);   // "Edit menus" sheet (change which menus the order uses)
+  const [menuPick, setMenuPick]   = useState({});
+  const [menuBusy, setMenuBusy]   = useState(false);
+  function openMenuEdit(){
+    const id = (data && data.menu_snapshot && data.menu_snapshot.menu_id) || "";
+    const cur = id.indexOf("multi:") === 0 ? id.slice(6).split("+").filter(Boolean) : (id ? [id] : []);
+    const init = {};
+    (allMenus || []).forEach(m => { init[m.menu_id] = cur.indexOf(m.menu_id) >= 0; });
+    setMenuPick(init);
+    setMenuEditOpen(true);
+  }
+  async function saveMenuEdit(){
+    const chosen = (allMenus || []).filter(m => menuPick[m.menu_id]);
+    if (!chosen.length || !code) return;
+    const snap = combineGroupMenus(chosen);
+    setMenuBusy(true);
+    try {
+      await groupUpdateMenu(cfg, code, snap, snap.label);
+      const d = await groupFetch(cfg, code);
+      if (d) setData(d);
+      setMenuEditOpen(false);
+      logMsg("GROUP","menus updated for code=" + code);
+    } catch(e){ logMsg("GROUP","menu update failed: " + e.message); }
+    finally { setMenuBusy(false); }
+  }
   const [confirmRemove, setConfirmRemove] = useState(null);  // guest_token pending remove-confirm
   const [editTarget, setEditTarget] = useState(null);        // the pick being host-edited, or null
   const [editItems, setEditItems]   = useState([]);          // working copy of that pick's items
@@ -11098,6 +11133,42 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode}){
               </div>
               {closed ? <div className="tiny faint" style={{marginTop:10}}>This order is closed - guests can no longer add to it.</div> : null}
             </div>
+
+            {!closed && (allMenus || []).length > 1 && (
+              <button className="btn ghost sm" style={{marginBottom:2}} onClick={openMenuEdit}>
+                <Icon name="camera" size={14} color="var(--accent)" />Edit menus
+              </button>
+            )}
+            {menuEditOpen && (
+              <div style={{position:"fixed", inset:0, zIndex:70, background:"rgba(0,0,0,0.55)",
+                   display:"flex", alignItems:"flex-end", justifyContent:"center"}}
+                   onClick={()=> setMenuEditOpen(false)}>
+                <div className="card" style={{width:"100%", maxWidth:520, margin:0,
+                     borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:"85vh", overflowY:"auto"}}
+                     onClick={(e)=> e.stopPropagation()}>
+                  <div style={{fontWeight:600, marginBottom:4}}>Which menus?</div>
+                  <div className="small muted" style={{marginBottom:10}}>Guests can order from every menu you check.</div>
+                  {(allMenus || []).map((m,i)=>{
+                    const on = !!menuPick[m.menu_id];
+                    return (
+                      <div key={m.menu_id || i} className="pick-row"
+                        style={{display:"flex", alignItems:"center", gap:10}}
+                        onClick={()=> setMenuPick(p => Object.assign({}, p, { [m.menu_id]: !p[m.menu_id] }))}>
+                        <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
+                        <span style={{flex:1, minWidth:0}}>{m.label || m.name || "Menu"}</span>
+                      </div>
+                    );
+                  })}
+                  <div className="row" style={{gap:9, marginTop:14}}>
+                    <button className="btn ghost" onClick={()=> setMenuEditOpen(false)}>Cancel</button>
+                    <button className="btn primary" disabled={menuBusy || !(allMenus||[]).some(m => menuPick[m.menu_id])}
+                      onClick={saveMenuEdit}>
+                      {menuBusy ? <span className="spin" /> : "Save menus"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="card go-roster">
               <div className="go-roster-head">Who's in on the order?</div>
