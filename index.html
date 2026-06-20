@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.95.1";
+const APP_VERSION   = "1.96.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7294,9 +7294,13 @@ function mapPlacesError(err){
 // The compact Leaflet map for the current result set. Mirrors MapView's init
 // (same tiles, same circleMarker+popup pattern) but adds a distinct "you are
 // here" marker and skips the geocode backfill - results already carry coords.
-function NearbyMap({ user, results, onOpen }){
+function NearbyMap({ user, results, onOpen, searchCenter, onSearchArea }){
   const divRef = useRef(null), mapRef = useRef(null), layerRef = useRef(null);
   const leafletReady = typeof L !== "undefined";
+  const [moved, setMoved] = useState(false);
+  // Latest searched center, read inside the once-registered moveend handler.
+  const scRef = useRef(searchCenter);
+  useEffect(function(){ scRef.current = searchCenter; setMoved(false); }, [searchCenter]);
 
   useEffect(function(){
     if (!leafletReady || !divRef.current || !user) return;
@@ -7307,6 +7311,18 @@ function NearbyMap({ user, results, onOpen }){
     map.setView([user.lat, user.lng], 14);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+    // Surface "Search this area" once the view has been panned/zoomed meaningfully
+    // away from where the last search ran.
+    map.on("moveend", function(){
+      const sc = scRef.current;
+      if (!sc) return;
+      try {
+        const c = map.getCenter();
+        const visR = map.distance(c, map.getBounds().getNorthEast());
+        const d = map.distance(c, L.latLng(sc.lat, sc.lng));
+        setMoved(d > Math.max(400, visR * 0.2));
+      } catch(e){}
+    });
     logMsg("MAP", "Near me map initialised");
     setTimeout(function(){ try { map.invalidateSize(); } catch(e){} }, 60);
     return function(){ try { map.remove(); } catch(e){} mapRef.current = null; };
@@ -7345,6 +7361,17 @@ function NearbyMap({ user, results, onOpen }){
     if (pts.length){ try { map.fitBounds(pts, { padding:[40,40], maxZoom:16 }); } catch(e){} }
   }, [results, user]);
 
+  function searchHere(){
+    const map = mapRef.current;
+    if (!map || !onSearchArea) return;
+    try {
+      const c = map.getCenter();
+      const radius = Math.min(16000, Math.max(800, Math.round(map.distance(c, map.getBounds().getNorthEast()))));
+      setMoved(false);
+      onSearchArea(c.lat, c.lng, radius);
+    } catch(e){}
+  }
+
   if (!leafletReady){
     return (
       <div className="empty" style={{padding:"40px 22px"}}>
@@ -7353,7 +7380,18 @@ function NearbyMap({ user, results, onOpen }){
       </div>
     );
   }
-  return <div ref={divRef} className="map-canvas" style={{flex:1, minHeight:280}} />;
+  return (
+    <div style={{position:"relative", flex:1, minHeight:280, display:"flex"}}>
+      <div ref={divRef} className="map-canvas" style={{flex:1, minHeight:280}} />
+      {moved && onSearchArea ? (
+        <button className="btn primary sm" onClick={searchHere}
+          style={{position:"absolute", top:10, left:"50%", transform:"translateX(-50%)",
+                  zIndex:1000, width:"auto", padding:"7px 16px", boxShadow:"0 2px 10px rgba(0,0,0,0.35)"}}>
+          Search this area
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade, onClose }){
@@ -7373,6 +7411,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
 
   // Results + status.
   const [results, setResults]       = useState([]);
+  const [searchCenter, setSearchCenter] = useState(null);  // where the last search ran (drives "Search this area")
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState(null);
   const [fetchedAt, setFetchedAt]   = useState(null);
@@ -7417,22 +7456,29 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
     );
   }
 
-  async function runSearch(){
-    if (!userLoc){ requestLocation(); return; }
+  // opts (optional): { lat, lng, radius_m } to search a specific map area
+  // ("Search this area"); without it, searches at the user's location + the
+  // selected radius chip. Distances are always shown from the user's real spot.
+  async function runSearch(opts){
+    const center = (opts && opts.lat != null) ? { lat:opts.lat, lng:opts.lng } : userLoc;
+    if (!center){ requestLocation(); return; }
+    const radius = (opts && opts.radius_m) ? opts.radius_m : radiusM;
     setLoading(true); setError(null);
     const tdef = NEARME_TYPES.find(t => t.key === typeKey) || NEARME_TYPES[0];
     const body = {
-      lat:userLoc.lat, lng:userLoc.lng,
-      radius_m:radiusM, open_now:openNow,
+      lat:center.lat, lng:center.lng,
+      radius_m:radius, open_now:openNow,
       included_types:tdef.types, max_results:20,
     };
     try {
       const data = await placesNearby(cfg, body);
       const raw = (data.places || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      const distFrom = userLoc || center;
       const withDist = raw.map(p => Object.assign({}, p, {
-        _dist: distanceMiles(userLoc.lat, userLoc.lng, p.lat, p.lng),
+        _dist: distanceMiles(distFrom.lat, distFrom.lng, p.lat, p.lng),
       })).sort((a,b)=> (a._dist==null?1e9:a._dist) - (b._dist==null?1e9:b._dist));
       setResults(withDist);
+      setSearchCenter(center);
       setFetchedAt(Date.now());
       setLastSearch({ radiusM, typeKey, openNow });
       logMsg("PLACES", "nearby returned " + withDist.length + " (cached=" + (data.cached?"y":"n") + ")");
@@ -7715,7 +7761,9 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
 
           {!loading && view === "map" && (
             (results.length || userLoc)
-              ? <NearbyMap user={userLoc} results={results} onOpen={openDetails} />
+              ? <NearbyMap user={userLoc} results={results} onOpen={openDetails}
+                  searchCenter={searchCenter}
+                  onSearchArea={(lat,lng,radius)=> runSearch({ lat:lat, lng:lng, radius_m:radius })} />
               : <div className="empty" style={{padding:"30px 22px"}}><div>Search to see places on the map.</div></div>
           )}
         </div>
