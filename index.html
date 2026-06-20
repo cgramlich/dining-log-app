@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.102.0";
+const APP_VERSION   = "1.103.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6794,25 +6794,43 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const [saveRest, setSaveRest]   = useState(presetRestId || (initialSplit && initialSplit.restaurant_id) || "");  // restaurant id on the save step
   const [saveVisit, setSaveVisit] = useState(presetVisitId || "new"); // "new" or an existing visit id
   const [splitLabel, setSplitLabel] = useState(initialSplit && initialSplit.label ? initialSplit.label : "");  // standalone save label
+  const [shots, setShots]     = useState([]);   // staged receipt photos (dataUrls), read together
   const fileRef = useRef(null);
 
   const money = c => "$" + (Math.round(c) / 100).toFixed(2);
 
-  // ---- scan the receipt (reuses the existing OCR relay) ----
+  // ---- scan the check: STAGE one or more photos (e.g. the itemized receipt +
+  // a separate tax/tip/total slip), then read them together. onFiles appends;
+  // readShots does the OCR on everything staged. ----
   async function onFiles(e){
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    logMsg("SPLIT","Selected " + files.length + " receipt photo(s)");
-    setBusy(true); setErrMsg(""); setProcessing({done:0, total:files.length});
+    setErrMsg(""); setBusy(true); setProcessing({done:0, total:files.length});
     try {
-      const dataUrls = [];
+      const urls = [];
       for (let i = 0; i < files.length; i++){
         const blob = await resizeImageToBlob(files[i], 1200, 0.82);
-        dataUrls.push(await blobToDataUrl(blob));
+        urls.push(await blobToDataUrl(blob));
         setProcessing({done:i+1, total:files.length});
       }
-      // standalone: no menu, so pass [] for menu names (menu_match stays null)
-      const parsed = await parseReceiptPhotos(config, dataUrls, []);
+      setShots(s => s.concat(urls));
+      logMsg("SPLIT","Staged " + urls.length + " receipt photo(s)");
+    } catch(err){
+      logMsg("ERROR","Split photo add failed: " + err.message);
+      setErrMsg("Couldn't add that photo. Try again.");
+    } finally {
+      setBusy(false); setProcessing(null);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function readShots(){
+    if (!shots.length) return;
+    setBusy(true); setErrMsg(""); setProcessing(null);
+    try {
+      // All staged photos are read as ONE check: items from the itemized
+      // receipt, the final total from a separate totals slip - merged.
+      const parsed = await parseReceiptPhotos(config, shots, []);
       const newLines = (parsed.items || []).map(it => ({
         id: uid("spl"),
         name: it.name,
@@ -6835,7 +6853,6 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       setErrMsg(err.message || "Couldn't read that receipt.");
     } finally {
       setBusy(false); setProcessing(null);
-      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
@@ -7110,9 +7127,11 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
         {step === "pick" && (
           <div>
             <div className="card small muted">
-              Scan the receipt (or enter it by hand), say who's at the table, and
-              tap to assign each item. Tax and tip are split proportionally so it
-              adds up to the real total. Save it at the end to keep it, or just share it.
+              Scan the check (or enter it by hand), say who's at the table, and tap
+              to assign each item. You can add more than one photo - e.g. the
+              itemized receipt plus a separate tax/tip/total slip - and they're read
+              together. Tax and tip are split proportionally so it adds up to the
+              real total. Save it at the end to keep it, or just share it.
             </div>
             {errMsg && <div className="card" style={{borderColor:"var(--danger)",color:"var(--danger)"}}>{errMsg}</div>}
             {busy ? (
@@ -7123,9 +7142,30 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               </div>
             ) : (
               <div>
+                {shots.length > 0 && (
+                  <div className="card" style={{padding:"10px 12px", marginBottom:10}}>
+                    <div className="small muted" style={{marginBottom:8}}>
+                      {shots.length} photo{shots.length>1?"s":""} ready{shots.length===1?" - add the totals slip too if you have one":""}.
+                    </div>
+                    <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+                      {shots.map((u,i)=>(
+                        <div key={i} style={{position:"relative"}}>
+                          <img src={u} alt="" style={{width:64, height:64, objectFit:"cover", borderRadius:8, border:"1px solid var(--line)"}} />
+                          <button onClick={()=> setShots(s => s.filter((_,j)=> j!==i))}
+                            style={{position:"absolute", top:-6, right:-6, width:20, height:20, borderRadius:10, border:"none", background:"var(--danger)", color:"#fff", fontSize:12, lineHeight:"20px", padding:0, cursor:"pointer"}}>&times;</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <button className="btn" onClick={()=> fileRef.current && fileRef.current.click()}>
-                  Scan the check
+                  {shots.length ? "Add another photo" : "Scan the check"}
                 </button>
+                {shots.length > 0 && (
+                  <button className="btn primary" style={{marginTop:10}} onClick={readShots}>
+                    Read the check ({shots.length})
+                  </button>
+                )}
                 <button className="btn ghost" style={{marginTop:10}} onClick={startManual}>
                   Enter by hand
                 </button>
