@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.94.0";
+const APP_VERSION   = "1.95.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4788,6 +4788,7 @@ function App(){
           onLogVisit={()=> setOverlay({ type:"logVisit", restaurantId:overlay.id,
             returnTo:{ type:"restaurant", id:overlay.id } })}
           onEdit={()=> setOverlay({ type:"editRestaurant", id:overlay.id })}
+          onEnrich={(enrich)=> setOverlay({ type:"editRestaurant", id:overlay.id, enrich:enrich })}
           onAddMenu={()=> setOverlay({ type:"scanMenu", restaurantId:overlay.id })}
           onOpenMenu={(menuId)=> setOverlay({
             type:"menuDetail", restaurantId:overlay.id, menuId:menuId })}
@@ -4869,6 +4870,7 @@ function App(){
         <RestaurantForm
           existing={overlay.type==="editRestaurant" ? restaurantById(overlay.id) : null}
           prefill={overlay.type==="addRestaurant" ? (overlay.prefill || null) : null}
+          enrich={overlay.type==="editRestaurant" ? (overlay.enrich || null) : null}
           locations={locations}
           cfg={config}
           onClose={()=> setOverlay(null)}
@@ -5844,11 +5846,13 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
    ============================================================ */
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onOpenMenu, onOpenVisit,
-                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup}){
+                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
   const [mShareErr, setMShareErr]   = useState(null);
+  const [enrichBusy, setEnrichBusy] = useState(false);
+  const [enrichErr, setEnrichErr]   = useState("");
   if (!restaurant){
     return (
       <div className="overlay">
@@ -5858,6 +5862,28 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     );
   }
   const r = restaurant;
+  // "Update from Google": refetch this place's details and open the edit form
+  // with Google's contact/location fields overlaid for review. Pro-gated by the
+  // backend (free -> 402). Only offered when we have a google_place_id.
+  async function updateFromGoogle(){
+    if (!r.google_place_id || enrichBusy) return;
+    setEnrichBusy(true); setEnrichErr("");
+    try {
+      const data = await placesDetails(cfg, r.google_place_id);
+      const p = (data && data.place) || {};
+      const enrich = {};
+      if (p.address) { enrich.address = p.address; enrich.geo_addr = p.address; }
+      if (p.phone)   enrich.phone = p.phone;
+      if (p.website) enrich.website = p.website;
+      if (p.lat != null) enrich.lat = p.lat;
+      if (p.lng != null) enrich.lng = p.lng;
+      onEnrich && onEnrich(enrich);
+    } catch(e){
+      setEnrichErr(e && e.status === 402 ? "Updating from Google is a Pro feature."
+        : (e && e.detail) ? e.detail
+        : "Couldn't reach Google - try again.");
+    } finally { setEnrichBusy(false); }
+  }
   const menuList = menus || [];
 
   // ---- dish memory: what to order again here -------------------------
@@ -6041,6 +6067,15 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             <Icon name="sparkle" size={16} color="var(--accent)" />Help me order
           </button>
         )}
+
+        {r.google_place_id && (
+          <button className="btn ghost" onClick={updateFromGoogle} disabled={enrichBusy} style={{marginTop:8}}>
+            {enrichBusy
+              ? <span className="spin" />
+              : <><Icon name="locate" size={16} color="var(--accent)" />Update from Google</>}
+          </button>
+        )}
+        {enrichErr ? <div className="tiny faint" style={{marginTop:6}}>{enrichErr}</div> : null}
 
         {/* menus list - one menu shows expanded inline; 2+ stay as cards */}
         <div className="row between" style={{margin:"22px 0 10px",alignItems:"center"}}>
@@ -8055,11 +8090,14 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
 /* ============================================================
    RESTAURANT FORM (add / edit)
    ============================================================ */
-function RestaurantForm({existing, prefill, locations, cfg, onClose, onSave}){
+function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onSave}){
   // Field seeds come from `existing` (Edit) OR `prefill` (a fresh Add seeded from
   // Google discovery). Identity-shaped things (id, photo, added_date, the "Edit"
   // title) stay keyed on `existing` ONLY, so a prefill is still a brand-new place.
-  const seed = existing || prefill || null;
+  // `enrich` (Update from Google on an existing place) overlays ONLY factual
+  // contact/location fields on top of the existing record; name/cuisine/notes
+  // stay the user's.
+  const seed = enrich ? Object.assign({}, existing || {}, enrich) : (existing || prefill || null);
   const [name,setName]         = useState(seed ? (seed.name || "") : "");
   const [cuisine,setCuisine]   = useState(seed ? (seed.cuisine || "") : "");
   const [location,setLocation] = useState(seed ? (seed.location || "") : "");
