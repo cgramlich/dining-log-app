@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.106.0";
+const APP_VERSION   = "1.107.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -944,8 +944,15 @@ const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_MVfNqjyMufyRkGJ4chLj7Q_1qzp5WJN
 let _refreshPromise = null;
 
 function signOutHard(){
-  // Clear the local session and reload to the sign-in screen.
+  // Clear the local session and reload to the sign-in screen. Also wipe the
+  // service-worker caches so one account's offline-cached data never shows to
+  // the next person who signs in on this device.
   try { localStorage.removeItem(CFG_KEY); localStorage.removeItem(DATA_KEY); } catch(e){}
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller){
+      navigator.serviceWorker.controller.postMessage({ type:"clearCache" });
+    }
+  } catch(e){}
   location.reload();
 }
 
@@ -4096,6 +4103,7 @@ function App(){
   const [placesFilter, setPlacesFilter] = useState("All"); // active city filter chip
   const [update, setUpdate]   = useState(null);            // {version} when a newer build is live
   const [updMsg, setUpdMsg]   = useState("");              // transient text for manual check
+  const [offline, setOffline] = useState(()=> typeof navigator !== "undefined" && navigator.onLine === false);
 
   const toastTimer = useRef(null);
   function flash(msg){
@@ -4189,6 +4197,20 @@ function App(){
     if (document.readyState === "complete") onLoad();
     else window.addEventListener("load", onLoad);
     return ()=> window.removeEventListener("load", onLoad);
+  },[]);
+
+  /* ---- online/offline indicator (offline Phase 2) ---------- */
+  // Reads still work offline (collections are cached); this just tells the user
+  // why a save might be pending. Driven by the browser's online/offline events.
+  useEffect(()=>{
+    const goOn  = ()=> setOffline(false);
+    const goOff = ()=> setOffline(true);
+    window.addEventListener("online", goOn);
+    window.addEventListener("offline", goOff);
+    return ()=>{
+      window.removeEventListener("online", goOn);
+      window.removeEventListener("offline", goOff);
+    };
   },[]);
 
   /* ---- startup --------------------------------------------- */
@@ -4632,11 +4654,19 @@ function App(){
         </div>
       )}
 
+      {/* offline: reads come from the saved copy; explain why saves wait */}
+      {offline && (
+        <div className="syncbar warn">
+          <span className="dot" style={{background:"var(--amber)"}} />
+          <span>Offline - showing your saved data{pendingCount > 0 ? "; changes will sync when you're back online" : ""}</span>
+        </div>
+      )}
+
       {/* sync status banner */}
       {sync.status === "busy" && (
         <div className="syncbar busy"><span className="spin" />{sync.msg || "Working..."}</div>
       )}
-      {sync.status === "err" && (
+      {sync.status === "err" && !offline && (
         <div className="syncbar err">
           <span className="dot" style={{background:"var(--danger)"}} />
           <span>{sync.msg}</span>

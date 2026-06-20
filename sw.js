@@ -13,16 +13,22 @@
    - VERSION is bumped together with APP_VERSION in index.html, which changes
      this file's bytes and makes the browser install the new worker.
 
-   Phase-1 scope, by request type:
+   Scope by request type:
    - app document          -> network-first, fall back to cached shell
    - version check (?vcheck=) -> NOT intercepted (always real network)
+   - GET /api/collection/* -> network-first, fall back to cached data (PHASE 2:
+                              makes saved lists/meta/splits + any collection
+                              survive offline; PUT writes are never intercepted)
    - immutable assets (cdnjs libs, Google Fonts, our own images) -> cache-first
-   - everything else (API, map tiles, list pages) -> default network
+   - everything else (other API, map tiles, list pages) -> default network
 */
 
-const VERSION = "1.106.0";                 // keep in lockstep with APP_VERSION
+const VERSION = "1.107.0";                 // keep in lockstep with APP_VERSION
 const SHELL_CACHE = "mc-shell-" + VERSION;
 const ASSET_CACHE = "mc-assets-" + VERSION;
+const DATA_CACHE  = "mc-data-v1";           // user collections; UN-versioned so it
+                                            // survives app updates (only a manual
+                                            // clearCache / logout wipes it)
 const SHELL_URL   = "/";                    // canonical key for the app document
 
 // Primed on install so even the very first offline open works.
@@ -53,7 +59,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(
-      keys.filter((k) => k !== SHELL_CACHE && k !== ASSET_CACHE)
+      keys.filter((k) => k !== SHELL_CACHE && k !== ASSET_CACHE && k !== DATA_CACHE)
           .map((k) => caches.delete(k))
     );
     await self.clients.claim();
@@ -92,6 +98,26 @@ async function shellNetworkFirst(req) {
   }
 }
 
+// Network-first for user collections, with a short timeout so a flaky
+// connection falls back to the last saved copy instead of hanging. Online
+// always revalidates, so cached data is only a fallback - never stale-on-screen
+// while connected.
+async function dataNetworkFirst(req) {
+  const cache = await caches.open(DATA_CACHE);
+  try {
+    const fresh = await Promise.race([
+      fetch(req),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+    ]);
+    if (fresh && fresh.ok) cache.put(req, fresh.clone());
+    return fresh;
+  } catch (e) {
+    const cached = await cache.match(req);
+    if (cached) return cached;
+    throw e;                                  // no cache -> surface the real error to the app
+  }
+}
+
 async function cacheFirst(req, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(req);
@@ -119,6 +145,13 @@ self.addEventListener("fetch", (event) => {
   // query'd, non-navigation fetch, so it is excluded here and hits the network.
   if (isAppDoc && (req.mode === "navigate" || !url.search)) {
     event.respondWith(shellNetworkFirst(req));
+    return;
+  }
+
+  // User collections (saved lists, meta, splits, and the core files) -> keep the
+  // last good copy for offline reads. Only GETs reach here (writes returned above).
+  if (url.pathname.indexOf("/api/collection/") !== -1) {
+    event.respondWith(dataNetworkFirst(req));
     return;
   }
 
