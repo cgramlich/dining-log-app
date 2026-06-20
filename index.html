@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.108.0";
+const APP_VERSION   = "1.109.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4106,6 +4106,7 @@ function App(){
   const [offline, setOffline] = useState(()=> typeof navigator !== "undefined" && navigator.onLine === false);
 
   const toastTimer = useRef(null);
+  const onlineFlushRef = useRef(()=>{});   // Phase 3: latest auto-flush fn for the reconnect listener
   function flash(msg){
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -4203,7 +4204,9 @@ function App(){
   // Reads still work offline (collections are cached); this just tells the user
   // why a save might be pending. Driven by the browser's online/offline events.
   useEffect(()=>{
-    const goOn  = ()=> setOffline(false);
+    // Small delay on reconnect: the "online" event can fire a beat before the
+    // connection is actually usable, so let it settle before flushing.
+    const goOn  = ()=>{ setOffline(false); setTimeout(()=> onlineFlushRef.current && onlineFlushRef.current(), 1200); };
     const goOff = ()=> setOffline(true);
     window.addEventListener("online", goOn);
     window.addEventListener("offline", goOff);
@@ -4637,6 +4640,18 @@ function App(){
   }
 
   const pendingCount = Object.keys(dirty).filter(k => dirty[k]).length;
+
+  // Phase 3: auto-flush pending offline edits the instant we reconnect. The
+  // listener (registered once) calls through this ref so it always sees fresh
+  // state. A sync pushes any dirty collections (last-writer-wins per collection,
+  // same as a manual sync); the guard avoids double-firing mid-sync.
+  onlineFlushRef.current = ()=>{
+    if (pendingCount > 0 && sync.status !== "busy" && configComplete(config)){
+      logMsg("SYNC","Back online - auto-flushing " + pendingCount + " pending change(s)");
+      flash("Back online - syncing your changes");
+      retrySync();
+    }
+  };
 
   return (
     <div id="app-shell">
