@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.109.0";
+const APP_VERSION   = "1.110.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -12884,6 +12884,134 @@ function applyTheme(key, setTheme){
   if (setTheme) setTheme(key);
 }
 
+/* ============================================================
+   PROFILE (usernames) - Phase A of the connections epic.
+   ============================================================ */
+async function getMyProfile(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/profile/me", { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("Could not load your profile.");
+  return res.json();   // { username, display_name }
+}
+async function checkUsername(cfg, username){
+  const res = await fetch(apiBase(cfg) + "/api/profile/check?username=" + encodeURIComponent(username),
+    { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("check failed");
+  return res.json();   // { username, available, reason }
+}
+async function updateMyProfile(cfg, username, displayName){
+  const res = await fetch(apiBase(cfg) + "/api/profile/me", {
+    method:"PUT",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ username, display_name: displayName || "" }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((data && data.detail) || "Could not save your profile.");
+  return data;
+}
+
+function ProfileCard({config}){
+  const [loaded, setLoaded]     = useState(false);
+  const [current, setCurrent]   = useState(null);    // server copy {username, display_name}
+  const [handle, setHandle]     = useState("");
+  const [dname, setDname]       = useState("");
+  const [check, setCheck]       = useState(null);    // {available, reason} for the typed handle
+  const [checking, setChecking] = useState(false);
+  const [busy, setBusy]         = useState(false);
+  const [msg, setMsg]           = useState("");
+  const [err, setErr]           = useState("");
+  const checkTimer = useRef(null);
+
+  useEffect(()=>{
+    let alive = true;
+    (async ()=>{
+      try {
+        const p = await getMyProfile(config);
+        if (!alive) return;
+        setCurrent(p); setHandle(p.username || ""); setDname(p.display_name || "");
+      } catch(e){ if (alive) setErr(e.message); }
+      finally { if (alive) setLoaded(true); }
+    })();
+    return ()=>{ alive = false; };
+    // eslint-disable-next-line
+  },[]);
+
+  // live availability check (debounced); skipped when the handle is unchanged.
+  useEffect(()=>{
+    setMsg("");
+    const h = handle.trim().toLowerCase();
+    if (checkTimer.current) clearTimeout(checkTimer.current);
+    if (!h || (current && h === (current.username || ""))){ setCheck(null); setChecking(false); return; }
+    setChecking(true);
+    checkTimer.current = setTimeout(async ()=>{
+      try { const r = await checkUsername(config, h); setCheck(r); }
+      catch(e){ setCheck(null); }
+      finally { setChecking(false); }
+    }, 450);
+    return ()=>{ if (checkTimer.current) clearTimeout(checkTimer.current); };
+    // eslint-disable-next-line
+  },[handle]);
+
+  async function save(){
+    setErr(""); setMsg(""); setBusy(true);
+    try {
+      const r = await updateMyProfile(config, handle.trim().toLowerCase(), dname.trim());
+      setCurrent(r); setHandle(r.username || ""); setDname(r.display_name || ""); setCheck(null);
+      setMsg("Saved");
+      logMsg("PROFILE","saved username=" + r.username);
+    } catch(e){ setErr(e.message); }
+    finally { setBusy(false); }
+  }
+
+  const h = handle.trim().toLowerCase();
+  const isCurrentHandle = !!(current && h === (current.username || "") && h);
+  const unchanged = !!(current && h === (current.username || "") && dname.trim() === (current.display_name || ""));
+  const blocked = !h || checking || (check && !check.available) || unchanged;
+
+  let status = null;
+  if (isCurrentHandle)                 status = { ok:true,  text:"This is your current handle" };
+  else if (checking)                   status = { ok:null,  text:"Checking..." };
+  else if (check && check.available)   status = { ok:true,  text:"@" + h + " is available" };
+  else if (check && check.reason === "taken")   status = { ok:false, text:"@" + h + " is already taken" };
+  else if (check && check.reason === "invalid") status = { ok:false, text:"3-20 chars, start with a letter; lowercase letters, numbers, or _" };
+
+  const hasHandle = !!(current && current.username);
+  return (
+    <>
+      <div className="set-group">Your profile</div>
+      <div className="card">
+        <div className="tiny faint" style={{marginBottom:12}}>
+          {hasHandle
+            ? "Your username is how friends find and connect with you."
+            : "Claim a username so friends can find and connect with you."}
+        </div>
+        <label className="fld"><span className="lbl">Username</span>
+          <div style={{display:"flex", alignItems:"center", gap:6}}>
+            <span className="muted" style={{fontSize:18, color:"var(--text-faint)"}}>@</span>
+            <input className="input" value={handle} placeholder="yourhandle"
+              autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={20}
+              onChange={e=> setHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g,"").toLowerCase())} />
+          </div>
+        </label>
+        {status ? (
+          <div className="tiny" style={{marginTop:-6, marginBottom:6,
+               color: status.ok===true ? "var(--ok)" : status.ok===false ? "var(--danger)" : "var(--text-faint)"}}>
+            {status.text}
+          </div>
+        ) : null}
+        <label className="fld"><span className="lbl">Display name (optional)</span>
+          <input className="input" value={dname} placeholder="e.g. Chris G" maxLength={60}
+            onChange={e=> setDname(e.target.value)} />
+        </label>
+        <button className="btn primary" onClick={save} disabled={busy || !loaded || blocked}>
+          {busy ? <span className="spin" /> : (hasHandle ? "Update profile" : "Claim username")}
+        </button>
+        {msg ? <div className="tiny" style={{marginTop:8, color:"var(--ok)"}}>{msg}</div> : null}
+        {err ? <div className="small" style={{marginTop:8, color:"var(--danger)"}}>{err}</div> : null}
+      </div>
+    </>
+  );
+}
+
 function SettingsView({config, onEdit, counts, lastSync, onResync,
                        locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
@@ -12966,6 +13094,8 @@ function SettingsView({config, onEdit, counts, lastSync, onResync,
           Servers: <b style={{color:"var(--text)"}}>MenuCaptain</b>
         </div>
       </div>
+
+      <ProfileCard config={config} />
 
       <div className="card">
         <div style={{fontWeight:600,marginBottom:4}}>Locations</div>
