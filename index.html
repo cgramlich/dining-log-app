@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.88.0";
+const APP_VERSION   = "1.89.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10935,6 +10935,7 @@ function GroupOrderGuest({code}){
   const [name, setName]       = useState(()=> { try { return localStorage.getItem("dininglog_guest_name") || ""; } catch(e){ return ""; } });
   const [sending, setSending] = useState(false);
   const [sent, setSent]       = useState(false);
+  const [placed, setPlaced]   = useState(false);   // ever submitted (sticky); sent = unchanged-since-submit
   const [err, setErr]         = useState("");
   const [showOrder, setShowOrder] = useState(false);
   const token = guestToken();
@@ -10990,7 +10991,7 @@ function GroupOrderGuest({code}){
       await groupSubmit(null, code, nm, token, list);
       try { localStorage.setItem("dininglog_guest_name", nm); } catch(e){}
       setData(await groupFetch(null, code));     // refresh the running order
-      setSent(true);
+      setSent(true); setPlaced(true);
       logMsg("GROUP","guest submitted " + list.length + " item(s)");
     } catch(e){
       setErr(e.message || "Could not send your order.");
@@ -11054,15 +11055,7 @@ function GroupOrderGuest({code}){
             </div>
           ))}
 
-          <div className="go-submit">
-            <input className="input" placeholder="Your name" value={name}
-              onChange={e=> { setName(e.target.value); setSent(false); }} style={{marginBottom:10}} />
-            <button className="btn primary" onClick={submit} disabled={sending || !selected.length || !name.trim()}>
-              {sending ? <span className="spin" /> : (sent ? "Update my order" : "Send my order")}
-            </button>
-            {sent ? <div className="small" style={{marginTop:10, color:"var(--ok)", textAlign:"center"}}>Sent! You can change it and send again.</div> : null}
-            {err ? <div className="small" style={{marginTop:10, color:"var(--danger)", textAlign:"center"}}>{err}</div> : null}
-          </div>
+          {/* name + Send live in the sticky bottom bar so they're reachable without scrolling */}
         </>
       ) : null}
 
@@ -11095,6 +11088,39 @@ function GroupOrderGuest({code}){
       <div className="tiny faint" style={{textAlign:"center", margin:"22px 0 30px"}}>
         Your name and picks are shared with whoever started this order. Nothing else.
       </div>
+
+      {/* spacer so the last items clear the fixed submit bar */}
+      {!closed && menu && Array.isArray(menu.sections) ? <div style={{height:150}} /> : null}
+      {!closed && menu && Array.isArray(menu.sections) ? (
+        <div style={{position:"fixed", left:0, right:0, bottom:0, zIndex:50,
+             background:"var(--surface)", borderTop:"1px solid var(--line)",
+             padding:"10px 16px calc(12px + env(safe-area-inset-bottom))",
+             boxShadow:"0 -6px 20px rgba(0,0,0,0.22)"}}>
+          <div style={{maxWidth:600, margin:"0 auto"}}>
+            {placed && sent ? (
+              <div style={{textAlign:"center"}}>
+                <div style={{color:"var(--ok)", fontWeight:600, marginBottom:2}}>
+                  &#10003; Order placed{name.trim() ? " - thanks, " + name.trim() : ""}!
+                </div>
+                <div className="tiny faint">It's in. Tap any item to change it, then send the update.</div>
+              </div>
+            ) : (
+              <>
+                <input className="input" placeholder="Your name" value={name}
+                  onChange={e=> { setName(e.target.value); setSent(false); }} style={{marginBottom:8}} />
+                <button className="btn primary" onClick={submit}
+                  disabled={sending || !selected.length || !name.trim()}>
+                  {sending ? <span className="spin" />
+                    : (placed ? "Update my order" : "Send my order")
+                      + (selected.length ? " (" + selected.length + ")" : "")}
+                </button>
+                {placed ? <div className="tiny faint" style={{textAlign:"center", marginTop:6}}>You have unsent changes.</div> : null}
+              </>
+            )}
+            {err ? <div className="small" style={{marginTop:8, color:"var(--danger)", textAlign:"center"}}>{err}</div> : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
