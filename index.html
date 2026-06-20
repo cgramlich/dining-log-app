@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.96.0";
+const APP_VERSION   = "1.97.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7417,6 +7417,16 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
   const [fetchedAt, setFetchedAt]   = useState(null);
   const [lastSearch, setLastSearch] = useState(null);
   const [view, setView]             = useState("list");   // list (default) | map
+  const [minStars, setMinStars]     = useState(0);        // 0 = any rating, 4 = 4 stars and up
+  const [nearSort, setNearSort]     = useState("dist");   // "dist" (closest) | "rated" (top rated)
+  // Client-side refine of the fetched results (no new Google call): optional
+  // min-rating filter + sort. The base list is already distance-sorted.
+  const shown = (function(){
+    let arr = results;
+    if (minStars > 0) arr = arr.filter(p => (typeof p.rating === "number") && p.rating >= minStars);
+    if (nearSort === "rated") arr = arr.slice().sort((a,b)=> ((b.rating||0)-(a.rating||0)) || ((b.rating_count||0)-(a.rating_count||0)));
+    return arr;
+  })();
 
   // Details sheet (nested layer over the list).
   const [detail, setDetail]             = useState(null);
@@ -7679,6 +7689,12 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
                 {searchLabel}
               </button>
             </div>
+            <div className="row" style={{gap:8, marginTop:8, overflowX:"auto"}}>
+              <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Refine</span>
+              <button style={chip(minStars === 4)} onClick={()=> setMinStars(v => v === 4 ? 0 : 4)}>4&#9733;+</button>
+              <button style={chip(nearSort === "dist")}  onClick={()=> setNearSort("dist")}>Closest</button>
+              <button style={chip(nearSort === "rated")} onClick={()=> setNearSort("rated")}>Top rated</button>
+            </div>
           </div>
         )}
 
@@ -7687,8 +7703,8 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
           <div className="row" style={{justifyContent:"space-between", alignItems:"center", padding:"8px 14px"}}>
             <span className="faint" style={{fontSize:12}}>
               {loading ? "Searching..."
-                : (results.length
-                    ? results.length + " place" + (results.length===1?"":"s") + " - as of " + hhmm(fetchedAt)
+                : (shown.length
+                    ? shown.length + " place" + (shown.length===1?"":"s") + " - as of " + hhmm(fetchedAt)
                     : "")}
             </span>
             <div className="row" style={{gap:6}}>
@@ -7714,14 +7730,14 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
             <div className="empty"><span className="spin" /></div>
           )}
 
-          {!loading && view === "list" && fetchedAt && !results.length && !error && (
+          {!loading && view === "list" && fetchedAt && !shown.length && !error && (
             <div className="empty" style={{padding:"30px 22px"}}>
-              <div className="big">Nothing found here</div>
-              <div>Try a wider radius or a different type.</div>
+              <div className="big">{results.length ? "No matches" : "Nothing found here"}</div>
+              <div>{results.length ? "Try turning off 4-star+ or switching to Closest." : "Try a wider radius or a different type."}</div>
             </div>
           )}
 
-          {!loading && view === "list" && results.map(p => {
+          {!loading && view === "list" && shown.map(p => {
             const hard = hardMatch(p.place_id);
             const soft = !hard && softMatch(p);
             const dollars = priceLevelToDollars(p.price_level);
@@ -7761,7 +7777,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
 
           {!loading && view === "map" && (
             (results.length || userLoc)
-              ? <NearbyMap user={userLoc} results={results} onOpen={openDetails}
+              ? <NearbyMap user={userLoc} results={shown} onOpen={openDetails}
                   searchCenter={searchCenter}
                   onSearchArea={(lat,lng,radius)=> runSearch({ lat:lat, lng:lng, radius_m:radius })} />
               : <div className="empty" style={{padding:"30px 22px"}}><div>Search to see places on the map.</div></div>
