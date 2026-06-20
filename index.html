@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.110.0";
+const APP_VERSION   = "1.111.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4104,6 +4104,7 @@ function App(){
   const [update, setUpdate]   = useState(null);            // {version} when a newer build is live
   const [updMsg, setUpdMsg]   = useState("");              // transient text for manual check
   const [offline, setOffline] = useState(()=> typeof navigator !== "undefined" && navigator.onLine === false);
+  const [usernameNudge, setUsernameNudge] = useState(false);  // first-run "pick a username" prompt
 
   const toastTimer = useRef(null);
   const onlineFlushRef = useRef(()=>{});   // Phase 3: latest auto-flush fn for the reconnect listener
@@ -4215,6 +4216,27 @@ function App(){
       window.removeEventListener("offline", goOff);
     };
   },[]);
+
+  /* ---- first-run username nudge (connections Phase A) ------- */
+  // Once the app is ready and signed in, if this account has no handle yet and
+  // hasn't skipped before, offer to pick one. Covers new AND existing users
+  // (anyone logged in without a username). Silent if the profiles table isn't
+  // set up yet or we're offline.
+  useEffect(()=>{
+    if (!ready || needSetup || !configComplete(config)) return;
+    let skipped = false;
+    try { skipped = localStorage.getItem("dininglog_username_nudge") != null; } catch(e){}
+    if (skipped) return;
+    let alive = true;
+    (async ()=>{
+      try {
+        const p = await getMyProfile(config);
+        if (alive && p && !p.username) setUsernameNudge(true);
+      } catch(e){ /* table missing / offline -> don't prompt */ }
+    })();
+    return ()=>{ alive = false; };
+    // eslint-disable-next-line
+  },[ready, needSetup]);
 
   /* ---- startup --------------------------------------------- */
   useEffect(()=>{
@@ -4675,6 +4697,12 @@ function App(){
           <span className="dot" style={{background:"var(--amber)"}} />
           <span>Offline - showing your saved data{pendingCount > 0 ? "; changes will sync when you're back online" : ""}</span>
         </div>
+      )}
+
+      {usernameNudge && (
+        <UsernameNudge config={config}
+          onClose={()=>{ try{ localStorage.setItem("dininglog_username_nudge","skipped"); }catch(e){} setUsernameNudge(false); }}
+          onClaimed={()=>{ try{ localStorage.setItem("dininglog_username_nudge","done"); }catch(e){} setUsernameNudge(false); flash("Username claimed"); }} />
       )}
 
       {/* sync status banner */}
@@ -13009,6 +13037,100 @@ function ProfileCard({config}){
         {err ? <div className="small" style={{marginTop:8, color:"var(--danger)"}}>{err}</div> : null}
       </div>
     </>
+  );
+}
+
+// Derive a sensible starting handle from the email local-part: lowercased,
+// stripped to valid chars, forced to start with a letter, capped at 20.
+function suggestHandle(email){
+  let h = ((email || "").split("@")[0] || "").toLowerCase().replace(/[^a-z0-9_]/g, "");
+  if (!h) h = "user";
+  if (!/^[a-z]/.test(h)) h = "u" + h;
+  return h.slice(0, 20);
+}
+
+// First-run, skippable prompt shown to anyone signed in WITHOUT a handle yet -
+// covers both new sign-ups and existing users (Phase A launched after they
+// joined). Skipping sets a flag so it won't nag; Settings keeps the full card.
+function UsernameNudge({config, onClose, onClaimed}){
+  const [handle, setHandle]     = useState(()=> suggestHandle(config.email));
+  const [dname, setDname]       = useState("");
+  const [check, setCheck]       = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [busy, setBusy]         = useState(false);
+  const [err, setErr]           = useState("");
+  const t = useRef(null);
+
+  useEffect(()=>{
+    const h = handle.trim().toLowerCase();
+    if (t.current) clearTimeout(t.current);
+    if (!h){ setCheck(null); setChecking(false); return; }
+    setChecking(true);
+    t.current = setTimeout(async ()=>{
+      try { setCheck(await checkUsername(config, h)); } catch(e){ setCheck(null); }
+      finally { setChecking(false); }
+    }, 450);
+    return ()=>{ if (t.current) clearTimeout(t.current); };
+    // eslint-disable-next-line
+  },[handle]);
+
+  async function claim(){
+    setErr(""); setBusy(true);
+    try {
+      const r = await updateMyProfile(config, handle.trim().toLowerCase(), dname.trim());
+      logMsg("PROFILE","claimed via nudge username=" + r.username);
+      onClaimed && onClaimed(r);
+    } catch(e){ setErr(e.message); }
+    finally { setBusy(false); }
+  }
+
+  const h = handle.trim().toLowerCase();
+  const blocked = !h || checking || (check && !check.available);
+  let status = null;
+  if (checking)                                 status = { ok:null,  text:"Checking..." };
+  else if (check && check.available)            status = { ok:true,  text:"@" + h + " is available" };
+  else if (check && check.reason === "taken")   status = { ok:false, text:"@" + h + " is taken - try another" };
+  else if (check && check.reason === "invalid") status = { ok:false, text:"3-20 chars, start with a letter; lowercase letters, numbers, or _" };
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <span style={{width:34}} />
+        <h2>Pick a username</h2>
+        <span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        <div className="small muted" style={{marginBottom:14, lineHeight:1.6}}>
+          This is how friends find and connect with you on MenuCaptain. You can
+          change it later in Settings.
+        </div>
+        <label className="fld"><span className="lbl">Username</span>
+          <div style={{display:"flex", alignItems:"center", gap:6}}>
+            <span style={{fontSize:18, color:"var(--text-faint)"}}>@</span>
+            <input className="input" value={handle} placeholder="yourhandle"
+              autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={20}
+              onChange={e=> setHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g,"").toLowerCase())} />
+          </div>
+        </label>
+        {status ? (
+          <div className="tiny" style={{marginTop:-6, marginBottom:6,
+               color: status.ok===true ? "var(--ok)" : status.ok===false ? "var(--danger)" : "var(--text-faint)"}}>
+            {status.text}
+          </div>
+        ) : null}
+        <label className="fld"><span className="lbl">Display name (optional)</span>
+          <input className="input" value={dname} placeholder="e.g. Chris G" maxLength={60}
+            onChange={e=> setDname(e.target.value)} />
+        </label>
+        <button className="btn primary" onClick={claim} disabled={busy || blocked}>
+          {busy ? <span className="spin" /> : "Claim username"}
+        </button>
+        <button className="btn ghost" style={{marginTop:8, width:"100%"}} onClick={onClose} disabled={busy}>
+          Set up later
+        </button>
+        {err ? <div className="small" style={{marginTop:10, color:"var(--danger)", textAlign:"center"}}>{err}</div> : null}
+      </div>
+    </div>
   );
 }
 
