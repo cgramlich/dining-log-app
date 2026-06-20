@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.95.0";
+const APP_VERSION   = "1.95.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5884,7 +5884,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         : "Couldn't reach Google - try again.");
     } finally { setEnrichBusy(false); }
   }
-  const menuList = menus || [];
+  // A menu labeled "Main" pins to the top; everything else keeps its order
+  // (Array.sort is stable, so non-Main menus stay as they were).
+  const menuList = (menus || []).slice().sort((a,b)=>
+    ((((a.label||"").trim().toLowerCase() === "main") ? 0 : 1)
+     - (((b.label||"").trim().toLowerCase() === "main") ? 0 : 1)));
 
   // ---- dish memory: what to order again here -------------------------
   // For each distinct dish (case-insensitive), we go by its MOST RECENT
