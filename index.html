@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.101.0";
+const APP_VERSION   = "1.101.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10757,10 +10757,11 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
   const [picked, setPicked] = useState(()=> {
     const s = {}; usable.forEach(m => { s[m.menu_id] = true; }); return s;
   });
+  const [chosenAuto, setChosenAuto] = useState(false);   // confirmed via the menu picker -> auto-start
   const restaurantName = restaurant ? restaurant.name : "";
 
   if (chosen){
-    return <GroupOrderHost cfg={cfg} menu={chosen} restaurantName={restaurantName} onClose={onClose} allMenus={usable} />;
+    return <GroupOrderHost cfg={cfg} menu={chosen} restaurantName={restaurantName} onClose={onClose} allMenus={usable} autoStart={chosenAuto} />;
   }
   if (usable.length === 0){
     return (
@@ -10801,7 +10802,7 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
           );
         })}
         <button className="btn primary" style={{marginTop:14}} disabled={!chosenList.length}
-          onClick={()=> setChosen(combineGroupMenus(chosenList))}>
+          onClick={()=>{ setChosen(combineGroupMenus(chosenList)); setChosenAuto(true); }}>
           {chosenList.length > 1 ? ("Start with these " + chosenList.length + " menus") : "Start group order"}
         </button>
       </div>
@@ -10887,7 +10888,7 @@ function GroupOrderButton({cfg, menu, restaurantName}){
 // Host overlay: start (or resume) a session, share the link, and watch the
 // order build live (polling). The active code is remembered per menu so the
 // host can reopen the same session.
-function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenus}){
+function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenus, autoStart}){
   const menuKey = (menu && menu.menu_id) || null;
   const [data, setData]         = useState(null);
   const [code, setCode]         = useState(()=> {
@@ -11030,6 +11031,16 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
     return ()=> { alive = false; clearInterval(id); };
   }, [code]);
 
+  // Came straight from the menu picker -> skip the intro and create the order
+  // immediately (unless a code already exists for this menu combo, i.e. resume).
+  const autoStarted = useRef(false);
+  useEffect(()=>{
+    if (autoStart && !code && !autoStarted.current){
+      autoStarted.current = true;
+      start();
+    }
+    // eslint-disable-next-line
+  }, []);
   async function start(){
     setErr(""); setStarting(true);
     try {
@@ -11084,18 +11095,36 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
       </div>
       <div className="go-body">
         {!code ? (
-          <div className="card">
-            <div style={{fontWeight:600, marginBottom:6}}>Start a group order</div>
-            <div className="small muted" style={{lineHeight:1.7, marginBottom:14}}>
-              Share a link to {restaurantName || "this menu"}. Everyone you send it to opens it,
-              picks what they want - with quantities and notes - and you watch the order come
-              together here. No app needed on their end.
+          autoStart ? (
+            <div className="card" style={{textAlign:"center", padding:"30px 14px"}}>
+              {err ? (
+                <>
+                  <div className="small" style={{marginBottom:12, color:"var(--danger)"}}>{err}</div>
+                  <button className="btn primary" onClick={start} disabled={starting}>
+                    {starting ? <span className="spin" /> : "Start group order"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="spin" style={{margin:"0 auto 12px"}} />
+                  <div className="small muted">Starting your group order&hellip;</div>
+                </>
+              )}
             </div>
-            <button className="btn primary" onClick={start} disabled={starting}>
-              {starting ? <span className="spin" /> : "Start group order"}
-            </button>
-            {err ? <div className="small" style={{marginTop:10, color:"var(--danger)"}}>{err}</div> : null}
-          </div>
+          ) : (
+            <div className="card">
+              <div style={{fontWeight:600, marginBottom:6}}>Start a group order</div>
+              <div className="small muted" style={{lineHeight:1.7, marginBottom:14}}>
+                Share a link to {restaurantName || "this menu"}. Everyone you send it to opens it,
+                picks what they want - with quantities and notes - and you watch the order come
+                together here. No app needed on their end.
+              </div>
+              <button className="btn primary" onClick={start} disabled={starting}>
+                {starting ? <span className="spin" /> : "Start group order"}
+              </button>
+              {err ? <div className="small" style={{marginTop:10, color:"var(--danger)"}}>{err}</div> : null}
+            </div>
+          )
         ) : (
           <>
             {editTarget && (
