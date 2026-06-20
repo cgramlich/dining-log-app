@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.92.0";
+const APP_VERSION   = "1.93.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8372,6 +8372,16 @@ function RestaurantForm({existing, prefill, locations, cfg, onClose, onSave}){
 function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition}){
   const [restId,setRestId] = useState(
     existing ? existing.restaurant_id : (presetRestaurantId || ""));
+  // Searchable, sorted restaurant picker (replaces a plain <select>).
+  const [restQuery,setRestQuery] = useState("");
+  const [restOpen,setRestOpen]   = useState(false);
+  const chosenRest   = restaurants.find(r => r.id === restId) || null;
+  const sortedRests  = restaurants.slice().sort((a,b)=>
+    (Number(!!b.favorite) - Number(!!a.favorite)) || (a.name || "").localeCompare(b.name || ""));
+  const rq = restQuery.trim().toLowerCase();
+  const filteredRests = rq
+    ? sortedRests.filter(r => ((r.name||"") + " " + (r.cuisine||"") + " " + (r.location||"")).toLowerCase().includes(rq))
+    : sortedRests;
   const [date,setDate]     = useState(existing ? existing.date : todayISO());
   const [rating,setRating] = useState(existing ? existing.rating : 0);
   const ratingRef = useRef(null);
@@ -8920,12 +8930,40 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
           style={{color:restId?"var(--accent)":"var(--text-faint)"}}>Save</button>
       </div>
       <div className="ovbody">
-        <label className="fld"><span className="lbl">Restaurant</span>
-          <select className="input" value={restId} onChange={e=>setRestId(e.target.value)}>
-            <option value="">Choose a restaurant...</option>
-            {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-        </label>
+        <label className="fld"><span className="lbl">Restaurant</span></label>
+        <div style={{position:"relative", marginBottom:14}}>
+          {chosenRest && !restOpen ? (
+            <div className="input" style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer"}}
+              onClick={()=>{ setRestOpen(true); setRestQuery(""); }}>
+              <span style={{flex:1, minWidth:0}}>{chosenRest.name}</span>
+              <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>Change</span>
+            </div>
+          ) : (
+            <>
+              <input className="input" autoFocus={restOpen} placeholder="Search your places..."
+                value={restQuery}
+                onChange={e=>{ setRestQuery(e.target.value); setRestOpen(true); }}
+                onFocus={()=> setRestOpen(true)} />
+              {restOpen ? (
+                <div className="card" style={{marginTop:6, maxHeight:240, overflowY:"auto", padding:"4px 0"}}>
+                  {filteredRests.length === 0 ? (
+                    <div className="small muted" style={{padding:"10px 14px"}}>No places match.</div>
+                  ) : filteredRests.map(r => (
+                    <div key={r.id} className="pick-row"
+                      style={{padding:"11px 14px", display:"flex", alignItems:"center", gap:8}}
+                      onClick={()=>{ setRestId(r.id); setRestOpen(false); setRestQuery(""); }}>
+                      {r.favorite ? <span style={{color:"var(--accent)", flex:"none"}}>&#9733;</span> : null}
+                      <span style={{flex:1, minWidth:0}}>{r.name}</span>
+                      {(r.cuisine || r.location)
+                        ? <span className="tiny faint" style={{flex:"none"}}>{[r.cuisine, r.location].filter(Boolean).join(" · ")}</span>
+                        : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
 
         <label className="fld"><span className="lbl">Date</span>
           <input className="input" type="date" value={date}
