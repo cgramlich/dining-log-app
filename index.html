@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.91.2";
+const APP_VERSION   = "1.92.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4614,6 +4614,7 @@ function App(){
           <HistoryView visits={visits} restaurantById={restaurantById}
             cfg={config} syncing={sync.status === "busy"}
             onSplitVisit={(v)=> setOverlay({ type:"splitCheck", fromVisit:v })}
+            onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
             onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
         )}
         {tab === "restaurants" && (
@@ -5346,7 +5347,7 @@ function VisitSplit({split}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit}){
+function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   if (!visits.length){
@@ -5451,7 +5452,12 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
               </div>
             )}
             <div className="between">
-              <div className="place-name">{r ? r.name : (v.restaurant_name || "Unknown")}</div>
+              {r && onOpenRestaurant ? (
+                <div className="place-name" style={{cursor:"pointer", color:"var(--accent)"}}
+                  onClick={(e)=>{ e.stopPropagation(); onOpenRestaurant(r.id); }}>{r.name}</div>
+              ) : (
+                <div className="place-name">{r ? r.name : (v.restaurant_name || "Unknown")}</div>
+              )}
               {v.rating ? <Stars value={v.rating} showNum /> : null}
             </div>
             <div className="meta-line" style={{marginTop:4}}>
@@ -5673,11 +5679,18 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   ) : visible;
 
   const byName = (a,b)=> (a.name || "").localeCompare(b.name || "");
+  // Average of a place's own visit ratings (for the "Highest rated" sort, to
+  // match History). -1 when it has no rated visits, so unrated sink to the end.
+  const avgRating = (rid)=> {
+    const rs = (visits || []).filter(v => v.restaurant_id === rid && typeof v.rating === "number").map(v => v.rating);
+    return rs.length ? (rs.reduce((a,b)=> a + b, 0) / rs.length) : -1;
+  };
   const favsSorted   = searched.filter(r => r.favorite).sort(byName);
   const othersSorted = searched.filter(r => !r.favorite).sort(byName);
-  const ordered = sortBy === "added"
-    ? [...searched].sort((a,b)=> (b.added_date || "").localeCompare(a.added_date || "") || byName(a,b))
-    : [...searched].sort(byName);  // "alpha"
+  const ordered =
+    sortBy === "added"  ? [...searched].sort((a,b)=> (b.added_date || "").localeCompare(a.added_date || "") || byName(a,b)) :
+    sortBy === "rating" ? [...searched].sort((a,b)=> (avgRating(b.id) - avgRating(a.id)) || byName(a,b)) :
+                          [...searched].sort(byName);  // "alpha"
 
   const Card = (r)=> (
     <div key={r.id} className="card tap" onClick={()=> onOpen(r)}
@@ -5801,6 +5814,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         <span className="sortbar-lbl">Sort</span>
         <span className={"chip pick" + (sortBy === "alpha" ? " on" : "")} onClick={()=> setSortBy("alpha")}>A&ndash;Z</span>
         <span className={"chip pick" + (sortBy === "added" ? " on" : "")} onClick={()=> setSortBy("added")}>Recently added</span>
+        <span className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</span>
         <span className={"chip pick" + (sortBy === "fav" ? " on" : "")} onClick={()=> setSortBy("fav")}>Favorites</span>
       </div>
 
