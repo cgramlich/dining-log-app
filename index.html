@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.103.0";
+const APP_VERSION   = "1.104.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6651,7 +6651,7 @@ function RestaurantPicker({restaurants, onClose, onPick, title}){
 //   receiptTotal : the scanned grand total (dollars, incl. tax) or null/""
 // Returns { people:[{name,lineCents,shareCents,totalCents}], grandCents,
 //           lineSubtotalCents, overageCents }.
-function computeManualSplit(lines, people, assign, tip, receiptTotal, shares){
+function computeManualSplit(lines, people, assign, tip, receiptTotal){
   const names = (people || []).filter(n => (n || "").trim());
   const toCents = d => Math.round((Number(d) || 0) * 100);
 
@@ -6671,17 +6671,9 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal, shares){
       .filter(n => lineCents.hasOwnProperty(n));
     if (!who.length) who = names.slice();
     if (!who.length) return;
-    // Weighted shares ("N ways, I had M"): each sharer carries `shares` units of
-    // this line (default 1 = even split). Their cost = cents * weight / totalW.
-    const lineShares = (shares && shares[ln.id]) || {};
-    const weights = who.map(n => Math.max(1, parseInt(lineShares[n], 10) || 1));
-    const totalW = weights.reduce((a, b) => a + b, 0) || who.length;
-    const per = who.map((n, j) => Math.floor(cents * weights[j] / totalW));
-    let rem = cents - per.reduce((a, b) => a + b, 0);   // leftover cents
-    // leftover cents go to the highest-weight sharers first
-    const order = who.map((n, j) => j).sort((a, b) => weights[b] - weights[a]);
-    for (let k = 0; k < rem; k++){ per[order[k % order.length]] += 1; }
-    who.forEach((n, j) => { lineCents[n] += per[j]; });
+    const base = Math.floor(cents / who.length);
+    let rem = cents - base * who.length;    // spread the odd cents
+    who.forEach((n, j) => { lineCents[n] += base + (j < rem ? 1 : 0); });
   });
 
   // grand total: the receipt total (already includes tax) when we have one,
@@ -6779,7 +6771,6 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     : (fallbackPeople.length ? fallbackPeople.slice() : []));
   const [nameDraft, setNameDraft] = useState("");
   const [assign, setAssign]   = useState(reopened && reopened.assign ? reopened.assign : {});  // {lineId:[name]}
-  const [shares, setShares]   = useState(reopened && reopened.shares ? reopened.shares : {});  // {lineId:{name:count}} - uneven shares
   const [tip, setTip]         = useState(reopened && reopened.tip != null ? String(reopened.tip) : "");
   const [tipMode, setTipMode] = useState(reopened && reopened.tipMode ? reopened.tipMode : "$");
   const [tax, setTax]         = useState(() => {
@@ -6943,16 +6934,8 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const grandPreview = overriding ? Math.max(subtotalCents, overrideCents) : computedGrandCents;
   const canSplit = people.length >= 2 && grandPreview > 0;
 
-  function bumpShare(lineId, nm, delta){
-    setShares(s => {
-      const line = Object.assign({}, s[lineId] || {});
-      const cur = Math.max(1, parseInt(line[nm], 10) || 1);
-      line[nm] = Math.max(1, Math.min(20, cur + delta));
-      return Object.assign({}, s, { [lineId]: line });
-    });
-  }
   function doSplit(){
-    const res = computeManualSplit(lines, people, assign, "", String(grandPreview/100), shares);
+    const res = computeManualSplit(lines, people, assign, "", String(grandPreview/100));
     setSplit(res);
     logMsg("SPLIT","Computed split across " + res.people.length +
            " people, grand=" + money(res.grandCents));
@@ -6985,7 +6968,6 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       rtotal: rtotal,
       people: people.slice(),
       assign: assign,
-      shares: shares,
       tip: tip, tipMode: tipMode,
       tax: tax, taxMode: taxMode,
     };
@@ -7234,24 +7216,6 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                             className={"chip" + (who.includes(p) ? " on" : "")}
                             onClick={()=> toggleAssign(l.id, p)}>{p}</span>
                         ))}
-                      </div>
-                    )}
-                    {people.length > 0 && who.length >= 2 && (
-                      <div style={{display:"flex", flexWrap:"wrap", gap:8, marginTop:6, alignItems:"center"}}>
-                        <span className="tiny faint">Shares</span>
-                        {who.map(p => {
-                          const sc = Math.max(1, parseInt((shares[l.id]||{})[p], 10) || 1);
-                          return (
-                            <span key={p} style={{display:"inline-flex", alignItems:"center", gap:4}}>
-                              <span className="tiny">{p}</span>
-                              <button className="btn ghost" style={{width:"auto",padding:"0 8px",height:"24px",fontSize:"13px",flex:"none"}}
-                                onClick={()=> bumpShare(l.id, p, -1)}>&minus;</button>
-                              <span className="tiny" style={{minWidth:12, textAlign:"center"}}>{sc}</span>
-                              <button className="btn ghost" style={{width:"auto",padding:"0 8px",height:"24px",fontSize:"13px",flex:"none"}}
-                                onClick={()=> bumpShare(l.id, p, 1)}>+</button>
-                            </span>
-                          );
-                        })}
                       </div>
                     )}
                     {people.length > 0 && !who.length && (
