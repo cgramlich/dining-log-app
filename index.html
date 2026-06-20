@@ -16,6 +16,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="MenuCaptain" />
   <meta name="theme-color" content="#1b1714" />
+  <link rel="manifest" href="/manifest.json" />
   <title>MenuCaptain</title>
   <!-- Fallback link-preview tags: per-list pages under l/ carry their own
        richer tags; these cover direct links to the app itself. -->
@@ -831,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.105.1";
+const APP_VERSION   = "1.106.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4172,6 +4173,22 @@ function App(){
       document.removeEventListener("visibilitychange", onVis);
     };
     // eslint-disable-next-line
+  },[]);
+
+  /* ---- service worker (offline Phase 1) -------------------- */
+  // Register sw.js for app-shell caching + installability. It is intentionally
+  // additive: the network-first shell + version-tied caches mean it never
+  // overrides the in-app updater above. Registration failures are non-fatal.
+  useEffect(()=>{
+    if (!("serviceWorker" in navigator)) return;
+    const onLoad = ()=>{
+      navigator.serviceWorker.register("/sw.js")
+        .then(()=> logMsg("SW","registered"))
+        .catch((e)=> logMsg("SW","register failed: " + (e && e.message)));
+    };
+    if (document.readyState === "complete") onLoad();
+    else window.addEventListener("load", onLoad);
+    return ()=> window.removeEventListener("load", onLoad);
   },[]);
 
   /* ---- startup --------------------------------------------- */

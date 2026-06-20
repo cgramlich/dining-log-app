@@ -1,0 +1,19 @@
+{
+  "name": "MenuCaptain",
+  "short_name": "MenuCaptain",
+  "description": "A private notebook for eating out - scan menus, track what you eat, and order together.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1b1714",
+  "theme_color": "#1b1714",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
