@@ -20,15 +20,20 @@
                               makes saved lists/meta/splits + any collection
                               survive offline; PUT writes are never intercepted)
    - immutable assets (cdnjs libs, Google Fonts, our own images) -> cache-first
-   - everything else (other API, map tiles, list pages) -> default network
+   - OSM map tiles -> cache-first into a size-capped cache (PHASE 4: maps you've
+                      already viewed render offline). PASSIVE only - we never
+                      pre-fetch areas, which would violate OSM's tile policy.
+   - everything else (other API, list pages) -> default network
 */
 
-const VERSION = "1.107.0";                 // keep in lockstep with APP_VERSION
+const VERSION = "1.108.0";                 // keep in lockstep with APP_VERSION
 const SHELL_CACHE = "mc-shell-" + VERSION;
 const ASSET_CACHE = "mc-assets-" + VERSION;
 const DATA_CACHE  = "mc-data-v1";           // user collections; UN-versioned so it
                                             // survives app updates (only a manual
                                             // clearCache / logout wipes it)
+const TILE_CACHE  = "mc-tiles-v1";          // OSM tiles, UN-versioned, size-capped
+const TILE_MAX    = 400;                     // ~400 tiles (~6-12MB); FIFO trim
 const SHELL_URL   = "/";                    // canonical key for the app document
 
 // Primed on install so even the very first offline open works.
@@ -59,7 +64,8 @@ self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(
-      keys.filter((k) => k !== SHELL_CACHE && k !== ASSET_CACHE && k !== DATA_CACHE)
+      keys.filter((k) => k !== SHELL_CACHE && k !== ASSET_CACHE &&
+                         k !== DATA_CACHE && k !== TILE_CACHE)
           .map((k) => caches.delete(k))
     );
     await self.clients.claim();
@@ -118,6 +124,34 @@ async function dataNetworkFirst(req) {
   }
 }
 
+// Keep a cache from growing without bound: Cache Storage preserves insertion
+// order, so deleting the first entries is a simple FIFO eviction.
+async function trimCache(cacheName, max) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  const over = keys.length - max;
+  for (let i = 0; i < over; i++) await cache.delete(keys[i]);
+}
+
+// OSM tiles: cache-first (tiles change very rarely), bounded by TILE_MAX. Tiles
+// are loaded by Leaflet <img> as no-cors, so responses are opaque - still fine
+// to cache and serve back.
+async function cacheTile(req) {
+  const cache = await caches.open(TILE_CACHE);
+  const cached = await cache.match(req);
+  if (cached) return cached;
+  try {
+    const fresh = await fetch(req);
+    if (fresh && (fresh.ok || fresh.type === "opaque")) {
+      await cache.put(req, fresh.clone());
+      trimCache(TILE_CACHE, TILE_MAX);      // fire-and-forget bound
+    }
+    return fresh;
+  } catch (e) {
+    return cached || Response.error();
+  }
+}
+
 async function cacheFirst(req, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(req);
@@ -152,6 +186,12 @@ self.addEventListener("fetch", (event) => {
   // last good copy for offline reads. Only GETs reach here (writes returned above).
   if (url.pathname.indexOf("/api/collection/") !== -1) {
     event.respondWith(dataNetworkFirst(req));
+    return;
+  }
+
+  // OSM map tiles -> cache-first, size-capped (passive offline maps).
+  if (url.hostname === "tile.openstreetmap.org") {
+    event.respondWith(cacheTile(req));
     return;
   }
 
