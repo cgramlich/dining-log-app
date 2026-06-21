@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.118.0";
+const APP_VERSION   = "1.119.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4850,6 +4850,7 @@ function App(){
             lists={lists} meta={meta} splits={splits}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             onOpenPassport={()=> setOverlay({ type:"passport" })}
+            onOpenLeaderboard={()=> setOverlay({ type:"leaderboard" })}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
             onLogVisit={()=> setOverlay({ type:"logVisit" })}
             onAddPlace={()=> setOverlay({ type:"addRestaurant" })}
@@ -4933,6 +4934,10 @@ function App(){
       {overlay && overlay.type === "connections" && (
         <ConnectionsScreen config={config} profile={profile}
           onClose={()=> { setOverlay(null); refreshPendingReqs(); }} />
+      )}
+      {overlay && overlay.type === "leaderboard" && (
+        <LeaderboardScreen config={config} profile={profile} onProfileChange={setProfile}
+          onClose={()=> setOverlay(null)} />
       )}
 
       {overlay && overlay.type === "groupStartMenu" && (
@@ -5400,7 +5405,7 @@ function SearchBar({value, onChange, placeholder}){
 // that opens the thing it is about - an inviting button, never a "go earn this"
 // nag. Earned state is derived the same pure way Settings used to compute it.
 function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
-                        onOpenYearInFood, onOpenPassport,
+                        onOpenYearInFood, onOpenPassport, onOpenLeaderboard,
                         onScanMenu, onLogVisit, onAddPlace, onPublishList, onShareApp,
                         onOpenSplit, onNewSplit, onDeleteSplit }){
   const [confirmDel, setConfirmDel] = useState(null);   // split id pending delete confirm
@@ -5436,6 +5441,18 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
           <Icon name="back" size={15} color="var(--text-faint)" />
         </span>
       </div>
+      {onOpenLeaderboard ? (
+        <div className="yif-entry tap" onClick={onOpenLeaderboard}>
+          <span className="yif-entry-ic"><Icon name="nodes" size={16} color="var(--accent)" /></span>
+          <span className="yif-entry-tx">
+            <span className="yif-entry-t">Leaderboard</span>
+            <span className="yif-entry-s">How you and your friends stack up</span>
+          </span>
+          <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+            <Icon name="back" size={15} color="var(--text-faint)" />
+          </span>
+        </div>
+      ) : null}
 
       <div className="set-group" style={{marginTop:18}}>Your splits</div>
       <div className="card">
@@ -13494,6 +13511,109 @@ function ConnectionsScreen({config, profile, onClose}){
             {err ? <div className="small" style={{marginTop:10, color:"var(--danger)"}}>{err}</div> : null}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   LEADERBOARD (connection-scoped, opt-out).
+   ============================================================ */
+async function getLeaderboard(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/leaderboard", { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("Could not load the leaderboard.");
+  return res.json();   // { leaderboard: [{username, display_name, places, cities, meals, is_me}] }
+}
+async function setLeaderboardVisibility(cfg, on){
+  const res = await fetch(apiBase(cfg) + "/api/profile/leaderboard", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ on: !!on }),
+  });
+  if (!res.ok) throw new Error("Could not update.");
+  return res.json();
+}
+
+function LeaderboardScreen({config, profile, onProfileChange, onClose}){
+  const [rows, setRows]   = useState(null);
+  const [err, setErr]     = useState("");
+  const [vis, setVis]     = useState(()=> !(profile && profile.show_on_leaderboard === false));
+  const [visBusy, setVisBusy] = useState(false);
+
+  useEffect(()=>{
+    let alive = true;
+    getLeaderboard(config)
+      .then(d => { if (alive) setRows((d && d.leaderboard) || []); })
+      .catch(e => { if (alive){ setErr(e.message); setRows([]); } });
+    return ()=>{ alive = false; };
+    // eslint-disable-next-line
+  },[]);
+
+  async function toggleVis(){
+    const next = !vis; setVis(next); setVisBusy(true);
+    try {
+      await setLeaderboardVisibility(config, next);
+      if (onProfileChange && profile) onProfileChange(Object.assign({}, profile, { show_on_leaderboard: next }));
+    } catch(e){ setVis(!next); }
+    finally { setVisBusy(false); }
+  }
+
+  const hasHandle = !!(profile && profile.username);
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>Leaderboard</h2><span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        <div className="small muted" style={{marginBottom:14, lineHeight:1.6}}>
+          You and your connections, ranked by places explored. Only people who haven't hidden themselves appear.
+        </div>
+        {!hasHandle ? (
+          <div className="card" style={{marginBottom:12}}>
+            <div className="small">Claim a username (Settings &rarr; Your profile) to join the leaderboard.</div>
+          </div>
+        ) : null}
+        {rows === null ? (
+          <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
+        ) : rows.length === 0 ? (
+          <div className="small faint" style={{padding:"4px 2px"}}>
+            No one to rank yet. Connect with friends (Settings &rarr; Connections) and they'll show up here.
+          </div>
+        ) : (
+          <div className="card" style={{padding:"2px 0"}}>
+            {rows.map((r,i)=>{
+              const l = connLabel(r);
+              return (
+                <div key={r.username || i} className="ago-row" style={{cursor:"default"}}>
+                  <div style={{width:24, textAlign:"center", fontWeight:700, flex:"none",
+                       color: i===0 ? "var(--accent)" : "var(--text-faint)"}}>{i+1}</div>
+                  <div className="ago-row-main" style={{flex:1, minWidth:0}}>
+                    <div className="ago-row-name">{l.primary}{r.is_me ? " (you)" : ""}</div>
+                    <div className="tiny faint">{r.meals} meal{r.meals===1?"":"s"} &middot; {r.cities} cit{r.cities===1?"y":"ies"}</div>
+                  </div>
+                  <div style={{textAlign:"right", flex:"none"}}>
+                    <div style={{fontWeight:700, fontSize:18}}>{r.places}</div>
+                    <div className="tiny faint">places</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {err ? <div className="small" style={{marginTop:10, color:"var(--danger)"}}>{err}</div> : null}
+        {hasHandle ? (
+          <div className="card" style={{marginTop:14}}>
+            <div className="between">
+              <div style={{minWidth:0}}>
+                <div style={{fontWeight:600}}>Show me on leaderboards</div>
+                <div className="tiny faint" style={{marginTop:3}}>Let your connections see your stats.</div>
+              </div>
+              <button className={"btn sm " + (vis ? "primary" : "ghost")} disabled={visBusy} onClick={toggleVis}>
+                {visBusy ? <span className="spin" /> : (vis ? "On" : "Off")}
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
