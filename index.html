@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.116.0";
+const APP_VERSION   = "1.117.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5838,10 +5838,15 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("alpha");
   if (!restaurants.length){
+    // Still surface group orders / invites - a brand-new account (e.g. someone
+    // invited to their first order) has no places yet but must see the invite.
     return (
-      <div className="empty">
-        <div className="big">No places yet</div>
-        <div>Add a restaurant or scan a menu from the + button.</div>
+      <div>
+        <ActiveGroupOrders cfg={cfg} />
+        <div className="empty">
+          <div className="big">No places yet</div>
+          <div>Add a restaurant or scan a menu from the + button.</div>
+        </div>
       </div>
     );
   }
