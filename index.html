@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.117.0";
+const APP_VERSION   = "1.118.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -11118,13 +11118,8 @@ function ActiveGroupOrders({cfg}){
       logMsg("GROUP","mine load failed (hiding card): " + e.message);
       setOrders([]);
     }
-    try {
-      const d = await getInvitations(cfg);
-      const arr = (d && d.invitations) || [];
-      logMsg("INVITE", "loaded " + arr.length + " invite(s): " + arr.map(x=>x.code).join(",") || "(none)");
-      setInvites(arr);
-    }
-    catch(e){ logMsg("INVITE", "load FAILED: " + (e && e.message)); setInvites([]); }
+    try { const d = await getInvitations(cfg); setInvites((d && d.invitations) || []); }
+    catch(e){ setInvites([]); }
     try { setProfile(await getMyProfile(cfg)); } catch(e){}
   }
   useEffect(()=> {
