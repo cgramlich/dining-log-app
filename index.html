@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.121.0";
+const APP_VERSION   = "1.122.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -12141,6 +12141,13 @@ function PublishedMenu({data}){
     const o = {}; ((data && data.s) || []).forEach((s,i)=> { o[i] = true; }); return o;
   });
   const [sent, setSent] = useState(false);
+  // "Save to my places" (logged-in viewers only). Imports the shared place +
+  // menu into the user's own restaurants/menus, asking before overwriting.
+  const myCfg = loadConfig();
+  const canSave = configComplete(myCfg);
+  const [saveState, setSaveState] = useState("");   // "" | saving | saved | err
+  const [saveMsg, setSaveMsg]     = useState("");
+  const [dupAsk, setDupAsk]       = useState(null);  // {restaurants, menus, match} awaiting choice
 
   if (!data || !Array.isArray(data.s)){
     return (
@@ -12197,6 +12204,63 @@ function PublishedMenu({data}){
     } catch(e){ /* user cancelled - leave the tray as-is */ }
   }
 
+  // Shared payload (short keys) -> the app's internal menu section shape.
+  function sharedToSections(){
+    return (data.s || []).map(s => ({
+      name: s.n || "",
+      items: (s.i || []).map(it => ({
+        name: it.n || "", description: it.d || "", price: it.p || "",
+        tags: Array.isArray(it.t) ? it.t : [],
+      })),
+    }));
+  }
+  function buildSavedMenu(rid){
+    return { menu_id: uid("menu"), label: data.l || "Menu", restaurant_id: rid,
+      captured_date: todayISO(), last_updated: todayISO(), source: "shared",
+      sections: sharedToSections(), raw_text: "" };
+  }
+  async function startSave(){
+    if (!canSave) return;
+    setSaveState("saving"); setSaveMsg("");
+    try {
+      const rGot = await ghGetFile(myCfg, "data/restaurants.json");
+      const restaurants = Array.isArray(rGot.data) ? rGot.data : [];
+      const mGot = await ghGetFile(myCfg, "data/menus.json");
+      const menus = (mGot.data && typeof mGot.data === "object" && !Array.isArray(mGot.data)) ? mGot.data : {};
+      const match = restaurants.find(r => r && norm(r.name) === norm(data.r || ""));
+      if (match){ setDupAsk({ restaurants, menus, match }); setSaveState(""); return; }  // ask before overwriting
+      await doSave("new", { restaurants, menus });
+    } catch(e){ setSaveState("err"); setSaveMsg((e && e.message) || "Could not save."); }
+  }
+  async function doSave(mode, ctx){
+    setSaveState("saving");
+    try {
+      const restaurants = (ctx.restaurants || []).slice();
+      const menus = Object.assign({}, ctx.menus || {});
+      let writeRestaurants = false;
+      if (mode === "new"){
+        const rid = uid("rest");
+        restaurants.push({ id:rid, name:data.r || "Restaurant", cuisine:data.cu || "",
+          location:data.c || "", address:"", phone:"", website:"", notes:"",
+          favorite:false, added_date:todayISO() });
+        menus[rid] = [ buildSavedMenu(rid) ];
+        writeRestaurants = true;
+      } else {
+        const rid = ctx.match.id;
+        const m = buildSavedMenu(rid);
+        menus[rid] = (mode === "replace") ? [m]
+          : (Array.isArray(menus[rid]) ? menus[rid].concat([m]) : [m]);   // "add"
+      }
+      if (writeRestaurants) await ghPutFile(myCfg, "data/restaurants.json", restaurants, null);
+      await ghPutFile(myCfg, "data/menus.json", menus, null);
+      setDupAsk(null); setSaveState("saved");
+      setSaveMsg(mode === "replace" ? ("Replaced the menu on " + (data.r || "your place") + ".")
+               : mode === "add"     ? ("Added the menu to " + (data.r || "your place") + ".")
+               : "Saved to your places.");
+      logMsg("SHARE", "saved shared place mode=" + mode);
+    } catch(e){ setDupAsk(null); setSaveState("err"); setSaveMsg((e && e.message) || "Could not save."); }
+  }
+
   return (
     <div className="pub-wrap">
       <div className="pub-kicker">A menu on MenuCaptain</div>
@@ -12205,6 +12269,41 @@ function PublishedMenu({data}){
         <div className="pub-sub">{[data.cu, data.c, data.l].filter(Boolean).join("  \u00b7  ")}</div>
       )}
       <div className="pub-hint">Tap the dishes you'd like, then send your picks back.</div>
+
+      {canSave ? (
+        <div style={{textAlign:"center", marginBottom:14}}>
+          {saveState === "saved" ? (
+            <div className="tiny" style={{color:"var(--ok)", fontWeight:600}}>&#10003; {saveMsg || "Saved to your places."}</div>
+          ) : (
+            <>
+              <button className="btn ghost sm" disabled={saveState === "saving"} onClick={startSave}>
+                {saveState === "saving"
+                  ? <span className="spin" />
+                  : <span className="row" style={{gap:5, justifyContent:"center"}}><Icon name="plus" size={14} />Save to my places</span>}
+              </button>
+              {saveState === "err" ? <div className="tiny" style={{color:"var(--danger)", marginTop:6}}>{saveMsg}</div> : null}
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {dupAsk ? (
+        <div style={{position:"fixed", inset:0, zIndex:80, background:"rgba(0,0,0,0.6)",
+             display:"flex", alignItems:"center", justifyContent:"center", padding:20}}
+             onClick={()=> setDupAsk(null)}>
+          <div className="card" style={{maxWidth:380, width:"100%", margin:0}} onClick={(e)=> e.stopPropagation()}>
+            <div style={{fontWeight:600, marginBottom:6}}>You already have {dupAsk.match.name}</div>
+            <div className="small muted" style={{marginBottom:14}}>
+              Add this shared menu to it, or replace its current menu(s)?
+            </div>
+            <div style={{display:"flex", flexDirection:"column", gap:8}}>
+              <button className="btn primary" disabled={saveState === "saving"} onClick={()=> doSave("add", dupAsk)}>Add this menu to it</button>
+              <button className="btn ghost" disabled={saveState === "saving"} onClick={()=> doSave("replace", dupAsk)}>Replace its menu(s)</button>
+              <button className="btn ghost" onClick={()=> setDupAsk(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="pub-menu">
         {data.s.map((s,si)=>(
