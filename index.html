@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.123.0";
+const APP_VERSION   = "1.124.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4141,6 +4141,7 @@ function App(){
   const [usernameNudge, setUsernameNudge] = useState(false);  // first-run "pick a username" prompt
   const [profile, setProfile] = useState(null);               // {username, display_name} for greetings/identity
   const [pendingReqs, setPendingReqs] = useState(0);          // incoming connection requests awaiting accept
+  const [sharesCount, setSharesCount] = useState(0);          // items in the "Shared with you" inbox
 
   const toastTimer = useRef(null);
   const onlineFlushRef = useRef(()=>{});   // Phase 3: latest auto-flush fn for the reconnect listener
@@ -4285,10 +4286,16 @@ function App(){
       .then(d => setPendingReqs(((d && d.incoming) || []).length))
       .catch(()=>{});
   }
+  function refreshShares(){
+    if (!configComplete(config)) return;
+    getShares(config)
+      .then(d => setSharesCount(((d && d.shares) || []).length))
+      .catch(()=>{});
+  }
   useEffect(()=>{
     if (!ready || needSetup || !configComplete(config)) return;
-    refreshPendingReqs();
-    const onVis = ()=> { if (document.visibilityState === "visible") refreshPendingReqs(); };
+    refreshPendingReqs(); refreshShares();
+    const onVis = ()=> { if (document.visibilityState === "visible"){ refreshPendingReqs(); refreshShares(); } };
     document.addEventListener("visibilitychange", onVis);
     return ()=> document.removeEventListener("visibilitychange", onVis);
     // eslint-disable-next-line
@@ -4885,6 +4892,7 @@ function App(){
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             onOpenPassport={()=> setOverlay({ type:"passport" })}
             onOpenLeaderboard={()=> setOverlay({ type:"leaderboard" })}
+            onOpenShares={()=> setOverlay({ type:"shares" })} sharesCount={sharesCount}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
             onLogVisit={()=> setOverlay({ type:"logVisit" })}
             onAddPlace={()=> setOverlay({ type:"addRestaurant" })}
@@ -4972,6 +4980,10 @@ function App(){
       {overlay && overlay.type === "leaderboard" && (
         <LeaderboardScreen config={config} profile={profile} onProfileChange={setProfile}
           onClose={()=> setOverlay(null)} />
+      )}
+      {overlay && overlay.type === "shares" && (
+        <ShareInbox config={config}
+          onClose={()=> { setOverlay(null); refreshShares(); }} />
       )}
 
       {overlay && overlay.type === "groupStartMenu" && (
@@ -5440,6 +5452,7 @@ function SearchBar({value, onChange, placeholder}){
 // nag. Earned state is derived the same pure way Settings used to compute it.
 function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
                         onOpenYearInFood, onOpenPassport, onOpenLeaderboard,
+                        onOpenShares, sharesCount,
                         onScanMenu, onLogVisit, onAddPlace, onPublishList, onShareApp,
                         onOpenSplit, onNewSplit, onDeleteSplit }){
   const [confirmDel, setConfirmDel] = useState(null);   // split id pending delete confirm
@@ -5482,6 +5495,23 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
             <span className="yif-entry-t">Leaderboard</span>
             <span className="yif-entry-s">How you and your friends stack up</span>
           </span>
+          <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+            <Icon name="back" size={15} color="var(--text-faint)" />
+          </span>
+        </div>
+      ) : null}
+      {onOpenShares ? (
+        <div className="yif-entry tap" onClick={onOpenShares}>
+          <span className="yif-entry-ic"><Icon name="share" size={16} color="var(--accent)" /></span>
+          <span className="yif-entry-tx">
+            <span className="yif-entry-t">Shared with you</span>
+            <span className="yif-entry-s">Places & menus your connections sent</span>
+          </span>
+          {sharesCount > 0 ? (
+            <span style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9, background:"var(--danger)",
+              color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
+              justifyContent:"center", flex:"none", marginRight:8}}>{sharesCount}</span>
+          ) : null}
           <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
             <Icon name="back" size={15} color="var(--text-faint)" />
           </span>
@@ -6387,6 +6417,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               title="Share this place and its menu">
               {mShareBusy ? <span className="spin" /> : <span className="row" style={{gap:5}}><Icon name="share" size={14} />Share</span>}
             </button>
+          )}
+          {menuList.length >= 1 && (
+            <ShareToConnectionButton cfg={cfg} restaurant={r} menuList={menuList} />
           )}
           {menuList.length === 1 && (
             <button className="btn ghost sm" onClick={()=> onOpenMenu(menuList[0].menu_id)}
@@ -13831,6 +13864,159 @@ function LeaderboardScreen({config, profile, onProfileChange, onClose}){
             </div>
           </div>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   SHARES (Phase 3): send a place to connections -> their inbox.
+   ============================================================ */
+async function sendShare(cfg, toIds, kind, title, payload){
+  const res = await fetch(apiBase(cfg) + "/api/shares", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ to_user_ids: toIds, kind: kind, title: title, payload: payload }),
+  });
+  const d = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((d && d.detail) || "Could not send.");
+  return d;   // { sent }
+}
+async function getShares(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/shares", { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("Could not load your inbox.");
+  return res.json();   // { shares: [{id, kind, title, payload, from, created_at}] }
+}
+async function dismissShare(cfg, id){
+  const res = await fetch(apiBase(cfg) + "/api/shares/" + id, { method:"DELETE", headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("Could not remove.");
+  return res.json();
+}
+
+// Button + picker to send a place (with its menu) to accepted connections.
+function ShareToConnectionButton({cfg, restaurant, menuList}){
+  const [open, setOpen]   = useState(false);
+  const [conns, setConns] = useState(null);
+  const [pick, setPick]   = useState({});
+  const [busy, setBusy]   = useState(false);
+  const [msg, setMsg]     = useState("");
+  const hasMenu = (menuList || []).some(m => m && (m.sections || []).length);
+  if (!hasMenu) return null;   // need a menu to share the place
+  async function openPicker(){
+    setOpen(true); setMsg("");
+    if (conns === null){ try { const d = await getConnections(cfg); setConns(d.connections || []); } catch(e){ setConns([]); } }
+  }
+  async function send(){
+    const ids = Object.keys(pick).filter(k => pick[k]);
+    if (!ids.length) return;
+    const usable = (menuList || []).filter(m => m && (m.sections || []).length);
+    const combined = usable.length === 1 ? usable[0] : combineGroupMenus(usable);
+    const payload = buildMenuPayload(restaurant, combined);
+    setBusy(true); setMsg("");
+    try {
+      const r = await sendShare(cfg, ids, "place", restaurant.name, payload);
+      setMsg("Sent to " + (r.sent || 0));
+      setPick({});
+      setTimeout(()=> setOpen(false), 800);
+    } catch(e){ setMsg(e.message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <>
+      <button className="btn ghost sm" disabled={busy}
+        onClick={openPicker}
+        style={{flex:"none",padding:"6px 12px",margin:0,marginRight:8}}
+        title="Send this place to a connection">
+        <span className="row" style={{gap:5}}><Icon name="nodes" size={14} />Send</span>
+      </button>
+      {open && (
+        <div style={{position:"fixed", inset:0, zIndex:80, background:"rgba(0,0,0,0.55)",
+             display:"flex", alignItems:"flex-end", justifyContent:"center"}}
+             onClick={()=> setOpen(false)}>
+          <div className="card" style={{width:"100%", maxWidth:520, margin:0,
+               borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:"85vh", overflowY:"auto"}}
+               onClick={(e)=> e.stopPropagation()}>
+            <div style={{fontWeight:600, marginBottom:4}}>Send {restaurant.name} to&hellip;</div>
+            <div className="small muted" style={{marginBottom:10}}>
+              They'll get the place + its menu in their "Shared with you" inbox.
+            </div>
+            {conns === null ? (
+              <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
+            ) : conns.length === 0 ? (
+              <div className="small faint" style={{padding:"4px 0 12px"}}>
+                No connections yet. Add some in Settings &rarr; Connections.
+              </div>
+            ) : conns.map(c => {
+              const l = connLabel(c); const on = !!pick[c.user_id];
+              return (
+                <div key={c.user_id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+                  onClick={()=> setPick(p => Object.assign({}, p, { [c.user_id]: !p[c.user_id] }))}>
+                  <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
+                  <span style={{flex:1, minWidth:0}}>{l.primary}{l.secondary ? <span className="tiny faint"> {l.secondary}</span> : null}</span>
+                </div>
+              );
+            })}
+            <div className="row" style={{gap:9, marginTop:14}}>
+              <button className="btn ghost" onClick={()=> setOpen(false)}>Close</button>
+              <button className="btn primary" disabled={busy || !Object.keys(pick).some(k=>pick[k])} onClick={send}>
+                {busy ? <span className="spin" /> : "Send"}
+              </button>
+            </div>
+            {msg ? <div className="tiny" style={{marginTop:8, color:"var(--ok)"}}>{msg}</div> : null}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// "Shared with you" inbox overlay: received places/lists; tap to view (reuses
+// the public viewers, which include "Save to my places"), or dismiss.
+function ShareInbox({config, onClose}){
+  const [shares, setShares] = useState(null);
+  const [open, setOpen]     = useState(null);   // the share being viewed
+  const [busyId, setBusyId] = useState(null);
+  async function load(){ try { const d = await getShares(config); setShares((d && d.shares) || []); } catch(e){ setShares([]); } }
+  useEffect(()=>{ load(); /* eslint-disable-next-line */ },[]);
+  async function remove(id){ setBusyId(id); try { await dismissShare(config, id); await load(); } catch(e){} finally { setBusyId(null); } }
+
+  if (open){
+    return (
+      <div style={{position:"fixed", inset:0, zIndex:70, background:"var(--bg)", overflowY:"auto"}}>
+        <div style={{maxWidth:600, margin:"0 auto"}}>
+          <button className="btn ghost sm" style={{margin:"12px 16px 0"}} onClick={()=> setOpen(null)}>
+            <Icon name="back" size={14} /> Back
+          </button>
+          {open.kind === "list" ? <PublishedList data={open.payload} /> : <PublishedMenu data={open.payload} />}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>Shared with you</h2><span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        {shares === null ? (
+          <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
+        ) : shares.length === 0 ? (
+          <div className="small faint" style={{padding:"4px 2px"}}>
+            Nothing shared with you yet. When a connection sends you a place or list, it shows up here.
+          </div>
+        ) : shares.map(s => {
+          const name = s.title || (s.kind === "list" ? "A list" : "A place");
+          return (
+            <div key={s.id} className="card" style={{display:"flex", alignItems:"center", gap:10}}>
+              <div style={{flex:1, minWidth:0, cursor:"pointer"}} onClick={()=> setOpen(s)}>
+                <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{name}</div>
+                <div className="tiny faint">from {s.from} &middot; {s.kind === "list" ? "list" : "place + menu"}</div>
+              </div>
+              <button className="btn primary sm" style={{flex:"none"}} onClick={()=> setOpen(s)}>View</button>
+              <button className="btn ghost sm" style={{flex:"none"}} disabled={busyId===s.id} onClick={()=> remove(s.id)}>Dismiss</button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
