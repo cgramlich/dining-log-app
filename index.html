@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.114.0";
+const APP_VERSION   = "1.115.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4106,6 +4106,7 @@ function App(){
   const [offline, setOffline] = useState(()=> typeof navigator !== "undefined" && navigator.onLine === false);
   const [usernameNudge, setUsernameNudge] = useState(false);  // first-run "pick a username" prompt
   const [profile, setProfile] = useState(null);               // {username, display_name} for greetings/identity
+  const [pendingReqs, setPendingReqs] = useState(0);          // incoming connection requests awaiting accept
 
   const toastTimer = useRef(null);
   const onlineFlushRef = useRef(()=>{});   // Phase 3: latest auto-flush fn for the reconnect listener
@@ -4237,6 +4238,25 @@ function App(){
       } catch(e){ /* table missing / offline -> skip */ }
     })();
     return ()=>{ alive = false; };
+    // eslint-disable-next-line
+  },[ready, needSetup]);
+
+  /* ---- pending connection-requests badge ------------------- */
+  // Surfaces incoming requests so they're not buried in Settings -> Connections.
+  // Loaded on launch + on app resume; also refreshed when the Connections
+  // screen closes (after accepting/declining).
+  function refreshPendingReqs(){
+    if (!configComplete(config)) return;
+    getConnections(config)
+      .then(d => setPendingReqs(((d && d.incoming) || []).length))
+      .catch(()=>{});
+  }
+  useEffect(()=>{
+    if (!ready || needSetup || !configComplete(config)) return;
+    refreshPendingReqs();
+    const onVis = ()=> { if (document.visibilityState === "visible") refreshPendingReqs(); };
+    document.addEventListener("visibilitychange", onVis);
+    return ()=> document.removeEventListener("visibilitychange", onVis);
     // eslint-disable-next-line
   },[ready, needSetup]);
 
@@ -4758,6 +4778,7 @@ function App(){
           <SettingsView config={config}
             profile={profile} onProfileChange={setProfile}
             onOpenConnections={()=> setOverlay({ type:"connections" })}
+            pendingReqs={pendingReqs}
             onEdit={()=> setOverlay({ type:"settings" })}
             onOpenHelp={()=> setOverlay({ type:"help" })}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
@@ -4855,7 +4876,15 @@ function App(){
           <span className="navicon"><Icon name="compass" size={23} /></span>You
         </button>
         <button className={tab==="settings" ? "on" : ""} onClick={()=> setTab("settings")}>
-          <span className="navicon"><Icon name="gear" size={23} /></span>Settings
+          <span className="navicon" style={{position:"relative"}}>
+            <Icon name="gear" size={23} />
+            {pendingReqs > 0 ? (
+              <span style={{position:"absolute", top:-4, right:-8, minWidth:16, height:16,
+                padding:"0 4px", borderRadius:8, background:"var(--danger)", color:"#fff",
+                fontSize:10, fontWeight:700, display:"flex", alignItems:"center",
+                justifyContent:"center", lineHeight:1}}>{pendingReqs}</span>
+            ) : null}
+          </span>Settings
         </button>
       </nav>
 
@@ -4903,7 +4932,7 @@ function App(){
       )}
       {overlay && overlay.type === "connections" && (
         <ConnectionsScreen config={config} profile={profile}
-          onClose={()=> setOverlay(null)} />
+          onClose={()=> { setOverlay(null); refreshPendingReqs(); }} />
       )}
 
       {overlay && overlay.type === "groupStartMenu" && (
@@ -13465,7 +13494,7 @@ function ConnectionsScreen({config, profile, onClose}){
   );
 }
 
-function SettingsView({config, profile, onProfileChange, onOpenConnections, onEdit, counts, lastSync, onResync,
+function SettingsView({config, profile, onProfileChange, onOpenConnections, pendingReqs, onEdit, counts, lastSync, onResync,
                        locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood, onOpenPassport}){
@@ -13555,9 +13584,18 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, onEd
         <div className="between">
           <div>
             <div style={{fontWeight:600}}>Connections</div>
-            <div className="tiny faint" style={{marginTop:3}}>Find friends and manage requests</div>
+            <div className="tiny faint" style={{marginTop:3}}>
+              {pendingReqs ? (pendingReqs + " pending request" + (pendingReqs > 1 ? "s" : "")) : "Find friends and manage requests"}
+            </div>
           </div>
-          <Icon name="chev" size={18} />
+          <div className="row" style={{gap:8, alignItems:"center"}}>
+            {pendingReqs ? (
+              <span style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9,
+                background:"var(--danger)", color:"#fff", fontSize:11, fontWeight:700,
+                display:"flex", alignItems:"center", justifyContent:"center"}}>{pendingReqs}</span>
+            ) : null}
+            <Icon name="chev" size={18} />
+          </div>
         </div>
       </div>
 
