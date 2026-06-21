@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.119.0";
+const APP_VERSION   = "1.120.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10667,6 +10667,14 @@ async function groupHelp(code, prompt, token){
   if (!res.ok) throw new Error((data && data.detail) || "Couldn't get a suggestion right now.");
   return data;   // { answer }
 }
+async function groupSetPlaced(cfg, code, placed){
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/placed", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ placed: !!placed }),
+  });
+  if (!res.ok){ const d = await res.json().catch(()=>({})); throw new Error((d && d.detail) || "Could not update."); }
+  return res.json();
+}
 async function groupClose(cfg, code){
   const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/close", {
     method:"POST",
@@ -11319,6 +11327,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   const [err, setErr]           = useState("");
   const [copied, setCopied]     = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);   // gate the finalizing "Close order"
+  const [placedBusy, setPlacedBusy] = useState(false);       // "Mark as placed" in flight
   const [menuEditOpen, setMenuEditOpen] = useState(false);   // "Edit menus" sheet (change which menus the order uses)
   const [menuPick, setMenuPick]   = useState({});
   const [menuBusy, setMenuBusy]   = useState(false);
@@ -11484,6 +11493,17 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
     }
     onClose();
   }
+  async function togglePlaced(){
+    if (!code) return;
+    const next = !(data && data.placed);
+    setPlacedBusy(true);
+    try {
+      await groupSetPlaced(cfg, code, next);
+      const d = await groupFetch(cfg, code); if (d) setData(d);
+      logMsg("GROUP","placed=" + next + " code=" + code);
+    } catch(e){ logMsg("GROUP","set placed failed: " + e.message); }
+    finally { setPlacedBusy(false); }
+  }
 
   const agg    = data ? aggregatePicks(data.picks) : [];
   const guests = data ? (data.picks || []) : [];
@@ -11607,6 +11627,25 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               </div>
               {closed ? <div className="tiny faint" style={{marginTop:10}}>This order is closed - guests can no longer add to it.</div> : null}
             </div>
+
+            {code ? (
+              <div className="card">
+                <div className="between">
+                  <div style={{minWidth:0}}>
+                    <div style={{fontWeight:600}}>{(data && data.placed) ? "Order placed ✓" : "Placed the order?"}</div>
+                    <div className="tiny faint" style={{marginTop:3}}>
+                      {(data && data.placed)
+                        ? "Everyone sees a confirmation. The order stays open for late changes."
+                        : "Let everyone know you've sent it to the restaurant."}
+                    </div>
+                  </div>
+                  <button className={"btn sm " + ((data && data.placed) ? "ghost" : "primary")}
+                    disabled={placedBusy} onClick={togglePlaced} style={{flex:"none"}}>
+                    {placedBusy ? <span className="spin" /> : ((data && data.placed) ? "Undo" : "Mark as placed")}
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {!closed && code ? <GroupInvitePicker cfg={cfg} code={code} /> : null}
 
@@ -11903,6 +11942,14 @@ function GroupOrderGuest({code, cfg, profile}){
             ? "Type your order and send it back. You can change it any time until the host closes it."
             : "Pick what you'd like and send it back. You can change your order any time until the host closes it."}
       </div>
+
+      {data && data.placed ? (
+        <div style={{margin:"0 0 16px", padding:"10px 14px", borderRadius:12, textAlign:"center",
+             background:"rgba(127,170,107,0.14)", color:"#a6c98f", border:"1px solid rgba(127,170,107,0.4)",
+             fontWeight:600}}>
+          &#10003; {data.host_name ? data.host_name + " placed the order" : "The order's been placed"} - you're all set!
+        </div>
+      ) : null}
 
       {!closed && freeForm ? (
         <div className="card" style={{marginBottom:12}}>
