@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.120.0";
+const APP_VERSION   = "1.121.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2193,6 +2193,19 @@ async function publishAndShareMenu(cfg, restaurant, menu, setBusy, setErr){
   }
 }
 
+/* Share a PLACE + its menu(s) as one public link (Phase 1 of place+menu
+   sharing). Combine the restaurant's menus into a single shareable blob -
+   titled by the place - and reuse the menu-publish path. */
+async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr){
+  const usable = (menuList || []).filter(m => m && (m.sections || []).length);
+  if (!usable.length){
+    if (setErr) setErr("Scan a menu for this place first, then you can share it.");
+    return;
+  }
+  const combined = usable.length === 1 ? usable[0] : combineGroupMenus(usable);
+  return publishAndShareMenu(cfg, restaurant, combined, setBusy, setErr);
+}
+
 // Pure: build the lean, shareable payload from selected restaurants. Short keys
 // keep the URL small. Only clearly-shareable fields - never tokens/keys, and no
 // phone/notes. The street address (key "a") IS included so the shared view can
@@ -2243,6 +2256,7 @@ function buildMenuPayload(restaurant, menu){
   }));
   const o = { k:"m", v:1, r: (restaurant && restaurant.name) || "Menu", s: sections };
   if (restaurant && restaurant.location) o.c = restaurant.location;
+  if (restaurant && restaurant.cuisine) o.cu = restaurant.cuisine;
   if (menu && menu.label) o.l = menu.label;
   return o;
 }
@@ -6346,11 +6360,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               ? "Menus"
               : "Menus (" + menuList.length + ")"}
           </div>
-          {menuList.length === 1 && (
+          {menuList.length >= 1 && (
             <button className="btn ghost sm" disabled={mShareBusy}
-              onClick={()=> publishAndShareMenu(cfg, r, menuList[0], setMShareBusy, setMShareErr)}
+              onClick={()=> publishAndSharePlace(cfg, r, menuList, setMShareBusy, setMShareErr)}
               style={{flex:"none",padding:"6px 12px",margin:0,marginRight:8}}
-              title="Share this menu">
+              title="Share this place and its menu">
               {mShareBusy ? <span className="spin" /> : <span className="row" style={{gap:5}}><Icon name="share" size={14} />Share</span>}
             </button>
           )}
@@ -12187,8 +12201,8 @@ function PublishedMenu({data}){
     <div className="pub-wrap">
       <div className="pub-kicker">A menu on MenuCaptain</div>
       <div className="pub-title">{data.r || "Menu"}</div>
-      {(data.c || data.l) && (
-        <div className="pub-sub">{[data.c, data.l].filter(Boolean).join("  \u00b7  ")}</div>
+      {(data.cu || data.c || data.l) && (
+        <div className="pub-sub">{[data.cu, data.c, data.l].filter(Boolean).join("  \u00b7  ")}</div>
       )}
       <div className="pub-hint">Tap the dishes you'd like, then send your picks back.</div>
 
