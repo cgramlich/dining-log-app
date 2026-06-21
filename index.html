@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.125.0";
+const APP_VERSION   = "1.126.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -14113,17 +14113,16 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
   const usageCount = (name)=> (restaurants || []).filter(r => r.location === name).length;
   return (
     <div>
-      <div className="set-group" style={{marginTop:6}}>Setup</div>
+      <div className="set-group" style={{marginTop:6}}>Account</div>
       <div className="card">
         <div className="between">
-          <div>
-            <div style={{fontWeight:600}}>Connection</div>
-            <div className="tiny faint" style={{marginTop:3}}>
-              Account &amp; servers
-            </div>
+          <div className="small muted" style={{lineHeight:1.8, minWidth:0}}>
+            Account: <b style={{color:"var(--text)"}}>{config.email || config.userId}</b>
+            {profile && profile.username ? <><br/>Username: <b style={{color:"var(--text)"}}>@{profile.username}</b></> : null}
+            {isOwner(config) ? <><br/>Servers: <b style={{color:"var(--text)"}}>MenuCaptain</b></> : null}
           </div>
-          <div style={{display:"flex",gap:8}}>
-            <button className="btn ghost sm" onClick={onEdit}>Edit</button>
+          <div style={{display:"flex", gap:8, flex:"none"}}>
+            {isOwner(config) ? <button className="btn ghost sm" onClick={onEdit}>Edit</button> : null}
             <button className="btn ghost sm" onClick={()=>{
               if (confirm("Sign out? You'll need to sign back in on this device.")){
                 try { localStorage.removeItem(CFG_KEY); localStorage.removeItem(DATA_KEY); } catch(e){}
@@ -14131,11 +14130,6 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
               }
             }}>Sign out</button>
           </div>
-        </div>
-        <div className="small muted" style={{marginTop:12,lineHeight:1.8}}>
-          Account: <b style={{color:"var(--text)"}}>{config.email || config.userId}</b><br/>
-          {profile && profile.username ? <>Username: <b style={{color:"var(--text)"}}>@{profile.username}</b>{isOwner(config) ? <br/> : null}</> : null}
-          {isOwner(config) ? <>Servers: <b style={{color:"var(--text)"}}>MenuCaptain</b></> : null}
         </div>
       </div>
 
