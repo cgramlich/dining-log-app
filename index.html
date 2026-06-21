@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.122.0";
+const APP_VERSION   = "1.123.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2210,7 +2210,7 @@ async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr){
 // keep the URL small. Only clearly-shareable fields - never tokens/keys, and no
 // phone/notes. The street address (key "a") IS included so the shared view can
 // offer a maps link; treat a published link as public (it always was).
-function buildListPayload(title, selected, visits){
+function buildListPayload(title, selected, visits, menusObj){
   const byRest = {};
   (visits || []).forEach(v => { if (v && v.restaurant_id){ (byRest[v.restaurant_id] = byRest[v.restaurant_id] || []).push(v); } });
   const places = (selected || []).map(r => {
@@ -2231,6 +2231,26 @@ function buildListPayload(title, selected, visits){
     if (loved.length) o.d = loved.slice(0,3);
     if (r.favorite) o.f = 1;
     if (r.address) o.a = r.address;
+    // Phase 2: embed the place's combined menu (short form) when available, so a
+    // shared list lets recipients browse each place's menu. Caller may omit
+    // menusObj (e.g. to keep the link small) - then it's places-only as before.
+    if (menusObj){
+      const ms = menusObj[r.id];
+      if (Array.isArray(ms) && ms.length){
+        const combined = ms.length === 1 ? ms[0] : combineGroupMenus(ms);
+        const secs = (((combined && combined.sections) || []).map(s => ({
+          n: (s && s.name) || "",
+          i: ((s && s.items) || []).map(it => {
+            const x = { n: (it && it.name) || "" };
+            if (it && it.description) x.d = it.description;
+            if (it && it.price)       x.p = it.price;
+            if (it && it.tags && it.tags.length) x.t = it.tags.slice(0, 6);
+            return x;
+          }),
+        }))).filter(s => s.i.length);
+        if (secs.length) o.m = secs;
+      }
+    }
     return o;
   });
   return { v:1, t: title || "My list", p: places };
@@ -5317,7 +5337,7 @@ function App(){
       )}
 
       {overlay && overlay.type === "publish" && (
-        <PublishBuilder restaurants={restaurants} visits={visits} cfg={config}
+        <PublishBuilder restaurants={restaurants} visits={visits} menus={menus} cfg={config}
           onPublished={handleListPublished}
           onClose={()=> setOverlay(null)} />
       )}
@@ -10524,6 +10544,7 @@ function renderHelpMarkdown(doc){
 }
 function PublishedList({data}){
   const home = location.origin + location.pathname;
+  const [openMenus, setOpenMenus] = useState({});   // place index -> menu expanded
   if (!data || !Array.isArray(data.p)){
     return (
       <div className="pub-wrap">
@@ -10563,6 +10584,33 @@ function PublishedList({data}){
                    target="_blank" rel="noopener noreferrer">Directions</a>
               </div>
             )}
+            {Array.isArray(p.m) && p.m.length ? (
+              <div style={{marginTop:10}}>
+                <button className="btn ghost sm"
+                  onClick={()=> setOpenMenus(o=> Object.assign({}, o, { [i]: !o[i] }))}>
+                  {openMenus[i] ? "Hide menu" : "View menu"}
+                </button>
+                {openMenus[i] ? (
+                  <div style={{marginTop:8}}>
+                    {p.m.map((s,si)=>(
+                      <div key={si} style={{marginBottom:6}}>
+                        {s.n ? <div style={{fontWeight:600, fontSize:13, margin:"6px 0 3px"}}>{s.n}</div> : null}
+                        {(s.i || []).map((it,ii)=>(
+                          <div key={ii} style={{display:"flex", justifyContent:"space-between", gap:10,
+                               padding:"3px 0", borderBottom:"1px solid var(--line-soft)"}}>
+                            <div style={{minWidth:0}}>
+                              <div className="small">{it.n}</div>
+                              {it.d ? <div className="tiny faint">{it.d}</div> : null}
+                            </div>
+                            {it.p ? <div className="tiny faint" style={{flex:"none"}}>{it.p}</div> : null}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
@@ -12484,7 +12532,7 @@ function MyListsOverlay({ lists, onClose, onToggleFav, onDelete, onRefresh }){
   );
 }
 
-function PublishBuilder({restaurants, visits, cfg, onPublished, onClose}){
+function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose}){
   const [title,setTitle] = useState("");
   const [sel,setSel] = useState({});
   const [q,setQ] = useState("");
@@ -12534,17 +12582,26 @@ function PublishBuilder({restaurants, visits, cfg, onPublished, onClose}){
     setMakeBusy(true); setCopied(false); setShortMsg("");
     try {
       const selected = (restaurants || []).filter(r => sel[r.id]);
-      const payload = buildListPayload(title.trim(), selected, visits);
-      const enc = encodeListPayload(payload);
+      // Build WITH menus; if the encoded link gets too big, fall back to
+      // places-only so the shared URL stays usable.
+      let payload = buildListPayload(title.trim(), selected, visits, menus);
+      let enc = encodeListPayload(payload);
+      let menusDropped = false;
+      if (enc.length > 20000){
+        payload = buildListPayload(title.trim(), selected, visits, null);
+        enc = encodeListPayload(payload);
+        menusDropped = true;
+      }
       // ?list= (query) survives shorteners; the viewer also still reads #list=
       const longUrl = location.origin + location.pathname + "?list=" + enc;
       const short = await publishListPage(cfg, payload, enc);
+      const dropNote = menusDropped ? "This list was large, so menus weren't included - it shares the places only. " : "";
       if (short){
         setLink(short);
-        setShortMsg("Short link ready. The first time a list is published, its page can take a minute to go live.");
+        setShortMsg(dropNote + "Short link ready. The first time a list is published, its page can take a minute to go live.");
       } else {
         setLink(longUrl);
-        setShortMsg("");
+        setShortMsg(dropNote);
       }
       // Save this list to the user's saved lists (deliberate publishes only;
       // the one-tap city share does NOT save). place_ids come from the live
