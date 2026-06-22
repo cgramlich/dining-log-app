@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.129.0";
+const APP_VERSION   = "1.130.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1012,6 +1012,55 @@ async function authHeaders(cfg){
   // X-User-ID (kept as a fallback until Step C removes it on the backend).
   const token = await getFreshToken(cfg);
   return { "Authorization": "Bearer " + token, "X-User-ID": cfg.userId };
+}
+
+// Native push registration (Capacitor only). NO-OP on the web PWA - the
+// PushNotifications plugin exists solely in the native wrapper, so window.Capacitor
+// is undefined in a browser and this returns immediately. In the native app it
+// asks permission, registers, and POSTs the device token to /api/push/register
+// so group invites / shares / connection events can notify. Guarded to run once.
+let _pushInited = false;
+async function initPush(cfg){
+  try {
+    const Cap = window.Capacitor;
+    if (!Cap || typeof Cap.isNativePlatform !== "function" || !Cap.isNativePlatform()) return;
+    const PN = Cap.Plugins && Cap.Plugins.PushNotifications;
+    if (!PN || _pushInited) return;
+    _pushInited = true;
+    const platform = (typeof Cap.getPlatform === "function" ? Cap.getPlatform() : "unknown");
+
+    // Attach listeners BEFORE register() so the token event is never missed.
+    PN.addListener("registration", async (tok)=>{
+      try {
+        const token = tok && tok.value;
+        if (!token) return;
+        await fetch(apiBase(cfg) + "/api/push/register", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+          body: JSON.stringify({ token, platform }),
+        });
+        logMsg("PUSH","registered " + platform + " token");
+      } catch(e){ logMsg("WARN","push register POST failed: " + (e && e.message)); }
+    });
+    PN.addListener("registrationError", (err)=>
+      logMsg("WARN","push registration error: " + JSON.stringify(err)));
+    PN.addListener("pushNotificationActionPerformed", (action)=>{
+      // TODO(deep-link): route by action.notification.data.type
+      // (connection_request | connection_accepted | share | group_invite).
+      logMsg("PUSH","notification tapped");
+    });
+
+    const perm = await PN.requestPermissions();
+    if (perm && perm.receive === "granted"){
+      await PN.register();
+    } else {
+      logMsg("PUSH","permission not granted (" + (perm && perm.receive) + ")");
+      _pushInited = false;   // let a future launch try again
+    }
+  } catch(e){
+    logMsg("WARN","initPush failed: " + (e && e.message));
+    _pushInited = false;
+  }
 }
 
 // In-app user guide (source of truth: menucaptain-help.md). Re-sync this when the .md changes.
@@ -4336,6 +4385,7 @@ function App(){
       window.__CHECKOUT_RESULT = null;
     }
     syncFromGitHub(cfg, cache);
+    initPush(cfg);   // native-only; no-op on web
     // Load lists + meta. These are kept OUT of the main sync/merge engine
     // (their own light state) and back the saved-list records, the First List
     // and Share the Love badges, and the share counter. auxLoaded gates badge
