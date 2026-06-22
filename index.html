@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.131.0";
+const APP_VERSION   = "1.132.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1019,9 +1019,15 @@ async function authHeaders(cfg){
 // is undefined in a browser and this returns immediately. In the native app it
 // asks permission, registers, and POSTs the device token to /api/push/register
 // so group invites / shares / connection events can notify. Guarded to run once.
+// GATE: stays OFF until Firebase (Android FCM google-services.json / iOS APNs) is
+// configured. Calling PushNotifications.register() without it crashes the Android
+// app ("Default FirebaseApp is not initialized"). Flip to true once google-services.json
+// + the google-services gradle plugin are in place (delivery needs Firebase anyway).
+const PUSH_ENABLED = false;
 let _pushInited = false;
 async function initPush(cfg){
   try {
+    if (!PUSH_ENABLED) return;
     const Cap = window.Capacitor;
     if (!Cap || typeof Cap.isNativePlatform !== "function" || !Cap.isNativePlatform()) return;
     const PN = Cap.Plugins && Cap.Plugins.PushNotifications;
