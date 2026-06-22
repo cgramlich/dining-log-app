@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.128.0";
+const APP_VERSION   = "1.129.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7551,6 +7551,22 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                   <div className="spl-amt">{money(p.totalCents)}</div>
                 </div>
               ))}
+              {/* check-style breakdown so the tip (and tax) dollars are explicit */}
+              {(tipCents>0 || taxCents>0 || (overriding && split.overageCents>0)) && (
+                <div style={{borderTop:"1px solid var(--line-soft)",marginTop:2,paddingTop:4}}>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"4px 2px",fontSize:"13.5px",color:"var(--text-dim)"}}>
+                    <span>Items</span><span>{money(subtotalCents)}</span></div>
+                  {!overriding && taxCents>0 && (
+                    <div style={{display:"flex",justifyContent:"space-between",padding:"4px 2px",fontSize:"13.5px",color:"var(--text-dim)"}}>
+                      <span>Tax</span><span>{money(taxCents)}</span></div>)}
+                  {!overriding && tipCents>0 && (
+                    <div style={{display:"flex",justifyContent:"space-between",padding:"4px 2px",fontSize:"13.5px",color:"var(--text-dim)"}}>
+                      <span>Tip</span><span>{money(tipCents)}</span></div>)}
+                  {overriding && split.overageCents>0 && (
+                    <div style={{display:"flex",justifyContent:"space-between",padding:"4px 2px",fontSize:"13.5px",color:"var(--text-dim)"}}>
+                      <span>Tax &amp; tip</span><span>{money(split.overageCents)}</span></div>)}
+                </div>
+              )}
               <div className="spl-total">
                 <span>Total</span><span>{money(split.grandCents)}</span>
               </div>
