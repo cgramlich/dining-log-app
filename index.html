@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.126.0";
+const APP_VERSION   = "1.127.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7487,6 +7487,8 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                       onClick={()=> setTaxMode("%")}>%</button>
                   </div>
                 </div>
+                {taxMode==="%" && (Number(tax)||0)>0 &&
+                  <div className="tiny faint" style={{marginTop:5}}>= {money(taxCents)}</div>}
               </label>
               <label className="fld" style={{flex:1,marginBottom:0}}>
                 <span className="lbl">Tip</span>
@@ -7500,6 +7502,8 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                       onClick={()=> setTipMode("%")}>%</button>
                   </div>
                 </div>
+                {tipMode==="%" && (Number(tip)||0)>0 &&
+                  <div className="tiny faint" style={{marginTop:5}}>= {money(tipCents)}</div>}
               </label>
             </div>
             <label className="fld" style={{marginTop:12,marginBottom:0}}>
