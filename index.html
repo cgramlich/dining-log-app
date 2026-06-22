@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.130.0";
+const APP_VERSION   = "1.131.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1045,9 +1045,13 @@ async function initPush(cfg){
     PN.addListener("registrationError", (err)=>
       logMsg("WARN","push registration error: " + JSON.stringify(err)));
     PN.addListener("pushNotificationActionPerformed", (action)=>{
-      // TODO(deep-link): route by action.notification.data.type
+      // Hand the payload to the React app, which routes by data.type
       // (connection_request | connection_accepted | share | group_invite).
-      logMsg("PUSH","notification tapped");
+      try {
+        const data = (action && action.notification && action.notification.data) || {};
+        window.dispatchEvent(new CustomEvent("mc-push-nav", { detail: data }));
+        logMsg("PUSH","notification tapped: " + (data.type || "?"));
+      } catch(e){ logMsg("WARN","push tap routing failed: " + (e && e.message)); }
     });
 
     const perm = await PN.requestPermissions();
@@ -4406,6 +4410,22 @@ function App(){
       setAuxLoaded(true);
     })();
     // eslint-disable-next-line
+  },[]);
+
+  /* ---- push deep-links: route a tapped notification to its screen ------ */
+  useEffect(()=>{
+    function onNav(e){
+      const t = (e.detail && e.detail.type) || "";
+      if (t === "connection_request" || t === "connection_accepted"){
+        setOverlay({ type:"connections" });
+      } else if (t === "share"){
+        setOverlay({ type:"shares" });
+      } else if (t === "group_invite"){
+        setOverlay(null); setTab("restaurants");
+      }
+    }
+    window.addEventListener("mc-push-nav", onNav);
+    return ()=> window.removeEventListener("mc-push-nav", onNav);
   },[]);
 
   /* ---- badges: toast the moment one is newly earned -------------------- */
@@ -10991,6 +11011,7 @@ function computeSplit(menuSnapshot, picks, receipt, mode){
     });
     return {
       rows: rows, shared: shared, total: total, basis: "receipt",
+      extra: (receipt.total != null && extra > 0) ? extra : 0,   // tax+tip+fees in dollars
       note: (receipt.total != null
         ? "From the receipt, including tax and tip."
         : "From the receipt's line items (total not read, before tax).")
@@ -11126,6 +11147,12 @@ function SplitCheck({cfg, menuSnapshot, picks}){
               <span className="go-split-amt">{fmtPrice(r.amount)}</span>
             </div>
           ))}
+          {split.extra > 0 ? (
+            <div className="go-split-line" style={{color:"var(--text-dim)"}}>
+              <span className="go-split-name">Tax &amp; tip</span>
+              <span className="go-split-amt">{fmtPrice(split.extra)}</span>
+            </div>
+          ) : null}
           <div className="go-split-line go-split-total">
             <span className="go-split-name">Total</span>
             <span className="go-split-amt">{fmtPrice(split.total)}</span>
