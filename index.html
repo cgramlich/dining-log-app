@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.138.0";
+const APP_VERSION   = "1.139.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3117,8 +3117,14 @@ async function digitizeMenu(cfg, dataUrls){
     "- price: a string exactly as printed (e.g. \"$12.95\", \"6.25 ea / 2 for 11.50\", "+
     "\"MP\"); empty string if none.\n"+
     "- description: the ingredient or description line; empty string if none.\n"+
-    "- tags: include any of \"gluten-free\",\"vegetarian\",\"vegan\",\"spicy\",\"raw\" "+
-    "that the menu indicates (a 'gf' mark means gluten-free); empty array if none.\n"+
+    "- tags: apply any of \"gluten-free\",\"vegetarian\",\"vegan\",\"spicy\",\"raw\". "+
+    "Tag when EITHER the menu marks it (a 'gf'/'(v)'/'(ve)' symbol or a legend) OR the "+
+    "dish name/description makes it clearly unambiguous (a vegetables-and-vinaigrette "+
+    "salad is vegetarian, and vegan if it lists no cheese/egg/dairy/honey/meat/fish; a "+
+    "steak is none of these). If you tag \"vegan\", also add \"vegetarian\". Be "+
+    "CONSERVATIVE: only tag when confident from what is printed - if ingredients are "+
+    "unstated or uncertain, do NOT tag. A missing tag is fine; a WRONG tag is harmful. "+
+    "Empty array if none.\n"+
     "- notes: anything extra about an item; usually empty.\n"+
     "- calories: ONLY if the menu explicitly prints a calorie number for THIS "+
     "item (e.g. \"850 cal\", \"850 Cal\", \"850 kcal\"); otherwise null. Never "+
@@ -6356,16 +6362,22 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     "keto":"Keto", "halal":"Halal", "kosher":"Kosher", "pescatarian":"Pescatarian",
   };
   const normTag = (t) => String(t || "").trim().toLowerCase();
+  // Diet labels for a dish, applying vegan -> vegetarian (so a vegan dish also
+  // shows under Vegetarian, even for already-scanned data). One source of truth
+  // for both the chip counts and the filtered view.
+  const dietLabelsOf = (it) => {
+    const set = new Set();
+    (it.tags || []).forEach(t => { const L = DIET_LABELS[normTag(t)]; if (L) set.add(L); });
+    if (set.has("Vegan")) set.add("Vegetarian");
+    return set;
+  };
   const dietCounts = {};                       // display label -> item count across all menus
   menuList.forEach(mn => (mn.sections || []).forEach(s => (s.items || []).forEach(it => {
-    const labels = new Set();
-    (it.tags || []).forEach(t => { const L = DIET_LABELS[normTag(t)]; if (L) labels.add(L); });
-    labels.forEach(L => { dietCounts[L] = (dietCounts[L] || 0) + 1; });
+    dietLabelsOf(it).forEach(L => { dietCounts[L] = (dietCounts[L] || 0) + 1; });
   })));
   const dietChips = Object.keys(dietCounts).sort();
   function buildDietMenu(label){
-    const wanted = Object.keys(DIET_LABELS).filter(k => DIET_LABELS[k] === label);
-    const matches = it => (it.tags || []).some(t => wanted.indexOf(normTag(t)) !== -1);
+    const matches = it => dietLabelsOf(it).has(label);
     const sectionMap = new Map();              // section name -> items[]
     menuList.forEach(mn => (mn.sections || []).forEach(s => {
       const keep = (s.items || []).filter(matches);
