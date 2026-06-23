@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.141.0";
+const APP_VERSION   = "1.142.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5122,6 +5122,11 @@ function App(){
             commit({ restaurants:next }, ["restaurants"]);
             flash("Linked to Google - tap Update from Google to pull details");
           }}
+          onStampMeta={(patch)=>{
+            // Stamp display-only Google data (rating/price/hours) onto the place.
+            const next = restaurants.map(x => x.id === overlay.id ? Object.assign({}, x, patch) : x);
+            commit({ restaurants: next }, ["restaurants"]);
+          }}
           onAddMenu={()=> setOverlay({ type:"scanMenu", restaurantId:overlay.id })}
           onOpenMenu={(menuId)=> setOverlay({
             type:"menuDetail", restaurantId:overlay.id, menuId:menuId })}
@@ -6237,7 +6242,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
    ============================================================ */
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onOpenMenu, onOpenVisit,
-                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder}){
+                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
@@ -6278,6 +6283,14 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
       if (p.website) enrich.website = p.website;
       if (p.lat != null) enrich.lat = p.lat;
       if (p.lng != null) enrich.lng = p.lng;
+      // Stamp display-only Google meta (rating/price/hours) straight onto the
+      // place so it's fetched once, not per page view (Places calls cost money).
+      const meta = { g_enriched_at: todayISO() };
+      if (typeof p.rating === "number")       meta.g_rating = p.rating;
+      if (typeof p.rating_count === "number") meta.g_rating_count = p.rating_count;
+      if (p.price_level != null && p.price_level !== "") meta.g_price_level = p.price_level;
+      if (Array.isArray(p.hours) && p.hours.length)      meta.g_hours = p.hours.slice(0, 7);
+      onStampMeta && onStampMeta(meta);
       onEnrich && onEnrich(enrich);
     } catch(e){
       setEnrichErr(e && e.status === 402 ? "Updating from Google is a Pro feature."
@@ -6392,6 +6405,14 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   }
   // Guard: if a filtered diet no longer has matches (e.g. data changed), drop it.
   const dietMenu = (dietFilter && dietCounts[dietFilter]) ? buildDietMenu(dietFilter) : null;
+  // Format a Google price level (number 0-4 or PRICE_LEVEL_* enum) as $ signs.
+  const gPrice = (pl) => {
+    if (pl == null || pl === "") return "";
+    if (typeof pl === "number") return pl > 0 ? "$".repeat(Math.min(4, pl)) : "";
+    const m = { PRICE_LEVEL_INEXPENSIVE:"$", PRICE_LEVEL_MODERATE:"$$",
+                PRICE_LEVEL_EXPENSIVE:"$$$", PRICE_LEVEL_VERY_EXPENSIVE:"$$$$" };
+    return m[pl] || "";
+  };
 
   // ---- dish memory: what to order again here -------------------------
   // For each distinct dish (case-insensitive), we go by its MOST RECENT
@@ -6498,6 +6519,31 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           {r.cuisine || "Restaurant"}
           {r.location ? "  \u00b7  " + r.location : ""}
         </div>
+
+        {(r.g_rating != null || gPrice(r.g_price_level) || (r.g_hours && r.g_hours.length)) && (
+          <div style={{marginTop:8}}>
+            <div className="row" style={{gap:12, flexWrap:"wrap", alignItems:"center"}}>
+              {r.g_rating != null && (
+                <span className="small">
+                  <span style={{color:"var(--accent)"}}>{"\u2605"}</span> {Number(r.g_rating).toFixed(1)}
+                  {r.g_rating_count ? <span className="faint"> ({r.g_rating_count})</span> : null}
+                </span>
+              )}
+              {gPrice(r.g_price_level) ? <span className="small faint">{gPrice(r.g_price_level)}</span> : null}
+            </div>
+            {r.g_hours && r.g_hours.length > 0 && (
+              <details style={{marginTop:6}}>
+                <summary className="small" style={{cursor:"pointer", color:"var(--accent)"}}>Hours</summary>
+                <div style={{marginTop:6}}>
+                  {r.g_hours.map((h,i)=> <div key={i} className="tiny faint">{h}</div>)}
+                </div>
+              </details>
+            )}
+            <div className="tiny faint" style={{marginTop:4}}>
+              From Google{r.g_enriched_at ? " \u00b7 updated " + r.g_enriched_at : ""}
+            </div>
+          </div>
+        )}
 
         {(r.address || r.phone || r.website) && (
           <div className="card" style={{marginTop:12}}>
@@ -9048,7 +9094,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
     } else {
       finalPhotoPath = existingPhotoPath || null;
     }
-    const rec = {
+    const rec = Object.assign({}, existing || {}, {   // preserve unknown fields (e.g. g_* Google meta)
       id: rid,
       name:name.trim(), cuisine:cuisine.trim(),
       location: finalLoc,
@@ -9064,7 +9110,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
       geo_failed: (existing && !geo) ? !!existing.geo_failed : false,
       // Discovery linkage (dedup / future re-enrich). Null for hand-added places.
       google_place_id: googlePlaceId,
-    };
+    });
     onSave(rec, {
       newLocationsToAdd: newLocationsToAdd,
       photoBlob: pendingBlob,
