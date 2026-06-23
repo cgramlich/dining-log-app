@@ -26,7 +26,7 @@
    - everything else (other API, list pages) -> default network
 */
 
-const VERSION = "1.148.0";                 // keep in lockstep with APP_VERSION
+const VERSION = "1.149.0";                 // keep in lockstep with APP_VERSION
 const SHELL_CACHE = "mc-shell-" + VERSION;
 const ASSET_CACHE = "mc-assets-" + VERSION;
 const DATA_CACHE  = "mc-data-v1";           // user collections; UN-versioned so it
@@ -43,6 +43,9 @@ const CRITICAL_ASSETS = [
   "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
+  // Self-hosted fonts: primed so even a first offline open renders in-brand.
+  "/fonts/fonts.css",
+  "/fonts/f0.woff2", "/fonts/f1.woff2", "/fonts/f2.woff2", "/fonts/f3.woff2", "/fonts/f4.woff2",
 ];
 
 self.addEventListener("install", (event) => {
@@ -85,8 +88,10 @@ self.addEventListener("message", (event) => {
 
 function isImmutableAsset(url) {
   if (url.hostname === "cdnjs.cloudflare.com") return true;            // versioned libs
-  if (url.hostname === "fonts.googleapis.com") return true;            // font css
-  if (url.hostname === "fonts.gstatic.com") return true;              // font files
+  if (url.hostname === "fonts.googleapis.com") return true;            // font css (legacy, no longer used)
+  if (url.hostname === "fonts.gstatic.com") return true;              // font files (legacy, no longer used)
+  if (url.origin === self.location.origin &&
+      url.pathname.indexOf("/fonts/") === 0) return true;             // self-hosted font css + woff2
   if (url.origin === self.location.origin &&
       /\.(png|jpe?g|webp|gif|svg|ico|woff2?)$/i.test(url.pathname)) return true;  // our images/icons
   return false;
