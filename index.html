@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.134.0";
+const APP_VERSION   = "1.135.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7674,11 +7674,25 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 }
                 return (
                   <div key={p.name} className="spl-res">
-                    <div>
+                    <div style={{flex:1, minWidth:0}}>
                       <div className="spl-nm">{p.name}</div>
                       <div className="spl-sub">items {money(p.lineCents)}{breakdown}</div>
                     </div>
-                    <div className="spl-amt">{money(p.totalCents)}</div>
+                    <div className="row" style={{gap:8, flex:"none", alignItems:"center"}}>
+                      <div className="spl-amt">{money(p.totalCents)}</div>
+                      <button className="btn ghost sm" aria-label={"Copy " + p.name + "'s share"}
+                        style={{padding:"4px 10px", margin:0, minWidth:0, fontSize:"12px"}}
+                        onClick={(e)=>{
+                          e.stopPropagation();
+                          const text = p.name + ": " + money(p.totalCents);
+                          try {
+                            if (navigator.clipboard && navigator.clipboard.writeText){
+                              navigator.clipboard.writeText(text);
+                              flash && flash("Copied " + p.name + "'s share");
+                            } else { flash && flash("Copy not supported here"); }
+                          } catch(err){ flash && flash("Couldn't copy"); }
+                        }}>Copy</button>
+                    </div>
                   </div>
                 );
               })}
@@ -7692,7 +7706,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                       <span>Tax</span><span>{money(taxCents)}</span></div>)}
                   {!overriding && tipCents>0 && (
                     <div style={{display:"flex",justifyContent:"space-between",padding:"4px 2px",fontSize:"13.5px",color:"var(--text-dim)"}}>
-                      <span>Tip</span><span>{money(tipCents)}</span></div>)}
+                      <span>Tip{subtotalCents>0 ? " · " + (tipCents/subtotalCents*100).toFixed(1) + "%" : ""}</span><span>{money(tipCents)}</span></div>)}
                   {overriding && split.overageCents>0 && (
                     <div style={{display:"flex",justifyContent:"space-between",padding:"4px 2px",fontSize:"13.5px",color:"var(--text-dim)"}}>
                       <span>Tax &amp; tip</span><span>{money(split.overageCents)}</span></div>)}
