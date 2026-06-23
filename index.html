@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.133.0";
+const APP_VERSION   = "1.134.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5132,6 +5132,20 @@ function App(){
               return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
             });
             commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
+          }}
+          onReorderMenu={(menuId, dir)=>{
+            // Move a non-"Main" menu up/down within the persisted array. "Main"
+            // menus stay pinned at the front; we reorder only the rest.
+            const rid = overlay.id;
+            const list = (menus[rid] || []).slice();
+            const isMain = m => ((m.label||"").trim().toLowerCase() === "main");
+            const pinned = list.filter(isMain);
+            const others = list.filter(m => !isMain(m));
+            const i = others.findIndex(m => m.menu_id === menuId);
+            const j = i + dir;
+            if (i < 0 || j < 0 || j >= others.length) return;
+            const t = others[i]; others[i] = others[j]; others[j] = t;
+            commit({ menus: Object.assign({}, menus, { [rid]: pinned.concat(others) }) }, ["menus"]);
           }} />
       )}
 
@@ -6198,7 +6212,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
    ============================================================ */
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onOpenMenu, onOpenVisit,
-                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle}){
+                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onReorderMenu}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
@@ -6261,6 +6275,12 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const menuList = (menus || []).slice().sort((a,b)=>
     ((((a.label||"").trim().toLowerCase() === "main") ? 0 : 1)
      - (((b.label||"").trim().toLowerCase() === "main") ? 0 : 1)));
+  // Reorder support: "Main" menus stay pinned at the top; everything after them
+  // (indices >= menuMainCount) is the reorderable block. Only worth showing the
+  // up/down controls when there are 2+ non-Main menus.
+  const menuMainCount = menuList.filter(m =>
+    ((m.label||"").trim().toLowerCase() === "main")).length;
+  const canReorderMenus = (menuList.length - menuMainCount) > 1;
 
   // ---- dish memory: what to order again here -------------------------
   // For each distinct dish (case-insensitive), we go by its MOST RECENT
@@ -6532,9 +6552,13 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               onSaveItemNutrition && onSaveItemNutrition(menuList[0].menu_id, si, ii, est)} />
         )}
 
-        {menuList.length > 1 && menuList.map(m => {
+        {menuList.length > 1 && menuList.map((m, idx) => {
           const itemCount = (m.sections || []).reduce(
             (n,s) => n + ((s.items || []).length), 0);
+          const isMain = ((m.label||"").trim().toLowerCase() === "main");
+          const showReorder = canReorderMenus && !isMain && onReorderMenu;
+          const canUp   = showReorder && idx > menuMainCount;
+          const canDown = showReorder && idx < menuList.length - 1;
           return (
             <div key={m.menu_id} className="menu-row"
               onClick={()=> onOpenMenu(m.menu_id)}>
@@ -6546,6 +6570,21 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   {m.source === "seed" ? " (starter)" : ""}
                 </div>
               </div>
+              {showReorder && (
+                <div className="row" style={{gap:4, flex:"none", marginRight:4}}
+                  onClick={(e)=> e.stopPropagation()}>
+                  <button className="btn ghost sm" aria-label="Move menu up"
+                    style={{padding:"4px 9px", margin:0, minWidth:0, opacity: canUp ? 1 : 0.3}}
+                    disabled={!canUp}
+                    onClick={(e)=>{ e.stopPropagation(); onReorderMenu(m.menu_id, -1); }}>
+                    {"\u2191"}</button>
+                  <button className="btn ghost sm" aria-label="Move menu down"
+                    style={{padding:"4px 9px", margin:0, minWidth:0, opacity: canDown ? 1 : 0.3}}
+                    disabled={!canDown}
+                    onClick={(e)=>{ e.stopPropagation(); onReorderMenu(m.menu_id, 1); }}>
+                    {"\u2193"}</button>
+                </div>
+              )}
               <Icon name="chev" size={18} color="#80715f" />
             </div>
           );
