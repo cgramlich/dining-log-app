@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.147.0";
+const APP_VERSION   = "1.148.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8223,6 +8223,8 @@ function NearbyMap({ user, results, onOpen, searchCenter, onSearchArea }){
   );
 }
 
+function loadNearMePrefs(){ try { return JSON.parse(localStorage.getItem("dininglog_nearme_prefs") || "{}") || {}; } catch(e){ return {}; } }
+function saveNearMePrefs(p){ try { localStorage.setItem("dininglog_nearme_prefs", JSON.stringify(p)); } catch(e){} }
 function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade, onClose }){
   // Tier gate. null = loading; "pro" shows search; anything else shows upsell.
   // We fetch it once so a free user never wastes a search round-trip; any stray
@@ -8234,9 +8236,11 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
   const [geoState, setGeoState] = useState("idle");   // idle|locating|ok|denied|unavailable
 
   // Filters.
-  const [radiusM, setRadiusM] = useState(1600);       // 1 mi default
-  const [typeKey, setTypeKey] = useState("all");
-  const [openNow, setOpenNow] = useState(false);
+  const [radiusM, setRadiusM] = useState(()=> { const p = loadNearMePrefs(); return typeof p.radiusM === "number" ? p.radiusM : 1600; });
+  const [typeKey, setTypeKey] = useState(()=> loadNearMePrefs().typeKey || "all");
+  const [openNow, setOpenNow] = useState(()=> !!loadNearMePrefs().openNow);
+  // Remember the last-used filters across sessions.
+  useEffect(()=>{ saveNearMePrefs({ radiusM, typeKey, openNow }); }, [radiusM, typeKey, openNow]);
 
   // Results + status.
   const [results, setResults]       = useState([]);
