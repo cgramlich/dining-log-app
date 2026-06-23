@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.135.0";
+const APP_VERSION   = "1.136.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3031,28 +3031,46 @@ async function ghGetFile(cfg, path){
   const name = path.replace(/^data\//, "").replace(/\.json$/, "");
   const url = apiBase(cfg) + "/api/collection/" + name;
   logMsg("API", "GET " + name);
-  let res;
-  try {
-    res = await fetch(url, { headers: await authHeaders(cfg) });
-  } catch(err){
-    logMsg("ERROR","Backend GET network failure: " + err.message);
-    throw new Error("Network error reaching the server");
+  // One fetch+parse attempt. Sets err.fatal=true for auth failures (never retry).
+  const attempt = async () => {
+    let res;
+    try {
+      res = await fetch(url, { headers: await authHeaders(cfg) });
+    } catch(err){
+      throw new Error("Network error reaching the server");          // transient
+    }
+    if (res.status === 401){
+      const e = new Error("Server rejected the request (401). Check your User ID in Settings.");
+      e.fatal = true; throw e;
+    }
+    if (!res.ok){
+      const body = await res.text().catch(()=> "");
+      logMsg("ERROR","Backend GET " + name + " -> " + res.status + " " + body.slice(0,120));
+      throw new Error("Backend GET failed (" + res.status + ")");    // transient (cold-start 5xx)
+    }
+    try { return await res.json(); }
+    catch(e){
+      logMsg("ERROR","Could not parse JSON for " + name + ": " + e.message);
+      throw new Error("Server returned invalid JSON for " + name);   // transient (truncated cold body)
+    }
+  };
+  // Auto-retry transient failures so a cold/slow backend (Railway cold start, a
+  // truncated first response) self-heals instead of showing the user an error -
+  // the same thing a manual refresh does today, but automatic.
+  let lastErr;
+  for (let i = 0; i < 3; i++){
+    try {
+      const data = await attempt();
+      logMsg("API","Loaded " + name + (i ? " (after retry " + i + ")" : ""));
+      return { found:true, data:data, sha:null };   // collections always exist (empty if no rows)
+    } catch(err){
+      if (err && err.fatal) throw err;              // auth - don't retry
+      lastErr = err;
+      logMsg("WARN","GET " + name + " attempt " + (i+1) + " failed: " + (err && err.message));
+      if (i < 2) await new Promise(r => setTimeout(r, 900 * (i + 1)));   // 0.9s, then 1.8s backoff
+    }
   }
-  if (res.status === 401){ throw new Error("Server rejected the request (401). Check your User ID in Settings."); }
-  if (!res.ok){
-    const body = await res.text().catch(()=> "");
-    logMsg("ERROR","Backend GET " + name + " -> " + res.status + " " + body.slice(0,120));
-    throw new Error("Backend GET failed (" + res.status + ")");
-  }
-  let data;
-  try { data = await res.json(); }
-  catch(e){
-    logMsg("ERROR","Could not parse JSON for " + name + ": " + e.message);
-    throw new Error("Server returned invalid JSON for " + name);
-  }
-  logMsg("API","Loaded " + name);
-  // Collections always exist on the backend (empty if no rows yet).
-  return { found:true, data:data, sha:null };
+  throw lastErr;
 }
 
 async function ghPutFile(cfg, path, dataObj, sha){

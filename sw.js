@@ -26,7 +26,7 @@
    - everything else (other API, list pages) -> default network
 */
 
-const VERSION = "1.135.0";                 // keep in lockstep with APP_VERSION
+const VERSION = "1.136.0";                 // keep in lockstep with APP_VERSION
 const SHELL_CACHE = "mc-shell-" + VERSION;
 const ASSET_CACHE = "mc-assets-" + VERSION;
 const DATA_CACHE  = "mc-data-v1";           // user collections; UN-versioned so it
@@ -110,15 +110,20 @@ async function shellNetworkFirst(req) {
 // while connected.
 async function dataNetworkFirst(req) {
   const cache = await caches.open(DATA_CACHE);
+  const cached = await cache.match(req);
   try {
-    const fresh = await Promise.race([
-      fetch(req),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
-    ]);
+    // Only race the 5s timeout when we actually have a cached copy to fall back
+    // to. With NO cache (e.g. first load on a cold Railway backend), abandoning
+    // the request at 5s just produces an error - so wait for the real response.
+    const fresh = cached
+      ? await Promise.race([
+          fetch(req),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+        ])
+      : await fetch(req);
     if (fresh && fresh.ok) cache.put(req, fresh.clone());
     return fresh;
   } catch (e) {
-    const cached = await cache.match(req);
     if (cached) return cached;
     throw e;                                  // no cache -> surface the real error to the app
   }
