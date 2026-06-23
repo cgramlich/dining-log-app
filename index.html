@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.136.0";
+const APP_VERSION   = "1.137.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5151,18 +5151,17 @@ function App(){
             });
             commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
           }}
-          onReorderMenu={(menuId, dir)=>{
-            // Move a non-"Main" menu up/down within the persisted array. "Main"
-            // menus stay pinned at the front; we reorder only the rest.
+          onSetMenuOrder={(orderedIds)=>{
+            // Persist a full drag-reordered order for the non-"Main" menus.
+            // "Main" menus stay pinned at the front of the saved array.
             const rid = overlay.id;
             const list = (menus[rid] || []).slice();
             const isMain = m => ((m.label||"").trim().toLowerCase() === "main");
             const pinned = list.filter(isMain);
-            const others = list.filter(m => !isMain(m));
-            const i = others.findIndex(m => m.menu_id === menuId);
-            const j = i + dir;
-            if (i < 0 || j < 0 || j >= others.length) return;
-            const t = others[i]; others[i] = others[j]; others[j] = t;
+            const byId = {}; list.forEach(m => { byId[m.menu_id] = m; });
+            const others = orderedIds.map(id => byId[id]).filter(m => m && !isMain(m));
+            const seen = new Set(orderedIds);   // safety: keep any non-Main not in the list
+            list.forEach(m => { if (!isMain(m) && !seen.has(m.menu_id)) others.push(m); });
             commit({ menus: Object.assign({}, menus, { [rid]: pinned.concat(others) }) }, ["menus"]);
           }} />
       )}
@@ -6230,7 +6229,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
    ============================================================ */
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onOpenMenu, onOpenVisit,
-                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onReorderMenu}){
+                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
@@ -6240,6 +6239,12 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const [linkBusy, setLinkBusy]     = useState(false);
   const [linkErr, setLinkErr]       = useState("");
   const [candidates, setCandidates] = useState(null);   // Google match candidates, or null
+  // ---- menu drag-to-reorder state (pointer events; touch + mouse) ----
+  const [dragMenuId, setDragMenuId] = useState(null);   // id being dragged (for styling)
+  const dragMenuIdRef = useRef(null);                   // live id (synchronous logic)
+  const dragOrderRef  = useRef(null);                   // working order of non-Main menu_ids
+  const [, setDragBump] = useState(0);                  // force a re-render while dragging
+  const menuRowRefs   = useRef({});                     // menu_id -> DOM node (for hit-testing)
   if (!restaurant){
     return (
       <div className="overlay">
@@ -6299,6 +6304,45 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const menuMainCount = menuList.filter(m =>
     ((m.label||"").trim().toLowerCase() === "main")).length;
   const canReorderMenus = (menuList.length - menuMainCount) > 1;
+  // Non-"Main" menus (the reorderable block) in current display order.
+  const nonMainMenus = menuList.slice(menuMainCount);
+  const nonMainIds   = nonMainMenus.map(m => m.menu_id);
+  // Drag-to-reorder via pointer events (works for touch + mouse). The grip
+  // captures the pointer; as it moves past other rows we live-reorder a working
+  // copy of the non-Main ids; on release we persist via onSetMenuOrder.
+  function menuDragStart(e, id){
+    if (!canReorderMenus) return;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch(_e){}
+    dragMenuIdRef.current = id;
+    dragOrderRef.current  = nonMainIds.slice();
+    setDragMenuId(id);
+  }
+  function menuDragMove(e){
+    if (!dragMenuIdRef.current || !dragOrderRef.current) return;
+    e.preventDefault();
+    const order = dragOrderRef.current;
+    const y = e.clientY;
+    let target = order.length - 1;
+    for (let k = 0; k < order.length; k++){
+      const node = menuRowRefs.current[order[k]];
+      if (!node) continue;
+      const rect = node.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2){ target = k; break; }
+    }
+    const from = order.indexOf(dragMenuIdRef.current);
+    if (from < 0 || from === target) return;
+    order.splice(target, 0, order.splice(from, 1)[0]);   // move dragged id to target slot
+    setDragBump(b => b + 1);
+  }
+  function menuDragEnd(){
+    const id = dragMenuIdRef.current;
+    if (!id) return;
+    const finalOrder = (dragOrderRef.current || nonMainIds).slice();
+    dragMenuIdRef.current = null;
+    dragOrderRef.current  = null;
+    setDragMenuId(null);
+    if (onSetMenuOrder && finalOrder.join("|") !== nonMainIds.join("|")) onSetMenuOrder(finalOrder);
+  }
 
   // ---- dish memory: what to order again here -------------------------
   // For each distinct dish (case-insensitive), we go by its MOST RECENT
@@ -6570,43 +6614,49 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               onSaveItemNutrition && onSaveItemNutrition(menuList[0].menu_id, si, ii, est)} />
         )}
 
-        {menuList.length > 1 && menuList.map((m, idx) => {
-          const itemCount = (m.sections || []).reduce(
-            (n,s) => n + ((s.items || []).length), 0);
-          const isMain = ((m.label||"").trim().toLowerCase() === "main");
-          const showReorder = canReorderMenus && !isMain && onReorderMenu;
-          const canUp   = showReorder && idx > menuMainCount;
-          const canDown = showReorder && idx < menuList.length - 1;
-          return (
-            <div key={m.menu_id} className="menu-row"
-              onClick={()=> onOpenMenu(m.menu_id)}>
-              <div style={{flex:1, minWidth:0}}>
-                <div className="menu-row-label">{m.label || "Menu"}</div>
-                <div className="tiny faint" style={{marginTop:3}}>
-                  {itemCount} item{itemCount === 1 ? "" : "s"}
-                  {"  \u00b7  Captured " + fmtDate(m.captured_date)}
-                  {m.source === "seed" ? " (starter)" : ""}
+        {menuList.length > 1 && (() => {
+          // Render pinned "Main" menus first (no grip), then the non-Main menus
+          // in the live (drag) order, each with a drag grip when reordering is on.
+          const order = (dragMenuIdRef.current && dragOrderRef.current)
+            ? dragOrderRef.current : nonMainIds;
+          const orderedNonMain = order
+            .map(id => nonMainMenus.find(mm => mm.menu_id === id))
+            .filter(Boolean);
+          const card = (m, draggable) => {
+            const itemCount = (m.sections || []).reduce(
+              (n,s) => n + ((s.items || []).length), 0);
+            const dragging = dragMenuId === m.menu_id;
+            return (
+              <div key={m.menu_id} className="menu-row"
+                ref={draggable ? (el => { if (el) menuRowRefs.current[m.menu_id] = el; }) : undefined}
+                style={dragging ? {opacity:0.85, boxShadow:"0 8px 20px rgba(0,0,0,.35)", transform:"scale(1.01)"} : undefined}
+                onClick={()=>{ if (!dragMenuIdRef.current) onOpenMenu(m.menu_id); }}>
+                {draggable && canReorderMenus && (
+                  <span aria-label="Drag to reorder" title="Drag to reorder"
+                    style={{touchAction:"none", cursor:"grab", color:"#80715f", fontSize:18,
+                            lineHeight:1, padding:"6px 12px 6px 0", flex:"none", userSelect:"none"}}
+                    onClick={(e)=> e.stopPropagation()}
+                    onPointerDown={(e)=>{ e.stopPropagation(); menuDragStart(e, m.menu_id); }}
+                    onPointerMove={menuDragMove}
+                    onPointerUp={menuDragEnd}
+                    onPointerCancel={menuDragEnd}>
+                    {"\u2630"}</span>
+                )}
+                <div style={{flex:1, minWidth:0}}>
+                  <div className="menu-row-label">{m.label || "Menu"}</div>
+                  <div className="tiny faint" style={{marginTop:3}}>
+                    {itemCount} item{itemCount === 1 ? "" : "s"}
+                    {"  \u00b7  Captured " + fmtDate(m.captured_date)}
+                    {m.source === "seed" ? " (starter)" : ""}
+                  </div>
                 </div>
+                <Icon name="chev" size={18} color="#80715f" />
               </div>
-              {showReorder && (
-                <div className="row" style={{gap:4, flex:"none", marginRight:4}}
-                  onClick={(e)=> e.stopPropagation()}>
-                  <button className="btn ghost sm" aria-label="Move menu up"
-                    style={{padding:"4px 9px", margin:0, minWidth:0, opacity: canUp ? 1 : 0.3}}
-                    disabled={!canUp}
-                    onClick={(e)=>{ e.stopPropagation(); onReorderMenu(m.menu_id, -1); }}>
-                    {"\u2191"}</button>
-                  <button className="btn ghost sm" aria-label="Move menu down"
-                    style={{padding:"4px 9px", margin:0, minWidth:0, opacity: canDown ? 1 : 0.3}}
-                    disabled={!canDown}
-                    onClick={(e)=>{ e.stopPropagation(); onReorderMenu(m.menu_id, 1); }}>
-                    {"\u2193"}</button>
-                </div>
-              )}
-              <Icon name="chev" size={18} color="#80715f" />
-            </div>
-          );
-        })}
+            );
+          };
+          return menuList.slice(0, menuMainCount).map(m => card(m, false))
+            .concat(orderedNonMain.map(m => card(m, true)));
+        })()}
 
         {/* visits at this place */}
         <div className="divider-label">Visits here ({visits.length})</div>
