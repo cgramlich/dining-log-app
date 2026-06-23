@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.146.0";
+const APP_VERSION   = "1.147.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5761,6 +5761,7 @@ function VisitSplit({split}){
 function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
+  const [lovedOnly, setLovedOnly] = useState(false);   // show only visits with an "Again" dish
   if (!visits.length){
     // WHY: visits starts empty before the first data load completes. Show a
     // neutral loading state so users don't see "No visits yet" on sign-in.
@@ -5803,13 +5804,14 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
                               byNewest;
   const sorted = visits.slice().sort(cmp);
   const q = query.trim().toLowerCase();
-  const filtered = q ? sorted.filter(v => {
+  let filtered = q ? sorted.filter(v => {
     const rr = restaurantById(v.restaurant_id);
     const hay = ((rr ? rr.name : (v.restaurant_name || "")) + " " +
       (v.dishes || []).map(d => d.name || "").join(" ") + " " +
       (v.notes || "")).toLowerCase();
     return hay.includes(q);
   }) : sorted;
+  if (lovedOnly) filtered = filtered.filter(v => (v.dishes || []).some(d => d && d.verdict === "again"));
   return (
     <div>
       <SearchBar value={query} onChange={setQuery}
@@ -5820,6 +5822,8 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
         <span className={"chip pick" + (sortBy === "oldest" ? " on" : "")} onClick={()=> setSortBy("oldest")}>Oldest</span>
         <span className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</span>
         <span className={"chip pick" + (sortBy === "restaurant" ? " on" : "")} onClick={()=> setSortBy("restaurant")}>A&ndash;Z</span>
+        <span className={"chip pick" + (lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(v=> !v)}
+          style={{marginLeft:8}} title="Show only visits with a dish you'd order again">{"♥ Loved"}</span>
       </div>
       <div className="hist-legend">
         <InfoDot title="Calorie labels" label="Calorie labels">
