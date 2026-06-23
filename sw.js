@@ -26,7 +26,7 @@
    - everything else (other API, list pages) -> default network
 */
 
-const VERSION = "1.132.0";                 // keep in lockstep with APP_VERSION
+const VERSION = "1.133.0";                 // keep in lockstep with APP_VERSION
 const SHELL_CACHE = "mc-shell-" + VERSION;
 const ASSET_CACHE = "mc-assets-" + VERSION;
 const DATA_CACHE  = "mc-data-v1";           // user collections; UN-versioned so it

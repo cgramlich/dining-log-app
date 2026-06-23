@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.132.0";
+const APP_VERSION   = "1.133.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7616,17 +7616,33 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
         {step === "result" && split && (
           <div>
             <div className="card" style={{padding:"4px 14px"}}>
-              {split.people.map(p => (
-                <div key={p.name} className="spl-res">
-                  <div>
-                    <div className="spl-nm">{p.name}</div>
-                    <div className="spl-sub">
-                      items {money(p.lineCents)}{p.shareCents ? " + tax/tip " + money(p.shareCents) : ""}
+              {split.people.map(p => {
+                // Per-person sub-line: break the reconciled tax/tip share into
+                // explicit tax + tip (split by the overall tax:tip ratio so the
+                // cents still sum exactly to each person's total). Falls back to
+                // a combined "tax/tip" when the total is hard-overridden.
+                let breakdown = "";
+                if (p.shareCents){
+                  if (overriding){
+                    breakdown = " + tax/tip " + money(p.shareCents);
+                  } else {
+                    const denom = tipCents + taxCents;
+                    const pTip = denom > 0 ? Math.round(p.shareCents * tipCents / denom) : 0;
+                    const pTax = p.shareCents - pTip;
+                    breakdown = (taxCents > 0 ? " · tax " + money(pTax) : "")
+                              + (tipCents > 0 ? " · tip " + money(pTip) : "");
+                  }
+                }
+                return (
+                  <div key={p.name} className="spl-res">
+                    <div>
+                      <div className="spl-nm">{p.name}</div>
+                      <div className="spl-sub">items {money(p.lineCents)}{breakdown}</div>
                     </div>
+                    <div className="spl-amt">{money(p.totalCents)}</div>
                   </div>
-                  <div className="spl-amt">{money(p.totalCents)}</div>
-                </div>
-              ))}
+                );
+              })}
               {/* check-style breakdown so the tip (and tax) dollars are explicit */}
               {(tipCents>0 || taxCents>0 || (overriding && split.overageCents>0)) && (
                 <div style={{borderTop:"1px solid var(--line-soft)",marginTop:2,paddingTop:4}}>
