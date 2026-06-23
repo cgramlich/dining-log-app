@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.149.0";
+const APP_VERSION   = "1.150.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1485,10 +1485,11 @@ it can open that menu page.
 Stuck on where to eat? Tap the **+** button and choose **Can't decide?** Pick
 up to eight places for the wheel - your favorites are ticked to start, and you
 can search to add or remove any others - then tap **Spin**. The wheel is a
-ship's helm: it spins and lands on one of your places, dimming the rest, and
-you get its name with quick buttons to open the place, get directions, or spin
-again. Pick fewer than eight and some spokes become "Spin again" - land on one
-and just spin once more. Nothing is saved - it is just a fun way to settle the
+ship's helm: tap **Spin** to set it turning, then tap **Stop** whenever you're
+ready and it coasts to rest on one of your places, dimming the rest. You get its
+name with quick buttons to open the place, get directions, or spin again. Pick
+fewer than eight and some spokes become "Spin again" - land on one and just spin
+once more. Nothing is saved - it is just a fun way to settle the
 "I don't care, you pick" stalemate.
 
 -----
@@ -8758,17 +8759,26 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
   const [stage, setStage]         = useState("pick");   // "pick" | "wheel"
   const [wheelList, setWheelList] = useState([]);        // frozen set for the wheel
   const [rotation, setRotation]   = useState(0);
-  const [spinning, setSpinning]   = useState(false);
+  const [spinMode, setSpinMode]   = useState("idle");   // "idle" | "spinning" | "armed" | "stopping"
+  const spinning = spinMode === "spinning";
+  const busy     = spinMode !== "idle";                 // free-spinning, arming, or coasting to rest
   const [winner, setWinner]       = useState(null);
   const spinTimer = useRef(null);
+  const angleRef  = useRef(0);     // live angle while the wheel free-spins (drives transform via ref, no re-render)
+  const rafRef    = useRef(null);  // requestAnimationFrame handle for the free-spin / coast
+  const rotorRef  = useRef(null);  // the spinning rotor element
+  const pendingWinnerRef = useRef(0); // chosen slot, revealed once the coast-to-rest finishes
   const [slots, setSlots]             = useState([]);     // frozen 8-slot fill
   const [winnerSlot, setWinnerSlot]   = useState(null);   // index 0-7 lit on landing
   const [landedAgain, setLandedAgain] = useState(false);
   const reduce = (typeof window !== "undefined" && window.matchMedia
     && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
-  // clear any pending reveal timer if the overlay unmounts mid-spin
-  useEffect(()=> ()=> { if (spinTimer.current) clearTimeout(spinTimer.current); }, []);
+  // clear any pending reveal timer / animation frame if the overlay unmounts mid-spin
+  useEffect(()=> ()=> {
+    if (spinTimer.current) clearTimeout(spinTimer.current);
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  }, []);
 
   const ql = q.trim().toLowerCase();
   const shown = ql
@@ -8801,32 +8811,78 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
     setWheelList(list);
     setSlots(buildSlots(list));              // freeze the 8-slot fill so it is stable
     setWinner(null); setWinnerSlot(null); setLandedAgain(false);
-    setRotation(0); setSpinning(false);
+    angleRef.current = 0; setRotation(0); setSpinMode("idle");
     setStage("wheel");
   }
 
-  // SPIN: pick a uniform random slot, then snap so that slot's GAP lands under the
-  // top pointer (never on a spoke). Rotation accumulates forward so a re-spin never
-  // snaps backward. Landing on a "Spin again" slot just re-enables Spin.
-  function spin(){
-    if (spinning) return;
-    const w = Math.floor(Math.random() * 8);
-    const turns = 3 + Math.floor(Math.random() * 3);   // 3-5 full turns
-    const cur = ((rotation % 360) + 360) % 360;
+  // Align so slot w's GAP lands under the top pointer (never on a spoke), `turns`
+  // full revolutions ahead of `from`. Rotation only accumulates forward.
+  function alignTarget(from, w, turns){
     const want = ((360 - GAPS[w]) % 360 + 360) % 360;  // bring gap w to the top
+    const cur  = ((from % 360) + 360) % 360;
     const delta = ((want - cur) % 360 + 360) % 360;
-    const target = rotation + 360 * turns + delta;
+    return from + 360 * turns + delta;
+  }
+  function revealWinner(){
+    const w = pendingWinnerRef.current;
+    setSpinMode("idle");
+    setWinnerSlot(w);
+    const landed = slots[w];            // place object, or null = "Spin again"
+    if (landed) setWinner(landed);
+    else setLandedAgain(true);
+  }
+
+  // START: free-spin at a steady rate until the user taps Stop (so it feels like
+  // YOU steer the helm). The angle is driven straight onto the DOM node via a ref
+  // so the 60fps loop never re-renders the SVG. Reduced-motion users skip the
+  // free-spin and get a quick, fair snap instead.
+  function startSpin(){
+    if (busy) return;
     setWinner(null); setWinnerSlot(null); setLandedAgain(false);
-    setSpinning(true);
-    setRotation(target);
-    if (spinTimer.current) clearTimeout(spinTimer.current);
-    spinTimer.current = setTimeout(()=>{
-      setSpinning(false);
-      setWinnerSlot(w);
-      const landed = slots[w];          // place object, or null = Spin again
-      if (landed) setWinner(landed);
-      else setLandedAgain(true);
-    }, reduce ? 650 : 5050);
+    if (reduce){
+      const w = Math.floor(Math.random() * 8);
+      pendingWinnerRef.current = w;
+      const target = alignTarget(rotation, w, 3);
+      angleRef.current = target;
+      setRotation(target); setSpinMode("stopping");
+      if (spinTimer.current) clearTimeout(spinTimer.current);
+      spinTimer.current = setTimeout(revealWinner, 650);
+      return;
+    }
+    setSpinMode("spinning");
+    const V = 0.66;                     // deg per ms (~1.8 revolutions / sec)
+    let last = null;
+    const loop = (ts)=>{
+      if (last == null) last = ts;
+      angleRef.current += V * (ts - last);
+      last = ts;
+      if (rotorRef.current) rotorRef.current.style.transform = "rotate(" + angleRef.current + "deg)";
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+  }
+
+  // STOP: cut the free-spin and coast to rest on a uniformly-random slot (always a
+  // gap), so reaction timing never biases the pick - the tap controls WHEN, not
+  // WHERE. Two commits avoid a visual jump: first pin the rendered angle to the
+  // live angle (transition off), then on the next frame transition to the target
+  // so the browser animates a natural ~1 turn coast.
+  function stopSpin(){
+    if (spinMode !== "spinning") return;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    const cur = angleRef.current;
+    setRotation(cur); setSpinMode("armed");          // commit 1: transform = live angle, transition none
+    rafRef.current = requestAnimationFrame(()=> {
+      rafRef.current = requestAnimationFrame(()=>{
+        const w = Math.floor(Math.random() * 8);
+        pendingWinnerRef.current = w;
+        const target = alignTarget(cur, w, 1);       // one easy coasting turn into the gap
+        angleRef.current = target;
+        setRotation(target); setSpinMode("stopping"); // commit 2: transition on -> animates to target
+        if (spinTimer.current) clearTimeout(spinTimer.current);
+        spinTimer.current = setTimeout(revealWinner, 1950);
+      });
+    });
   }
 
   // ---- photoreal helm: 8 fixed slots (the gaps between the 8 spokes) ----
@@ -8931,7 +8987,7 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
             <div className="pw-cap">Let the wheel steer you to your next meal.</div>
             <div className="pw-stage">
               <div className="pw-shadow" />
-              <div className="pw-rotor" style={{transform:"rotate(" + rotation + "deg)", transition: reduce ? "transform 0.6s ease-out" : "transform 5s cubic-bezier(0.33, 0, 0.4, 1)"}}>
+              <div className="pw-rotor" ref={rotorRef} style={{transform:"rotate(" + rotation + "deg)", transition: spinMode === "stopping" ? (reduce ? "transform 0.6s ease-out" : "transform 1.9s cubic-bezier(0.17, 0.72, 0.24, 1)") : "none"}}>
                 <img src="/spin-wheel.png" alt="" draggable={false} />
                 <svg viewBox="0 0 820 820">
                   {slots.map((s, i) => (
@@ -8967,7 +9023,7 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
                 <div className="row" style={{gap:8, justifyContent:"center", flexWrap:"wrap"}}>
                   <button className="btn primary sm" onClick={()=> onOpenRestaurant(winner.id)}>Open this place</button>
                   <a className="btn ghost sm" href={dirHref} target="_blank" rel="noopener noreferrer">Directions</a>
-                  <button className="btn ghost sm" onClick={spin}>Spin again</button>
+                  <button className="btn ghost sm" onClick={startSpin}>Spin again</button>
                 </div>
               </div>
             ) : (
@@ -8977,8 +9033,17 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
                     Landed on "Spin again" - give it another go.
                   </div>
                 ) : null}
-                <button className="btn primary spin-btn" disabled={spinning} onClick={spin}>
-                  {spinning ? "Spinning\u2026" : "Spin"}
+                {spinMode === "spinning" ? (
+                  <div className="tiny faint" style={{margin:"0 0 6px", color:"#e9d9bb"}}>
+                    Tap Stop whenever you're ready.
+                  </div>
+                ) : null}
+                <button className="btn primary spin-btn"
+                  disabled={spinMode === "armed" || spinMode === "stopping"}
+                  onClick={spinMode === "spinning" ? stopSpin : startSpin}>
+                  {spinMode === "spinning" ? "Stop"
+                    : (spinMode === "armed" || spinMode === "stopping") ? "Stopping\u2026"
+                    : "Spin"}
                 </button>
               </div>
             )}
