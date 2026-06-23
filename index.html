@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.144.0";
+const APP_VERSION   = "1.145.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -11742,6 +11742,7 @@ function GroupInvitePicker({cfg, code}){
   const [pick, setPick] = useState({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg]   = useState("");
+  const favSet = loadConnFavs();   // favorite connections float to the top
   async function openPicker(){
     setOpen(true); setMsg("");
     if (conns === null){
@@ -11783,14 +11784,17 @@ function GroupInvitePicker({cfg, code}){
               <div className="small faint" style={{padding:"4px 0 12px"}}>
                 No connections yet. Add some in Settings &rarr; Connections.
               </div>
-            ) : conns.map(c => {
+            ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
               const l = connLabel(c);
               const on = !!pick[c.user_id];
+              const isFav = favSet.has(c.user_id);
               return (
                 <div key={c.user_id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
                   onClick={()=> setPick(p => Object.assign({}, p, { [c.user_id]: !p[c.user_id] }))}>
                   <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
-                  <span style={{flex:1, minWidth:0}}>{l.primary}{l.secondary ? <span className="tiny faint"> {l.secondary}</span> : null}</span>
+                  <span style={{flex:1, minWidth:0}}>
+                    {isFav ? <span style={{color:"var(--accent)"}}>★ </span> : null}
+                    {l.primary}{l.secondary ? <span className="tiny faint"> {l.secondary}</span> : null}</span>
                 </div>
               );
             })}
@@ -14419,6 +14423,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList}){
   const [pick, setPick]   = useState({});
   const [busy, setBusy]   = useState(false);
   const [msg, setMsg]     = useState("");
+  const favSet = loadConnFavs();   // favorite connections float to the top
   const hasMenu = (menuList || []).some(m => m && (m.sections || []).length);
   if (!hasMenu) return null;   // need a menu to share the place
   async function openPicker(){
@@ -14465,13 +14470,16 @@ function ShareToConnectionButton({cfg, restaurant, menuList}){
               <div className="small faint" style={{padding:"4px 0 12px"}}>
                 No connections yet. Add some in Settings &rarr; Connections.
               </div>
-            ) : conns.map(c => {
+            ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
               const l = connLabel(c); const on = !!pick[c.user_id];
+              const isFav = favSet.has(c.user_id);
               return (
                 <div key={c.user_id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
                   onClick={()=> setPick(p => Object.assign({}, p, { [c.user_id]: !p[c.user_id] }))}>
                   <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
-                  <span style={{flex:1, minWidth:0}}>{l.primary}{l.secondary ? <span className="tiny faint"> {l.secondary}</span> : null}</span>
+                  <span style={{flex:1, minWidth:0}}>
+                    {isFav ? <span style={{color:"var(--accent)"}}>★ </span> : null}
+                    {l.primary}{l.secondary ? <span className="tiny faint"> {l.secondary}</span> : null}</span>
                 </div>
               );
             })}
