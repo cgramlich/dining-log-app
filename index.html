@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.143.0";
+const APP_VERSION   = "1.144.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4904,6 +4904,9 @@ function App(){
               cfg={config} syncing={sync.status === "busy"}
               onSplitVisit={(v)=> setOverlay({ type:"splitCheck", fromVisit:v })}
               onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+              onScanMenu={()=> setOverlay({ type:"scanMenu" })}
+              onLogVisit={()=> setOverlay({ type:"logVisit" })}
+              onAddPlace={()=> setOverlay({ type:"addRestaurant" })}
               onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
           </>
         )}
@@ -5740,7 +5743,7 @@ function VisitSplit({split}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant}){
+function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   if (!visits.length){
@@ -5752,9 +5755,19 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
       </div>
     );
     return (
-      <div className="empty">
-        <div className="big">No visits yet</div>
-        <div>Tap the + button to log your first meal.</div>
+      <div className="empty" style={{paddingTop:34}}>
+        <div className="big">Welcome to MenuCaptain</div>
+        <div style={{maxWidth:300, margin:"0 auto 18px"}}>
+          Your private record of meals worth remembering. Pick a way to start:
+        </div>
+        <div style={{display:"flex", flexDirection:"column", gap:10, maxWidth:280, margin:"0 auto"}}>
+          {onLogVisit && <button className="btn primary" onClick={onLogVisit}>Log a meal</button>}
+          {onScanMenu && <button className="btn ghost" onClick={onScanMenu}>Scan a menu</button>}
+          {onAddPlace && <button className="btn ghost" onClick={onAddPlace}>Add a place</button>}
+        </div>
+        <div className="tiny faint" style={{marginTop:16, maxWidth:300, marginLeft:"auto", marginRight:"auto"}}>
+          You can also tap <strong>Places</strong> to browse restaurants and menus.
+        </div>
       </div>
     );
   }
