@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.145.0";
+const APP_VERSION   = "1.146.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5225,6 +5225,21 @@ function App(){
             });
             const nextM = Object.assign({}, menus, { [rid]:nextList });
             commit({ menus:nextM }, ["menus"]);
+          }}
+          onSaveItemTags={(si, ii, tags)=>{
+            // Manual dietary tags on a menu item, by section + item index.
+            const rid = overlay.restaurantId, mid = overlay.menuId;
+            const list = menus[rid] || [];
+            const nextList = list.map(m => {
+              if (m.menu_id !== mid) return m;
+              const sections = (m.sections || []).map((s, sidx) =>
+                sidx !== si ? s : Object.assign({}, s, {
+                  items: s.items.map((it, iidx) =>
+                    iidx !== ii ? it : Object.assign({}, it, { tags:tags })),
+                }));
+              return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
+            });
+            commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
           }} />
       )}
 
@@ -6892,7 +6907,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onRenameMenu}){
+function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onRenameMenu, onSaveItemTags}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
@@ -7060,7 +7075,8 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
 
         <MenuView menu={menu} cfg={cfg}
           restaurantName={restaurant ? restaurant.name : ""}
-          onSaveItemNutrition={onSaveItemNutrition} />
+          onSaveItemNutrition={onSaveItemNutrition}
+          onSaveItemTags={onSaveItemTags} />
         <div style={{height:20}} />
       </div>
     </div>
@@ -7070,13 +7086,14 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, onSaveItemNutrition}){
+function MenuView({menu, cfg, restaurantName, onSaveItemNutrition, onSaveItemTags}){
   const [open, setOpen]   = useState(()=> {
     const o = {}; (menu.sections||[]).forEach((s,i)=> { o[i] = i < 2; }); return o;
   });
   const [filter, setFilter] = useState("");
   const [itemBusy, setItemBusy] = useState({});   // "si:ii" -> bool
   const [itemErr,  setItemErr]  = useState({});    // "si:ii" -> message
+  const [editTags, setEditTags] = useState(false); // manual dietary-tag editing
   const q = filter.trim().toLowerCase();
   const canEstimate = !!(cfg && onSaveItemNutrition);
 
@@ -7117,6 +7134,11 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition}){
       <input className="input" placeholder="Search this menu..."
         value={filter} onChange={e=> setFilter(e.target.value)}
         style={{margin:"4px 0 6px"}} />
+      {onSaveItemTags && (
+        <button className="btn ghost sm" style={{marginBottom:6}} onClick={()=> setEditTags(e=> !e)}>
+          {editTags ? "Done editing tags" : "Edit dietary tags"}
+        </button>
+      )}
       {sections.length === 0 && (
         <div className="small faint" style={{padding:"12px 2px"}}>No items match.</div>
       )}
@@ -7142,9 +7164,25 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition}){
                         : null)}
                 </div>
                 {it.description && <div className="idesc">{it.description}</div>}
-                {it.tags && it.tags.length > 0 && (
+                {!editTags && it.tags && it.tags.length > 0 && (
                   <div className="chips" style={{marginTop:6}}>
                     {it.tags.map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
+                  </div>
+                )}
+                {editTags && onSaveItemTags && (
+                  <div className="chips" style={{marginTop:6, gap:6}}>
+                    {[["vegan","Vegan"],["vegetarian","Vegetarian"],["gluten-free","Gluten-free"]].map(([tag,label])=>{
+                      const has = (it.tags || []).some(t => String(t).trim().toLowerCase() === tag);
+                      return (
+                        <button key={tag} className={"chip pick" + (has ? " on" : "")}
+                          onClick={()=>{
+                            const cur = (it.tags || []).slice();
+                            const ix = cur.findIndex(t => String(t).trim().toLowerCase() === tag);
+                            if (ix >= 0) cur.splice(ix, 1); else cur.push(tag);
+                            onSaveItemTags(i, oj, cur);
+                          }}>{label}</button>
+                      );
+                    })}
                   </div>
                 )}
                 {it.nutrition
