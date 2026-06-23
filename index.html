@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.137.0";
+const APP_VERSION   = "1.138.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6245,6 +6245,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const dragOrderRef  = useRef(null);                   // working order of non-Main menu_ids
   const [, setDragBump] = useState(0);                  // force a re-render while dragging
   const menuRowRefs   = useRef({});                     // menu_id -> DOM node (for hit-testing)
+  const [dietFilter, setDietFilter] = useState(null);   // active dietary filter label, or null
   if (!restaurant){
     return (
       <div className="overlay">
@@ -6343,6 +6344,40 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     setDragMenuId(null);
     if (onSetMenuOrder && finalOrder.join("|") !== nonMainIds.join("|")) onSetMenuOrder(finalOrder);
   }
+
+  // ---- diet-type filter -------------------------------------------------
+  // Build a combined "diet menu" from matching dishes across ALL of this place's
+  // menus. Matching is TAG-based only (we never guess a dish is vegan from its
+  // name - mislabeling food is a real harm). Only diets with >=1 tagged item show.
+  const DIET_LABELS = {
+    "vegan":"Vegan", "vegetarian":"Vegetarian",
+    "gluten-free":"Gluten-free", "gluten free":"Gluten-free", "glutenfree":"Gluten-free", "gf":"Gluten-free",
+    "dairy-free":"Dairy-free", "dairy free":"Dairy-free",
+    "keto":"Keto", "halal":"Halal", "kosher":"Kosher", "pescatarian":"Pescatarian",
+  };
+  const normTag = (t) => String(t || "").trim().toLowerCase();
+  const dietCounts = {};                       // display label -> item count across all menus
+  menuList.forEach(mn => (mn.sections || []).forEach(s => (s.items || []).forEach(it => {
+    const labels = new Set();
+    (it.tags || []).forEach(t => { const L = DIET_LABELS[normTag(t)]; if (L) labels.add(L); });
+    labels.forEach(L => { dietCounts[L] = (dietCounts[L] || 0) + 1; });
+  })));
+  const dietChips = Object.keys(dietCounts).sort();
+  function buildDietMenu(label){
+    const wanted = Object.keys(DIET_LABELS).filter(k => DIET_LABELS[k] === label);
+    const matches = it => (it.tags || []).some(t => wanted.indexOf(normTag(t)) !== -1);
+    const sectionMap = new Map();              // section name -> items[]
+    menuList.forEach(mn => (mn.sections || []).forEach(s => {
+      const keep = (s.items || []).filter(matches);
+      if (!keep.length) return;
+      const key = s.name || "Items";
+      if (!sectionMap.has(key)) sectionMap.set(key, []);
+      sectionMap.get(key).push(...keep);
+    }));
+    return { label: label, sections: Array.from(sectionMap.entries()).map(([name, items]) => ({ name, items })) };
+  }
+  // Guard: if a filtered diet no longer has matches (e.g. data changed), drop it.
+  const dietMenu = (dietFilter && dietCounts[dietFilter]) ? buildDietMenu(dietFilter) : null;
 
   // ---- dish memory: what to order again here -------------------------
   // For each distinct dish (case-insensitive), we go by its MOST RECENT
@@ -6599,7 +6634,38 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <div className="tiny faint" style={{margin:"0 0 10px"}}>{mShareErr}</div>
         )}
 
-        {menuList.length === 0 && (
+        {/* Dietary filter: chips for diets that have tagged matches; tapping one
+            shows a combined menu of those dishes pulled from all of this place's menus. */}
+        {dietChips.length > 0 && (
+          <div className="row" style={{gap:8, flexWrap:"wrap", alignItems:"center", margin:"0 0 12px"}}>
+            <span className="tiny faint" style={{marginRight:2}}>Dietary:</span>
+            {dietChips.map(L => (
+              <button key={L} className={"chip" + (dietFilter === L ? " on" : "")}
+                onClick={()=> setDietFilter(dietFilter === L ? null : L)}>
+                {L} ({dietCounts[L]})
+              </button>
+            ))}
+          </div>
+        )}
+
+        {dietFilter && (
+          <div>
+            <div className="row between" style={{alignItems:"center", margin:"0 0 8px"}}>
+              <div className="small muted">{dietFilter} · from all menus ({dietCounts[dietFilter] || 0})</div>
+              <button className="btn ghost sm" style={{flex:"none"}} onClick={()=> setDietFilter(null)}>Show all menus</button>
+            </div>
+            {dietMenu && dietMenu.sections.length > 0
+              ? <MenuView menu={dietMenu} cfg={cfg} restaurantName={r.name} />
+              : <div className="card" style={{textAlign:"center"}}>
+                  <div className="small muted">No {dietFilter} items found in this place's menus.</div>
+                </div>}
+            <div className="tiny faint" style={{textAlign:"center", marginTop:8}}>
+              Based on each dish's tags - some dishes may not be tagged.
+            </div>
+          </div>
+        )}
+
+        {!dietFilter && menuList.length === 0 && (
           <div className="card" style={{textAlign:"center"}}>
             <div className="small muted" style={{marginBottom:11}}>
               No menus saved for this place yet. Tap <strong>Add menu</strong> above to
@@ -6608,13 +6674,13 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           </div>
         )}
 
-        {menuList.length === 1 && (
+        {!dietFilter && menuList.length === 1 && (
           <MenuView menu={menuList[0]} cfg={cfg} restaurantName={r.name}
             onSaveItemNutrition={(si,ii,est)=>
               onSaveItemNutrition && onSaveItemNutrition(menuList[0].menu_id, si, ii, est)} />
         )}
 
-        {menuList.length > 1 && (() => {
+        {!dietFilter && menuList.length > 1 && (() => {
           // Render pinned "Main" menus first (no grip), then the non-Main menus
           // in the live (drag) order, each with a drag grip when reordering is on.
           const order = (dragMenuIdRef.current && dragOrderRef.current)
