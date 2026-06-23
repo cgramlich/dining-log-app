@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.139.0";
+const APP_VERSION   = "1.140.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -13988,7 +13988,18 @@ function connLabel(c){
   return { primary: at || "Unknown", secondary: "" };
 }
 
-function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub}){
+// Favorite connections: a per-device set of the other person's user_id. Stored
+// locally (a personal sort preference) - upgrade to server-side later if we want
+// it to sync across devices.
+function loadConnFavs(){
+  try { return new Set(JSON.parse(localStorage.getItem("dininglog_fav_connections") || "[]")); }
+  catch(e){ return new Set(); }
+}
+function saveConnFavs(set){
+  try { localStorage.setItem("dininglog_fav_connections", JSON.stringify(Array.from(set))); } catch(e){}
+}
+
+function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub, fav, onToggleFav}){
   const l = connLabel(c);
   return (
     <div className="between" style={{padding:"9px 0", borderBottom:"1px solid var(--line-soft)"}}>
@@ -13996,7 +14007,14 @@ function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub
         <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{l.primary}</div>
         {sub ? <div className="tiny faint">{sub}</div> : (l.secondary ? <div className="tiny faint">{l.secondary}</div> : null)}
       </div>
-      <div style={{display:"flex", gap:6, flex:"none"}}>
+      <div style={{display:"flex", gap:6, flex:"none", alignItems:"center"}}>
+        {onToggleFav ? (
+          <button className="btn ghost sm" aria-label={fav ? "Unfavorite" : "Favorite"}
+            title={fav ? "Unfavorite" : "Favorite"}
+            style={{padding:"4px 9px", margin:0, minWidth:0, fontSize:16,
+                    color: fav ? "var(--accent)" : "var(--text-faint)"}}
+            onClick={onToggleFav}>{fav ? "★" : "☆"}</button>
+        ) : null}
         {primaryBtn ? <button className="btn primary sm" disabled={busy} onClick={onPrimary}>{primaryBtn}</button> : null}
         {secondaryBtn ? <button className="btn ghost sm" disabled={busy} onClick={onSecondary}>{secondaryBtn}</button> : null}
       </div>
@@ -14013,6 +14031,15 @@ function ConnectionsScreen({config, profile, onClose}){
   const [addMsg, setAddMsg]   = useState("");
   const [addErr, setAddErr]   = useState("");
   const [busyId, setBusyId]   = useState(null);
+  const [favs, setFavs]       = useState(loadConnFavs);
+  function toggleFav(uid){
+    setFavs(prev => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid); else next.add(uid);
+      saveConnFavs(next);
+      return next;
+    });
+  }
 
   async function load(){
     try { setData(await getConnections(config)); setErr(""); }
@@ -14044,6 +14071,9 @@ function ConnectionsScreen({config, profile, onClose}){
   const incoming    = (data && data.incoming) || [];
   const connections = (data && data.connections) || [];
   const outgoing    = (data && data.outgoing) || [];
+  // Favorites float to the top (stable sort keeps the rest in server order).
+  const sortedConns = connections.slice().sort((a,b)=>
+    (favs.has(b.user_id) ? 1 : 0) - (favs.has(a.user_id) ? 1 : 0));
 
   return (
     <div className="overlay">
@@ -14094,8 +14124,9 @@ function ConnectionsScreen({config, profile, onClose}){
             <div className="card">
               {connections.length === 0 ? (
                 <div className="small faint">No connections yet. Add someone by their username above.</div>
-              ) : connections.map(c => (
+              ) : sortedConns.map(c => (
                 <ConnRow key={c.id} c={c} busy={busyId===c.id}
+                  fav={favs.has(c.user_id)} onToggleFav={()=> toggleFav(c.user_id)}
                   secondaryBtn="Remove" onSecondary={()=> act(removeConnection, c.id)} />
               ))}
             </div>
