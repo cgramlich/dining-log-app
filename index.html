@@ -832,7 +832,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.140.0";
+const APP_VERSION   = "1.141.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5656,24 +5656,26 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
                          np ? (np + (np === 1 ? " person" : " people")) : null]
                         .filter(Boolean).join(" · ");
             return (
-              <div key={s.id} className="badge-row tap" onClick={()=> onOpenSplit && onOpenSplit(s)}>
-                <div className="badge-ic"><Icon name="receipt" size={20} color="var(--accent)" /></div>
-                <div className="badge-rtx">
-                  <div className="badge-name">{s.label || "Check split"}</div>
-                  <div className="badge-sub">{sub || "Tap to open"}</div>
-                </div>
-                {confirmDel === s.id ? (
-                  <span style={{display:"inline-flex",gap:6,flex:"none"}}>
+              <SwipeToDelete key={s.id} onDelete={()=> { setConfirmDel(null); if (onDeleteSplit) onDeleteSplit(s.id); }}>
+                <div className="badge-row tap" onClick={()=> onOpenSplit && onOpenSplit(s)}>
+                  <div className="badge-ic"><Icon name="receipt" size={20} color="var(--accent)" /></div>
+                  <div className="badge-rtx">
+                    <div className="badge-name">{s.label || "Check split"}</div>
+                    <div className="badge-sub">{sub || "Tap to open"}</div>
+                  </div>
+                  {confirmDel === s.id ? (
+                    <span style={{display:"inline-flex",gap:6,flex:"none"}}>
+                      <button className="btn ghost badge-act"
+                        onClick={(e)=>{ e.stopPropagation(); setConfirmDel(null); }}>Cancel</button>
+                      <button className="btn danger badge-act"
+                        onClick={(e)=>{ e.stopPropagation(); setConfirmDel(null); if (onDeleteSplit) onDeleteSplit(s.id); }}>Delete</button>
+                    </span>
+                  ) : (
                     <button className="btn ghost badge-act"
-                      onClick={(e)=>{ e.stopPropagation(); setConfirmDel(null); }}>Cancel</button>
-                    <button className="btn danger badge-act"
-                      onClick={(e)=>{ e.stopPropagation(); setConfirmDel(null); if (onDeleteSplit) onDeleteSplit(s.id); }}>Delete</button>
-                  </span>
-                ) : (
-                  <button className="btn ghost badge-act"
-                    onClick={(e)=>{ e.stopPropagation(); setConfirmDel(s.id); }}>Delete</button>
-                )}
-              </div>
+                      onClick={(e)=>{ e.stopPropagation(); setConfirmDel(s.id); }}>Delete</button>
+                  )}
+                </div>
+              </SwipeToDelete>
             );
           })
         )}
@@ -12856,7 +12858,8 @@ function MyListsOverlay({ lists, onClose, onToggleFav, onDelete, onRefresh }){
               ))}
             </div>
             {sorted.map(rec => (
-              <div key={rec.id} className="card" style={{marginBottom:10}}>
+              <SwipeToDelete key={rec.id} onDelete={()=>{ onDelete(rec); setConfirmId(null); }}>
+              <div className="card" style={{marginBottom:10}}>
                 <div className="between" style={{alignItems:"flex-start"}}>
                   <div style={{flex:1, minWidth:0}}>
                     <div className="mylist-title">{rec.title || "Untitled list"}</div>
@@ -12883,6 +12886,7 @@ function MyListsOverlay({ lists, onClose, onToggleFav, onDelete, onRefresh }){
                   <div className="tiny faint" style={{marginTop:8}}>Removes it from your saved lists. The public page stays up, so links you already sent keep working.</div>
                 )}
               </div>
+              </SwipeToDelete>
             ))}
           </div>
         )}
@@ -13999,6 +14003,58 @@ function saveConnFavs(set){
   try { localStorage.setItem("dininglog_fav_connections", JSON.stringify(Array.from(set))); } catch(e){}
 }
 
+// Swipe-to-delete wrapper (touch + mouse via pointer events). Swipe a row LEFT;
+// past the threshold on release it slides off and calls onDelete. Vertical drags
+// fall through to normal scrolling; a real swipe suppresses the row's tap. This
+// is an ACCELERATOR - the row's own delete button still works for everyone.
+function SwipeToDelete({ onDelete, children }){
+  const [dx, setDx]           = useState(0);
+  const [settling, setSettling] = useState(true);   // true -> animate; false -> follow finger
+  const dxRef   = useRef(0);
+  const st      = useRef(null);                      // {x0,y0,decided,dragging}
+  const dragged = useRef(false);
+  const THRESH  = 90;
+  const setX = (v) => { dxRef.current = v; setDx(v); };
+  function down(e){ st.current = { x0:e.clientX, y0:e.clientY, decided:false, dragging:false }; }
+  function move(e){
+    const s = st.current; if (!s) return;
+    const ddx = e.clientX - s.x0, ddy = e.clientY - s.y0;
+    if (!s.decided){
+      if (Math.abs(ddx) < 8 && Math.abs(ddy) < 8) return;
+      s.decided  = true;
+      s.dragging = Math.abs(ddx) > Math.abs(ddy) + 4;   // horizontal intent = swipe
+      if (s.dragging){ setSettling(false); try { e.currentTarget.setPointerCapture(e.pointerId); } catch(_e){} }
+    }
+    if (!s.dragging) return;
+    e.preventDefault();
+    dragged.current = true;
+    setX(Math.min(0, ddx));                             // left only
+  }
+  function up(){
+    const s = st.current; st.current = null;
+    setSettling(true);
+    if (!s || !s.dragging) return;
+    if (dxRef.current <= -THRESH){ setX(-1000); setTimeout(()=> onDelete && onDelete(), 170); }
+    else { setX(0); }
+  }
+  return (
+    <div style={{position:"relative", overflow:"hidden"}}>
+      {dx < -6 && (
+        <div style={{position:"absolute", inset:0, display:"flex", alignItems:"center",
+                     justifyContent:"flex-end", paddingRight:22, background:"var(--danger)",
+                     color:"#fff", fontWeight:600, borderRadius:12}}>Delete</div>
+      )}
+      <div style={{transform:"translateX(" + dx + "px)",
+                   transition: settling ? "transform .17s ease" : "none",
+                   touchAction:"pan-y", position:"relative"}}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        onClickCapture={(e)=>{ if (dragged.current){ e.stopPropagation(); e.preventDefault(); dragged.current = false; } }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub, fav, onToggleFav}){
   const l = connLabel(c);
   return (
@@ -14393,14 +14449,16 @@ function ShareInbox({config, onClose}){
         ) : shares.map(s => {
           const name = s.title || (s.kind === "list" ? "A list" : "A place");
           return (
-            <div key={s.id} className="card" style={{display:"flex", alignItems:"center", gap:10}}>
-              <div style={{flex:1, minWidth:0, cursor:"pointer"}} onClick={()=> setOpen(s)}>
-                <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{name}</div>
-                <div className="tiny faint">from {s.from} &middot; {s.kind === "list" ? "list" : "place + menu"}</div>
+            <SwipeToDelete key={s.id} onDelete={()=> remove(s.id)}>
+              <div className="card" style={{display:"flex", alignItems:"center", gap:10}}>
+                <div style={{flex:1, minWidth:0, cursor:"pointer"}} onClick={()=> setOpen(s)}>
+                  <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{name}</div>
+                  <div className="tiny faint">from {s.from} &middot; {s.kind === "list" ? "list" : "place + menu"}</div>
+                </div>
+                <button className="btn primary sm" style={{flex:"none"}} onClick={()=> setOpen(s)}>View</button>
+                <button className="btn ghost sm" style={{flex:"none"}} disabled={busyId===s.id} onClick={()=> remove(s.id)}>Dismiss</button>
               </div>
-              <button className="btn primary sm" style={{flex:"none"}} onClick={()=> setOpen(s)}>View</button>
-              <button className="btn ghost sm" style={{flex:"none"}} disabled={busyId===s.id} onClick={()=> remove(s.id)}>Dismiss</button>
-            </div>
+            </SwipeToDelete>
           );
         })}
       </div>
