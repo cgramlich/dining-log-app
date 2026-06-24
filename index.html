@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.157.0";
+const APP_VERSION   = "1.158.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2023,12 +2023,18 @@ function computeYearStats(visits, restaurants, period){
     .map(k => ({ name:lovedDisplay[k], count:lovedCount[k] }))
     .sort((a,b)=> b.count - a.count || a.name.localeCompare(b.name));
 
+  // Top rated is now a top rated PLACE (rating lives on the place, latest-wins).
   let topVisit = null;
-  filtered.forEach(v => {
-    const rt = typeof v.rating === "number" ? v.rating : 0;
-    if (rt > 0 && (!topVisit || rt > topVisit.rating ||
-        (rt === topVisit.rating && (v.date || "") > topVisit.date))){
-      topVisit = { rating:rt, date:v.date, name:nameOf(v.restaurant_id, v.restaurant_name) };
+  const _vByRest = {};
+  filtered.forEach(v => { if (v && v.restaurant_id){ (_vByRest[v.restaurant_id] = _vByRest[v.restaurant_id] || []).push(v); } });
+  Object.keys(_vByRest).forEach(id => {
+    const rt = placeRating(restMap[id], _vByRest[id]);
+    if (rt > 0){
+      const latest = _vByRest[id].slice().sort((a,b)=> (b.date || "").localeCompare(a.date || ""))[0];
+      const dt = (latest && latest.date) || "";
+      if (!topVisit || rt > topVisit.rating || (rt === topVisit.rating && dt > topVisit.date)){
+        topVisit = { rating:rt, date:dt, name:nameOf(id, latest && latest.restaurant_name) };
+      }
     }
   });
 
@@ -2306,8 +2312,7 @@ function buildListPayload(title, selected, visits, menusObj){
   (visits || []).forEach(v => { if (v && v.restaurant_id){ (byRest[v.restaurant_id] = byRest[v.restaurant_id] || []).push(v); } });
   const places = (selected || []).map(r => {
     const vs = byRest[r.id] || [];
-    const rated = vs.map(v => typeof v.rating === "number" ? v.rating : 0).filter(x => x > 0);
-    const avg = rated.length ? Math.round((rated.reduce((a,b)=> a+b, 0) / rated.length) * 10) / 10 : 0;
+    const avg = Math.round(placeRating(r, vs) * 10) / 10;   // place rating (latest-wins)
     const loved = [], seen = {};
     vs.forEach(v => (v.dishes || []).forEach(d => {
       if (d && d.name && verdictPositive(d.verdict)){
@@ -2490,8 +2495,8 @@ async function buildRestaurantCardBlob({ name, sub, ratingAvg, address, loved, p
         ctx.fillText(glyph, x, cy);
       }
     }
-    // numeric average beside the stars, labelled so it reads as an average
-    const numStr = (Number.isInteger(ratingAvg) ? String(ratingAvg) : ratingAvg.toFixed(1)) + " avg";
+    // numeric place rating beside the stars
+    const numStr = (Number.isInteger(ratingAvg) ? String(ratingAvg) : ratingAvg.toFixed(1));
     ctx.fillStyle = DIM;
     ctx.font = "500 30px Outfit, system-ui, sans-serif";
     ctx.fillText(numStr, PAD + 5 * sw + 6, cy - 4);
@@ -6752,8 +6757,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           photoImg = null;
         }
       }
-      const rated = byDate.filter(v => typeof v.rating === "number" && v.rating > 0);
-      const ratingAvg = rated.length ? rated.reduce((s,v)=> s + v.rating, 0) / rated.length : 0;
+      const ratingAvg = placeRating(r, visits);   // place rating (latest-wins)
       const sub = [r.cuisine, r.location].filter(Boolean).join("  \u00b7  ");
       logMsg("SHARE","Building card for " + r.name + " (loved=" + lovedDishes.length + ", rating=" + ratingAvg.toFixed(1) + ")");
       const blob = await buildRestaurantCardBlob({
@@ -13462,16 +13466,12 @@ function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose})
   const [shortMsg,setShortMsg] = useState("");
 
   const avgById = React.useMemo(()=>{
-    const by = {};
-    (visits || []).forEach(v => {
-      if (v && v.restaurant_id && typeof v.rating === "number" && v.rating > 0){
-        (by[v.restaurant_id] = by[v.restaurant_id] || []).push(v.rating);
-      }
-    });
+    const byRest = {};
+    (visits || []).forEach(v => { if (v && v.restaurant_id){ (byRest[v.restaurant_id] = byRest[v.restaurant_id] || []).push(v); } });
     const out = {};
-    Object.keys(by).forEach(id => { const a = by[id]; out[id] = Math.round((a.reduce((x,y)=> x+y, 0) / a.length) * 10) / 10; });
+    (restaurants || []).forEach(r => { if (r && r.id) out[r.id] = placeRating(r, byRest[r.id] || []); });   // place rating
     return out;
-  },[visits]);
+  },[visits, restaurants]);
 
   const sorted = React.useMemo(()=>{
     const list = [...(restaurants || [])];
@@ -13809,7 +13809,7 @@ function YearInFood({visits, restaurants, onClose}){
 
             {s.topVisit && (
               <div className="yif-stat">
-                <div className="yif-lbl">Highest-rated visit</div>
+                <div className="yif-lbl">Highest-rated place</div>
                 <div className="yif-name">{s.topVisit.name}</div>
                 <div className="yif-sub row" style={{gap:8}}>
                   <Stars value={s.topVisit.rating} showNum /> {fmtDate(s.topVisit.date)}
@@ -14057,7 +14057,7 @@ function csvCell(v){
 // estimate gets an extra "(whole plate)" row; a visit with nothing itemized
 // still gets one row so it never vanishes. Newest first. BOM + CRLF for Excel.
 function buildHistoryCsv(visits, restById){
-  const COLS = ["Date","Restaurant","City","Cuisine","Visit rating",
+  const COLS = ["Date","Restaurant","City","Cuisine","Place rating",
                 "Dish","Verdict","Price","Calories","Protein (g)",
                 "Carbs (g)","Fat (g)","Estimate source","Notes"];
   const rows = (visits || []).filter(v => v && v.date).slice().sort((a,b)=>{
@@ -14071,7 +14071,9 @@ function buildHistoryCsv(visits, restById){
     const restName = (r && r.name) || v.restaurant_name || "";
     const city     = (r && r.city) || "";
     const cuisine  = (r && r.cuisine) || "";
-    const rating   = (typeof v.rating === "number" && v.rating > 0) ? v.rating : "";
+    const myr      = (r && typeof r.my_rating === "number") ? r.my_rating
+                     : ((typeof v.rating === "number") ? v.rating : 0);   // place rating, legacy fallback
+    const rating   = myr > 0 ? myr : "";
     const notes    = v.notes || "";
     const lead = [v.date, restName, city, cuisine, rating];   // shared visit prefix
 
