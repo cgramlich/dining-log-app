@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.154.0";
+const APP_VERSION   = "1.155.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1510,12 +1510,13 @@ you pick which menus to include - all of them by default - so your group can
 order across several at once (say pasta and pizza in one list); a place with a
 single menu jumps straight in.
 
-**No menu? Start a quick order.** If you have not scanned the place's menu - or
-there is no menu to scan - tap **Quick group order** on the **+** button (or
-**Start a quick order** from the "No menu yet" screen). Just enter the
-restaurant name and an optional note ("text me by 6"), share the link, and
-everyone types their order in their own words in a single **Your order** box.
-Same live tally on your side, no menu needed.
+**No menu? Order free-form.** A group order doesn't need a menu. When you start
+one, choose **A place not in my list** to name somewhere new, or on the "Which
+menus?" screen tap **start a no-menu order** - and for a saved place with no menu
+scanned yet, it offers this automatically. Just enter the restaurant name and an
+optional note ("text me by 6"), share the link, and everyone types their order in
+their own words in a single **Your order** box. Same live tally on your side, no
+menu needed.
 
 Tap **Start group
 order** and the app gives you a link. Text it to the table. Each person opens
@@ -5083,7 +5084,10 @@ function App(){
           restaurants={restaurants}
           title="Start a group order"
           onClose={()=> setOverlay(null)}
-          onPick={(id)=> setOverlay({ type:"groupStartMenu", id:id })} />
+          onPick={(id)=> setOverlay({ type:"groupStartMenu", id:id })}
+          otherLabel="A place not in my list"
+          otherSub="No menu - everyone just types what they want"
+          onPickOther={()=> setOverlay({ type:"quickGroup" })} />
       )}
       {overlay && overlay.type === "quickGroup" && (
         <QuickGroupStart cfg={config}
@@ -7235,7 +7239,7 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition, onSaveItemTag
 // "Pull up a menu": a searchable list of your places. Picking one lands on its
 // page (menu + Help me order + Group order). No visit is created - this is the
 // "I just got here, show me the menu" path, separate from logging a meal.
-function RestaurantPicker({restaurants, onClose, onPick, title}){
+function RestaurantPicker({restaurants, onClose, onPick, title, onPickOther, otherLabel, otherSub}){
   const [q, setQ] = useState("");
   const term = q.trim().toLowerCase();
   const list = (restaurants || [])
@@ -7268,6 +7272,13 @@ function RestaurantPicker({restaurants, onClose, onPick, title}){
             ) : null}
           </div>
         ))}
+        {onPickOther ? (
+          <div className="pick-row" onClick={onPickOther}
+            style={{marginTop:8, borderTop:"1px solid var(--line-soft)"}}>
+            <div className="pick-row-name" style={{color:"var(--accent)"}}>{otherLabel || "Somewhere not in my list"}</div>
+            {otherSub ? <div className="tiny faint" style={{marginTop:2}}>{otherSub}</div> : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -8753,12 +8764,7 @@ function ActionSheet({onClose, onPick}){
         <div className="sheet-item" onClick={()=> onPick("groupStart")}>
           <span className="ic"><Icon name="nodes" size={21} color="#e0764a" /></span>
           <div><div className="t1">Start a group order</div>
-            <div className="t2">Collect everyone's order from a menu</div></div>
-        </div>
-        <div className="sheet-item" onClick={()=> onPick("quickGroup")}>
-          <span className="ic"><Icon name="nodes" size={21} color="#e0764a" /></span>
-          <div><div className="t1">Quick group order</div>
-            <div className="t2">No menu - everyone types what they want</div></div>
+            <div className="t2">From a menu, or no-menu where everyone types what they want</div></div>
         </div>
         <div className="sheet-item" onClick={()=> onPick("scanMenu")}>
           <span className="ic"><Icon name="camera" size={21} color="#e0764a" /></span>
@@ -11828,6 +11834,11 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
           onClick={()=>{ setChosen(combineGroupMenus(chosenList)); setChosenAuto(true); }}>
           {chosenList.length > 1 ? ("Start with these " + chosenList.length + " menus") : "Start group order"}
         </button>
+        <div className="tiny faint" style={{textAlign:"center", marginTop:14, borderTop:"1px solid var(--line-soft)", paddingTop:12}}>
+          Or skip the menu &mdash;
+          <a href="#" style={{color:"var(--accent)", marginLeft:4}}
+             onClick={(e)=>{ e.preventDefault(); setQuick(true); }}>start a no-menu order</a> where everyone just types what they want.
+        </div>
       </div>
     </div>
   );
