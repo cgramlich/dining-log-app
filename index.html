@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.158.0";
+const APP_VERSION   = "1.159.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5950,8 +5950,12 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
         <span className={"chip pick" + (sortBy === "oldest" ? " on" : "")} onClick={()=> setSortBy("oldest")}>Oldest</span>
         <span className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</span>
         <span className={"chip pick" + (sortBy === "restaurant" ? " on" : "")} onClick={()=> setSortBy("restaurant")}>A&ndash;Z</span>
-        <span className={"chip pick" + (lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(v=> !v)}
-          style={{marginLeft:8}} title="Show only visits with a dish you'd order again">{"♥ Loved"}</span>
+      </div>
+      <div className="sortbar">
+        <span className="sortbar-lbl">Show</span>
+        <span className={"chip pick" + (!lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(false)}>All visits</span>
+        <span className={"chip pick" + (lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(true)}
+          title="Only visits where you marked a dish Loved">{"♥ Visits I loved"}</span>
       </div>
       <div className="hist-legend">
         <InfoDot title="Calorie labels" label="Calorie labels">
@@ -6375,7 +6379,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         <span className={"chip pick" + (sortBy === "alpha" ? " on" : "")} onClick={()=> setSortBy("alpha")}>A&ndash;Z</span>
         <span className={"chip pick" + (sortBy === "added" ? " on" : "")} onClick={()=> setSortBy("added")}>Recently added</span>
         <span className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</span>
-        <span className={"chip pick" + (sortBy === "fav" ? " on" : "")} onClick={()=> setSortBy("fav")}>Favorites</span>
+        <span className={"chip pick" + (sortBy === "fav" ? " on" : "")} onClick={()=> setSortBy("fav")}>{"♥ Loved"}</span>
       </div>
 
       {searched.length === 0 && (
@@ -6388,12 +6392,14 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       )}
 
       {sortBy === "fav" ? (
-        <>
-          {favsSorted.length > 0 && <div className="divider-label">Favorites</div>}
-          {favsSorted.map(Card)}
-          {othersSorted.length > 0 && <div className="divider-label">All places</div>}
-          {othersSorted.map(Card)}
-        </>
+        favsSorted.length > 0
+          ? favsSorted.map(Card)
+          : (searched.length > 0 ? (
+              <div className="empty" style={{padding:"24px 20px"}}>
+                <div className="big">No loved places yet</div>
+                <div>Tap the heart on a place to add it here.</div>
+              </div>
+            ) : null)
       ) : ordered.map(Card)}
     </div>
   );
@@ -6731,9 +6737,10 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     if (verdictPositive(d.verdict)) dishMemo.get(k).againCount++;
   }));
   const lovedDishes = Array.from(dishMemo.values())
-    .filter(x => x.latestVerdict === "again")
-    .map(x => ({ name:x.name, count:x.againCount }))
-    .sort((a,b)=> b.count - a.count || a.name.localeCompare(b.name));
+    .filter(x => verdictPositive(x.latestVerdict))                 // loved OR again
+    .map(x => ({ name:x.name, count:x.againCount, verdict:x.latestVerdict }))
+    .sort((a,b)=> ((b.verdict==="loved")?1:0) - ((a.verdict==="loved")?1:0)   // loved tier first
+                  || b.count - a.count || a.name.localeCompare(b.name));
   const lastVisit = byDate[0] || null;
   const lastVisitDishes = (lastVisit && lastVisit.dishes) ? lastVisit.dishes : [];
   const showPicks = lovedDishes.length > 0 || lastVisitDishes.length > 0;
@@ -6883,8 +6890,8 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                 <div className="picks-head">You've loved these here</div>
                 <div className="chips">
                   {lovedDishes.map((d,i)=>(
-                    <span key={i} className="chip dish again">
-                      {d.name}{d.count > 1 ? "  \u00d7" + d.count : ""}
+                    <span key={i} className={"chip dish" + dishChipClass(d.verdict)}>
+                      {d.verdict === "loved" ? "\u2665 " : ""}{d.name}{d.count > 1 ? "  \u00d7" + d.count : ""}
                     </span>
                   ))}
                 </div>
