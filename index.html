@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.156.0";
+const APP_VERSION   = "1.157.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3950,6 +3950,62 @@ function Icon({name, size, color}){
 // 0.5 remainder, then empty stars. A half star is drawn by stacking a
 // lit star clipped to its left 50% over a dim star. `showNum` appends
 // the numeric value (e.g. "4.5") beside the stars for read-only contexts.
+// The user's star rating lives on the PLACE now (latest-visit-wins). Prefer an
+// explicit my_rating; else derive from the most recent rated visit at that place.
+function placeRating(restaurant, visitsForPlace){
+  if (restaurant && typeof restaurant.my_rating === "number") return restaurant.my_rating;
+  const vs = (visitsForPlace || []).filter(v => v && typeof v.rating === "number" && v.rating > 0);
+  if (!vs.length) return 0;
+  vs.sort((a,b)=> (b.date || "").localeCompare(a.date || "") || ((b.logged_at||0) - (a.logged_at||0)));
+  return vs[0].rating || 0;
+}
+
+// Editable half-star rater: tap position across the row maps to the nearest 0.5;
+// tapping the current value clears it. Used for the place rating.
+function StarRater({value, onChange, size}){
+  const ref = useRef(null);
+  const sz = size || 36;
+  const val0 = value || 0;
+  function onTap(e){
+    const el = ref.current; if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = (e.clientX != null) ? e.clientX
+             : (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientX : rect.left);
+    const x = Math.max(0, Math.min(rect.width, cx - rect.left));
+    let v = Math.ceil((x / rect.width) * 5 * 2) / 2;
+    v = Math.max(0.5, Math.min(5, v));
+    onChange(v === val0 ? 0 : v);
+  }
+  return (
+    <div className="row" style={{alignItems:"center", gap:10}}>
+      <div ref={ref} onClick={onTap} role="slider" aria-label="Rating"
+           aria-valuemin={0} aria-valuemax={5} aria-valuenow={val0}
+           style={{display:"inline-flex", gap:0, cursor:"pointer", touchAction:"manipulation",
+                   WebkitUserSelect:"none", userSelect:"none", padding:"4px 0"}}>
+        {[1,2,3,4,5].map(n => {
+          const full = n <= val0;
+          const half = !full && (val0 >= n - 0.5);
+          return (
+            <span key={n} style={{position:"relative", display:"inline-block",
+                    width:sz, height:sz, lineHeight:0, pointerEvents:"none"}}>
+              <Icon name="star" size={sz} color="#3a3128" />
+              {(full || half) && (
+                <span style={{position:"absolute", left:0, top:0, height:"100%",
+                        width: full ? "100%" : "50%", overflow:"hidden", display:"inline-block", lineHeight:0}}>
+                  <Icon name="star" size={sz} color="#e7b24c" />
+                </span>
+              )}
+            </span>
+          );
+        })}
+      </div>
+      {val0 > 0 && (
+        <span className="small muted">{Number.isInteger(val0) ? val0 : val0.toFixed(1)}</span>
+      )}
+    </div>
+  );
+}
+
 function Stars({value, size, showNum}){
   const v    = Number(value) || 0;
   const big  = size === "big";
@@ -5192,6 +5248,11 @@ function App(){
               r.id===overlay.id ? Object.assign({},r,{favorite:!r.favorite}) : r);
             commit({ restaurants:next }, ["restaurants"]);
           }}
+          onSetMyRating={(val)=>{
+            const next = restaurants.map(r =>
+              r.id===overlay.id ? Object.assign({},r,{my_rating:val}) : r);
+            commit({ restaurants:next }, ["restaurants"]);
+          }}
           onDelete={()=>{
             const nextR = restaurants.filter(r => r.id !== overlay.id);
             const nextM = Object.assign({}, menus); delete nextM[overlay.id];
@@ -5381,6 +5442,7 @@ function App(){
         <VisitForm
           restaurants={restaurants}
           menus={menus}
+          visits={visits}
           presetRestaurantId={overlay.restaurantId}
           existing={overlay.type==="editVisit" ? overlay.visit : null}
           seedFromSplit={overlay.seedFromSplit || null}
@@ -5410,7 +5472,14 @@ function App(){
               next = [rec].concat(visits);
               flash("Visit logged");
             }
-            commit({ visits:next }, ["visits"]);
+            // Rating now lives on the PLACE (latest-wins): stamp my_rating from this save.
+            if (rec && typeof rec.rating === "number"){
+              const nr = restaurants.map(r => r.id === rec.restaurant_id
+                ? Object.assign({}, r, { my_rating: rec.rating }) : r);
+              commit({ visits:next, restaurants:nr }, ["visits","restaurants"]);
+            } else {
+              commit({ visits:next }, ["visits"]);
+            }
             // Flow actually-paid prices back onto matching menu items (additive;
             // fills gaps the menu scan missed, records what was paid).
             const menusWithPaid = backfillPaidPrices(rec.restaurant_id, rec.dishes, menus, todayISO());
@@ -5842,7 +5911,11 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
   const byNewest = (a,b)=>
     (b.date || "").localeCompare(a.date || "") ||
     (b.logged_at || 0) - (a.logged_at || 0);
-  const ratingOf = (v)=> (typeof v.rating === "number" ? v.rating : -1);
+  const ratingOf = (v)=>{
+    const r = restaurantById(v.restaurant_id);
+    if (r && typeof r.my_rating === "number") return r.my_rating;   // place rating wins
+    return (typeof v.rating === "number" ? v.rating : -1);          // legacy fallback
+  };
   const histName = (v)=> {
     const rr = restaurantById(v.restaurant_id);
     return (rr ? rr.name : (v.restaurant_name || "")).toLowerCase();
@@ -5933,7 +6006,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
               ) : (
                 <div className="place-name">{r ? r.name : (v.restaurant_name || "Unknown")}</div>
               )}
-              {v.rating ? <Stars value={v.rating} showNum /> : null}
+              {null}
             </div>
             <div className="meta-line" style={{marginTop:4}}>
               {fmtDate(v.date)} &nbsp;&middot;&nbsp; {relDays(v.date)}
@@ -6162,8 +6235,10 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   // Average of a place's own visit ratings (for the "Highest rated" sort, to
   // match History). -1 when it has no rated visits, so unrated sink to the end.
   const avgRating = (rid)=> {
+    const rest = (restaurants || []).find(x => x.id === rid);
+    if (rest && typeof rest.my_rating === "number") return rest.my_rating;   // place rating wins
     const rs = (visits || []).filter(v => v.restaurant_id === rid && typeof v.rating === "number").map(v => v.rating);
-    return rs.length ? (rs.reduce((a,b)=> a + b, 0) / rs.length) : -1;
+    return rs.length ? (rs.reduce((a,b)=> a + b, 0) / rs.length) : -1;       // legacy fallback
   };
   const favsSorted   = searched.filter(r => r.favorite).sort(byName);
   const othersSorted = searched.filter(r => !r.favorite).sort(byName);
@@ -6450,7 +6525,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onOpenVisit,
-                           onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta}){
+                           onToggleFav, onSetMyRating, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
@@ -6719,8 +6794,10 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         <button className="x" onClick={share} disabled={shareBusy} aria-label="Share">
           {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
         </button>
-        <button className="x" onClick={onToggleFav}>
-          <Icon name="star" size={22} color={r.favorite ? "#e0764a" : "#80715f"} />
+        <button className="x" onClick={onToggleFav} aria-label={r.favorite ? "Loved" : "Mark as loved"}>
+          <span style={{fontSize:23, lineHeight:1, color: r.favorite ? "#d64961" : "#80715f"}}>
+            {r.favorite ? "♥" : "♡"}
+          </span>
         </button>
       </div>
       <div className="ovbody">
@@ -6732,6 +6809,12 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         <div className="meta-line">
           {r.cuisine || "Restaurant"}
           {r.location ? "  \u00b7  " + r.location : ""}
+        </div>
+
+        <div className="row" style={{gap:10, alignItems:"center", marginTop:10, flexWrap:"wrap"}}>
+          <span className="small faint" style={{flex:"none"}}>Your rating</span>
+          <StarRater value={placeRating(r, visits)} size={30}
+            onChange={(val)=> onSetMyRating && onSetMyRating(val)} />
         </div>
 
         {(r.g_rating != null || gPrice(r.g_price_level) || (r.g_hours && r.g_hours.length)) && (
@@ -7036,7 +7119,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               )}
               <div className="between">
                 <div className="small muted">{fmtDate(v.date)}</div>
-                {v.rating ? <Stars value={v.rating} showNum /> : null}
+                {null}
               </div>
               {v.dishes && v.dishes.length > 0 && (
                 <div className="chips">
@@ -9603,7 +9686,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
+function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
   // seedFromSplit (new visits only): {items, total, splitDraft, receiptDataUrl} handed
   // over when you tap "Log as a visit" from a standalone split - so that one receipt
   // scan + split carries straight into logging the meal (no re-scan, no re-entry).
@@ -9621,7 +9704,13 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     ? sortedRests.filter(r => ((r.name||"") + " " + (r.cuisine||"") + " " + (r.location||"")).toLowerCase().includes(rq))
     : sortedRests;
   const [date,setDate]     = useState(existing ? existing.date : todayISO());
-  const [rating,setRating] = useState(existing ? existing.rating : 0);
+  const [rating,setRating] = useState(()=> placeRating(
+    (restaurants||[]).find(x=>x.id===restId),
+    (visits||[]).filter(v=>v && v.restaurant_id===restId)));
+  // The rating belongs to the PLACE now; reseed when the chosen place changes.
+  useEffect(()=>{ setRating(placeRating(
+    (restaurants||[]).find(x=>x.id===restId),
+    (visits||[]).filter(v=>v && v.restaurant_id===restId))); }, [restId]);
   const ratingRef = useRef(null);
   // Half-star rating by tap position: map where the tap landed across the
   // 5-star row to the nearest 0.5 step. This is far more reliable on iOS
@@ -10249,7 +10338,10 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
         </label>
 
         <div className="fld">
-          <span className="lbl">Rating</span>
+          <span className="lbl">Your rating for this place</span>
+          <div className="tiny faint" style={{margin:"-2px 0 6px"}}>
+            Rates the place, not just this visit - it keeps your latest.
+          </div>
           {/* One tappable row. onRateTap reads the tap's X position across
               the whole row and maps it to the nearest half-star, so the left
               portion of a star is a half and the right portion is a whole.
