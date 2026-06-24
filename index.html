@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.150.0";
+const APP_VERSION   = "1.151.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3412,8 +3412,8 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
       },
       body:JSON.stringify({
         task:"ocr_receipt",
-        model:VISION_MODEL,   // advisory; server routes by task
-        max_tokens:2000,
+        model:VISION_MODEL,   // advisory; server routes by task (Sonnet, same as menu/visit OCR)
+        max_tokens:8000,      // headroom so a long check with many line items never truncates
         messages:[{ role:"user", content:content }],
       }),
     });
