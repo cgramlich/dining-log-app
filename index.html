@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.152.0";
+const APP_VERSION   = "1.153.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5335,6 +5335,7 @@ function App(){
           menus={menus}
           presetRestaurantId={overlay.restaurantId}
           existing={overlay.type==="editVisit" ? overlay.visit : null}
+          seedFromSplit={overlay.seedFromSplit || null}
           cfg={config}
           onClose={()=> setOverlay(overlay.returnTo || null)}
           onSave={async (rec, extras)=>{
@@ -5420,6 +5421,7 @@ function App(){
           }}
           initialSplit={overlay.editSplit || (overlay.fromVisit && overlay.fromVisit.split) || null}
           onSaveSplit={(entity)=>{ upsertSplit(entity); flash(overlay.editSplit ? "Split updated" : "Split saved"); }}
+          onLogVisit={(seed)=> setOverlay({ type:"logVisit", seedFromSplit: seed, returnTo: overlay.returnTo || null })}
           onClose={()=> setOverlay(overlay.returnTo || null)} />
       )}
       {overlay && overlay.type === "scanMenu" && (
@@ -7359,7 +7361,7 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal){
 function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraft, onClose, flash,
                          initialLines, initialTotal, presetRestId, presetVisitId,
                          initialReceiptPhoto, initialSplit, onSaveSplit,
-                         onScanned, menuNames}){
+                         onScanned, menuNames, onLogVisit}){
   // When launched FROM a visit we arrive pre-loaded with that visit's priced
   // dishes and total, jump straight to the edit step, and default the save back
   // to that same visit.
@@ -7644,6 +7646,29 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       onSaveToVisit(rec, false);
     }
     onClose();
+  }
+
+  // Standalone -> "Log as a visit": hand the scanned check (line items + photo)
+  // and the split over to the real visit editor, seeded so you just pick what YOU
+  // ate, rate, and save. One scan, one split, straight into a logged visit.
+  function doLogVisit(){
+    if (!split || !onLogVisit) return;
+    const toDollars = c => Math.round(c) / 100;
+    const named = lines.filter(l => (l.name || "").trim());
+    const splitObj = {
+      people: split.people.map(p => ({ name: p.name, amount: toDollars(p.totalCents) })),
+      grand: toDollars(split.grandCents),
+      items: named.map(l => ({ name: l.name.trim(), price: (Number(l.price) || 0) })),
+      inputs: buildSplitInputs(),
+      saved_at: Date.now(),
+    };
+    onLogVisit({
+      items: named.map(l => ({ name: l.name.trim(), qty: l.qty || 1, price: (Number(l.price) || 0) })),
+      total: toDollars(split.grandCents),
+      splitDraft: splitObj,
+      receiptDataUrl: (shots && shots[0]) || null,
+    });
+    // NB: do NOT call onClose() - the onLogVisit handler swaps the overlay itself.
   }
 
   // Form-launched (draft) mode: build the same split object but hand it back to
@@ -8013,6 +8038,16 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 <div className="tiny faint" style={{textAlign:"center",marginTop:8}}>
                   Saved splits live under You. Not kept unless you save.
                 </div>
+                {onLogVisit ? (
+                  <div style={{marginTop:14, borderTop:"1px solid var(--line-soft)", paddingTop:12}}>
+                    <button className="btn" style={{width:"100%"}} onClick={doLogVisit}>
+                      Log as a visit
+                    </button>
+                    <div className="tiny faint" style={{textAlign:"center",marginTop:8}}>
+                      Carries this scan + split into a new visit - pick what you ate and rate it.
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             <button className="btn ghost" style={{marginTop:10}} onClick={()=> setStep("edit")}>Edit</button>
@@ -9389,7 +9424,11 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition}){
+function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
+  // seedFromSplit (new visits only): {items, total, splitDraft, receiptDataUrl} handed
+  // over when you tap "Log as a visit" from a standalone split - so that one receipt
+  // scan + split carries straight into logging the meal (no re-scan, no re-entry).
+  const _seed = (!existing && seedFromSplit) ? seedFromSplit : null;
   const [restId,setRestId] = useState(
     existing ? existing.restaurant_id : (presetRestaurantId || ""));
   // Searchable, sorted restaurant picker (replaces a plain <select>).
@@ -9428,7 +9467,8 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
   // Split-the-check draft: built by the splitter launched from this form (as a
   // layer), held here, and saved onto the visit when the form is saved. Seeded
   // from an existing visit's split so editing never silently drops it.
-  const [splitDraft,setSplitDraft] = useState(existing && existing.split ? existing.split : null);
+  const [splitDraft,setSplitDraft] = useState(
+    existing && existing.split ? existing.split : ((_seed && _seed.splitDraft) || null));
   const [splitOpen,setSplitOpen]   = useState(false);
 
   // ---- receipt scan state ---------------------------------------------
@@ -9439,20 +9479,15 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     existing && existing.receipt && existing.receipt.photo
       ? { kind:"existing", path: existing.receipt.photo } : null);
   const [receiptTotal,setReceiptTotal] = useState(
-    existing && existing.receipt && existing.receipt.total ? existing.receipt.total : null);
+    existing && existing.receipt && existing.receipt.total ? existing.receipt.total
+      : ((_seed && _seed.total != null) ? _seed.total : null));
   const [receiptBusy,setReceiptBusy] = useState(false);
   const [receiptErr,setReceiptErr] = useState("");
   const [receiptShow,setReceiptShow] = useState(false);     // inline preview toggle
   const [receiptReview,setReceiptReview] = useState(null);  // null | [{...item, count}]  count = how many of the line you ate
-  const [scannedItems,setScannedItems] = useState(null);    // persistent parsed items, so the picker re-opens without a re-scan
+  const [scannedItems,setScannedItems] = useState(
+    (_seed && _seed.items && _seed.items.length) ? mapScannedItems(_seed.items) : null);   // persistent parsed items, so the picker re-opens without a re-scan
   const receiptRef = useRef(null);
-
-  // Restaurant menu item names - grounds receipt OCR's "menu_match" so receipt
-  // shorthand maps to real dishes. Shared by BOTH the "What you had" scan and
-  // the split's own scan, so the two read identically from one receipt.
-  const menuNames = [];
-  (menuGroups || []).forEach(g => (g.sections || []).forEach(s =>
-    (s.items || []).forEach(it => { if (it.name) menuNames.push(it.name); })));
 
   // Map raw parsed receipt items into the "check picker" shape used to log what
   // you ate (menu_match wins for the logged name).
@@ -9476,6 +9511,20 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     } catch(e){ /* photo is best-effort; the items still flow through */ }
     logMsg("RECEIPT","Split scan shared back to visit: " + parsed.items.length + " item(s)");
   }
+
+  // A standalone split handed over its receipt photo: attach it to this new visit
+  // (dataUrl -> pending blob), once, on mount.
+  useEffect(()=>{
+    if (!_seed || !_seed.receiptDataUrl) return;
+    let alive = true;
+    (async ()=>{
+      try {
+        const blob = await (await fetch(_seed.receiptDataUrl)).blob();
+        if (alive) setReceiptSlot(s => s || { kind:"pending", blob:blob, previewUrl:URL.createObjectURL(blob) });
+      } catch(e){ /* photo best-effort */ }
+    })();
+    return ()=>{ alive = false; };
+  }, []);
 
   async function onReceiptPicked(e){
     const file = e.target.files && e.target.files[0];
@@ -9839,6 +9888,13 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
     return { label:m.label || "Menu", sections:sectionGroups, total:total };
   }).filter(g => g.total > 0);
   const dishNames = dishes.map(d => d.name);
+
+  // Restaurant menu item names - grounds receipt OCR's "menu_match" so receipt
+  // shorthand maps to real dishes. Shared by BOTH the "What you had" scan and the
+  // split's own scan. NB: menuGroups' section items are already name STRINGS.
+  const menuNames = [];
+  (menuGroups || []).forEach(g => (g.sections || []).forEach(s =>
+    (s.items || []).forEach(nm => { if (nm) menuNames.push(nm); })));
 
   function addDish(name){
     const n = (name || "").trim();
