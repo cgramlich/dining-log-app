@@ -159,8 +159,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .chip.pick{cursor:pointer;}
     .chip.pick:active{transform:scale(0.94);}
     .chip.on{background:var(--accent); border-color:var(--accent); color:#1b1714; font-weight:600;}
-    /* ---- per-dish verdict (Again / Skip) ---- */
+    /* ---- per-dish verdict (Loved / Again / Skip) ---- */
     /* verdict chip variants used in read-only displays (history, picks card) */
+    .chip.dish.loved{background:rgba(214,73,97,0.22); border-color:#d64961; color:#f3aeba; font-weight:700;}
     .chip.dish.again{background:rgba(224,118,74,0.22); border-color:var(--accent); color:#f7c9ab; font-weight:600;}
     .chip.dish.skip{opacity:0.5; text-decoration:line-through;}
     /* editable dish rows inside the visit form */
@@ -177,6 +178,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform 0.08s;
     }
     .verdict-btn:active{transform:scale(0.92);}
+    .verdict-btn.loved.on{background:rgba(214,73,97,0.2); border-color:#d64961; color:#e98aa0; font-weight:700;}
     .verdict-btn.again.on{background:rgba(224,118,74,0.2); border-color:var(--accent); color:var(--accent); font-weight:600;}
     .verdict-btn.skip.on{background:rgba(179,165,145,0.16); border-color:var(--text-faint); color:var(--text-dim); font-weight:600;}
     .dish-row-x{flex:none; padding:5px; background:transparent; border:none; cursor:pointer; line-height:0;}
@@ -831,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.153.0";
+const APP_VERSION   = "1.154.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1221,7 +1223,7 @@ so you can tell them apart from real ones.
 On any digitized menu you can ask a plain-English question - things like
 "something healthy," "not too heavy," "best value," "what did I love here?," or
 "what do I usually get?" The app answers using that restaurant's actual menu, and
-it draws on your own history there - which dishes you marked Again or Skip, how
+it draws on your own history there - which dishes you marked Loved, Again, or Skip, how
 often you've ordered them, and what you've paid - so the more you log, the more
 personal the answers get. When a menu item has calories on it - whether printed
 on the menu or estimated - the answers factor those in too, so a question like
@@ -1249,10 +1251,11 @@ by tapping them straight from that restaurant's digitized menu. Tapping from
 the menu is the better habit - it makes the rest of the features line up
 correctly (see the photo estimate below).
 
-**Again or Skip.** Each dish has an "Again" and a "Skip" button. Tap Again for
-something you would order again, Skip for something you would not. This is the
-heart of the app - it is how you remember what is worth getting next time. The
-most recent verdict always wins, so you can change your mind later.
+**Loved, Again, or Skip.** Each dish has three buttons. Tap **Loved** for a
+standout you adored, **Again** for something solid you would order again, or
+**Skip** for something you would not. This is the heart of the app - it is how
+you remember what is worth getting next time. The most recent verdict always
+wins, so you can change your mind later.
 
 **Rename a dish.** Tap any dish's name to rename it - useful when a
 free-typed name needs tidying up. The dish keeps its price, verdict, and any
@@ -1323,7 +1326,7 @@ figures.
 ## History
 
 History is the running list of everywhere you have eaten, newest first. Each
-entry shows the rating, the dishes (color-coded by your Again/Skip verdict,
+entry shows the rating, the dishes (color-coded by your Loved/Again/Skip verdict,
 with the estimated calories beside each one when you have them), any nutrition
 summary, your notes, and your photos. When you have estimated two or more
 dishes on a visit, the entry also shows a calm running total (for example
@@ -1693,7 +1696,7 @@ You can take your whole dining log with you. In **Settings**, under **Your
 data**, tap **Export your history** for two ways to get it out:
 
 - **Spreadsheet (CSV)** - every visit and dish in full detail: date, place,
-  city, cuisine, your rating, each dish with its Again/Skip verdict, price, and
+  city, cuisine, your rating, each dish with its Loved/Again/Skip verdict, price, and
   any calories and macros. It opens in Excel, Numbers, or Google Sheets. On a
   phone, your share sheet pops up so you can save it to Files or email it to
   yourself; on a computer it downloads.
@@ -1981,7 +1984,7 @@ function computeYearStats(visits, restaurants, period){
 
   const lovedCount = {}, lovedDisplay = {};
   filtered.forEach(v => (v.dishes || []).forEach(d => {
-    if (d && d.name && d.verdict === "again"){
+    if (d && d.name && verdictPositive(d.verdict)){
       const k = d.name.trim().toLowerCase();
       lovedCount[k] = (lovedCount[k] || 0) + 1;
       if (!lovedDisplay[k]) lovedDisplay[k] = d.name.trim();
@@ -2278,7 +2281,7 @@ function buildListPayload(title, selected, visits, menusObj){
     const avg = rated.length ? Math.round((rated.reduce((a,b)=> a+b, 0) / rated.length) * 10) / 10 : 0;
     const loved = [], seen = {};
     vs.forEach(v => (v.dishes || []).forEach(d => {
-      if (d && d.name && d.verdict === "again"){
+      if (d && d.name && verdictPositive(d.verdict)){
         const k = d.name.trim().toLowerCase();
         if (!seen[k]){ seen[k] = 1; loved.push(d.name.trim()); }
       }
@@ -3464,6 +3467,12 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
 // no kcal on record, so items without data simply pass through unchanged.
 // "stated" (printed on the menu) is exact; everything else is an estimate
 // and is labelled "approx" so the model never treats a guess as fact.
+// A dish verdict is "loved" (top) | "again" (would reorder) | "skip" | null.
+// Both loved AND again are positive ("would order again") for recommendations and
+// the picks/passport lists; "loved" is the standout tier surfaced separately.
+function verdictPositive(v){ return v === "loved" || v === "again"; }
+function dishChipClass(v){ return v === "loved" ? " loved" : v === "again" ? " again" : v === "skip" ? " skip" : ""; }
+
 function nutritionHint(it){
   const n = it && it.nutrition;
   if (!n || !n.kcal) return "";
@@ -3522,13 +3531,13 @@ function dishHistory(visits){
   const detail = [];
   memo.forEach(e => detail.push({
     name: e.name,
-    verdict: e.latest,                                     // "again" | "skip" | null
+    verdict: e.latest,                                     // "loved" | "again" | "skip" | null
     count: e.count,
     lastDate: e.lastDate,
     paid: e.priceN ? (e.priceSum / e.priceN) : null,       // avg paid, dollars
     rating: e.rateN ? (e.rateSum / e.rateN) : null,        // avg visit rating
   }));
-  const loved    = detail.filter(x => x.verdict === "again").map(x => x.name);
+  const loved    = detail.filter(x => verdictPositive(x.verdict)).map(x => x.name);
   const disliked = detail.filter(x => x.verdict === "skip").map(x => x.name);
   return { loved, disliked, detail };
 }
@@ -3545,8 +3554,8 @@ async function askMenu(cfg, restaurant, menu, visits, question){
   const histRanked = (hist.detail || [])
     .filter(d => d.verdict || d.count > 1 || d.paid)
     .sort((a,b)=>{
-      const va = a.verdict === "again" ? 2 : (a.verdict === "skip" ? 0 : 1);
-      const vb = b.verdict === "again" ? 2 : (b.verdict === "skip" ? 0 : 1);
+      const wv = x => x === "loved" ? 3 : x === "again" ? 2 : x === "skip" ? 0 : 1;
+      const va = wv(a.verdict), vb = wv(b.verdict);
       return vb - va || b.count - a.count;
     })
     .slice(0, 12);
@@ -3591,7 +3600,8 @@ async function askMenu(cfg, restaurant, menu, visits, question){
       "answer their request first):\n";
     histRanked.forEach(d => {
       const bits = [];
-      if (d.verdict === "again") bits.push("LOVED it");
+      if (d.verdict === "loved") bits.push("LOVED it");
+      else if (d.verdict === "again") bits.push("would order again");
       else if (d.verdict === "skip") bits.push("did not like it");
       if (d.count > 1) bits.push("ordered " + d.count + " times");
       if (d.paid) bits.push("usually pays about $" + d.paid.toFixed(2));
@@ -5813,7 +5823,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
       (v.notes || "")).toLowerCase();
     return hay.includes(q);
   }) : sorted;
-  if (lovedOnly) filtered = filtered.filter(v => (v.dishes || []).some(d => d && d.verdict === "again"));
+  if (lovedOnly) filtered = filtered.filter(v => (v.dishes || []).some(d => d && d.verdict === "loved"));
   return (
     <div>
       <SearchBar value={query} onChange={setQuery}
@@ -5894,7 +5904,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
               <div className="chips">
                 {v.dishes.map((d,i)=> (
                   <span key={i} className={"chip dish" +
-                    (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
+                    dishChipClass(d.verdict)}>
                     {d.name}{dishShareLabel(d)}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + dishKcalNum(d) : ""}
                   </span>
                 ))}
@@ -6474,7 +6484,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     if (!dishMemo.has(k)){
       dishMemo.set(k, { name:d.name, latestVerdict:d.verdict, againCount:0 });
     }
-    if (d.verdict === "again") dishMemo.get(k).againCount++;
+    if (verdictPositive(d.verdict)) dishMemo.get(k).againCount++;
   }));
   const lovedDishes = Array.from(dishMemo.values())
     .filter(x => x.latestVerdict === "again")
@@ -6635,7 +6645,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                 <div className="chips">
                   {lastVisitDishes.map((d,i)=>(
                     <span key={i} className={"chip dish" +
-                      (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
+                      dishChipClass(d.verdict)}>
                       {d.name}
                     </span>
                   ))}
@@ -6865,7 +6875,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                 <div className="chips">
                   {v.dishes.map((d,i)=> (
                     <span key={i} className={"chip dish" +
-                      (d.verdict==="again" ? " again" : d.verdict==="skip" ? " skip" : "")}>
+                      dishChipClass(d.verdict)}>
                       {d.name}{dishShareLabel(d)}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + dishKcalNum(d) : ""}{d.price ? " \u00b7 " + fmtPrice(d.price) : ""}
                     </span>
                   ))}
@@ -10445,6 +10455,9 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
                       {d.name}{dishShareLabel(d)}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}</span>
                     <div className="dish-verdict">
                       <button
+                        className={"verdict-btn loved" + (d.verdict==="loved" ? " on" : "")}
+                        onClick={()=> setVerdict(d.name, "loved")}>Loved</button>
+                      <button
                         className={"verdict-btn again" + (d.verdict==="again" ? " on" : "")}
                         onClick={()=> setVerdict(d.name, "again")}>Again</button>
                       <button
@@ -13758,7 +13771,7 @@ function exportSourceLabel(n){
   if (!n || !n.source) return "";
   return EXPORT_SOURCE_LABEL[n.source] || n.source;
 }
-function exportVerdictLabel(v){ return v === "again" ? "Again" : v === "skip" ? "Skip" : ""; }
+function exportVerdictLabel(v){ return v === "loved" ? "Loved" : v === "again" ? "Again" : v === "skip" ? "Skip" : ""; }
 function exportPriceCell(p){
   if (p === null || p === undefined || p === "") return "";
   return String(p).trim();
@@ -13918,7 +13931,8 @@ function PrintableHistory({visits, restById, onClose}){
                   {dishes.map((d,i)=>{
                     const n = d.nutrition || null;
                     const bits = [];
-                    if (d.verdict === "again") bits.push("Again");
+                    if (d.verdict === "loved") bits.push("Loved");
+                    else if (d.verdict === "again") bits.push("Again");
                     else if (d.verdict === "skip") bits.push("Skip");
                     if (d.price) bits.push(String(d.price).trim());
                     if (n && n.kcal) bits.push((dishKcalApprox(d) ? "~" : "") + dishKcalNum(d) + " cal");
