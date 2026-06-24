@@ -831,7 +831,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.151.0";
+const APP_VERSION   = "1.152.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7358,7 +7358,8 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal){
 
 function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraft, onClose, flash,
                          initialLines, initialTotal, presetRestId, presetVisitId,
-                         initialReceiptPhoto, initialSplit, onSaveSplit}){
+                         initialReceiptPhoto, initialSplit, onSaveSplit,
+                         onScanned, menuNames}){
   // When launched FROM a visit we arrive pre-loaded with that visit's priced
   // dishes and total, jump straight to the edit step, and default the save back
   // to that same visit.
@@ -7445,7 +7446,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     try {
       // All staged photos are read as ONE check: items from the itemized
       // receipt, the final total from a separate totals slip - merged.
-      const parsed = await parseReceiptPhotos(config, shots, []);
+      const parsed = await parseReceiptPhotos(config, shots, menuNames || []);
       const newLines = (parsed.items || []).map(it => ({
         id: uid("spl"),
         name: it.name,
@@ -7462,6 +7463,9 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       setRtotal("");
       setAssign({});
       logMsg("SPLIT","Receipt parsed: " + newLines.length + " lines, total=" + parsed.total);
+      // This one scan can ALSO log what you ate: hand the parsed items + photo
+      // back to the visit so "What you had" fills from it - no second scan.
+      if (onScanned) onScanned({ items: parsed.items || [], total: parsed.total != null ? parsed.total : null }, shots);
       setStep("edit");
     } catch(err){
       logMsg("ERROR","Split receipt scan failed: " + err.message);
@@ -9443,6 +9447,36 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
   const [scannedItems,setScannedItems] = useState(null);    // persistent parsed items, so the picker re-opens without a re-scan
   const receiptRef = useRef(null);
 
+  // Restaurant menu item names - grounds receipt OCR's "menu_match" so receipt
+  // shorthand maps to real dishes. Shared by BOTH the "What you had" scan and
+  // the split's own scan, so the two read identically from one receipt.
+  const menuNames = [];
+  (menuGroups || []).forEach(g => (g.sections || []).forEach(s =>
+    (s.items || []).forEach(it => { if (it.name) menuNames.push(it.name); })));
+
+  // Map raw parsed receipt items into the "check picker" shape used to log what
+  // you ate (menu_match wins for the logged name).
+  function mapScannedItems(items){
+    return (items || []).map((it, i) => Object.assign({}, it, {
+      rid:"r"+i, count:0, useName: it.menu_match || it.name,
+    }));
+  }
+
+  // The split scanned a receipt: reuse that SAME scan to log what you ate, so
+  // one scan serves both. Only fills in what isn't already set.
+  async function applyScannedFromSplit(parsed, shots){
+    if (!parsed || !(parsed.items || []).length) return;
+    setScannedItems(mapScannedItems(parsed.items));
+    if (parsed.total != null) setReceiptTotal(parsed.total);
+    try {
+      if (!receiptSlot && shots && shots[0]){          // also keep the receipt photo on the visit
+        const blob = await (await fetch(shots[0])).blob();
+        setReceiptSlot({ kind:"pending", blob:blob, previewUrl:URL.createObjectURL(blob) });
+      }
+    } catch(e){ /* photo is best-effort; the items still flow through */ }
+    logMsg("RECEIPT","Split scan shared back to visit: " + parsed.items.length + " item(s)");
+  }
+
   async function onReceiptPicked(e){
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
@@ -9453,19 +9487,12 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
       const dataUrl = await blobToDataUrl(blob);
       // The restaurant's digitized menu names ground the matching, so
       // "CHKN PARM" lands on the real menu item and estimates line up.
-      const names = [];
-      (menuGroups || []).forEach(g => (g.sections || []).forEach(s =>
-        (s.items || []).forEach(it => { if (it.name) names.push(it.name); })));
-      const parsed = await parseReceiptPhotos(cfg, [dataUrl], names);
+      const parsed = await parseReceiptPhotos(cfg, [dataUrl], menuNames);
       // keep the photo (pending upload) regardless of what the user ticks
       const prev = URL.createObjectURL(blob);
       setReceiptSlot({ kind:"pending", blob:blob, previewUrl:prev });
       if (parsed.total != null) setReceiptTotal(parsed.total);
-      const mappedItems = parsed.items.map((it, i) => Object.assign({}, it, {
-        rid:"r"+i, count:0,
-        // the name the dish will be logged under; menu match wins
-        useName: it.menu_match || it.name,
-      }));
+      const mappedItems = mapScannedItems(parsed.items);
       setScannedItems(mappedItems);   // persist so the picker re-opens without a re-scan
       setReceiptReview(mappedItems);
       logMsg("RECEIPT","Review open with " + parsed.items.length + " item(s)");
@@ -10480,6 +10507,8 @@ function VisitForm({restaurants, menus, presetRestaurantId, existing, cfg, onClo
             initialTotal={receiptTotal != null ? receiptTotal : null}
             presetRestId={restId}
             presetVisitId={"new"}
+            menuNames={menuNames}
+            onScanned={applyScannedFromSplit}
             initialReceiptPhoto={receiptSlot && receiptSlot.kind === "existing" ? receiptSlot.path : null}
             initialSplit={splitDraft || null}
             onApplyDraft={(splitObj)=>{ setSplitDraft(splitObj); setSplitOpen(false); }}
