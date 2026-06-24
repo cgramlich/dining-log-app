@@ -833,13 +833,41 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.155.0";
+const APP_VERSION   = "1.156.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 // Track B: hosted backend base. Data and photos go through this; AI moves
 // here in the next step. Overridable per-user via cfg.apiBase (Settings).
 const API_BASE_DEFAULT = "https://web-production-cbd3b.up.railway.app";
+/* ---- community menu library -------------------------------- */
+// Shared, place-keyed digitized menus. A menu scanned once at a place can be
+// pulled by anyone at the same place (keyed by Google Place ID).
+async function communityListMenus(cfg, placeId){
+  const headers = await authHeaders(cfg);
+  const res = await fetch(apiBase(cfg) + "/api/community/menus?place_id=" + encodeURIComponent(placeId), { headers });
+  if (!res.ok) throw new Error("community list " + res.status);
+  const data = await res.json().catch(()=> ({}));
+  return Array.isArray(data.menus) ? data.menus : [];
+}
+async function communityGetMenu(cfg, id){
+  const headers = await authHeaders(cfg);
+  const res = await fetch(apiBase(cfg) + "/api/community/menu/" + encodeURIComponent(id), { headers });
+  if (!res.ok) throw new Error("community get " + res.status);
+  return res.json();
+}
+async function communityShareMenu(cfg, payload){
+  // payload: { place_id, place_name, label, menu:{sections:[...]} }
+  const headers = await authHeaders(cfg);
+  headers["Content-Type"] = "application/json";
+  const res = await fetch(apiBase(cfg) + "/api/community/menus", {
+    method:"POST", headers, body:JSON.stringify(payload),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(data.detail || ("share failed (" + res.status + ")"));
+  return data;
+}
+
 /* ---- billing (Stripe via backend) -------------------------- */
 async function fetchBillingStatus(cfg){
   const headers = await authHeaders(cfg);
@@ -5145,6 +5173,12 @@ function App(){
             commit({ restaurants: next }, ["restaurants"]);
           }}
           onAddMenu={()=> setOverlay({ type:"scanMenu", restaurantId:overlay.id })}
+          onImportCommunityMenus={(newMenus)=>{
+            const cur = menus[overlay.id] || [];
+            const nextM = Object.assign({}, menus, { [overlay.id]: cur.concat(newMenus) });
+            commit({ menus:nextM }, ["menus"]);
+            flash(newMenus.length > 1 ? (newMenus.length + " menus pulled in") : "Menu pulled in");
+          }}
           onOpenMenu={(menuId)=> setOverlay({
             type:"menuDetail", restaurantId:overlay.id, menuId:menuId })}
           onOpenVisit={(v)=> setOverlay({ type:"editVisit", visit:v,
@@ -6288,8 +6322,134 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
 /* ============================================================
    RESTAURANT DETAIL
    ============================================================ */
+// Community menu library panel on a place page. Lets you PULL a menu others have
+// already digitized for this place (keyed by Google Place ID) and SHARE this
+// place's menus back. Renders nothing unless the place is linked to Google.
+function fmtCommunityDate(iso){
+  try { return new Date(iso).toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" }); }
+  catch(e){ return ""; }
+}
+function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
+  const placeId = restaurant && restaurant.google_place_id;
+  const [open, setOpen]       = useState(false);
+  const [list, setList]       = useState(null);   // null=unloaded | array
+  const [busy, setBusy]       = useState(false);
+  const [err, setErr]         = useState("");
+  const [msg, setMsg]         = useState("");
+  const [picked, setPicked]   = useState({});     // community id -> bool
+  const [pulling, setPulling] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  if (!placeId) return null;
+
+  async function load(){
+    setBusy(true); setErr("");
+    try { setList(await communityListMenus(cfg, placeId)); }
+    catch(e){ setErr("Couldn't reach the community library."); setList([]); }
+    setBusy(false);
+  }
+  function toggleOpen(){ const n = !open; setOpen(n); if (n && list === null) load(); }
+
+  async function pull(){
+    const ids = Object.keys(picked).filter(id => picked[id]);
+    if (!ids.length) return;
+    setPulling(true); setErr(""); setMsg("");
+    try {
+      const fetched = [];
+      for (let i = 0; i < ids.length; i++){
+        const cm = await communityGetMenu(cfg, ids[i]);
+        fetched.push({
+          menu_id: uid("menu"),
+          label: cm.label || "Menu",
+          sections: (cm.menu && cm.menu.sections) || [],
+          last_updated: todayISO(),
+          source: "community",
+          community_at: cm.updated_at || cm.created_at || null,
+        });
+      }
+      if (fetched.length && onImport) onImport(fetched);
+      setPicked({});
+    } catch(e){ setErr("Couldn't pull that menu. Try again."); }
+    setPulling(false);
+  }
+
+  async function shareLocal(){
+    const ms = (localMenus || []).filter(m => m && (m.sections || []).length);
+    if (!ms.length){ setMsg("No saved menus here to share yet."); return; }
+    setShareBusy(true); setErr(""); setMsg("");
+    try {
+      let n = 0;
+      for (let i = 0; i < ms.length; i++){
+        await communityShareMenu(cfg, {
+          place_id: placeId,
+          place_name: restaurant.name || "",
+          label: ms[i].label || "Main",
+          menu: { sections: ms[i].sections || [] },
+        });
+        n++;
+      }
+      setMsg("Shared " + n + " menu" + (n>1?"s":"") + " to the community. Thank you!");
+      if (list !== null) load();
+    } catch(e){ setErr("Couldn't share right now. Try again."); }
+    setShareBusy(false);
+  }
+
+  return (
+    <div className="card" style={{marginBottom:12}}>
+      <div className="row between" style={{alignItems:"center", cursor:"pointer"}} onClick={toggleOpen}>
+        <span className="small" style={{fontWeight:600}}>
+          <Icon name="nodes" size={14} color="var(--accent)" /> Community menus
+        </span>
+        <span className="tiny faint">{open ? "▾" : "▸"}</span>
+      </div>
+      {open && (
+        <div style={{marginTop:10}}>
+          {busy ? <div className="tiny faint"><span className="spin" /> Checking the library&hellip;</div> : null}
+          {err ? <div className="tiny faint">{err}</div> : null}
+          {msg ? <div className="tiny" style={{color:"var(--accent)"}}>{msg}</div> : null}
+          {list !== null && list.length === 0 && !busy ? (
+            <div className="tiny faint">No community menus for this place yet &mdash; be the first to share yours below.</div>
+          ) : null}
+          {list && list.length > 0 ? (
+            <div style={{marginTop:4}}>
+              <div className="tiny faint" style={{marginBottom:6}}>
+                Community-contributed &middot; not verified. Tap to choose, then pull in.
+              </div>
+              {list.map(cm => {
+                const on = !!picked[cm.id];
+                return (
+                  <div key={cm.id} className="pick-row" style={{display:"flex",alignItems:"center",gap:10}}
+                    onClick={()=> setPicked(p => Object.assign({}, p, { [cm.id]: !p[cm.id] }))}>
+                    <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
+                    <span style={{flex:1, minWidth:0}}>
+                      <span className="small" style={{fontWeight:600}}>{cm.label}</span>
+                      <span className="tiny faint">{" · " + cm.item_count + " item" + (cm.item_count===1?"":"s") + (cm.updated_at ? " · " + fmtCommunityDate(cm.updated_at) : "")}</span>
+                    </span>
+                  </div>
+                );
+              })}
+              <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
+                disabled={pulling || !Object.values(picked).some(Boolean)}
+                onClick={pull}>
+                {pulling ? <span className="spin" /> : "Pull selected into my menus"}
+              </button>
+            </div>
+          ) : null}
+          <div style={{marginTop:10, borderTop:"1px solid var(--line-soft)", paddingTop:10}}>
+            <button className="btn ghost sm" style={{width:"100%"}} disabled={shareBusy} onClick={shareLocal}>
+              {shareBusy ? <span className="spin" /> : "Share this place's menus to the community"}
+            </button>
+            <div className="tiny faint" style={{marginTop:6}}>
+              Shares only the menu (dishes, prices, descriptions) &mdash; never your visits, notes, or ratings.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
-                           onEdit, onAddMenu, onOpenMenu, onOpenVisit,
+                           onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onOpenVisit,
                            onToggleFav, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
@@ -6760,6 +6920,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         {mShareErr && (
           <div className="tiny faint" style={{margin:"0 0 10px"}}>{mShareErr}</div>
         )}
+
+        <CommunityMenuPanel cfg={cfg} restaurant={r} localMenus={menuList}
+          onImport={onImportCommunityMenus} />
 
         {/* Dietary filter: chips for diets that have tagged matches; tapping one
             shows a combined menu of those dishes pulled from all of this place's menus. */}
