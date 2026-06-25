@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.165.0";
+const APP_VERSION   = "1.166.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3302,7 +3302,10 @@ async function digitizeMenuFromText(cfg, menuText){
     "You are a menu digitization assistant. The TEXT below was extracted from a "+
     "restaurant web page. Pull the COMPLETE food/drink menu out of it into "+
     "structured JSON, ignoring navigation, ads, hours, reviews, and other page "+
-    "chrome.\n\n"+
+    "chrome. The text may include RAW JSON embedded from the page (often under an "+
+    "'EMBEDDED MENU DATA (JSON)' heading - common on online-ordering platforms); "+
+    "the real items, descriptions, and prices are frequently in that JSON, so mine "+
+    "it too.\n\n"+
     "Return ONLY valid JSON. No markdown, no commentary. Keep it compact. Schema:\n"+
     '{"restaurant_name": string or null, "sections":[{"name":string,'+
     '"items":[{"name":string,"description":string,"price":string,'+
