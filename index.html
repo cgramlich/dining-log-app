@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.159.0";
+const APP_VERSION   = "1.160.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -855,6 +855,22 @@ async function communityGetMenu(cfg, id){
   const res = await fetch(apiBase(cfg) + "/api/community/menu/" + encodeURIComponent(id), { headers });
   if (!res.ok) throw new Error("community get " + res.status);
   return res.json();
+}
+// Strip a menu to PUBLIC fields before sharing: keep name/description/price/tags/
+// calories; drop anything derived from the user (paid prices, the user's nutrition
+// estimates, photos, notes).
+function sanitizeMenuForShare(sections){
+  return (sections || []).map(s => ({
+    name: (s && s.name) || "",
+    items: ((s && s.items) || []).map(it => {
+      const out = { name: (it && it.name) || "" };
+      if (it && it.description) out.description = it.description;
+      if (it && it.price) out.price = it.price;
+      if (it && Array.isArray(it.tags) && it.tags.length) out.tags = it.tags.slice();
+      if (it && it.calories != null) out.calories = it.calories;
+      return out;
+    }),
+  }));
 }
 async function communityShareMenu(cfg, payload){
   // payload: { place_id, place_name, label, menu:{sections:[...]} }
@@ -6469,7 +6485,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
           place_id: placeId,
           place_name: restaurant.name || "",
           label: ms[i].label || "Main",
-          menu: { sections: ms[i].sections || [] },
+          menu: { sections: sanitizeMenuForShare(ms[i].sections) },   // public fields only
         });
         n++;
       }
