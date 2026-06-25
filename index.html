@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.166.0";
+const APP_VERSION   = "1.167.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6755,6 +6755,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const [, setDragBump] = useState(0);                  // force a re-render while dragging
   const menuRowRefs   = useRef({});                     // menu_id -> DOM node (for hit-testing)
   const [dietFilter, setDietFilter] = useState(null);   // active dietary filter label, or null
+  const [expenseVisit, setExpenseVisit] = useState(null);  // visit being turned into an expense item
   if (!restaurant){
     return (
       <div className="overlay">
@@ -7360,7 +7361,10 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <ReceiptReveal cfg={cfg} receipt={v.receipt} />
               <VisitSplit split={v.split} />
               {onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
-                <button className="btn ghost sm" style={{marginTop:9}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>Split the check</button>
+                <div className="row" style={{gap:8, marginTop:9, flexWrap:"wrap"}}>
+                  <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>Split the check</button>
+                  <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); setExpenseVisit(v); }}>Create expense item</button>
+                </div>
               ) : null}
             </div>
           );
@@ -7388,6 +7392,22 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         )}
         <div style={{height:30}} />
       </div>
+      {expenseVisit && (
+        <ExpenseSheet
+          data={(()=>{
+            const v = expenseVisit;
+            const sp = v.split || null;
+            const items = (sp && Array.isArray(sp.items) && sp.items.length)
+              ? sp.items.map(it => ({ name: it.name, price: Number(it.price) || 0 }))
+              : (v.dishes || []).filter(d => parsePrice(d.price)).map(d => ({ name: d.name, price: parsePrice(d.price) }));
+            const total = (v.receipt && v.receipt.total) || (sp && sp.grand)
+              || items.reduce((a,it)=> a + (it.price || 0), 0);
+            return { date: v.date, merchant: (r && r.name) || v.restaurant_name || "Restaurant",
+              city: (r && (r.city || r.location)) || "", items: items, total: total,
+              people: (sp && sp.people) || [] };
+          })()}
+          onClose={()=> setExpenseVisit(null)} />
+      )}
     </div>
   );
 }
@@ -7848,6 +7868,89 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal){
   return { people: out, grandCents, lineSubtotalCents, overageCents };
 }
 
+// Turn a meal (split or visit) into a copy/share-ready expense line item. data:
+// { date, merchant, city, items:[{name,price}], total, people:[{name}] }.
+// Tick items to EXCLUDE (e.g. alcohol that isn't reimbursable); the amount and a
+// prorated share of tax/tip recompute, and the excluded items are listed.
+function ExpenseSheet({data, onClose}){
+  const items  = (data.items || []).filter(it => it && it.name);
+  const people = (data.people || []).filter(p => p && p.name);
+  const [excluded, setExcluded] = useState({});      // item index -> true
+  const [purpose, setPurpose]   = useState("");
+  const [copied, setCopied]     = useState(false);
+  const money = n => "$" + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+  const priceOf = it => Number(it.price) || 0;
+
+  const subtotal = items.reduce((a,it)=> a + priceOf(it), 0);
+  const total    = Number(data.total) || subtotal;
+  const taxTip   = Math.max(0, total - subtotal);     // combined, prorated below
+  const hasItems = items.length > 0;
+  const incSubtotal = items.reduce((a,it,i)=> a + (excluded[i] ? 0 : priceOf(it)), 0);
+  const incTaxTip   = subtotal > 0 ? taxTip * (incSubtotal / subtotal) : taxTip;
+  const amount = hasItems ? (incSubtotal + incTaxTip) : total;
+  const excludedItems = items.filter((it,i)=> excluded[i] && priceOf(it) > 0);
+
+  const lines = ["Business meal expense"];
+  if (data.date) lines.push("Date: " + fmtDate(data.date));
+  lines.push("Merchant: " + (data.merchant || "Restaurant") + (data.city ? ", " + data.city : ""));
+  lines.push("Amount: " + money(amount));
+  if (hasItems && taxTip > 0.005) lines.push("Includes tax & tip: " + money(incTaxTip));
+  if (excludedItems.length) lines.push("Excluded: " + excludedItems.map(it => it.name + " (" + money(priceOf(it)) + ")").join(", "));
+  if (people.length) lines.push("Attendees: " + people.map(p => p.name).join(", "));
+  if (purpose.trim()) lines.push("Purpose: " + purpose.trim());
+  const summary = lines.join("\n");
+  async function doCopy(){ try { await navigator.clipboard.writeText(summary); setCopied(true); setTimeout(()=> setCopied(false), 1600); } catch(e){} }
+  async function doShare(){ try { if (navigator.share) await navigator.share({ title:"Expense item", text:summary }); else doCopy(); } catch(e){} }
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>Expense item</h2><span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        {hasItems ? (
+          <div className="fld">
+            <span className="lbl">Items to expense</span>
+            <div className="tiny faint" style={{margin:"-2px 0 8px"}}>Tap an item to exclude it (e.g. alcohol).</div>
+            {items.map((it,i)=>{
+              const off = !!excluded[i];
+              return (
+                <div key={i} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+                  onClick={()=> setExcluded(x => Object.assign({}, x, { [i]: !x[i] }))}>
+                  <span className={"rcpt-check" + (off ? "" : " on")}>{off ? "" : "✓"}</span>
+                  <span style={{flex:1, minWidth:0, textDecoration: off ? "line-through" : "none",
+                                opacity: off ? 0.5 : 1}}>{it.name}</span>
+                  <span className="tiny faint" style={{textDecoration: off ? "line-through" : "none"}}>{money(priceOf(it))}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        <div className="spl-total" style={{marginTop: hasItems ? 4 : 0}}>
+          <span>Amount</span><span>{money(amount)}</span>
+        </div>
+        {hasItems && taxTip > 0.005 ? (
+          <div className="tiny faint" style={{textAlign:"right", marginTop:2}}>includes {money(incTaxTip)} tax &amp; tip</div>
+        ) : null}
+        <label className="fld" style={{marginTop:14}}>
+          <span className="lbl">Business purpose</span>
+          <textarea className="input" rows={2} value={purpose} onChange={e=> setPurpose(e.target.value)}
+            placeholder="e.g. Client dinner, team offsite" />
+        </label>
+        <div className="card" style={{whiteSpace:"pre-wrap"}}>{summary}</div>
+        <div className="row" style={{gap:9, marginTop:12}}>
+          <button className="btn primary" style={{flex:1}} onClick={doCopy}>{copied ? "Copied" : "Copy"}</button>
+          <button className="btn" style={{flex:1}} onClick={doShare}>Share</button>
+        </div>
+        <div className="tiny faint" style={{marginTop:10}}>
+          Attach your receipt photo when you file the expense (it's saved on the visit under "Show receipt").
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraft, onClose, flash,
                          initialLines, initialTotal, presetRestId, presetVisitId,
                          initialReceiptPhoto, initialSplit, onSaveSplit,
@@ -7903,6 +8006,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const [saveVisit, setSaveVisit] = useState(presetVisitId || "new"); // "new" or an existing visit id
   const [splitLabel, setSplitLabel] = useState(initialSplit && initialSplit.label ? initialSplit.label : "");  // standalone save label
   const [shots, setShots]     = useState([]);   // staged receipt photos (dataUrls), read together
+  const [expenseOpen, setExpenseOpen] = useState(false);   // expense-item sheet over the result
   const fileRef = useRef(null);
 
   const money = c => "$" + (Math.round(c) / 100).toFixed(2);
@@ -8540,6 +8644,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 ) : null}
               </div>
             ) : null}
+            <button className="btn ghost" style={{marginTop:10}} onClick={()=> setExpenseOpen(true)}>Create expense item</button>
             <button className="btn ghost" style={{marginTop:10}} onClick={()=> setStep("edit")}>Edit</button>
             <button className="btn ghost" style={{marginTop:10}} onClick={onClose}>Close without saving</button>
           </div>
@@ -8547,6 +8652,18 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
 
 
       </div>
+      {expenseOpen && split && (
+        <ExpenseSheet
+          data={(()=>{
+            const rsel = (restaurants || []).find(x => x.id === (presetRestId || saveRest));
+            const its = lines.filter(l => (l.name || "").trim()).map(l => ({ name: l.name.trim(), price: Number(l.price) || 0 }));
+            return { date: todayISO(), merchant: (rsel && rsel.name) || "Restaurant",
+              city: (rsel && (rsel.city || rsel.location)) || "", items: its,
+              total: Math.round(split.grandCents) / 100,
+              people: split.people.map(p => ({ name: p.name, amount: Math.round(p.totalCents) / 100 })) };
+          })()}
+          onClose={()=> setExpenseOpen(false)} />
+      )}
     </div>
   );
 }
