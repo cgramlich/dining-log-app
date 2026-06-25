@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.161.0";
+const APP_VERSION   = "1.162.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5307,6 +5307,12 @@ function App(){
             const seen = new Set(orderedIds);   // safety: keep any non-Main not in the list
             list.forEach(m => { if (!isMain(m) && !seen.has(m.menu_id)) others.push(m); });
             commit({ menus: Object.assign({}, menus, { [rid]: pinned.concat(others) }) }, ["menus"]);
+          }}
+          onDeleteMenuById={(menuId)=>{
+            const rid = overlay.id;
+            const restMenus = (menus[rid] || []).filter(m => m.menu_id !== menuId);
+            commit({ menus: Object.assign({}, menus, { [rid]: restMenus }) }, ["menus"]);
+            flash("Menu removed");
           }} />
       )}
 
@@ -6552,7 +6558,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onOpenVisit,
-                           onToggleFav, onSetMyRating, onDelete, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta}){
+                           onToggleFav, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
@@ -7080,6 +7086,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               onSaveItemNutrition && onSaveItemNutrition(menuList[0].menu_id, si, ii, est)} />
         )}
 
+        {!dietFilter && menuList.length > 1 && (
+          <div className="tiny faint" style={{margin:"0 2px 8px"}}>
+            Swipe a menu left to delete{canReorderMenus ? " · drag the ☰ handle to reorder" : ""}.
+          </div>
+        )}
         {!dietFilter && menuList.length > 1 && (() => {
           // Render pinned "Main" menus first (no grip), then the non-Main menus
           // in the live (drag) order, each with a drag grip when reordering is on.
@@ -7092,15 +7103,17 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             const itemCount = (m.sections || []).reduce(
               (n,s) => n + ((s.items || []).length), 0);
             const dragging = dragMenuId === m.menu_id;
-            return (
-              <div key={m.menu_id} className="menu-row"
+            const row = (
+              <div className="menu-row"
                 ref={draggable ? (el => { if (el) menuRowRefs.current[m.menu_id] = el; }) : undefined}
                 style={dragging ? {opacity:0.85, boxShadow:"0 8px 20px rgba(0,0,0,.35)", transform:"scale(1.01)"} : undefined}
                 onClick={()=>{ if (!dragMenuIdRef.current) onOpenMenu(m.menu_id); }}>
                 {draggable && canReorderMenus && (
                   <span aria-label="Drag to reorder" title="Drag to reorder"
-                    style={{touchAction:"none", cursor:"grab", color:"#80715f", fontSize:18,
-                            lineHeight:1, padding:"6px 12px 6px 0", flex:"none", userSelect:"none"}}
+                    style={{touchAction:"none", cursor:"grab", color:"#a08e76", fontSize:22,
+                            lineHeight:1, padding:"14px 16px", margin:"-8px 6px -8px -10px",
+                            flex:"none", userSelect:"none", alignSelf:"stretch",
+                            display:"flex", alignItems:"center"}}
                     onClick={(e)=> e.stopPropagation()}
                     onPointerDown={(e)=>{ e.stopPropagation(); menuDragStart(e, m.menu_id); }}
                     onPointerMove={menuDragMove}
@@ -7113,12 +7126,15 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   <div className="tiny faint" style={{marginTop:3}}>
                     {itemCount} item{itemCount === 1 ? "" : "s"}
                     {"  \u00b7  Captured " + fmtDate(m.captured_date)}
-                    {m.source === "seed" ? " (starter)" : ""}
+                    {m.source === "community" ? " (community)" : m.source === "seed" ? " (starter)" : ""}
                   </div>
                 </div>
                 <Icon name="chev" size={18} color="#80715f" />
               </div>
             );
+            return onDeleteMenuById
+              ? <SwipeToDelete key={m.menu_id} onDelete={()=> onDeleteMenuById(m.menu_id)}>{row}</SwipeToDelete>
+              : <div key={m.menu_id}>{row}</div>;
           };
           return menuList.slice(0, menuMainCount).map(m => card(m, false))
             .concat(orderedNonMain.map(m => card(m, true)));
