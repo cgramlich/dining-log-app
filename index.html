@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.164.0";
+const APP_VERSION   = "1.165.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -881,6 +881,18 @@ async function communityShareMenu(cfg, payload){
   });
   const data = await res.json().catch(()=> ({}));
   if (!res.ok) throw new Error(data.detail || ("share failed (" + res.status + ")"));
+  return data;
+}
+// Fetch a menu web page to clean text (server-side, SSRF-guarded). Returns
+// { text, final_url, title }. Throws with a helpful message on PDF/image/etc.
+async function fetchMenuText(cfg, url){
+  const headers = await authHeaders(cfg);
+  headers["Content-Type"] = "application/json";
+  const res = await fetch(apiBase(cfg) + "/api/menu/fetch_text", {
+    method:"POST", headers, body:JSON.stringify({ url }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(data.detail || ("Couldn't read that link (" + res.status + ")"));
   return data;
 }
 
@@ -3279,6 +3291,84 @@ async function digitizeMenu(cfg, dataUrls){
     }).filter(it => it.name),
   })).filter(s => s.items.length);
   parsed.raw_text = String(parsed.raw_text || "");
+  return parsed;
+}
+
+// Digitize a menu from a web page's extracted TEXT (see fetchMenuText). Same
+// schema/normalization as the photo path; returns an empty sections array when
+// the page has no real menu (so the caller can say "scan it instead").
+async function digitizeMenuFromText(cfg, menuText){
+  const prompt =
+    "You are a menu digitization assistant. The TEXT below was extracted from a "+
+    "restaurant web page. Pull the COMPLETE food/drink menu out of it into "+
+    "structured JSON, ignoring navigation, ads, hours, reviews, and other page "+
+    "chrome.\n\n"+
+    "Return ONLY valid JSON. No markdown, no commentary. Keep it compact. Schema:\n"+
+    '{"restaurant_name": string or null, "sections":[{"name":string,'+
+    '"items":[{"name":string,"description":string,"price":string,'+
+    '"tags":[string],"notes":string,"calories":number or null}]}]}\n\n'+
+    "Rules:\n"+
+    "- price: a string exactly as written (e.g. \"$12.95\", \"MP\"); empty string if none.\n"+
+    "- description: the ingredient/description line; empty string if none.\n"+
+    "- tags: apply any of \"gluten-free\",\"vegetarian\",\"vegan\",\"spicy\",\"raw\" only when "+
+    "the text marks it OR the dish is clearly unambiguous; if you tag \"vegan\" also add "+
+    "\"vegetarian\". Be CONSERVATIVE - a WRONG tag is harmful. Empty array if none.\n"+
+    "- calories: ONLY if a calorie number is printed for THAT item; otherwise null. "+
+    "Never guess.\n"+
+    "- An ITEM is something the customer orders; do NOT promote ingredients into items.\n"+
+    "- If the text has NO actual menu (just a homepage, or it only links to a PDF), "+
+    "return an empty sections array.\n\n"+
+    "MENU PAGE TEXT:\n" + menuText;
+
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body:JSON.stringify({
+        task:"ocr_menu",        // server routes the model (Sonnet, same as photo OCR)
+        model:VISION_MODEL,
+        max_tokens:8192,
+        messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
+      }),
+    });
+  } catch(err){
+    throw new Error("Network error reaching the AI service. Check your connection.");
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    let _detail = ""; try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
+    if (res.status === 402) throw new Error(_detail || "You’ve reached this month’s AI usage limit.");
+    throw new Error(_detail || ("AI request failed (" + res.status + ")"));
+  }
+  const json = await res.json();
+  if (json.stop_reason === "max_tokens"){
+    throw new Error("That menu page was too large to read in one pass. Try a link to a single menu section.");
+  }
+  const text = (json.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+  let parsed;
+  try { parsed = parseJsonLoose(text); }
+  catch(err){ throw new Error("Couldn’t read a menu from that page. Try scanning it instead."); }
+  if (!Array.isArray(parsed.sections)) parsed.sections = [];
+  parsed.sections = parsed.sections.map(s => ({
+    name:String(s.name || "Menu"),
+    items:(s.items || []).map(it => {
+      const item = {
+        name:String(it.name || "").trim(),
+        description:String(it.description || "").trim(),
+        price:String(it.price || "").trim(),
+        tags:Array.isArray(it.tags) ? it.tags.map(String) : [],
+        notes:String(it.notes || "").trim(),
+      };
+      const kc = Number(it.calories);
+      if (isFinite(kc) && kc > 0){
+        item.nutrition = { kcal:Math.round(kc), protein_g:0, carbs_g:0, fat_g:0,
+          ingredients:[], foods:[], source:"menu_stated", confidence:"high",
+          estimated_at:todayISO(), note:"" };
+      }
+      return item;
+    }).filter(it => it.name),
+  })).filter(s => s.items.length);
   return parsed;
 }
 
@@ -7213,7 +7303,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   <div className="tiny faint" style={{marginTop:3}}>
                     {itemCount} item{itemCount === 1 ? "" : "s"}
                     {"  \u00b7  Captured " + fmtDate(m.captured_date)}
-                    {m.source === "community" ? " (community)" : m.source === "seed" ? " (starter)" : ""}
+                    {m.source === "community" ? " (community)" : m.source === "web" ? " (web)" : m.source === "seed" ? " (starter)" : ""}
                   </div>
                 </div>
                 <Icon name="chev" size={18} color="#80715f" />
@@ -11010,6 +11100,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [dataUrls,setDataUrls] = useState([]);          // resized data URLs for API
   const [errMsg,setErrMsg]     = useState("");
   const [result,setResult]     = useState(null);        // parsed menu
+  const [urlInput,setUrlInput] = useState("");          // "pull from a link" field
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
   const [label,setLabel]       = useState(presetMenu ? (presetMenu.label || "") : "");
@@ -11104,6 +11195,45 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       setStep("review");
     } catch(err){
       logMsg("ERROR","Digitize failed: " + err.message);
+      setErrMsg(err.message);
+      setStep("error");
+    }
+  }
+
+  // Shared destination prefill (same logic as runOcr): match the digitized name
+  // to an existing place, else seed the new-restaurant field.
+  function prefillDestination(parsed){
+    if (!presetRestaurantId && parsed.restaurant_name){
+      const norm = s => (s || "").trim().toLowerCase();
+      const hit = restaurants.find(r => norm(r.name) === norm(parsed.restaurant_name));
+      if (hit) setRestId(hit.id); else setNewName(parsed.restaurant_name);
+    }
+  }
+
+  // Pull a menu from a web link: server fetches the page text, Claude extracts it,
+  // then it drops into the SAME review/save flow as a scan.
+  async function runUrl(){
+    const u = (urlInput || "").trim();
+    if (!u) return;
+    setStep("working");
+    try {
+      const fetched = await fetchMenuText(config, u);
+      const parsed  = await digitizeMenuFromText(config, fetched.text);
+      if (!parsed.sections.length){
+        throw new Error("Couldn't find a menu on that page. Try a direct link to the menu, or scan it.");
+      }
+      parsed.captured_date = todayISO();
+      parsed.last_updated  = todayISO();
+      parsed.source        = "web";
+      parsed.source_url     = fetched.final_url || u;
+      if (!parsed.restaurant_name && fetched.title) parsed.restaurant_name = fetched.title;
+      prefillDestination(parsed);
+      setResult(parsed);
+      const itemCount = parsed.sections.reduce((n,s)=> n + s.items.length, 0);
+      logMsg("SCAN","Web menu extracted: " + parsed.sections.length + " sections, " + itemCount + " items");
+      setStep("review");
+    } catch(err){
+      logMsg("ERROR","Web menu failed: " + err.message);
       setErrMsg(err.message);
       setStep("error");
     }
@@ -11321,6 +11451,23 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 disabled={!!processing}>
                 Digitize {previews.length} photo(s)
               </button>
+            )}
+            {!presetMenu && (
+              <div style={{marginTop:18, borderTop:"1px solid var(--line-soft)", paddingTop:14}}>
+                <div className="small muted" style={{marginBottom:8}}>Or pull the menu from a link</div>
+                <input className="input" value={urlInput} onChange={e=> setUrlInput(e.target.value)}
+                  placeholder="Paste a menu web address" inputMode="url"
+                  autoCapitalize="off" autoCorrect="off" spellCheck={false}
+                  onKeyDown={e=>{ if (e.key === "Enter" && urlInput.trim()){ e.preventDefault(); runUrl(); } }}
+                  style={{marginBottom:8}} />
+                <button className="btn ghost" style={{width:"100%"}} onClick={runUrl}
+                  disabled={!urlInput.trim() || !!processing}>
+                  Get menu from link
+                </button>
+                <div className="tiny faint" style={{marginTop:6}}>
+                  Works best on a restaurant's own menu page. You'll review it before saving &mdash; from the web, not verified.
+                </div>
+              </div>
             )}
           </div>
         )}
