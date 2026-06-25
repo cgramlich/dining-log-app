@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.163.0";
+const APP_VERSION   = "1.164.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4353,14 +4353,53 @@ function App(){
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(()=> setToast(""), 2600);
   }
-  // Undo snackbar: a message with an Undo action that runs the supplied restore.
-  const [undo, setUndo] = useState(null);     // { msg, action } | null
+  // Action snackbar: a message with one tappable action (Undo, Share, Pull, ...).
+  const [undo, setUndo] = useState(null);     // { msg, label, action } | null
   const undoTimer = useRef(null);
-  function flashUndo(msg, action){
+  function flashAction(msg, label, action){
     setToast("");                              // don't stack with the plain toast
-    setUndo({ msg, action });
+    setUndo({ msg, label, action });
     if (undoTimer.current) clearTimeout(undoTimer.current);
     undoTimer.current = setTimeout(()=> setUndo(null), 6000);
+  }
+  function flashUndo(msg, action){ flashAction(msg, "Undo", action); }
+
+  // ---- community menu helpers (used by share-after-scan + pull-on-add) ----
+  async function shareMenusToCommunity(place, menusArr){
+    if (!place || !place.google_place_id) return 0;
+    let n = 0;
+    for (let i = 0; i < (menusArr || []).length; i++){
+      const m = menusArr[i];
+      if (!m || !((m.sections || []).length)) continue;
+      try {
+        await communityShareMenu(config, {
+          place_id: place.google_place_id,
+          place_name: place.name || "",
+          label: m.label || "Main",
+          menu: { sections: sanitizeMenuForShare(m.sections) },
+        });
+        n++;
+      } catch(e){ /* skip a menu that fails; others still go */ }
+    }
+    return n;
+  }
+  async function pullAllCommunityMenus(rid, placeId){
+    let list;
+    try { list = await communityListMenus(config, placeId); } catch(e){ return 0; }
+    if (!list || !list.length) return 0;
+    const fetched = [];
+    for (let i = 0; i < list.length; i++){
+      try {
+        const cm = await communityGetMenu(config, list[i].id);
+        fetched.push({ menu_id: uid("menu"), label: cm.label || "Menu",
+          sections: (cm.menu && cm.menu.sections) || [], last_updated: todayISO(),
+          source: "community", community_at: cm.updated_at || cm.created_at || null });
+      } catch(e){ /* skip */ }
+    }
+    if (!fetched.length) return 0;
+    const cur = menus[rid] || [];
+    commit({ menus: Object.assign({}, menus, { [rid]: cur.concat(fetched) }) }, ["menus"]);
+    return fetched.length;
   }
 
   /* ---- auto scroll-to-top ---------------------------------- */
@@ -5469,13 +5508,31 @@ function App(){
               files.push("locations");
             }
             commit(updates, files);
+            // Pull-on-add: a fresh, Google-linked place may already have menus in
+            // the community library - offer to pull them right after adding.
+            if (overlay.type !== "editRestaurant" && recOut.google_place_id){
+              (async ()=>{
+                try {
+                  const list = await communityListMenus(config, recOut.google_place_id);
+                  if (list && list.length){
+                    flashAction(
+                      list.length + " community menu" + (list.length>1?"s":"") + " for " + (recOut.name || "this place"),
+                      "Pull them in",
+                      async ()=>{
+                        const n = await pullAllCommunityMenus(recOut.id, recOut.google_place_id);
+                        flash(n ? ("Pulled " + n + " menu" + (n>1?"s":"") + " in") : "Couldn't pull right now.");
+                      });
+                  }
+                } catch(e){ /* silent if the library is unreachable */ }
+              })();
+            }
             // Editing returns to the restaurant; a fresh add normally returns to
             // wherever the user was. A discovery add (carries google_place_id) is
             // worth landing on so the user sees the place they just saved.
             setOverlay(
               (overlay.type==="editRestaurant" || recOut.google_place_id)
                 ? { type:"restaurant", id:recOut.id } : null);
-          }} /> 
+          }} />
       )}
 
       {overlay && (overlay.type === "logVisit" || overlay.type === "editVisit") && (
@@ -5613,11 +5670,19 @@ function App(){
               ? { type:"menuDetail", restaurantId:restId,
                   menuId:menusToSave[0].menu_id }
               : { type:"restaurant", id:restId });
-            flash(isReplace
-              ? "Menu replaced"
-              : menusToSave.length > 1
-                ? menusToSave.length + " menus saved"
-                : "Menu saved");
+            const savedPlace = newRestaurant || restaurantById(restId);
+            const baseMsg = isReplace ? "Menu replaced"
+              : (menusToSave.length > 1 ? menusToSave.length + " menus saved" : "Menu saved");
+            // If the place is linked to Google, offer to contribute the scan to the
+            // community right here (opt-in, one tap) so seeding is part of the flow.
+            if (savedPlace && savedPlace.google_place_id){
+              flashAction(baseMsg, "Share to community", async ()=>{
+                const n = await shareMenusToCommunity(savedPlace, menusToSave);
+                flash(n ? ("Contributed " + n + " menu" + (n>1?"s":"") + ". Thanks!") : "Couldn't share right now.");
+              });
+            } else {
+              flash(baseMsg);
+            }
           }} />
       )}
 
@@ -5684,7 +5749,7 @@ function App(){
           <span>{undo.msg}</span>
           <button onClick={()=>{ const a = undo.action; if (undoTimer.current) clearTimeout(undoTimer.current); setUndo(null); if (a) a(); }}
             style={{background:"none", border:"none", color:"var(--accent)", fontWeight:700, cursor:"pointer", padding:0, fontSize:"inherit"}}>
-            Undo
+            {undo.label || "Undo"}
           </button>
         </div>
       )}
