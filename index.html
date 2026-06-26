@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.183.0";
+const APP_VERSION   = "1.184.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8027,8 +8027,29 @@ function ExpenseSheet({data, cfg, onClose}){
       im.src = durl;
     });
   }
+  const PDF_LIB = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+  const prepRef = useRef({});   // receipt key -> { dataUrl, w, h }, readied before Share
+  // Preload the PDF library + the ticked receipts when the sheet opens (and as the
+  // selection changes) so the first "Share as PDF" tap fires within iOS's
+  // user-activation window. Otherwise the first tap spends that window loading/
+  // fetching and iOS silently drops navigator.share, forcing a second tap.
+  useEffect(()=>{ loadScriptOnce(PDF_LIB).catch(()=>{}); }, []);
+  useEffect(()=>{
+    let alive = true;
+    (async ()=>{
+      for (const r of allReceipts){
+        if (!picked[r.key] || prepRef.current[r.key]) continue;
+        const durl = await receiptDataUrl(r);
+        if (!alive || !durl) continue;
+        const dim = await imgDims(durl);
+        if (!alive) return;
+        prepRef.current[r.key] = { dataUrl: durl, w: dim.w, h: dim.h };
+      }
+    })();
+    return ()=>{ alive = false; };
+  }, [picked, addedReceipts]);
   async function buildExpensePdf(){
-    await loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+    await loadScriptOnce(PDF_LIB);
     const JSPDF = window.jspdf && window.jspdf.jsPDF;
     if (!JSPDF) throw new Error("PDF library unavailable");
     const doc = new JSPDF({ unit:"pt", format:"letter" });
@@ -8097,20 +8118,24 @@ function ExpenseSheet({data, cfg, onClose}){
     // Receipt pages: caption + centered, bordered image.
     const chosen = allReceipts.filter(r => picked[r.key]);
     for (let i = 0; i < chosen.length; i++){
-      const durl = await receiptDataUrl(chosen[i]);
-      if (!durl) continue;
-      const dim = await imgDims(durl);
+      let prep = prepRef.current[chosen[i].key];   // prepared on open/selection (no await on tap)
+      if (!prep){
+        const durl = await receiptDataUrl(chosen[i]);
+        if (!durl) continue;
+        const dim = await imgDims(durl);
+        prep = { dataUrl: durl, w: dim.w, h: dim.h };
+      }
       doc.addPage();
       doc.setFont("helvetica","bold"); doc.setFontSize(9); setInk(GRAY);
       doc.text((chosen[i].label || "Receipt").toUpperCase(), M, 56);
       const topY = 72;
       const availW = W - M * 2;
       const availH = H - topY - M;
-      let w = availW, h = w * (dim.h / dim.w);
-      if (h > availH){ h = availH; w = h * (dim.w / dim.h); }
+      let w = availW, h = w * (prep.h / prep.w);
+      if (h > availH){ h = availH; w = h * (prep.w / prep.h); }
       const x = M + (availW - w) / 2;
       try {
-        doc.addImage(durl, "JPEG", x, topY, w, h);
+        doc.addImage(prep.dataUrl, "JPEG", x, topY, w, h);
         setDraw(LINE); doc.setLineWidth(0.5); doc.rect(x, topY, w, h);
       } catch(e){}
     }
