@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.194.0";
+const APP_VERSION   = "1.195.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9996,6 +9996,16 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
               <button style={chip(view === "list")} onClick={()=> setView("list")}>List</button>
               <button style={chip(view === "map")}  onClick={()=> setView("map")}>Map</button>
             </div>
+          </div>
+        )}
+
+        {/* Truncation hint: Google's nearby search returns at most 20, ranked by
+            prominence. In a busy area a specific place can fall outside that 20
+            no matter how you sort - point the user to the fixes. */}
+        {geoState === "ok" && !loading && !searchMode && results.length >= 20 && (
+          <div className="tiny faint" style={{padding:"0 14px 8px", lineHeight:1.45}}>
+            Showing Google's 20 most prominent nearby. In a busy area a specific spot
+            can be missing — narrow the radius or type its name in Search above.
           </div>
         )}
 
