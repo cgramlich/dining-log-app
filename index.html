@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.192.0";
+const APP_VERSION   = "1.193.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6640,9 +6640,18 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   const cityChips = Array.from(new Set([].concat(locations || []).concat(inUse)))
     .sort((a,b)=> a.localeCompare(b));
 
-  // Cuisines actually in use (for the cuisine filter chips).
-  const cuisineInUse = Array.from(new Set(restaurants.map(r => (r.cuisine || "").trim()).filter(Boolean)))
-    .sort((a,b)=> a.localeCompare(b));
+  // Cuisines actually in use, cleaned the same way Near me cleans Google types
+  // ("italian_restaurant"/"italian"/"Italian" all collapse to one "Italian"
+  // chip), then deduped case-insensitively.
+  const cleanCuisine = (raw)=>{ const r = (raw || "").trim(); if (!r) return ""; return cuisineFromType(r) || r; };
+  const cuisineInUse = (function(){
+    const seen = new Map();   // lower-cased clean -> canonical display
+    restaurants.forEach(r => {
+      const c = cleanCuisine(r.cuisine);
+      if (c && !seen.has(c.toLowerCase())) seen.set(c.toLowerCase(), c);
+    });
+    return Array.from(seen.values()).sort((a,b)=> a.localeCompare(b));
+  })();
 
   const filter = activeFilter || "All";
   const byCity = filter === "All"
@@ -6652,7 +6661,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       : restaurants.filter(r => r.location === filter);
   const visible = cuisineFilter === "All"
     ? byCity
-    : byCity.filter(r => (r.cuisine || "").trim().toLowerCase() === cuisineFilter.toLowerCase());
+    : byCity.filter(r => cleanCuisine(r.cuisine).toLowerCase() === cuisineFilter.toLowerCase());
 
   const q = query.trim().toLowerCase();
   const searched = q ? visible.filter(r =>
@@ -9429,6 +9438,8 @@ const NEARME_RADII = [
   { label:"1 mi",   m:1600 },
   { label:"3 mi",   m:4800 },
   { label:"5 mi",   m:8000 },
+  { label:"10 mi",  m:16093 },
+  { label:"25 mi",  m:40234 },
 ];
 // Type chips -> Google includedTypes. The relay applies NO default, so even
 // "All food" must send a food-type set or non-food places leak in.
@@ -9612,6 +9623,8 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
   const [nearSort, setNearSort]     = useState("dist");   // "dist" (closest) | "rated" (top rated) | "pop" (popular)
   const [priceSel, setPriceSel]     = useState({});       // {1:true,...} selected price levels; empty = any
   const [hideSaved, setHideSaved]   = useState(false);    // hide places already in my list
+  const [searchQ, setSearchQ]       = useState("");       // "search a restaurant near me" box
+  const [searchMode, setSearchMode] = useState(false);    // current results came from a text search
   // Client-side refine of the fetched results (no new Google call): min-rating,
   // price level, hide-already-saved, and sort. Base list is distance-sorted.
   const shown = (function(){
@@ -9624,6 +9637,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
     if (hideSaved) arr = arr.filter(p => !hardMatch(p.place_id));
     if (nearSort === "rated") arr = arr.slice().sort((a,b)=> ((b.rating||0)-(a.rating||0)) || ((b.rating_count||0)-(a.rating_count||0)));
     else if (nearSort === "pop") arr = arr.slice().sort((a,b)=> ((a._idx==null?1e9:a._idx) - (b._idx==null?1e9:b._idx)));
+    else if (nearSort === "az")  arr = arr.slice().sort((a,b)=> (a.name||"").localeCompare(b.name||""));
     return arr;
   })();
 
@@ -9690,6 +9704,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
         _dist: distanceMiles(distFrom.lat, distFrom.lng, p.lat, p.lng),
       })).sort((a,b)=> (a._dist==null?1e9:a._dist) - (b._dist==null?1e9:b._dist));
       setResults(withDist);
+      setSearchMode(false);
       setSearchCenter(center);
       setFetchedAt(Date.now());
       setLastSearch({ radiusM, typeKey, cuisineKey, openNow });
@@ -9702,6 +9717,36 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
       setLoading(false);
     }
   }
+
+  // Search a SPECIFIC restaurant near me by name (Google text search, biased to
+  // my location). Results flow through the same card list + refine pipeline.
+  async function runTextSearch(){
+    const qy = searchQ.trim();
+    if (!qy) return;
+    if (!userLoc){ requestLocation(); return; }
+    setLoading(true); setError(null);
+    try {
+      const data = await placesSearchText(cfg, { query: qy, lat: userLoc.lat, lng: userLoc.lng, max_results: 20 });
+      const raw = (data.places || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      const withDist = raw.map((p, i) => Object.assign({}, p, {
+        _idx: i,
+        _dist: distanceMiles(userLoc.lat, userLoc.lng, p.lat, p.lng),
+      })).sort((a,b)=> (a._dist==null?1e9:a._dist) - (b._dist==null?1e9:b._dist));
+      setResults(withDist);
+      setSearchMode(true);
+      setSearchCenter(userLoc);
+      setFetchedAt(Date.now());
+      setView("list");
+      logMsg("PLACES", "text search '" + qy + "' returned " + withDist.length);
+    } catch(err){
+      const e = mapPlacesError(err);
+      setError(e);
+      if (e.kind === "upsell") setTier("free");
+    } finally {
+      setLoading(false);
+    }
+  }
+  function clearTextSearch(){ setSearchQ(""); setSearchMode(false); setResults([]); setFetchedAt(null); }
 
   async function openDetails(placeId){
     setDetail({ place_id:placeId });   // open sheet immediately in loading state
@@ -9873,6 +9918,17 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
         {/* Filters + search (only once we have a location) */}
         {geoState === "ok" && (
           <div style={{padding:"12px 14px", borderBottom:"1px solid var(--line-soft)"}}>
+            <div className="row" style={{gap:8, alignItems:"center", marginBottom:10}}>
+              <input className="input" style={{flex:1, minWidth:0}} value={searchQ}
+                onChange={e=> setSearchQ(e.target.value)}
+                onKeyDown={e=>{ if (e.key === "Enter") runTextSearch(); }}
+                placeholder="Search a restaurant near me" inputMode="search" />
+              {(searchQ || searchMode) && (
+                <button className="btn ghost sm" style={{flex:"none"}} onClick={clearTextSearch}>Clear</button>
+              )}
+              <button className="btn ghost sm" style={{flex:"none"}}
+                disabled={!searchQ.trim() || loading} onClick={runTextSearch}>Search</button>
+            </div>
             <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
               {NEARME_RADII.map(r => (
                 <button key={r.m} style={chip(radiusM === r.m)} onClick={()=> setRadiusM(r.m)}>{r.label}</button>
@@ -9905,6 +9961,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
               <button style={chip(nearSort === "dist")}  onClick={()=> setNearSort("dist")}>Closest</button>
               <button style={chip(nearSort === "rated")} onClick={()=> setNearSort("rated")}>Top rated</button>
               <button style={chip(nearSort === "pop")}   onClick={()=> setNearSort("pop")}>Popular</button>
+              <button style={chip(nearSort === "az")}    onClick={()=> setNearSort("az")}>A&ndash;Z</button>
               <button style={chip(minStars === 4)} onClick={()=> setMinStars(v => v === 4 ? 0 : 4)}>4&#9733;+</button>
             </div>
             <div className="row" style={{gap:8, marginTop:8, overflowX:"auto"}}>
