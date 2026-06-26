@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.176.0";
+const APP_VERSION   = "1.177.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -11144,16 +11144,13 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
           </div>
           <input ref={receiptRef} type="file" accept="image/*"
             style={{display:"none"}} onChange={onReceiptPicked} />
-          <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
-            disabled={receiptBusy}
-            onClick={()=> (scannedItems && scannedItems.length)
-              ? openCheckPicker()
-              : (receiptRef.current && receiptRef.current.click())}>
-            {receiptBusy ? <span className="spin" />
-              : <Icon name={(scannedItems && scannedItems.length) ? "receipt" : "camera"} size={16} />}
-            {receiptBusy ? "Reading the check..."
-              : ((scannedItems && scannedItems.length) ? "From Receipt Image" : "Scan the check")}
-          </button>
+          {scannedItems && scannedItems.length ? (
+            <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
+              disabled={receiptBusy} onClick={openCheckPicker}>
+              {receiptBusy ? <span className="spin" /> : <Icon name="receipt" size={16} />}
+              {receiptBusy ? "Reading the check..." : "Edit dishes from the check"}
+            </button>
+          ) : null}
           <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
             onClick={()=> setSplitOpen(true)}>Split the check</button>
           {splitDraft && (
@@ -11170,6 +11167,16 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
           )}
           {receiptErr && (
             <div className="small" style={{color:"#e7a99e", marginTop:6}}>{receiptErr}</div>
+          )}
+          <div className="lbl" style={{marginTop:14, marginBottom:2}}>Receipts</div>
+          <div className="tiny faint" style={{marginBottom:8}}>
+            Scan or upload the itemized check and the final / total receipt - add either or both. The expense item attaches the final.
+          </div>
+          {!receiptSlot && (
+            <button className="btn ghost sm" style={{width:"100%", marginBottom:8}} disabled={receiptBusy}
+              onClick={()=> receiptRef.current && receiptRef.current.click()}>
+              {receiptBusy ? <span className="spin" /> : <Icon name="camera" size={15} />} Scan itemized check
+            </button>
           )}
           {receiptSlot && (
             <div className="tiny muted" style={{marginTop:8}}>
