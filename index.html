@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.180.0";
+const APP_VERSION   = "1.181.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6253,7 +6253,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             <ReceiptReveal cfg={cfg} receipt={v.receipt} />
             <VisitSplit split={v.split} />
             {onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
-              <button className="btn ghost sm" style={{marginTop:9}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "See the split" : "Split the check"}</button>
+              <button className="btn ghost sm" style={{marginTop:9}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "Edit split" : "Split the check"}</button>
             ) : null}
           </div>
         );
@@ -7378,9 +7378,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               {((v.receipt && v.receipt.total) || v.split || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
                 <div className="row" style={{gap:8, marginTop:9, flexWrap:"wrap"}}>
                   {onSplitVisit ? (
-                    <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "See the split" : "Split the check"}</button>
+                    <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "Edit split" : "Split the check"}</button>
                   ) : null}
-                  <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); setExpenseVisit(v); }}>Create expense item</button>
+                  <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); setExpenseVisit(v); }}>Expense this</button>
                 </div>
               ) : null}
             </div>
@@ -8716,12 +8716,12 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                    onClick={(e)=>{ e.preventDefault(); setShowRcpts(s=>!s); }}>
                   {showRcpts ? "Hide receipts" : "Show receipts"}</a>
               ) : null}
-              <a href="#" style={{color:"var(--accent)"}}
-                 onClick={(e)=>{ e.preventDefault(); openExpense(); }}>Create expense item</a>
               {canSplit ? (
                 <a href="#" style={{color:"var(--accent)"}}
                    onClick={(e)=>{ e.preventDefault(); doSplit(); }}>See the split</a>
               ) : null}
+              <a href="#" style={{color:"var(--accent)", marginLeft:"auto"}}
+                 onClick={(e)=>{ e.preventDefault(); openExpense(); }}>Expense this</a>
             </div>
             {showRcpts && (initialReceiptPhoto || initialFinalReceipt) ? (
               <div style={{marginBottom:12}}>
@@ -8953,7 +8953,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 ) : null}
               </div>
             ) : null}
-            <button className="btn ghost" style={{marginTop:10}} onClick={()=> setExpenseOpen(true)}>Create expense item</button>
+            <button className="btn ghost" style={{marginTop:10}} onClick={()=> setExpenseOpen(true)}>Expense this</button>
             <button className="btn ghost" style={{marginTop:10}} onClick={()=> setStep("edit")}>Edit</button>
             <button className="btn ghost" style={{marginTop:10}} onClick={onClose}>Close without saving</button>
           </div>
@@ -11221,7 +11221,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
             </button>
           ) : null}
           <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
-            onClick={()=> setSplitOpen(true)}>{splitDraft ? "See the split" : "Split the check"}</button>
+            onClick={()=> setSplitOpen(true)}>{splitDraft ? "Edit split" : "Split the check"}</button>
           {splitDraft && (
             <div style={{marginTop:8}}>
               <VisitSplit split={splitDraft} />
