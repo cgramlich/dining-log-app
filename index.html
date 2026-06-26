@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.196.0";
+const APP_VERSION   = "1.197.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5499,7 +5499,10 @@ function App(){
       {overlay && overlay.type === "spinPick" && (
         <SpinPicker
           restaurants={restaurants}
+          cfg={config}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+          onAddPlace={(prefill)=> setOverlay({ type:"addRestaurant", prefill:prefill })}
+          onUpgrade={()=>{ setOverlay(null); setTab("settings"); }}
           onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "nearMe" && (
@@ -10204,8 +10207,23 @@ function ActionSheet({onClose, onPick}){
    pre-ticked), then spin an SVG wheel that lands on a uniformly
    random winner. Pure presentation - nothing is written to data.
    ============================================================ */
-function SpinPicker({restaurants, onOpenRestaurant, onClose}){
+function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, onClose}){
   const places = (restaurants || []).filter(r => r && r.name);
+  // Source mode: spin among MY saved places, or DISCOVER nearby via Google.
+  const [srcMode, setSrcMode] = useState("saved");   // "saved" | "discover"
+  const [dCuisine, setDCuisine] = useState("");       // "" = any food
+  const [dRadius, setDRadius]   = useState(4800);     // default 3 mi
+  const [dMinStars, setDMinStars] = useState(0);
+  const [dBusy, setDBusy]   = useState(false);
+  const [dErr, setDErr]     = useState("");
+  const [dUpsell, setDUpsell] = useState(false);
+  const dLocRef = useRef(null);   // cached geolocation for the session
+  const spchip = (on)=> ({
+    padding:"7px 12px", borderRadius:999, fontSize:13, fontWeight:600,
+    border:"1px solid " + (on ? "var(--accent)" : "var(--line)"),
+    background: on ? "var(--accent)" : "transparent",
+    color: on ? "#1b1714" : "var(--text-dim)", cursor:"pointer", whiteSpace:"nowrap", flex:"none",
+  });
   // favorites pre-ticked (signed-off default); the user adjusts freely
   const [picked, setPicked] = useState(()=>{
     const s = {}; let c = 0;
@@ -10262,14 +10280,61 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
   }
   function clearAll(){ setPicked({}); }
 
-  function goWheel(){
-    if (count < 2) return;
-    const list = pickedList.slice(0, 8);     // helm has 8 gaps; cap defensively
+  function startWheel(list){
     setWheelList(list);
     setSlots(buildSlots(list));              // freeze the 8-slot fill so it is stable
     setWinner(null); setWinnerSlot(null); setLandedAgain(false);
     angleRef.current = 0; setRotation(0); setSpinMode("idle");
     setStage("wheel");
+  }
+  function goWheel(){
+    if (count < 2) return;
+    startWheel(pickedList.slice(0, 8));      // helm has 8 gaps; cap defensively
+  }
+
+  function getLocation(){
+    if (dLocRef.current) return Promise.resolve(dLocRef.current);
+    return new Promise((res, rej)=>{
+      if (!navigator.geolocation){ rej(new Error("no geo")); return; }
+      navigator.geolocation.getCurrentPosition(
+        p => { const l = { lat:p.coords.latitude, lng:p.coords.longitude }; dLocRef.current = l; res(l); },
+        err => rej(err),
+        { enableHighAccuracy:false, timeout:10000, maximumAge:60000 });
+    });
+  }
+  // Build the wheel from a live Google discovery: "any <cuisine> place within
+  // <radius> over <rating>". Pulls the nearest matches, shuffles for variety,
+  // takes up to 8. Needs at least 2 to spin. Pro-gated (same as Near me).
+  async function buildDiscoverWheel(){
+    setDErr(""); setDUpsell(false); setDBusy(true);
+    try {
+      const loc = await getLocation().catch(()=> null);
+      if (!loc){ setDErr("Couldn't get your location - enable it and try again."); setDBusy(false); return; }
+      const cdef = dCuisine ? NEARME_CUISINES.find(c => c.key === dCuisine) : null;
+      const data = await placesNearby(cfg, {
+        lat:loc.lat, lng:loc.lng, radius_m:dRadius, open_now:false,
+        included_types: cdef ? [cdef.type] : ["restaurant","cafe","bar","bakery","meal_takeaway"],
+        max_results:20, rank:"DISTANCE",
+      });
+      let arr = (data.places || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      if (dMinStars > 0) arr = arr.filter(p => typeof p.rating === "number" && p.rating >= dMinStars);
+      if (arr.length < 2){
+        setDErr("Only " + arr.length + " match. Widen the radius, lower the rating, or change cuisine.");
+        setDBusy(false); return;
+      }
+      // shuffle (Fisher-Yates) for variety, then take up to 8 with a distance stamp
+      const sh = arr.slice();
+      for (let i = sh.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); const t = sh[i]; sh[i] = sh[j]; sh[j] = t; }
+      const list = sh.slice(0, 8).map(p => Object.assign({}, p, { _dist: distanceMiles(loc.lat, loc.lng, p.lat, p.lng) }));
+      startWheel(list);
+    } catch(err){
+      const e = mapPlacesError(err);
+      if (e.kind === "upsell"){ setDErr("Discovery is a Pro feature."); setDUpsell(true); }
+      else if (e.kind === "limit"){ setDErr(e.msg || "You've hit this month's discovery limit."); }
+      else setDErr(e.msg || "Search failed - try again.");
+    } finally {
+      setDBusy(false);
+    }
   }
 
   // Align so slot w's GAP lands under the top pointer (never on a spoke), `turns`
@@ -10390,6 +10455,14 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
       <div className={"ovbody" + (stage === "wheel" ? " pw-body" : "")}>
         {stage === "pick" ? (
           <div>
+            <div className="row" style={{gap:8, marginBottom:12}}>
+              <button className={"btn sm " + (srcMode === "saved" ? "primary" : "ghost")} style={{flex:1}}
+                onClick={()=> setSrcMode("saved")}>My places</button>
+              <button className={"btn sm " + (srcMode === "discover" ? "primary" : "ghost")} style={{flex:1}}
+                onClick={()=> setSrcMode("discover")}>Discover nearby</button>
+            </div>
+            {srcMode === "saved" ? (
+            <React.Fragment>
             <div className="tiny faint" style={{margin:"2px 2px 10px"}}>
               Pick up to 8 places for the wheel, then spin. Your favorites are
               ticked to start - add or remove any you like.
@@ -10438,6 +10511,51 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
               disabled={count < 2} onClick={goWheel}>
               {count < 2 ? "Pick at least two" : "Spin (" + count + ")"}
             </button>
+            </React.Fragment>
+            ) : (
+            <React.Fragment>
+            <div className="tiny faint" style={{margin:"2px 2px 12px"}}>
+              Build the wheel from places around you - pick a cuisine, distance,
+              and minimum rating, and we'll drop up to 8 matches on the wheel.
+            </div>
+            <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
+              <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Cuisine</span>
+              <button style={spchip(dCuisine === "")} onClick={()=> setDCuisine("")}>Any</button>
+              {NEARME_CUISINES.map(c => (
+                <button key={c.key} style={spchip(dCuisine === c.key)}
+                  onClick={()=> setDCuisine(v => v === c.key ? "" : c.key)}>{c.label}</button>
+              ))}
+            </div>
+            <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
+              <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Within</span>
+              {NEARME_RADII.map(r => (
+                <button key={r.m} style={spchip(dRadius === r.m)} onClick={()=> setDRadius(r.m)}>{r.label}</button>
+              ))}
+            </div>
+            <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
+              <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Rating</span>
+              <button style={spchip(dMinStars === 0)}   onClick={()=> setDMinStars(0)}>Any</button>
+              <button style={spchip(dMinStars === 4)}   onClick={()=> setDMinStars(4)}>4&#9733;+</button>
+              <button style={spchip(dMinStars === 4.5)} onClick={()=> setDMinStars(4.5)}>4.5&#9733;+</button>
+            </div>
+            {dErr ? (
+              <div className="small" style={{color:"#e7a99e", margin:"8px 2px 0"}}>
+                {dErr}
+                {dUpsell ? (
+                  <button className="btn primary sm" style={{marginTop:8, width:"100%"}}
+                    onClick={()=> onUpgrade ? onUpgrade() : null}>See Pro</button>
+                ) : null}
+              </div>
+            ) : null}
+            <button className="btn primary" style={{marginTop:14, width:"100%", opacity: dBusy ? 0.7 : 1}}
+              disabled={dBusy} onClick={buildDiscoverWheel}>
+              {dBusy ? "Finding places…" : "Build my wheel"}
+            </button>
+            <div className="tiny faint" style={{margin:"8px 2px 0", textAlign:"center"}}>
+              Uses your location. Discovery is a Pro feature.
+            </div>
+            </React.Fragment>
+            )}
           </div>
         ) : (
           <div style={{textAlign:"center", width:"100%", maxWidth:460, marginLeft:"auto", marginRight:"auto"}}>
@@ -10477,8 +10595,27 @@ function SpinPicker({restaurants, onOpenRestaurant, onClose}){
               <div className="spin-result">
                 <div className="tiny faint">Tonight it's</div>
                 <div className="winner">{winner.name}</div>
+                {(winner.place_id && !winner.id) ? (
+                  <div className="tiny faint" style={{marginBottom:6}}>
+                    {[winner.rating != null ? ("★ " + winner.rating) : "", winner._dist != null ? fmtMiles(winner._dist) : ""].filter(Boolean).join(" · ")}
+                  </div>
+                ) : null}
                 <div className="row" style={{gap:8, justifyContent:"center", flexWrap:"wrap"}}>
-                  <button className="btn primary sm" onClick={()=> onOpenRestaurant(winner.id)}>Open this place</button>
+                  {(winner.place_id && !winner.id) ? (
+                    <button className="btn primary sm" onClick={()=>{
+                      if (!onAddPlace) return;
+                      onAddPlace({
+                        name: winner.name || "",
+                        cuisine: cuisineFromType(winner.primary_type, winner.types),
+                        location: winner.city || "",
+                        address: winner.address || "",
+                        google_place_id: winner.place_id,
+                        lat: winner.lat, lng: winner.lng,
+                      });
+                    }}>Add to my places</button>
+                  ) : (
+                    <button className="btn primary sm" onClick={()=> onOpenRestaurant(winner.id)}>Open this place</button>
+                  )}
                   <a className="btn ghost sm" href={dirHref} target="_blank" rel="noopener noreferrer">Directions</a>
                   <button className="btn ghost sm" onClick={startSpin}>Spin again</button>
                 </div>
