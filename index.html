@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.184.0";
+const APP_VERSION   = "1.185.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8149,10 +8149,16 @@ function ExpenseSheet({data, cfg, onClose}){
       const fname = "expense-" + safe + ".pdf";
       const blob = doc.output("blob");
       const file = new File([blob], fname, { type:"application/pdf" });
+      // `title` is what email targets (Mail, Gmail) drop into the SUBJECT line;
+      // Messages ignores it, so this can't reintroduce the old failed-text-body
+      // problem. There's no way to know the chosen target ahead of time, so we
+      // always pass a clean subject and let email pick it up. No `text` body.
+      const subjBits = ["Expense", data.merchant || "meal"].filter(Boolean);
+      let subject = subjBits.join(" - ");
+      if (client && client.trim()) subject += " (" + client.trim() + ")";
+      if (data.date) subject += " - " + fmtDate(data.date);
       if (navigator.canShare && navigator.canShare({ files:[file] })){
-        // PDF only - it's self-contained. No text body, so Messages/Mail don't
-        // try to send a separate (and failable) text alongside it.
-        await navigator.share({ files:[file], title:"Expense" });
+        await navigator.share({ files:[file], title:subject });
       } else {
         doc.save(fname);
       }
