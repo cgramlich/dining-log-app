@@ -507,6 +507,16 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     .visit-photo.tap{ cursor:zoom-in; -webkit-tap-highlight-color:transparent; }
 
+    /* Connection-request banner - prominent, tappable, dismissible */
+    .req-banner{ display:flex; align-items:center; gap:11px; margin:0 0 13px;
+      padding:11px 13px; border-radius:13px; cursor:pointer; color:#1b1714;
+      background:linear-gradient(180deg, var(--accent), #b56a26);
+      box-shadow:0 2px 10px rgba(0,0,0,0.18); -webkit-tap-highlight-color:transparent; }
+    .req-banner-ic{ width:34px; height:34px; border-radius:50%; flex:none;
+      background:rgba(255,255,255,0.34); display:flex; align-items:center; justify-content:center; }
+    .req-banner-x{ width:26px; height:26px; border-radius:50%; border:none; flex:none; cursor:pointer;
+      background:rgba(255,255,255,0.30); display:flex; align-items:center; justify-content:center; }
+
     /* Full-screen photo viewer (lightbox) */
     .lightbox{ position:fixed; inset:0; z-index:200; background:rgba(10,8,6,0.95);
       display:flex; align-items:center; justify-content:center;
@@ -853,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.187.0";
+const APP_VERSION   = "1.188.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -917,11 +927,24 @@ async function fetchMenuText(cfg, url){
 }
 
 /* ---- billing (Stripe via backend) -------------------------- */
+// Owner-only dev override: lets the owner simulate "free" or "pro" to test the
+// gated experience without touching the real subscription. Stored locally; only
+// ever applied when the billing payload says this account is the owner.
+function getForcedTier(){ try { return localStorage.getItem("mc_force_tier") || ""; } catch(e){ return ""; } }
+function setForcedTier(v){ try { if (v) localStorage.setItem("mc_force_tier", v); else localStorage.removeItem("mc_force_tier"); } catch(e){} }
+
 async function fetchBillingStatus(cfg){
   const headers = await authHeaders(cfg);
   const res = await fetch(apiBase(cfg) + "/api/billing/status", { headers });
   if (!res.ok) throw new Error("billing status " + res.status);
-  return res.json();
+  const data = await res.json();
+  const forced = getForcedTier();
+  if (forced && data && data.owner){
+    data.real_tier = data.tier;   // keep the true value for reference
+    data.tier = forced;           // simulate for gating across the app
+    data.forced = forced;
+  }
+  return data;
 }
 
 async function startCheckout(cfg, plan){
@@ -4056,6 +4079,7 @@ function Icon({name, size, color}){
   const paths = {
     clock:   <g><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>,
     home:    <g><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10.5V20h12v-9.5"/></g>,
+    bell:    <g><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10.5 19a1.5 1.5 0 0 0 3 0"/></g>,
     plate:   <g><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></g>,
     plus:    <g><path d="M12 5v14M5 12h14"/></g>,
     gear:    <g><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2l-.4-2.6h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12Z"/></g>,
@@ -4545,6 +4569,7 @@ function App(){
   const [usernameNudge, setUsernameNudge] = useState(false);  // first-run "pick a username" prompt
   const [profile, setProfile] = useState(null);               // {username, display_name} for greetings/identity
   const [pendingReqs, setPendingReqs] = useState(0);          // incoming connection requests awaiting accept
+  const [reqSeen, setReqSeen]         = useState(0);          // request-count the user has dismissed/seen (banner re-shows if it grows)
   const [sharesCount, setSharesCount] = useState(0);          // items in the "Shared with you" inbox
 
   const toastTimer = useRef(null);
@@ -4752,6 +4777,19 @@ function App(){
     return ()=> document.removeEventListener("visibilitychange", onVis);
     // eslint-disable-next-line
   },[ready, needSetup]);
+
+  // PWA app-icon badge: shows a count on the installed app icon (iOS 16.4+,
+  // desktop) so requests/shares are noticed even before opening the app. Only
+  // updates while the app is running; true closed-app push is a later phase.
+  useEffect(()=>{
+    try {
+      const n = (pendingReqs || 0) + (sharesCount || 0);
+      if (navigator.setAppBadge){
+        if (n > 0) navigator.setAppBadge(n).catch(()=>{});
+        else if (navigator.clearAppBadge) navigator.clearAppBadge().catch(()=>{});
+      }
+    } catch(e){}
+  },[pendingReqs, sharesCount]);
 
   /* ---- startup --------------------------------------------- */
   useEffect(()=>{
@@ -5288,6 +5326,22 @@ function App(){
       )}
 
       <div className="content">
+        {pendingReqs > 0 && pendingReqs !== reqSeen && (
+          <div className="req-banner"
+            onClick={()=>{ setReqSeen(pendingReqs); setOverlay({ type:"connections" }); }}>
+            <span className="req-banner-ic"><Icon name="bell" size={18} color="#1b1714" /></span>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontWeight:600}}>
+                {pendingReqs} connection request{pendingReqs > 1 ? "s" : ""}
+              </div>
+              <div className="tiny" style={{opacity:0.82}}>Tap to review and accept</div>
+            </div>
+            <button className="req-banner-x" aria-label="Dismiss"
+              onClick={(e)=>{ e.stopPropagation(); setReqSeen(pendingReqs); }}>
+              <Icon name="close" size={15} color="#1b1714" />
+            </button>
+          </div>
+        )}
         {tab === "history" && (
           <>
             {profileName(profile) ? (
@@ -5601,7 +5655,8 @@ function App(){
             });
           }}
           onAddPhotos={addPhotosToVisit}
-          onUpgrade={()=>{ setOverlay(null); setTab("settings"); }} />
+          onUpgrade={()=>{ setOverlay(null); setTab("settings"); }}
+          onHome={()=> setOverlay(null)} />
       )}
 
       {overlay && overlay.type === "menuDetail" && (
@@ -5875,6 +5930,7 @@ function App(){
           onSaveSplit={(entity)=>{ upsertSplit(entity); flash(overlay.editSplit ? "Split updated" : "Split saved"); }}
           onLogVisit={(seed)=> setOverlay({ type:"logVisit", seedFromSplit: seed, returnTo: overlay.returnTo || null })}
           onUpgrade={()=>{ setOverlay(null); setTab("settings"); }}
+          onHome={()=> setOverlay(null)}
           onClose={()=> setOverlay(overlay.returnTo || null)} />
       )}
       {overlay && overlay.type === "scanMenu" && (
@@ -6892,7 +6948,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onOpenVisit,
-                           onToggleFav, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onUpgrade}){
+                           onToggleFav, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onUpgrade, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [lightbox, setLightbox]     = useState(null);   // {paths, index} | null
   const [addPhotoFor, setAddPhotoFor] = useState(null); // visit awaiting a card-level photo add
@@ -7601,6 +7657,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           })()}
           cfg={cfg}
           onUpgrade={onUpgrade}
+          onHome={onHome}
           onClose={()=> setExpenseVisit(null)} />
       )}
       {lightbox && (
@@ -8084,7 +8141,7 @@ function loadScriptOnce(src){
 // { date, merchant, city, items:[{name,price}], total, people:[{name}], receipts:[...] }.
 // Tick items to EXCLUDE (e.g. alcohol that isn't reimbursable); the amount and a
 // prorated share of tax/tip recompute, and the excluded items are listed.
-function ExpenseSheet({data, cfg, onClose, onUpgrade}){
+function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
   // Pro gate: expensing is a Pro feature. Resolve tier on open; fail OPEN (treat
   // an unreachable billing check as allowed) so a billing hiccup never traps a
   // paying user, exactly like the Near me gate.
@@ -8346,13 +8403,22 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade}){
     setPdfBusy(false);
   }
 
+  // Home from the expense sheet: confirm only if you've actually entered something,
+  // so a stray tap can't quietly discard a half-built expense.
+  const expenseDirty = !!(purpose.trim() || client.trim() || addedReceipts.length ||
+                          Object.keys(excluded).some(k => excluded[k]));
+  const goHome = ()=>{
+    if (!onHome) return;
+    if (!expenseDirty || window.confirm("Discard this expense and go home?")) onHome();
+  };
+
   // Still resolving the tier: brief spinner so we don't flash the sheet then yank it.
   if (tier === null){
     return (
       <div className="overlay">
         <div className="ovhead">
           <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
-          <h2>Expense item</h2><span style={{width:34}} />
+          <h2>Expense item</h2><HomeBtn onHome={onHome} />
         </div>
         <div className="ovbody"><div className="empty"><span className="spin" /></div></div>
       </div>
@@ -8365,7 +8431,7 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade}){
       <div className="overlay">
         <div className="ovhead">
           <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
-          <h2>Expense item</h2><span style={{width:34}} />
+          <h2>Expense item</h2><HomeBtn onHome={onHome} />
         </div>
         <div className="ovbody">
           <div className="card" style={{textAlign:"center", padding:"26px 20px"}}>
@@ -8395,7 +8461,10 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade}){
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
-        <h2>Expense item</h2><span style={{width:34}} />
+        <h2>Expense item</h2>
+        {onHome
+          ? <button className="x" onClick={goHome} aria-label="Home" title="Home"><Icon name="home" size={20} /></button>
+          : <span style={{width:34}} />}
       </div>
       <div className="ovbody">
         {hasItems ? (
@@ -8487,7 +8556,7 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade}){
 function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraft, onClose, flash,
                          initialLines, initialTotal, presetRestId, presetVisitId,
                          initialReceiptPhoto, initialFinalReceipt, initialSplit, onSaveSplit,
-                         onScanned, menuNames, onLogVisit, onUpgrade}){
+                         onScanned, menuNames, onLogVisit, onUpgrade, onHome}){
   // When launched FROM a visit we arrive pre-loaded with that visit's priced
   // dishes and total, jump straight to the edit step, and default the save back
   // to that same visit.
@@ -8876,6 +8945,14 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     catch(e){ flash && flash("Couldn't share - copy it by hand"); }
   }
 
+  // Home from the split: confirm if there's work in progress so a tap can't
+  // silently drop an in-progress (or unsaved) split.
+  const splitDirty = !!(split || (lines || []).some(l => (l.name || "").trim()));
+  const goHomeSplit = ()=>{
+    if (!onHome) return;
+    if (!splitDirty || window.confirm("Leave this split and go home?")) onHome();
+  };
+
   return (
     <div className="overlay">
       <div className="ovhead">
@@ -8885,12 +8962,20 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
           {step === "result" ? "Back" : "Cancel"}
         </button>
         <h2>Split a check</h2>
-        {step === "result"
-          ? <button className="x" onClick={shareSplit}>Share</button>
-          : step === "edit"
-            ? <button className="x" onClick={doSplit} disabled={!canSplit}
-                style={{opacity: canSplit ? 1 : 0.4}}>{split ? "Update" : "Split"}</button>
-            : <span style={{width:54}} />}
+        <div style={{display:"flex", alignItems:"center", gap:2, justifyContent:"flex-end"}}>
+          {step === "result"
+            ? <button className="x" onClick={shareSplit}>Share</button>
+            : step === "edit"
+              ? <button className="x" onClick={doSplit} disabled={!canSplit}
+                  style={{opacity: canSplit ? 1 : 0.4}}>{split ? "Update" : "Split"}</button>
+              : null}
+          {onHome && (
+            <button className="x" onClick={goHomeSplit} aria-label="Home" title="Home">
+              <Icon name="home" size={20} />
+            </button>
+          )}
+          {!onHome && step === "pick" && <span style={{width:54}} />}
+        </div>
       </div>
       <div className="ovbody">
 
@@ -9236,6 +9321,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
           })()}
           cfg={config}
           onUpgrade={onUpgrade}
+          onHome={onHome}
           onClose={()=> setExpenseOpen(false)} />
       )}
     </div>
@@ -15078,10 +15164,33 @@ function ProCard({config}){
     );
   }
 
+  const forced = getForcedTier();
+  function simulate(v){
+    setForcedTier(v);
+    fetchBillingStatus(config).then(setBill).catch(()=>{});
+  }
+
   return (
     <div className="card">
       <div style={{fontWeight:600, marginBottom:6}}>MenuCaptain Pro</div>
       {body}
+      {bill && bill.owner && (
+        <div style={{marginTop:12, paddingTop:12, borderTop:"1px solid var(--line-soft)"}}>
+          <div className="tiny muted" style={{marginBottom:6}}>Owner testing — simulate plan</div>
+          <div className="row" style={{gap:6}}>
+            {[["","Auto"],["pro","Pro"],["free","Free"]].map(([v,label])=>(
+              <button key={v||"auto"} style={{flex:1}}
+                className={"btn sm " + (forced === v ? "primary" : "ghost")}
+                onClick={()=> simulate(v)}>{label}</button>
+            ))}
+          </div>
+          {forced && (
+            <div className="tiny" style={{marginTop:6, color:"var(--accent)"}}>
+              Simulating {forced === "free" ? "Free (non-Pro)" : "Pro"} — gates across the app reflect this until you switch back to Auto.
+            </div>
+          )}
+        </div>
+      )}
       {err && (
         <div className="syncbar err" style={{margin:"10px 0 0"}}>
           <span className="dot" style={{background:"var(--danger)"}} />{err}
