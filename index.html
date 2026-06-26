@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.190.0";
+const APP_VERSION   = "1.191.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9350,6 +9350,16 @@ function priceLevelToDollars(level){
     default:                           return "";
   }
 }
+// Google "PRICE_LEVEL_*" enum -> 1..4 for filtering (null when unknown/free).
+function priceLevelNum(level){
+  switch(level){
+    case "PRICE_LEVEL_INEXPENSIVE":    return 1;
+    case "PRICE_LEVEL_MODERATE":       return 2;
+    case "PRICE_LEVEL_EXPENSIVE":      return 3;
+    case "PRICE_LEVEL_VERY_EXPENSIVE": return 4;
+    default:                           return null;
+  }
+}
 
 // "italian_restaurant" -> "Italian restaurant"
 function humanizeType(t){
@@ -9409,6 +9419,28 @@ const NEARME_TYPES = [
   { key:"cafe",   label:"Cafes",       types:["cafe","coffee_shop"] },
   { key:"bar",    label:"Bars",        types:["bar"] },
   { key:"bakery", label:"Bakeries",    types:["bakery"] },
+];
+// Cuisine chips -> Google's specific restaurant types (Places API "New" Table A).
+// When a cuisine is picked it drives includedTypes instead of the venue type.
+const NEARME_CUISINES = [
+  { key:"italian",       label:"Italian",       type:"italian_restaurant" },
+  { key:"mexican",       label:"Mexican",       type:"mexican_restaurant" },
+  { key:"chinese",       label:"Chinese",       type:"chinese_restaurant" },
+  { key:"japanese",      label:"Japanese",      type:"japanese_restaurant" },
+  { key:"sushi",         label:"Sushi",         type:"sushi_restaurant" },
+  { key:"thai",          label:"Thai",          type:"thai_restaurant" },
+  { key:"indian",        label:"Indian",        type:"indian_restaurant" },
+  { key:"pizza",         label:"Pizza",         type:"pizza_restaurant" },
+  { key:"burgers",       label:"Burgers",       type:"hamburger_restaurant" },
+  { key:"seafood",       label:"Seafood",       type:"seafood_restaurant" },
+  { key:"bbq",           label:"BBQ",           type:"barbecue_restaurant" },
+  { key:"steak",         label:"Steakhouse",    type:"steak_house" },
+  { key:"korean",        label:"Korean",        type:"korean_restaurant" },
+  { key:"vietnamese",    label:"Vietnamese",    type:"vietnamese_restaurant" },
+  { key:"mediterranean", label:"Mediterranean", type:"mediterranean_restaurant" },
+  { key:"french",        label:"French",        type:"french_restaurant" },
+  { key:"breakfast",     label:"Breakfast",     type:"breakfast_restaurant" },
+  { key:"vegan",         label:"Vegan",         type:"vegan_restaurant" },
 ];
 
 // Map a thrown places error (carries .status/.detail) to UI intent + copy.
@@ -9544,9 +9576,10 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
   // Filters.
   const [radiusM, setRadiusM] = useState(()=> { const p = loadNearMePrefs(); return typeof p.radiusM === "number" ? p.radiusM : 1600; });
   const [typeKey, setTypeKey] = useState(()=> loadNearMePrefs().typeKey || "all");
+  const [cuisineKey, setCuisineKey] = useState(()=> loadNearMePrefs().cuisineKey || "");  // "" = no cuisine filter
   const [openNow, setOpenNow] = useState(()=> !!loadNearMePrefs().openNow);
   // Remember the last-used filters across sessions.
-  useEffect(()=>{ saveNearMePrefs({ radiusM, typeKey, openNow }); }, [radiusM, typeKey, openNow]);
+  useEffect(()=>{ saveNearMePrefs({ radiusM, typeKey, cuisineKey, openNow }); }, [radiusM, typeKey, cuisineKey, openNow]);
 
   // Results + status.
   const [results, setResults]       = useState([]);
@@ -9557,13 +9590,21 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
   const [lastSearch, setLastSearch] = useState(null);
   const [view, setView]             = useState("list");   // list (default) | map
   const [minStars, setMinStars]     = useState(0);        // 0 = any rating, 4 = 4 stars and up
-  const [nearSort, setNearSort]     = useState("dist");   // "dist" (closest) | "rated" (top rated)
-  // Client-side refine of the fetched results (no new Google call): optional
-  // min-rating filter + sort. The base list is already distance-sorted.
+  const [nearSort, setNearSort]     = useState("dist");   // "dist" (closest) | "rated" (top rated) | "pop" (popular)
+  const [priceSel, setPriceSel]     = useState({});       // {1:true,...} selected price levels; empty = any
+  const [hideSaved, setHideSaved]   = useState(false);    // hide places already in my list
+  // Client-side refine of the fetched results (no new Google call): min-rating,
+  // price level, hide-already-saved, and sort. Base list is distance-sorted.
   const shown = (function(){
     let arr = results;
     if (minStars > 0) arr = arr.filter(p => (typeof p.rating === "number") && p.rating >= minStars);
+    const pricePicked = Object.keys(priceSel).filter(k => priceSel[k]);
+    if (pricePicked.length){
+      arr = arr.filter(p => { const n = priceLevelNum(p.price_level); return n != null && priceSel[n]; });
+    }
+    if (hideSaved) arr = arr.filter(p => !hardMatch(p.place_id));
     if (nearSort === "rated") arr = arr.slice().sort((a,b)=> ((b.rating||0)-(a.rating||0)) || ((b.rating_count||0)-(a.rating_count||0)));
+    else if (nearSort === "pop") arr = arr.slice().sort((a,b)=> ((a._idx==null?1e9:a._idx) - (b._idx==null?1e9:b._idx)));
     return arr;
   })();
 
@@ -9614,22 +9655,25 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
     const radius = (opts && opts.radius_m) ? opts.radius_m : radiusM;
     setLoading(true); setError(null);
     const tdef = NEARME_TYPES.find(t => t.key === typeKey) || NEARME_TYPES[0];
+    const cdef = cuisineKey ? NEARME_CUISINES.find(c => c.key === cuisineKey) : null;
     const body = {
       lat:center.lat, lng:center.lng,
       radius_m:radius, open_now:openNow,
-      included_types:tdef.types, max_results:20,
+      included_types: cdef ? [cdef.type] : tdef.types, max_results:20,
     };
     try {
       const data = await placesNearby(cfg, body);
       const raw = (data.places || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
       const distFrom = userLoc || center;
-      const withDist = raw.map(p => Object.assign({}, p, {
+      // _idx preserves Google's order (popularity) for the "Popular" sort.
+      const withDist = raw.map((p, i) => Object.assign({}, p, {
+        _idx: i,
         _dist: distanceMiles(distFrom.lat, distFrom.lng, p.lat, p.lng),
       })).sort((a,b)=> (a._dist==null?1e9:a._dist) - (b._dist==null?1e9:b._dist));
       setResults(withDist);
       setSearchCenter(center);
       setFetchedAt(Date.now());
-      setLastSearch({ radiusM, typeKey, openNow });
+      setLastSearch({ radiusM, typeKey, cuisineKey, openNow });
       logMsg("PLACES", "nearby returned " + withDist.length + " (cached=" + (data.cached?"y":"n") + ")");
     } catch(err){
       const e = mapPlacesError(err);
@@ -9706,6 +9750,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
   const dirty = !lastSearch
     || lastSearch.radiusM !== radiusM
     || lastSearch.typeKey !== typeKey
+    || lastSearch.cuisineKey !== cuisineKey
     || lastSearch.openNow !== openNow;
   const searchLabel = loading ? "Searching..."
     : (!results.length ? "Search nearby" : (dirty ? "Update results" : "Refresh"));
@@ -9816,7 +9861,15 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
             </div>
             <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
               {NEARME_TYPES.map(t => (
-                <button key={t.key} style={chip(typeKey === t.key)} onClick={()=> setTypeKey(t.key)}>{t.label}</button>
+                <button key={t.key} style={chip(typeKey === t.key && !cuisineKey)}
+                  onClick={()=> { setTypeKey(t.key); setCuisineKey(""); }}>{t.label}</button>
+              ))}
+            </div>
+            <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
+              <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Cuisine</span>
+              {NEARME_CUISINES.map(c => (
+                <button key={c.key} style={chip(cuisineKey === c.key)}
+                  onClick={()=> setCuisineKey(v => v === c.key ? "" : c.key)}>{c.label}</button>
               ))}
             </div>
             <div className="row" style={{gap:10, justifyContent:"space-between", alignItems:"center"}}>
@@ -9829,10 +9882,21 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
               </button>
             </div>
             <div className="row" style={{gap:8, marginTop:8, overflowX:"auto"}}>
-              <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Refine</span>
-              <button style={chip(minStars === 4)} onClick={()=> setMinStars(v => v === 4 ? 0 : 4)}>4&#9733;+</button>
+              <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Sort</span>
               <button style={chip(nearSort === "dist")}  onClick={()=> setNearSort("dist")}>Closest</button>
               <button style={chip(nearSort === "rated")} onClick={()=> setNearSort("rated")}>Top rated</button>
+              <button style={chip(nearSort === "pop")}   onClick={()=> setNearSort("pop")}>Popular</button>
+              <button style={chip(minStars === 4)} onClick={()=> setMinStars(v => v === 4 ? 0 : 4)}>4&#9733;+</button>
+            </div>
+            <div className="row" style={{gap:8, marginTop:8, overflowX:"auto"}}>
+              <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Price</span>
+              {[1,2,3,4].map(n => (
+                <button key={n} style={chip(!!priceSel[n])}
+                  onClick={()=> setPriceSel(s => Object.assign({}, s, { [n]: !s[n] }))}>{"$".repeat(n)}</button>
+              ))}
+              <button style={chip(hideSaved)} onClick={()=> setHideSaved(v => !v)}>
+                {hideSaved ? "Hiding saved" : "Hide saved"}
+              </button>
             </div>
           </div>
         )}
