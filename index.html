@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.201.0";
+const APP_VERSION   = "1.202.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10474,12 +10474,21 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
   // fill 8 slots from the chosen places: each repeats to fill; the remainder
   // become evenly-spaced "Spin again" slots (null) that re-roll on landing.
   function buildSlots(list){
-    const P = list.length, out = new Array(8).fill(null);
+    const P = Math.min(list.length, 8), out = new Array(8).fill(null);
     if (P === 0) return out;
-    // Fill ALL eight slots with real places (no "Spin again" fillers): round-robin
-    // so 2-8 selections still spin a full wheel. When P doesn't divide 8 evenly,
-    // some places repeat - a fair trade for keeping every slot a real option.
-    for (let s = 0; s < 8; s++) out[s] = list[s % P];
+    // Each place repeats as evenly as 8/P allows (so odds stay equal), and any
+    // leftover slots become evenly-spaced "Spin again" (null). 2 -> each x4;
+    // 3 -> each x2 + 2 spin-again; 5 -> 5 + 3; 8 -> all eight distinct. The
+    // discover/pick callers cap the list at 8, so a big filter pool already
+    // arrives as 8 DISTINCT places before it gets here.
+    const reps = Math.floor(8 / P), filled = reps * P, nAgain = 8 - filled;
+    const again = {};
+    for (let i = 0; i < nAgain; i++){ again[Math.round(i * 8 / nAgain) % 8] = true; }
+    let k = 0;
+    for (let s = 0; s < 8; s++){
+      if (again[s]) out[s] = null;          // Spin again
+      else { out[s] = list[k % P]; k++; }   // even repeats -> equal odds
+    }
     return out;
   }
 
