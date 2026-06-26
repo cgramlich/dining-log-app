@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.188.0";
+const APP_VERSION   = "1.189.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -15125,8 +15125,19 @@ function ProCard({config}){
     body = (
       <div>
         <div className="tiny muted" style={{marginBottom:10}}>
-          Free plan - {used} of {cap} AI uses. Upgrade for unlimited menu
-          scans, calorie estimates, and ordering help.
+          Free plan - {used} of {cap} AI uses this month.
+        </div>
+        <div style={{marginBottom:12}}>
+          {[
+            "Unlimited menu scans, calorie estimates & ordering help",
+            "Near me - discover places around you",
+            "Expense reports - turn a check into a clean PDF",
+          ].map((f,i)=>(
+            <div key={i} className="small" style={{display:"flex", gap:8, alignItems:"flex-start", marginBottom:5}}>
+              <span style={{color:"var(--accent)", fontWeight:700, lineHeight:1.4}}>✓</span>
+              <span style={{color:"var(--text-dim)", lineHeight:1.4}}>{f}</span>
+            </div>
+          ))}
         </div>
         <button className="btn primary" style={{marginBottom:8}}
           disabled={!!busy} onClick={()=>go("yearly")}>
