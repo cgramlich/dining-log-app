@@ -505,6 +505,26 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       font-size:11px; color:var(--text-faint); margin-top:6px;
       padding:0 2px; font-style:italic;
     }
+    .visit-photo.tap{ cursor:zoom-in; -webkit-tap-highlight-color:transparent; }
+
+    /* Full-screen photo viewer (lightbox) */
+    .lightbox{ position:fixed; inset:0; z-index:200; background:rgba(10,8,6,0.95);
+      display:flex; align-items:center; justify-content:center;
+      -webkit-tap-highlight-color:transparent; }
+    .lb-stage{ display:flex; align-items:center; justify-content:center;
+      max-width:94vw; max-height:84vh; }
+    .lb-img.photo-img, .lb-img.photo-shell{
+      width:auto; height:auto; max-width:94vw; max-height:84vh;
+      object-fit:contain; border-radius:10px; }
+    .lb-close{ position:absolute; top:calc(12px + env(safe-area-inset-top)); right:14px;
+      width:42px; height:42px; border-radius:50%; background:rgba(255,255,255,0.10);
+      border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .lb-count{ position:absolute; top:calc(20px + env(safe-area-inset-top)); left:0; right:0;
+      text-align:center; color:#cdbfa8; font-size:13px; letter-spacing:0.02em; pointer-events:none; }
+    .lb-nav{ position:absolute; top:50%; transform:translateY(-50%); width:46px; height:46px;
+      border-radius:50%; background:rgba(255,255,255,0.10); border:none;
+      display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    .lb-nav.prev{ left:10px; } .lb-nav.next{ right:10px; }
     a{color:var(--accent);}
 
     /* ---- Map view ---- */
@@ -833,7 +853,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.185.0";
+const APP_VERSION   = "1.186.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4284,6 +4304,65 @@ function PhotoImg({cfg, path, alt, className, style, onClick}){
               onClick={onClick} />;
 }
 
+// How many meal photos a single visit can hold (shared by the editor and the
+// quick "Add photo" on the visit card).
+const MAX_VISIT_PHOTOS = 8;
+
+// Full-screen photo viewer. Tap a visit photo anywhere to open it big; swipe or
+// tap the arrows to move between that visit's photos; tap the backdrop, the X,
+// or press Escape to close.
+function PhotoLightbox({ cfg, paths, index, onClose }){
+  const list = (paths || []).filter(Boolean);
+  const [i, setI] = useState(() =>
+    Math.min(Math.max(0, index || 0), Math.max(0, list.length - 1)));
+  const touchX = useRef(null);
+  const go = (d) => setI(x => Math.min(list.length - 1, Math.max(0, x + d)));
+  useEffect(()=>{
+    function onKey(e){
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowRight") go(1);
+      else if (e.key === "ArrowLeft") go(-1);
+    }
+    window.addEventListener("keydown", onKey);
+    return ()=> window.removeEventListener("keydown", onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.length]);
+  if (!list.length) return null;
+  return (
+    <div className="lightbox" onClick={onClose}>
+      <button className="lb-close" onClick={onClose} aria-label="Close">
+        <Icon name="close" size={22} color="#f0e6d6" />
+      </button>
+      {list.length > 1 && <div className="lb-count">{i + 1} / {list.length}</div>}
+      <div className="lb-stage" onClick={e=> e.stopPropagation()}
+        onTouchStart={e=>{ touchX.current = e.touches[0].clientX; }}
+        onTouchEnd={e=>{
+          if (touchX.current == null) return;
+          const dx = e.changedTouches[0].clientX - touchX.current;
+          touchX.current = null;
+          if (dx > 45) go(-1); else if (dx < -45) go(1);
+        }}>
+        {/^(blob:|data:|https?:)/.test(list[i])
+          ? <img className="photo-img lb-img" src={list[i]} alt="" />
+          : <PhotoImg cfg={cfg} path={list[i]} className="lb-img" />}
+      </div>
+      {list.length > 1 && i > 0 && (
+        <button className="lb-nav prev" onClick={e=>{ e.stopPropagation(); go(-1); }} aria-label="Previous">
+          <Icon name="back" size={24} color="#f0e6d6" />
+        </button>
+      )}
+      {list.length > 1 && i < list.length - 1 && (
+        <button className="lb-nav next" onClick={e=>{ e.stopPropagation(); go(1); }} aria-label="Next"
+          style={{}}>
+          <span style={{display:"flex", transform:"scaleX(-1)"}}>
+            <Icon name="back" size={24} color="#f0e6d6" />
+          </span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Subtle receipt reveal on a logged visit: the receipt is a record, not a
 // memory photo, so it never joins the photo strip or the Food passport -
 // it hides behind this link until asked for.
@@ -5031,6 +5110,37 @@ function App(){
     return uploads;
   }
 
+  // Quick "Add photo" straight from a visit card / detail - no full editor.
+  // Resizes, uploads, appends the new paths to the visit's photos, commits.
+  async function addPhotosToVisit(visit, fileList){
+    if (!visit) return;
+    const files = Array.from(fileList || [])
+      .filter(f => f && f.type && f.type.indexOf("image/") === 0);
+    if (!files.length) return;
+    const cur = Array.isArray(visit.photos) ? visit.photos.filter(Boolean) : [];
+    const room = Math.max(0, MAX_VISIT_PHOTOS - cur.length);
+    if (!room){ flash("That visit already has " + MAX_VISIT_PHOTOS + " photos"); return; }
+    const take = files.slice(0, room);
+    flash(take.length > 1 ? ("Adding " + take.length + " photos…") : "Adding photo…");
+    try {
+      const uploads = [];
+      for (const f of take){
+        const blob = await resizeImageToBlob(f, 1200, 0.86);
+        const photoId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+        uploads.push({ path: visitPhotoPath(visit.id, photoId), blob: blob });
+      }
+      await uploadPhotoBatch(uploads);
+      const nextPhotos = cur.concat(uploads.map(u => u.path));
+      const next = visits.map(v => v.id === visit.id
+        ? Object.assign({}, v, { photos: nextPhotos }) : v);
+      commit({ visits: next }, ["visits"]);
+      flash(take.length > 1 ? (take.length + " photos added") : "Photo added");
+    } catch(err){
+      logMsg("ERROR","Add photos to visit failed: " + err.message);
+      flash("Photo upload failed - " + err.message);
+    }
+  }
+
   async function commit(updates, filesToPush){
     // updates: {restaurants?, menus?, visits?, locations?}; filesToPush: [logical names]
     const nextR = updates.restaurants !== undefined ? updates.restaurants : restaurants;
@@ -5472,7 +5582,9 @@ function App(){
               commit({ menus: Object.assign({}, menus, { [rid]: prevList }) }, ["menus"]);
               flash("Menu restored");
             });
-          }} />
+          }}
+          onAddPhotos={addPhotosToVisit}
+          onUpgrade={()=>{ setOverlay(null); setTab("settings"); }} />
       )}
 
       {overlay && overlay.type === "menuDetail" && (
@@ -5744,6 +5856,7 @@ function App(){
           initialSplit={overlay.editSplit || (overlay.fromVisit && overlay.fromVisit.split) || null}
           onSaveSplit={(entity)=>{ upsertSplit(entity); flash(overlay.editSplit ? "Split updated" : "Split saved"); }}
           onLogVisit={(seed)=> setOverlay({ type:"logVisit", seedFromSplit: seed, returnTo: overlay.returnTo || null })}
+          onUpgrade={()=>{ setOverlay(null); setTab("settings"); }}
           onClose={()=> setOverlay(overlay.returnTo || null)} />
       )}
       {overlay && overlay.type === "scanMenu" && (
@@ -6103,6 +6216,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [lovedOnly, setLovedOnly] = useState(false);   // show only visits with an "Again" dish
+  const [lightbox, setLightbox] = useState(null);      // {paths, index} | null
   if (!visits.length){
     // WHY: visits starts empty before the first data load completes. Show a
     // neutral loading state so users don't see "No visits yet" on sign-in.
@@ -6219,7 +6333,8 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             {photos.length > 0 && (
               <div className="visit-photos" style={{marginTop:0,marginBottom:11}}>
                 {photos.map((p,i)=> (
-                  <div key={i} className="visit-photo">
+                  <div key={i} className="visit-photo tap"
+                    onClick={(e)=>{ e.stopPropagation(); setLightbox({ paths:photos, index:i }); }}>
                     <PhotoImg cfg={cfg} path={p} />
                   </div>
                 ))}
@@ -6258,6 +6373,10 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
           </div>
         );
       })}
+      {lightbox && (
+        <PhotoLightbox cfg={cfg} paths={lightbox.paths} index={lightbox.index}
+          onClose={()=> setLightbox(null)} />
+      )}
     </div>
   );
 }
@@ -6753,8 +6872,11 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onOpenVisit,
-                           onToggleFav, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta}){
+                           onToggleFav, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onUpgrade}){
   const [confirmDel, setConfirmDel] = useState(false);
+  const [lightbox, setLightbox]     = useState(null);   // {paths, index} | null
+  const [addPhotoFor, setAddPhotoFor] = useState(null); // visit awaiting a card-level photo add
+  const addPhotoRef = useRef(null);
   const [shareBusy, setShareBusy]   = useState(false);
   const [mShareBusy, setMShareBusy] = useState(false);   // inline single-menu share
   const [mShareErr, setMShareErr]   = useState(null);
@@ -7350,7 +7472,8 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               {vphotos.length > 0 && (
                 <div className="visit-photos" style={{marginTop:0,marginBottom:10}}>
                   {vphotos.map((p,i)=> (
-                    <div key={i} className="visit-photo">
+                    <div key={i} className="visit-photo tap"
+                      onClick={(e)=>{ e.stopPropagation(); setLightbox({ paths:vphotos, index:i }); }}>
                       <PhotoImg cfg={cfg} path={p} />
                     </div>
                   ))}
@@ -7375,17 +7498,37 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
               <ReceiptReveal cfg={cfg} receipt={v.receipt} />
               <VisitSplit split={v.split} />
-              {((v.receipt && v.receipt.total) || v.split || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
-                <div className="row" style={{gap:8, marginTop:9, flexWrap:"wrap"}}>
-                  {onSplitVisit ? (
-                    <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "See itemized split" : "Split the check"}</button>
-                  ) : null}
-                  <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); setExpenseVisit(v); }}>Expense this</button>
-                </div>
-              ) : null}
+              <div className="row" style={{gap:8, marginTop:9, flexWrap:"wrap"}}>
+                {onAddPhotos ? (
+                  <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{
+                    e.stopPropagation();
+                    setAddPhotoFor(v);
+                    if (addPhotoRef.current) addPhotoRef.current.click();
+                  }}><Icon name="camera" size={15} />Add photo</button>
+                ) : null}
+                {((v.receipt && v.receipt.total) || v.split || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
+                  <React.Fragment>
+                    {onSplitVisit ? (
+                      <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "See itemized split" : "Split the check"}</button>
+                    ) : null}
+                    <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); setExpenseVisit(v); }}>Expense this</button>
+                  </React.Fragment>
+                ) : null}
+              </div>
             </div>
           );
         })}
+
+        {/* one shared input for the per-card "Add photo"; on iOS this offers
+            both Take Photo and Photo Library, so camera capture is built in */}
+        <input ref={addPhotoRef} type="file" accept="image/*" multiple
+          style={{display:"none"}}
+          onChange={(e)=>{
+            const fs = e.target.files; const v = addPhotoFor;
+            e.target.value = "";
+            if (v && onAddPhotos) onAddPhotos(v, fs);
+            setAddPhotoFor(null);
+          }} />
 
         {/* manage */}
         <div className="divider-label">Manage</div>
@@ -7437,7 +7580,12 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               ].filter(Boolean) };
           })()}
           cfg={cfg}
+          onUpgrade={onUpgrade}
           onClose={()=> setExpenseVisit(null)} />
+      )}
+      {lightbox && (
+        <PhotoLightbox cfg={cfg} paths={lightbox.paths} index={lightbox.index}
+          onClose={()=> setLightbox(null)} />
       )}
     </div>
   );
@@ -7916,7 +8064,19 @@ function loadScriptOnce(src){
 // { date, merchant, city, items:[{name,price}], total, people:[{name}], receipts:[...] }.
 // Tick items to EXCLUDE (e.g. alcohol that isn't reimbursable); the amount and a
 // prorated share of tax/tip recompute, and the excluded items are listed.
-function ExpenseSheet({data, cfg, onClose}){
+function ExpenseSheet({data, cfg, onClose, onUpgrade}){
+  // Pro gate: expensing is a Pro feature. Resolve tier on open; fail OPEN (treat
+  // an unreachable billing check as allowed) so a billing hiccup never traps a
+  // paying user, exactly like the Near me gate.
+  const [tier, setTier] = useState(null);
+  useEffect(()=>{
+    let alive = true;
+    fetchBillingStatus(cfg)
+      .then(d => { if (alive) setTier((d && d.tier) || "unknown"); })
+      .catch(()=> { if (alive) setTier("unknown"); });
+    return ()=> { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const items    = (data.items || []).filter(it => it && it.name);
   const receipts = (data.receipts || []).filter(r => r && (r.path || r.dataUrl));
   const [excluded, setExcluded] = useState({});      // item index -> true
@@ -8166,6 +8326,51 @@ function ExpenseSheet({data, cfg, onClose}){
     setPdfBusy(false);
   }
 
+  // Still resolving the tier: brief spinner so we don't flash the sheet then yank it.
+  if (tier === null){
+    return (
+      <div className="overlay">
+        <div className="ovhead">
+          <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+          <h2>Expense item</h2><span style={{width:34}} />
+        </div>
+        <div className="ovbody"><div className="empty"><span className="spin" /></div></div>
+      </div>
+    );
+  }
+
+  // Free tier: the upsell. No PDF is built, so this costs nothing.
+  if (tier !== "pro" && tier !== "unknown"){
+    return (
+      <div className="overlay">
+        <div className="ovhead">
+          <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+          <h2>Expense item</h2><span style={{width:34}} />
+        </div>
+        <div className="ovbody">
+          <div className="card" style={{textAlign:"center", padding:"26px 20px"}}>
+            <div style={{display:"flex", justifyContent:"center", marginBottom:10}}>
+              <Icon name="receipt" size={34} color="var(--accent)" />
+            </div>
+            <div className="big" style={{marginBottom:6}}>Expensing is a Pro feature</div>
+            <div style={{color:"var(--text-dim)", lineHeight:1.5, marginBottom:18}}>
+              Turn any check into a clean, professional expense report - exclude
+              non-expensable items, add the client and attendees, attach the
+              receipts, and share it as a polished PDF.
+            </div>
+            <button className="btn primary" style={{width:"100%"}}
+              onClick={()=> onUpgrade ? onUpgrade() : onClose()}>
+              See Pro
+            </button>
+            <button className="btn ghost" style={{width:"100%", marginTop:8}} onClick={onClose}>
+              Maybe later
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="overlay">
       <div className="ovhead">
@@ -8262,7 +8467,7 @@ function ExpenseSheet({data, cfg, onClose}){
 function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraft, onClose, flash,
                          initialLines, initialTotal, presetRestId, presetVisitId,
                          initialReceiptPhoto, initialFinalReceipt, initialSplit, onSaveSplit,
-                         onScanned, menuNames, onLogVisit}){
+                         onScanned, menuNames, onLogVisit, onUpgrade}){
   // When launched FROM a visit we arrive pre-loaded with that visit's priced
   // dishes and total, jump straight to the edit step, and default the save back
   // to that same visit.
@@ -9010,6 +9215,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               })() };
           })()}
           cfg={config}
+          onUpgrade={onUpgrade}
           onClose={()=> setExpenseOpen(false)} />
       )}
     </div>
@@ -10609,7 +10815,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
   //   { kind:"pending",  blob:<Blob>, previewUrl:"blob:..." } (new, awaiting upload)
   // On Save, "pending" slots are uploaded first, then the visit record's
   // .photos array is built from the final paths in slot order.
-  const MAX_PHOTOS = 3;
+  const MAX_PHOTOS = MAX_VISIT_PHOTOS;
   const [photoSlots, setPhotoSlots] = useState(()=> {
     if (existing && Array.isArray(existing.photos)){
       return existing.photos.filter(Boolean).slice(0,MAX_PHOTOS).map(p => ({
@@ -10619,7 +10825,9 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
     return [];
   });
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoLightbox, setPhotoLightbox] = useState(null);  // {paths, index} | null
   const photoFileRef = useRef(null);
+  const photoCamRef  = useRef(null);   // camera-capture input (separate from library picker)
 
   // ---- meal-photo nutrition estimate -----------------------------------
   // visit.nutrition is a single estimate for the meal (visit-level). It is
@@ -10806,7 +11014,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
     const room  = Math.max(0, MAX_PHOTOS - photoSlots.length);
     const take  = files.slice(0, room);
     if (!take.length){
-      if (photoFileRef.current) photoFileRef.current.value = "";
+      if (e.target) e.target.value = "";
       return;
     }
     setPhotoBusy(true);
@@ -10825,7 +11033,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
       alert("Could not load that photo: " + err.message);
     } finally {
       setPhotoBusy(false);
-      if (photoFileRef.current) photoFileRef.current.value = "";
+      if (e.target) e.target.value = "";
     }
   }
   function removePhotoSlot(idx){
@@ -11094,8 +11302,10 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
           </div>
         </div>
 
-        {/* Photos - up to 3 per visit. Placed high in the form (right after
-            rating) so it isn't buried under the long dish picker. */}
+        {/* Photos - up to MAX_VISIT_PHOTOS per visit. Placed high in the form
+            (right after rating) so it isn't buried under the long dish picker.
+            Two ways in: the camera tile opens the camera directly (capture);
+            the library tile picks existing photos. */}
         <div className="fld">
           <span className="lbl">
             Photos <span className="faint" style={{fontWeight:400}}>
@@ -11104,26 +11314,41 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
           </span>
           <input ref={photoFileRef} type="file" accept="image/*" multiple
             style={{display:"none"}} onChange={onVisitPhotoFiles} />
+          <input ref={photoCamRef} type="file" accept="image/*" capture="environment"
+            style={{display:"none"}} onChange={onVisitPhotoFiles} />
           <div className="visit-photos">
             {photoSlots.map((s, i) => (
-              <div key={i} className="visit-photo">
+              <div key={i} className="visit-photo tap"
+                onClick={()=>{
+                  const paths = photoSlots.map(ps => ps.kind === "pending" ? ps.previewUrl : ps.path);
+                  setPhotoLightbox({ paths: paths, index: i });
+                }}>
                 {s.kind === "pending" && s.previewUrl && (
                   <img className="photo-img" src={s.previewUrl} alt="" />
                 )}
                 {s.kind === "existing" && cfg && (
                   <PhotoImg cfg={cfg} path={s.path} />
                 )}
-                <div className="photo-remove" onClick={()=> removePhotoSlot(i)}>
+                <div className="photo-remove" onClick={(e)=>{ e.stopPropagation(); removePhotoSlot(i); }}>
                   <Icon name="close" size={14} color="#e8dac6" />
                 </div>
               </div>
             ))}
             {photoSlots.length < MAX_PHOTOS && (
               <div className="photo-slot"
+                onClick={()=> { if (!photoBusy) photoCamRef.current.click(); }}>
+                <div>
+                  <div className="ic"><Icon name="camera" size={20} color="#80715f" /></div>
+                  <div>Camera</div>
+                </div>
+              </div>
+            )}
+            {photoSlots.length < MAX_PHOTOS && (
+              <div className="photo-slot"
                 onClick={()=> { if (!photoBusy) photoFileRef.current.click(); }}>
                 <div>
                   <div className="ic"><Icon name="plus" size={20} color="#80715f" /></div>
-                  <div>{photoSlots.length ? "Add" : "Add photos"}</div>
+                  <div>{photoSlots.length ? "Library" : "Library"}</div>
                 </div>
               </div>
             )}
@@ -11612,6 +11837,10 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
             onApplyDraft={(splitObj)=>{ setSplitDraft(splitObj); setSplitOpen(false); }}
             onClose={()=> setSplitOpen(false)} />
         </div>
+      )}
+      {photoLightbox && (
+        <PhotoLightbox cfg={cfg} paths={photoLightbox.paths} index={photoLightbox.index}
+          onClose={()=> setPhotoLightbox(null)} />
       )}
     </div>
   );
