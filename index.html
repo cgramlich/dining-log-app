@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.202.0";
+const APP_VERSION   = "1.203.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5370,6 +5370,8 @@ function App(){
             onPublishList={()=> setOverlay({ type:"publish" })}
             onOpenMyLists={()=> setOverlay({ type:"myLists" })}
             savedListCount={(lists || []).length}
+            onNearMe={()=> setOverlay({ type:"nearMe" })}
+            onSpin={()=> setOverlay({ type:"spinPick" })}
             onOpen={(r)=> setOverlay({ type:"restaurant", id:r.id })} />
         )}
         {tab === "settings" && (
@@ -6618,7 +6620,7 @@ function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, 
 }
 
 
-function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen}){
+function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("alpha");
   const [cuisineFilter, setCuisineFilter] = useState("All");
@@ -6759,6 +6761,18 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       {onOpenMap && (
         <div className="between" style={{margin:"0 0 10px", flexWrap:"wrap", gap:8}}>
           <div className="row" style={{gap:8, flexWrap:"wrap"}}>
+            {onNearMe ? (
+              <button className="btn ghost sm" onClick={onNearMe}>
+                <Icon name="locate" size={15} color="var(--accent)" />
+                Near me
+              </button>
+            ) : null}
+            {onSpin ? (
+              <button className="btn ghost sm" onClick={onSpin}>
+                <Icon name="compass" size={15} color="var(--accent)" />
+                Can't decide?
+              </button>
+            ) : null}
             {onPublishList && restaurants.length ? (
               <button className="btn ghost sm" onClick={onPublishList}>
                 <Icon name="share" size={15} color="var(--accent)" />
