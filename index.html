@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.189.0";
+const APP_VERSION   = "1.190.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6920,7 +6920,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
                     <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
                     <span style={{flex:1, minWidth:0}}>
                       <span className="small" style={{fontWeight:600}}>{cm.label}</span>
-                      <span className="tiny faint">{" · " + cm.item_count + " item" + (cm.item_count===1?"":"s") + (cm.updated_at ? " · " + fmtCommunityDate(cm.updated_at) : "")}</span>
+                      <span className="tiny faint">{" · " + cm.item_count + " item" + (cm.item_count===1?"":"s") + (cm.contributor_count > 1 ? " · " + cm.contributor_count + " people" : "") + (cm.updated_at ? " · " + fmtCommunityDate(cm.updated_at) : "")}</span>
                     </span>
                   </div>
                 );
