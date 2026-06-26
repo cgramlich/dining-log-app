@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.171.0";
+const APP_VERSION   = "1.172.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7889,8 +7889,21 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal){
   return { people: out, grandCents, lineSubtotalCents, overageCents };
 }
 
+// Load an external script once, on demand (lazy-loads the PDF library so it never
+// weighs down normal app startup).
+function loadScriptOnce(src){
+  return new Promise((resolve, reject)=>{
+    if (document.querySelector('script[data-once="' + src + '"]')) return resolve();
+    const s = document.createElement("script");
+    s.src = src; s.async = true; s.setAttribute("data-once", src);
+    s.onload = ()=> resolve();
+    s.onerror = ()=> reject(new Error("Couldn't load " + src));
+    document.head.appendChild(s);
+  });
+}
+
 // Turn a meal (split or visit) into a copy/share-ready expense line item. data:
-// { date, merchant, city, items:[{name,price}], total, people:[{name}] }.
+// { date, merchant, city, items:[{name,price}], total, people:[{name}], receipts:[...] }.
 // Tick items to EXCLUDE (e.g. alcohol that isn't reimbursable); the amount and a
 // prorated share of tax/tip recompute, and the excluded items are listed.
 function ExpenseSheet({data, cfg, onClose}){
@@ -7900,6 +7913,7 @@ function ExpenseSheet({data, cfg, onClose}){
   const [purpose, setPurpose]   = useState("");
   const [client, setClient]     = useState("");
   const [attendees, setAttendees] = useState(()=> (data.people || []).filter(p => p && p.name).map(p => p.name));
+  const [addedReceipts, setAddedReceipts] = useState([]);   // photos added here (dataUrl)
   const [picked, setPicked] = useState(()=>{        // which receipts to attach
     const hasFinal = receipts.some(r => r.key === "final");
     const s = {};
@@ -7908,6 +7922,10 @@ function ExpenseSheet({data, cfg, onClose}){
   });
   const [copied, setCopied]     = useState(false);
   const [sharing, setSharing]   = useState(false);
+  const [pdfBusy, setPdfBusy]   = useState(false);
+  const [addBusy, setAddBusy]   = useState(false);
+  const addRef = useRef(null);
+  const allReceipts = receipts.concat(addedReceipts);
   const money = n => "$" + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
   const priceOf = it => Number(it.price) || 0;
 
@@ -7949,7 +7967,7 @@ function ExpenseSheet({data, cfg, onClose}){
   async function doShare(){
     setSharing(true);
     try {
-      const chosen = receipts.filter(r => picked[r.key]);
+      const chosen = allReceipts.filter(r => picked[r.key]);
       const files = (await Promise.all(chosen.map(fileForReceipt))).filter(Boolean);
       if (files.length && navigator.canShare && navigator.canShare({ files })){
         await navigator.share({ files, text: summary, title: "Expense item" });
@@ -7961,7 +7979,103 @@ function ExpenseSheet({data, cfg, onClose}){
     } catch(e){ /* user cancelled or share unsupported */ }
     setSharing(false);
   }
-  const anyReceiptPicked = receipts.some(r => picked[r.key]);
+  const anyReceiptPicked = allReceipts.some(r => picked[r.key]);
+
+  // Add a receipt photo right here (scan or upload) when one isn't stored on the
+  // visit - so you can always attach the itemized, the total, or both.
+  async function onAddPhoto(e){
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setAddBusy(true);
+    try {
+      const blob = await resizeImageToBlob(file, 1400, 0.85);
+      const durl = await blobToDataUrl(blob);
+      const key = "added" + addedReceipts.length;
+      setAddedReceipts(a => a.concat([{ key:key, label:"Receipt photo", dataUrl:durl }]));
+      setPicked(p => Object.assign({}, p, { [key]: true }));
+    } catch(err){ /* ignore */ }
+    setAddBusy(false);
+  }
+
+  // ---- elegant PDF (lazy-loads jsPDF; embeds the ticked receipts) ----
+  async function receiptDataUrl(r){
+    if (r.dataUrl) return r.dataUrl;
+    if (r.path && cfg){ try { return await blobToDataUrl(await ghGetRawFile(cfg, r.path)); } catch(e){ return null; } }
+    return null;
+  }
+  function imgDims(durl){
+    return new Promise(res => {
+      const im = new Image();
+      im.onload = ()=> res({ w: im.naturalWidth || 1000, h: im.naturalHeight || 1400 });
+      im.onerror = ()=> res({ w: 1000, h: 1400 });
+      im.src = durl;
+    });
+  }
+  async function buildExpensePdf(){
+    await loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+    const JSPDF = window.jspdf && window.jspdf.jsPDF;
+    if (!JSPDF) throw new Error("PDF library unavailable");
+    const doc = new JSPDF({ unit:"pt", format:"letter" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const M = 56; let y = M;
+    doc.setTextColor(30,26,22);
+    doc.setFont("helvetica","bold"); doc.setFontSize(18); doc.text("Business meal expense", M, y);
+    y += 12; doc.setDrawColor(214,205,191); doc.setLineWidth(1); doc.line(M, y, pageW - M, y); y += 30;
+    doc.setFont("helvetica","bold"); doc.setFontSize(30); doc.text(money(amount), M, y); y += 12;
+    if (hasItems && taxTip > 0.005){
+      doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(130,120,105);
+      doc.text("includes " + money(incTaxTip) + " tax & tip", M, y);
+    }
+    y += 26; doc.setTextColor(30,26,22);
+    const row = (label, val)=>{
+      if (!val) return;
+      doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(120,110,96);
+      doc.text(label.toUpperCase(), M, y);
+      doc.setFont("helvetica","normal"); doc.setFontSize(12); doc.setTextColor(30,26,22);
+      const wrapped = doc.splitTextToSize(String(val), pageW - M - M - 120);
+      doc.text(wrapped, M + 120, y);
+      y += Math.max(18, wrapped.length * 15) + 6;
+    };
+    row("Date", data.date ? fmtDate(data.date) : "");
+    row("Merchant", (data.merchant || "Restaurant") + (data.city ? ", " + data.city : ""));
+    if (excludedItems.length) row("Excluded", excludedItems.map(it => it.name + " (" + money(priceOf(it)) + ")").join(", "));
+    if (cleanAttendees.length) row("Attendees", cleanAttendees.join(", "));
+    if (client.trim()) row("Client / company", client.trim());
+    if (purpose.trim()) row("Purpose", purpose.trim());
+    const chosen = allReceipts.filter(r => picked[r.key]);
+    for (let i = 0; i < chosen.length; i++){
+      const durl = await receiptDataUrl(chosen[i]);
+      if (!durl) continue;
+      const dim = await imgDims(durl);
+      doc.addPage();
+      doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(120,110,96);
+      doc.text((chosen[i].label || "Receipt").toUpperCase(), M, M);
+      const availW = pageW - M * 2;
+      const availH = pageH - (M + 18) - M;
+      let w = availW, h = w * (dim.h / dim.w);
+      if (h > availH){ h = availH; w = h * (dim.w / dim.h); }
+      try { doc.addImage(durl, "JPEG", M, M + 18, w, h); } catch(e){}
+    }
+    return doc;
+  }
+  async function doPdf(){
+    setPdfBusy(true);
+    try {
+      const doc = await buildExpensePdf();
+      const safe = (data.merchant || "expense").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0,40);
+      const fname = "expense-" + safe + ".pdf";
+      const blob = doc.output("blob");
+      const file = new File([blob], fname, { type:"application/pdf" });
+      if (navigator.canShare && navigator.canShare({ files:[file] })){
+        await navigator.share({ files:[file], title:"Expense", text: summary });
+      } else {
+        doc.save(fname);
+      }
+    } catch(e){ /* lazy-load failed (offline) or cancelled */ }
+    setPdfBusy(false);
+  }
 
   return (
     <div className="overlay">
@@ -8018,18 +8132,23 @@ function ExpenseSheet({data, cfg, onClose}){
             placeholder="e.g. Client dinner, team offsite" />
         </label>
 
-        {receipts.length ? (
-          <div className="fld">
-            <span className="lbl">Attach receipt</span>
-            {receipts.map(r=>(
-              <div key={r.key} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
-                onClick={()=> setPicked(p => Object.assign({}, p, { [r.key]: !p[r.key] }))}>
-                <span className={"rcpt-check" + (picked[r.key] ? " on" : "")}>{picked[r.key] ? "✓" : ""}</span>
-                <span style={{flex:1}}>{r.label}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        <div className="fld">
+          <span className="lbl">Attach receipt</span>
+          {allReceipts.length ? allReceipts.map(r=>(
+            <div key={r.key} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+              onClick={()=> setPicked(p => Object.assign({}, p, { [r.key]: !p[r.key] }))}>
+              <span className={"rcpt-check" + (picked[r.key] ? " on" : "")}>{picked[r.key] ? "✓" : ""}</span>
+              <span style={{flex:1}}>{r.label}</span>
+            </div>
+          )) : (
+            <div className="tiny faint" style={{margin:"-2px 0 8px"}}>No receipt stored on this one &mdash; add a photo to attach.</div>
+          )}
+          <input ref={addRef} type="file" accept="image/*" style={{display:"none"}} onChange={onAddPhoto} />
+          <button className="btn ghost sm" style={{marginTop:8}} disabled={addBusy}
+            onClick={()=> addRef.current && addRef.current.click()}>
+            {addBusy ? <span className="spin" /> : "+ Add a receipt photo"}
+          </button>
+        </div>
 
         <div className="card" style={{whiteSpace:"pre-wrap"}}>{summary}</div>
         <div className="row" style={{gap:9, marginTop:12}}>
@@ -8038,8 +8157,11 @@ function ExpenseSheet({data, cfg, onClose}){
             {sharing ? <span className="spin" /> : (anyReceiptPicked ? "Share with receipt" : "Share")}
           </button>
         </div>
+        <button className="btn ghost" style={{marginTop:9, width:"100%"}} disabled={pdfBusy} onClick={doPdf}>
+          {pdfBusy ? <span className="spin" /> : "Export as PDF"}
+        </button>
         <div className="tiny faint" style={{marginTop:10}}>
-          Copy is text only. Use Share from your phone to send the summary plus the receipt photo(s) you ticked.
+          Copy is text only. Share or Export as PDF from your phone send the summary plus the receipt photo(s) you ticked.
         </div>
       </div>
     </div>
