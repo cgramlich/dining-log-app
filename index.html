@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.199.0";
+const APP_VERSION   = "1.200.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6646,11 +6646,10 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   // Cuisines actually in use, cleaned the same way Near me cleans Google types
   // ("italian_restaurant"/"italian"/"Italian" all collapse to one "Italian"
   // chip), then deduped case-insensitively.
-  const cleanCuisine = (raw)=>{ const r = (raw || "").trim(); if (!r) return ""; return cuisineFromType(r) || r; };
   const cuisineInUse = (function(){
-    const seen = new Map();   // lower-cased clean -> canonical display
+    const seen = new Map();   // lower-cased canonical -> display label
     restaurants.forEach(r => {
-      const c = cleanCuisine(r.cuisine);
+      const c = normalizeCuisine(r.cuisine);   // same vocabulary as Near me; extras kept
       if (c && !seen.has(c.toLowerCase())) seen.set(c.toLowerCase(), c);
     });
     return Array.from(seen.values()).sort((a,b)=> a.localeCompare(b));
@@ -6664,7 +6663,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       : restaurants.filter(r => r.location === filter);
   const visible = cuisineFilter === "All"
     ? byCity
-    : byCity.filter(r => cleanCuisine(r.cuisine).toLowerCase() === cuisineFilter.toLowerCase());
+    : byCity.filter(r => normalizeCuisine(r.cuisine).toLowerCase() === cuisineFilter.toLowerCase());
 
   const q = query.trim().toLowerCase();
   const searched = q ? visible.filter(r =>
@@ -9410,6 +9409,30 @@ function cuisineFromType(primaryType, types){
   return s.split(/\s+/).map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1)) : "").join(" ");
 }
 
+// Map a free-text saved cuisine onto the SAME vocabulary the Near me cuisine
+// chips use (labels here must match NEARME_CUISINES labels), so the two screens
+// agree. Hybrid: a confident keyword match snaps to the canonical label
+// ("Mexican / Tacos" -> "Mexican"); anything with no clean match is kept as its
+// own cleaned label ("South American", "TexMex") rather than dumped in "Other".
+const CUISINE_CANON = [
+  ["Italian", ["italian"]], ["Mexican", ["mexican","taco"]], ["Chinese", ["chinese"]],
+  ["Japanese", ["japanese"]], ["Sushi", ["sushi"]], ["Thai", ["thai"]],
+  ["Indian", ["indian"]], ["Pizza", ["pizza","pizzeria"]], ["Burgers", ["burger"]],
+  ["Seafood", ["seafood"]], ["BBQ", ["bbq","barbecue","barbeque"]], ["Steakhouse", ["steak"]],
+  ["Korean", ["korean"]], ["Vietnamese", ["vietnam"]], ["Mediterranean", ["mediterranean"]],
+  ["French", ["french"]], ["Breakfast", ["breakfast","brunch"]], ["Vegan", ["vegan","vegetarian"]],
+];
+function normalizeCuisine(raw){
+  const r = (raw || "").trim();
+  if (!r) return "";
+  const lc = r.toLowerCase();
+  for (let i = 0; i < CUISINE_CANON.length; i++){
+    const kws = CUISINE_CANON[i][1];
+    for (let k = 0; k < kws.length; k++){ if (lc.indexOf(kws[k]) !== -1) return CUISINE_CANON[i][0]; }
+  }
+  return cuisineFromType(r) || r;   // no canonical match: keep a cleaned original
+}
+
 // Haversine distance in miles. Returns null if any coord is missing.
 function distanceMiles(lat1, lng1, lat2, lng2){
   if (lat1==null || lng1==null || lat2==null || lng2==null) return null;
@@ -10330,8 +10353,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
         const radiusMi = dRadius / 1609.34;
         savedMatches = places.filter(r => {
           if (wantCuisine){
-            const c = cuisineFromType(r.cuisine) || (r.cuisine || "");
-            if (c.toLowerCase() !== wantCuisine.toLowerCase()) return false;
+            if (normalizeCuisine(r.cuisine).toLowerCase() !== wantCuisine.toLowerCase()) return false;
           }
           if (r.lat != null && r.lng != null){
             const d = distanceMiles(loc.lat, loc.lng, r.lat, r.lng);
