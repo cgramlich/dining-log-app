@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.170.0";
+const APP_VERSION   = "1.171.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7421,7 +7421,10 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             return { date: v.date, merchant: (r && r.name) || v.restaurant_name || "Restaurant",
               city: (r && (r.city || r.location)) || "", items: items, total: total,
               people: (sp && sp.people) || [],
-              receiptPath: (v.receipt && (v.receipt.final_photo || v.receipt.photo)) || null };
+              receipts: [
+                (v.receipt && v.receipt.photo) ? { key:"itemized", label:"Itemized check", path:v.receipt.photo } : null,
+                (v.receipt && v.receipt.final_photo) ? { key:"final", label:"Final receipt", path:v.receipt.final_photo } : null,
+              ].filter(Boolean) };
           })()}
           cfg={cfg}
           onClose={()=> setExpenseVisit(null)} />
@@ -7891,24 +7894,20 @@ function computeManualSplit(lines, people, assign, tip, receiptTotal){
 // Tick items to EXCLUDE (e.g. alcohol that isn't reimbursable); the amount and a
 // prorated share of tax/tip recompute, and the excluded items are listed.
 function ExpenseSheet({data, cfg, onClose}){
-  const items  = (data.items || []).filter(it => it && it.name);
-  const people = (data.people || []).filter(p => p && p.name);
+  const items    = (data.items || []).filter(it => it && it.name);
+  const receipts = (data.receipts || []).filter(r => r && (r.path || r.dataUrl));
   const [excluded, setExcluded] = useState({});      // item index -> true
   const [purpose, setPurpose]   = useState("");
+  const [client, setClient]     = useState("");
+  const [attendees, setAttendees] = useState(()=> (data.people || []).filter(p => p && p.name).map(p => p.name));
+  const [picked, setPicked] = useState(()=>{        // which receipts to attach
+    const hasFinal = receipts.some(r => r.key === "final");
+    const s = {};
+    receipts.forEach(r => { s[r.key] = hasFinal ? (r.key === "final") : true; });
+    return s;
+  });
   const [copied, setCopied]     = useState(false);
   const [sharing, setSharing]   = useState(false);
-  const hasReceipt = !!(data.receiptDataUrl || data.receiptPath);
-  // The receipt photo as a shareable File (from a fresh-scan dataURL, or fetched
-  // from the stored path). Null if unavailable.
-  async function receiptFile(){
-    try {
-      let blob = null;
-      if (data.receiptDataUrl) blob = await (await fetch(data.receiptDataUrl)).blob();
-      else if (data.receiptPath && cfg) blob = await ghGetRawFile(cfg, data.receiptPath);
-      if (!blob) return null;
-      return new File([blob], "receipt.jpg", { type: blob.type || "image/jpeg" });
-    } catch(e){ return null; }
-  }
   const money = n => "$" + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
   const priceOf = it => Number(it.price) || 0;
 
@@ -7920,6 +7919,7 @@ function ExpenseSheet({data, cfg, onClose}){
   const incTaxTip   = subtotal > 0 ? taxTip * (incSubtotal / subtotal) : taxTip;
   const amount = hasItems ? (incSubtotal + incTaxTip) : total;
   const excludedItems = items.filter((it,i)=> excluded[i] && priceOf(it) > 0);
+  const cleanAttendees = attendees.map(s => s.trim()).filter(Boolean);
 
   const lines = ["Business meal expense"];
   if (data.date) lines.push("Date: " + fmtDate(data.date));
@@ -7927,24 +7927,41 @@ function ExpenseSheet({data, cfg, onClose}){
   lines.push("Amount: " + money(amount));
   if (hasItems && taxTip > 0.005) lines.push("Includes tax & tip: " + money(incTaxTip));
   if (excludedItems.length) lines.push("Excluded: " + excludedItems.map(it => it.name + " (" + money(priceOf(it)) + ")").join(", "));
-  if (people.length) lines.push("Attendees: " + people.map(p => p.name).join(", "));
+  if (cleanAttendees.length) lines.push("Attendees: " + cleanAttendees.join(", "));
+  if (client.trim()) lines.push("Client / company: " + client.trim());
   if (purpose.trim()) lines.push("Purpose: " + purpose.trim());
   const summary = lines.join("\n");
+
+  function setAttendee(i, val){ setAttendees(a => a.map((x,j)=> j === i ? val : x)); }
+  function addAttendee(){ setAttendees(a => a.concat([""])); }
+  function removeAttendee(i){ setAttendees(a => a.filter((_,j)=> j !== i)); }
+
+  async function fileForReceipt(r){
+    try {
+      let blob = null;
+      if (r.dataUrl) blob = await (await fetch(r.dataUrl)).blob();
+      else if (r.path && cfg) blob = await ghGetRawFile(cfg, r.path);
+      if (!blob) return null;
+      return new File([blob], (r.key || "receipt") + ".jpg", { type: blob.type || "image/jpeg" });
+    } catch(e){ return null; }
+  }
   async function doCopy(){ try { await navigator.clipboard.writeText(summary); setCopied(true); setTimeout(()=> setCopied(false), 1600); } catch(e){} }
   async function doShare(){
     setSharing(true);
     try {
-      const file = hasReceipt ? await receiptFile() : null;
-      if (file && navigator.canShare && navigator.canShare({ files:[file] })){
-        await navigator.share({ files:[file], text:summary, title:"Expense item" });
+      const chosen = receipts.filter(r => picked[r.key]);
+      const files = (await Promise.all(chosen.map(fileForReceipt))).filter(Boolean);
+      if (files.length && navigator.canShare && navigator.canShare({ files })){
+        await navigator.share({ files, text: summary, title: "Expense item" });
       } else if (navigator.share){
-        await navigator.share({ title:"Expense item", text:summary });
+        await navigator.share({ title: "Expense item", text: summary });
       } else {
         doCopy();
       }
     } catch(e){ /* user cancelled or share unsupported */ }
     setSharing(false);
   }
+  const anyReceiptPicked = receipts.some(r => picked[r.key]);
 
   return (
     <div className="overlay">
@@ -7977,22 +7994,52 @@ function ExpenseSheet({data, cfg, onClose}){
         {hasItems && taxTip > 0.005 ? (
           <div className="tiny faint" style={{textAlign:"right", marginTop:2}}>includes {money(incTaxTip)} tax &amp; tip</div>
         ) : null}
-        <label className="fld" style={{marginTop:14}}>
+
+        <div className="fld" style={{marginTop:14}}>
+          <span className="lbl">Attendees</span>
+          <div className="tiny faint" style={{margin:"-2px 0 8px"}}>Edit to add full names; add the client and any company names.</div>
+          {attendees.map((nm,i)=>(
+            <div key={i} className="row" style={{gap:8, marginBottom:6}}>
+              <input className="input" value={nm} onChange={e=> setAttendee(i, e.target.value)} placeholder="Full name" />
+              <button className="btn ghost sm" style={{flex:"none"}} onClick={()=> removeAttendee(i)} aria-label="Remove">✕</button>
+            </div>
+          ))}
+          <button className="btn ghost sm" onClick={addAttendee}>+ Add name</button>
+        </div>
+
+        <label className="fld">
+          <span className="lbl">Client / company</span>
+          <input className="input" value={client} onChange={e=> setClient(e.target.value)} placeholder="e.g. Acme Corp" />
+        </label>
+
+        <label className="fld">
           <span className="lbl">Business purpose</span>
           <textarea className="input" rows={2} value={purpose} onChange={e=> setPurpose(e.target.value)}
             placeholder="e.g. Client dinner, team offsite" />
         </label>
+
+        {receipts.length ? (
+          <div className="fld">
+            <span className="lbl">Attach receipt</span>
+            {receipts.map(r=>(
+              <div key={r.key} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+                onClick={()=> setPicked(p => Object.assign({}, p, { [r.key]: !p[r.key] }))}>
+                <span className={"rcpt-check" + (picked[r.key] ? " on" : "")}>{picked[r.key] ? "✓" : ""}</span>
+                <span style={{flex:1}}>{r.label}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         <div className="card" style={{whiteSpace:"pre-wrap"}}>{summary}</div>
         <div className="row" style={{gap:9, marginTop:12}}>
           <button className="btn primary" style={{flex:1}} onClick={doCopy}>{copied ? "Copied" : "Copy"}</button>
           <button className="btn" style={{flex:1}} disabled={sharing} onClick={doShare}>
-            {sharing ? <span className="spin" /> : (hasReceipt ? "Share with receipt" : "Share")}
+            {sharing ? <span className="spin" /> : (anyReceiptPicked ? "Share with receipt" : "Share")}
           </button>
         </div>
         <div className="tiny faint" style={{marginTop:10}}>
-          {hasReceipt
-            ? "Share attaches the receipt photo (Copy is text only). On desktop the photo may not attach - use Share from your phone."
-            : "No receipt photo on this one - attach it yourself when you file."}
+          Copy is text only. Use Share from your phone to send the summary plus the receipt photo(s) you ticked.
         </div>
       </div>
     </div>
@@ -8709,8 +8756,9 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               city: (rsel && (rsel.city || rsel.location)) || "", items: its,
               total: Math.round(split.grandCents) / 100,
               people: split.people.map(p => ({ name: p.name, amount: Math.round(p.totalCents) / 100 })),
-              receiptDataUrl: (shots && shots[0]) || null,
-              receiptPath: (!(shots && shots.length) && initialReceiptPhoto) ? initialReceiptPhoto : null };
+              receipts: ((shots && shots[0])
+                ? [{ key:"itemized", label:"Itemized check", dataUrl: shots[0] }]
+                : (initialReceiptPhoto ? [{ key:"itemized", label:"Itemized check", path: initialReceiptPhoto }] : [])) };
           })()}
           cfg={config}
           onClose={()=> setExpenseOpen(false)} />
