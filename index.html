@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.200.0";
+const APP_VERSION   = "1.201.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10476,14 +10476,10 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
   function buildSlots(list){
     const P = list.length, out = new Array(8).fill(null);
     if (P === 0) return out;
-    const reps = Math.floor(8 / P), filled = reps * P, nAgain = 8 - filled;
-    const again = {};
-    for (let i = 0; i < nAgain; i++){ again[Math.round(i * 8 / nAgain) % 8] = true; }
-    let k = 0;
-    for (let s = 0; s < 8; s++){
-      if (again[s]) { out[s] = null; }       // null = Spin again
-      else { out[s] = list[k % P]; k++; }
-    }
+    // Fill ALL eight slots with real places (no "Spin again" fillers): round-robin
+    // so 2-8 selections still spin a full wheel. When P doesn't divide 8 evenly,
+    // some places repeat - a fair trade for keeping every slot a real option.
+    for (let s = 0; s < 8; s++) out[s] = list[s % P];
     return out;
   }
 
