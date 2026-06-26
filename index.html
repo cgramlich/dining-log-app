@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.193.0";
+const APP_VERSION   = "1.194.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9816,8 +9816,14 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
     || lastSearch.typeKey !== typeKey
     || lastSearch.cuisineKey !== cuisineKey
     || lastSearch.openNow !== openNow;
-  const searchLabel = loading ? "Searching..."
+  const hasQuery = !!searchQ.trim();
+  // ONE primary action: if you've typed a name, the big button searches for that
+  // name (so it can never silently ignore what you typed); otherwise it runs the
+  // nearby/filter browse.
+  const primaryLabel = loading ? "Searching..."
+    : hasQuery ? ("Search “" + searchQ.trim().slice(0,18) + "”")
     : (!results.length ? "Search nearby" : (dirty ? "Update results" : "Refresh"));
+  const onPrimary = ()=> hasQuery ? runTextSearch() : runSearch();
 
   // ---- small inline style helpers (avoid touching the CSS block) ----
   const chip = (on)=> ({
@@ -9952,8 +9958,8 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
                 {openNow ? "Open now: on" : "Open now"}
               </button>
               <button className="btn primary" style={{flex:1, opacity: loading ? 0.7 : 1}}
-                disabled={loading} onClick={runSearch}>
-                {searchLabel}
+                disabled={loading} onClick={onPrimary}>
+                {primaryLabel}
               </button>
             </div>
             <div className="row" style={{gap:8, marginTop:8, overflowX:"auto"}}>
@@ -9983,7 +9989,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
             <span className="faint" style={{fontSize:12}}>
               {loading ? "Searching..."
                 : (shown.length
-                    ? shown.length + " place" + (shown.length===1?"":"s") + " - as of " + hhmm(fetchedAt)
+                    ? (searchMode ? "Name matches" : (shown.length + " place" + (shown.length===1?"":"s"))) + " - as of " + hhmm(fetchedAt)
                     : "")}
             </span>
             <div className="row" style={{gap:6}}>
