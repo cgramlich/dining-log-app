@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.181.0";
+const APP_VERSION   = "1.182.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3390,7 +3390,7 @@ async function digitizeMenuFromText(cfg, menuText){
 function fmtPrice(p){
   const n = Number(p);
   if (!isFinite(n) || n <= 0) return "";
-  return "$" + n.toFixed(2);
+  return "$" + n.toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
 
 // ---- Price-data foundation -------------------------------------------------
@@ -6013,7 +6013,7 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
           </div>
         ) : (
           splits.slice().sort((a,b)=> (b.updated_at||0) - (a.updated_at||0)).map(s => {
-            const money = n => "$" + (Number(n) || 0).toFixed(2);
+            const money = n => "$" + (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
             const grand = s.summary ? s.summary.grand : null;
             const np = (s.summary && Array.isArray(s.summary.people)) ? s.summary.people.length : 0;
             const sub = [grand != null ? money(grand) : null,
@@ -6078,7 +6078,7 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
 function VisitSplit({split}){
   const [open, setOpen] = useState(false);
   if (!split || !Array.isArray(split.people) || !split.people.length) return null;
-  const money = n => "$" + (Number(n) || 0).toFixed(2);
+  const money = n => "$" + (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
   return (
     <div className="vsplit">
       <button className="vsplit-head" onClick={(e)=>{ e.stopPropagation(); setOpen(o => !o); }}>
@@ -6253,7 +6253,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             <ReceiptReveal cfg={cfg} receipt={v.receipt} />
             <VisitSplit split={v.split} />
             {onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
-              <button className="btn ghost sm" style={{marginTop:9}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "Edit split" : "Split the check"}</button>
+              <button className="btn ghost sm" style={{marginTop:9}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "See itemized split" : "Split the check"}</button>
             ) : null}
           </div>
         );
@@ -7378,7 +7378,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               {((v.receipt && v.receipt.total) || v.split || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
                 <div className="row" style={{gap:8, marginTop:9, flexWrap:"wrap"}}>
                   {onSplitVisit ? (
-                    <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "Edit split" : "Split the check"}</button>
+                    <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "See itemized split" : "Split the check"}</button>
                   ) : null}
                   <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); setExpenseVisit(v); }}>Expense this</button>
                 </div>
@@ -7936,7 +7936,7 @@ function ExpenseSheet({data, cfg, onClose}){
   const [addBusy, setAddBusy]   = useState(false);
   const addRef = useRef(null);
   const allReceipts = receipts.concat(addedReceipts);
-  const money = n => "$" + (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+  const money = n => "$" + (Math.round((Number(n) || 0) * 100) / 100).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
   const priceOf = it => Number(it.price) || 0;
 
   const subtotal = items.reduce((a,it)=> a + priceOf(it), 0);
@@ -8287,7 +8287,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const [showRcpts, setShowRcpts] = useState(false);       // reveal receipt images on the split screen
   const fileRef = useRef(null);
 
-  const money = c => "$" + (Math.round(c) / 100).toFixed(2);
+  const money = c => "$" + (Math.round(c) / 100).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
 
   // ---- scan the check: STAGE one or more photos (e.g. the itemized receipt +
   // a separate tax/tip/total slip), then read them together. onFiles appends;
@@ -8718,7 +8718,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               ) : null}
               {canSplit ? (
                 <a href="#" style={{color:"var(--accent)"}}
-                   onClick={(e)=>{ e.preventDefault(); doSplit(); }}>See the split</a>
+                   onClick={(e)=>{ e.preventDefault(); doSplit(); }}>See the split summary</a>
               ) : null}
               <a href="#" style={{color:"var(--accent)", marginLeft:"auto"}}
                  onClick={(e)=>{ e.preventDefault(); openExpense(); }}>Expense this</a>
@@ -8844,7 +8844,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
             </div>
 
             <button className="btn" style={{marginTop:14}} disabled={!canSplit} onClick={doSplit}>
-              {split ? "Update the split" : "See the split"}
+              {split ? "Update the split" : "See the split summary"}
             </button>
             {!canSplit && <div className="tiny faint" style={{textAlign:"center",marginTop:8}}>
               Add at least two people and a total to split.
@@ -11221,7 +11221,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
             </button>
           ) : null}
           <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
-            onClick={()=> setSplitOpen(true)}>{splitDraft ? "Edit split" : "Split the check"}</button>
+            onClick={()=> setSplitOpen(true)}>{splitDraft ? "See itemized split" : "Split the check"}</button>
           {splitDraft && (
             <div style={{marginTop:8}}>
               <VisitSplit split={splitDraft} />
