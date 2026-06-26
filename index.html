@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.169.0";
+const APP_VERSION   = "1.170.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1330,6 +1330,12 @@ your current picks already ticked, so you can add or remove items later without
 paying for another scan. The receipt itself stays attached to the visit behind
 a quiet "Show receipt" link - it never appears in your photo strip or Food
 passport.
+
+**Final receipt (for expenses).** The check you scan is the *itemized* one. The
+*final* receipt - the payment slip with tip and total - is what an expense report
+needs, so there's a separate **Add final receipt** slot. Scan it or upload a photo
+(the picker offers both), and when you create an expense item from the visit, the
+**Share** attaches that final receipt automatically.
 
 **Shared a dish?** If you split something - half a sea bass, a third of a
 seafood tower - tap "Was this shared?" under that line in the picker and set
@@ -4283,17 +4289,25 @@ function PhotoImg({cfg, path, alt, className, style, onClick}){
 // it hides behind this link until asked for.
 function ReceiptReveal({cfg, receipt}){
   const [open, setOpen] = useState(false);
-  if (!receipt || !receipt.photo) return null;
+  if (!receipt || (!receipt.photo && !receipt.final_photo)) return null;
+  const shots = [];
+  if (receipt.photo) shots.push({ label:"Itemized check", path:receipt.photo });
+  if (receipt.final_photo) shots.push({ label:"Final receipt", path:receipt.final_photo });
+  const multi = shots.length > 1;
   return (
     <div style={{marginTop:8}}>
       <a href="#" className="tiny" style={{color:"var(--accent)"}}
          onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); setOpen(o=>!o); }}>
-        {open ? "Hide receipt" : "Show receipt"}
+        {open ? "Hide receipt" : (multi ? "Show receipts" : "Show receipt")}
       </a>
       {open && (
         <div style={{marginTop:8}}>
-          <PhotoImg cfg={cfg} path={receipt.photo}
-                    style={{maxWidth:"100%", borderRadius:12}} />
+          {shots.map((s,i)=>(
+            <div key={i} style={{marginBottom: i < shots.length-1 ? 10 : 0}}>
+              {multi ? <div className="tiny faint" style={{marginBottom:4}}>{s.label}</div> : null}
+              <PhotoImg cfg={cfg} path={s.path} style={{maxWidth:"100%", borderRadius:12}} />
+            </div>
+          ))}
           {receipt.total ? (
             <div className="tiny muted" style={{marginTop:4}}>
               Check total {fmtPrice(receipt.total)}
@@ -7407,7 +7421,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             return { date: v.date, merchant: (r && r.name) || v.restaurant_name || "Restaurant",
               city: (r && (r.city || r.location)) || "", items: items, total: total,
               people: (sp && sp.people) || [],
-              receiptPath: (v.receipt && v.receipt.photo) || null };
+              receiptPath: (v.receipt && (v.receipt.final_photo || v.receipt.photo)) || null };
           })()}
           cfg={cfg}
           onClose={()=> setExpenseVisit(null)} />
@@ -10133,6 +10147,25 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
   const [scannedItems,setScannedItems] = useState(
     (_seed && _seed.items && _seed.items.length) ? mapScannedItems(_seed.items) : null);   // persistent parsed items, so the picker re-opens without a re-scan
   const receiptRef = useRef(null);
+  // Final/payment receipt (the card slip) - a separate labeled slot from the
+  // itemized check; this is the one the expense item attaches.
+  const [finalReceiptSlot,setFinalReceiptSlot] = useState(
+    existing && existing.receipt && existing.receipt.final_photo
+      ? { kind:"existing", path: existing.receipt.final_photo } : null);
+  const [finalReceiptBusy,setFinalReceiptBusy] = useState(false);
+  const [finalReceiptShow,setFinalReceiptShow] = useState(false);
+  const finalReceiptRef = useRef(null);
+  async function onFinalReceiptPicked(e){
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setFinalReceiptBusy(true);
+    try {
+      const blob = await resizeImageToBlob(file, 1400, 0.85);
+      setFinalReceiptSlot({ kind:"pending", blob:blob, previewUrl:URL.createObjectURL(blob) });
+    } catch(err){ logMsg("ERROR","Final receipt add failed: " + err.message); }
+    setFinalReceiptBusy(false);
+  }
 
   // Map raw parsed receipt items into the "check picker" shape used to log what
   // you ate (menu_match wins for the logged name).
@@ -10600,15 +10633,21 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
     // (kept OUT of the photos array so it never appears in the photo strip
     // or the Food passport - it is revealed via the Show receipt link).
     let receipt = null;
-    if (receiptSlot){
-      if (receiptSlot.kind === "existing"){
-        receipt = { photo: receiptSlot.path, total: receiptTotal != null ? receiptTotal : null };
-      } else {
-        const rphotoId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-        const rpath = "photos/receipts/" + vid + "_" + rphotoId + ".jpg";
-        pendingUploads.push({ path: rpath, blob: receiptSlot.blob });
-        receipt = { photo: rpath, total: receiptTotal != null ? receiptTotal : null };
-      }
+    // Resolve a receipt slot to a stored path (queueing an upload if it's pending).
+    // Two labeled receipts: photo = the itemized check, final_photo = the payment slip.
+    const resolveReceiptSlot = (slot, suffix) => {
+      if (!slot) return null;
+      if (slot.kind === "existing") return slot.path;
+      const rpid = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+      const rpath = "photos/receipts/" + vid + "_" + suffix + "_" + rpid + ".jpg";
+      pendingUploads.push({ path: rpath, blob: slot.blob });
+      return rpath;
+    };
+    const itemizedPath = resolveReceiptSlot(receiptSlot, "chk");
+    const finalPath    = resolveReceiptSlot(finalReceiptSlot, "fin");
+    if (itemizedPath || finalPath || receiptTotal != null){
+      receipt = { photo: itemizedPath, final_photo: finalPath,
+                  total: receiptTotal != null ? receiptTotal : null };
     }
 
     const rec = {
@@ -10937,7 +10976,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
           )}
           {receiptSlot && (
             <div className="tiny muted" style={{marginTop:8}}>
-              Receipt attached{receiptTotal ? " \u00b7 total " + fmtPrice(receiptTotal) : ""}
+              Itemized check attached{receiptTotal ? " \u00b7 total " + fmtPrice(receiptTotal) : ""}
               {" \u00b7 "}
               <a href="#" style={{color:"var(--accent)"}}
                  onClick={(e)=>{ e.preventDefault(); setReceiptShow(s=>!s); }}>
@@ -10951,6 +10990,43 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
                     ? <img src={receiptSlot.previewUrl} className="photo-img"
                            style={{maxWidth:"100%", borderRadius:12}} />
                     : <PhotoImg cfg={cfg} path={receiptSlot.path}
+                                style={{maxWidth:"100%", borderRadius:12}} />}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Final/payment receipt - separate from the itemized check; this is what
+              the expense item attaches. Scan or upload (the picker offers both). */}
+          <input ref={finalReceiptRef} type="file" accept="image/*"
+            style={{display:"none"}} onChange={onFinalReceiptPicked} />
+          <button className="btn ghost sm" style={{marginTop:10, width:"100%"}}
+            disabled={finalReceiptBusy}
+            onClick={()=> finalReceiptRef.current && finalReceiptRef.current.click()}>
+            {finalReceiptBusy ? <span className="spin" /> : <Icon name="receipt" size={16} />}
+            {finalReceiptBusy ? "Adding…" : (finalReceiptSlot ? "Replace final receipt" : "Add final receipt")}
+          </button>
+          <div className="tiny faint" style={{marginTop:4}}>
+            The payment slip with tip &amp; total. Scan or upload it — this is the one the expense item attaches.
+          </div>
+          {finalReceiptSlot && (
+            <div className="tiny muted" style={{marginTop:8}}>
+              Final receipt attached{" · "}
+              <a href="#" style={{color:"var(--accent)"}}
+                 onClick={(e)=>{ e.preventDefault(); setFinalReceiptShow(s=>!s); }}>
+                {finalReceiptShow ? "hide" : "show"}</a>
+              {" · "}
+              <a href="#" style={{color:"var(--accent)"}}
+                 onClick={(e)=>{ e.preventDefault();
+                   if (finalReceiptSlot.kind === "pending" && finalReceiptSlot.previewUrl){
+                     try { URL.revokeObjectURL(finalReceiptSlot.previewUrl); } catch(_e){} }
+                   setFinalReceiptSlot(null); }}>remove</a>
+              {finalReceiptShow && (
+                <div style={{marginTop:8}}>
+                  {finalReceiptSlot.kind === "pending"
+                    ? <img src={finalReceiptSlot.previewUrl} className="photo-img"
+                           style={{maxWidth:"100%", borderRadius:12}} />
+                    : <PhotoImg cfg={cfg} path={finalReceiptSlot.path}
                                 style={{maxWidth:"100%", borderRadius:12}} />}
                 </div>
               )}
