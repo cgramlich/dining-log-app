@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.174.0";
+const APP_VERSION   = "1.175.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -11178,6 +11178,9 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
               <a href="#" style={{color:"var(--accent)"}}
                  onClick={(e)=>{ e.preventDefault(); setReceiptShow(s=>!s); }}>
                 {receiptShow ? "hide" : "show"}</a>
+              {" \u00b7 "}
+              <a href="#" style={{color:"var(--accent)"}}
+                 onClick={(e)=>{ e.preventDefault(); if (receiptRef.current) receiptRef.current.click(); }}>replace</a>
               {" \u00b7 "}
               <a href="#" style={{color:"var(--accent)"}}
                  onClick={(e)=>{ e.preventDefault(); removeReceipt(); }}>remove</a>
