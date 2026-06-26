@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.178.0";
+const APP_VERSION   = "1.179.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5735,6 +5735,7 @@ function App(){
           presetRestId={overlay.fromVisit ? overlay.fromVisit.restaurant_id : ""}
           presetVisitId={overlay.fromVisit ? overlay.fromVisit.id : "new"}
           initialReceiptPhoto={overlay.fromVisit && overlay.fromVisit.receipt ? overlay.fromVisit.receipt.photo : null}
+          initialFinalReceipt={overlay.fromVisit && overlay.fromVisit.receipt ? overlay.fromVisit.receipt.final_photo : null}
           onSaveToVisit={(rec, isNew)=>{
             const next = isNew ? [rec].concat(visits) : visits.map(v=> v.id===rec.id ? rec : v);
             commit({ visits:next }, ["visits"]);
@@ -8197,7 +8198,7 @@ function ExpenseSheet({data, cfg, onClose}){
 
 function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraft, onClose, flash,
                          initialLines, initialTotal, presetRestId, presetVisitId,
-                         initialReceiptPhoto, initialSplit, onSaveSplit,
+                         initialReceiptPhoto, initialFinalReceipt, initialSplit, onSaveSplit,
                          onScanned, menuNames, onLogVisit}){
   // When launched FROM a visit we arrive pre-loaded with that visit's priced
   // dishes and total, jump straight to the edit step, and default the save back
@@ -8408,6 +8409,13 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     logMsg("SPLIT","Computed split across " + res.people.length +
            " people, grand=" + money(res.grandCents));
     setStep("result");
+  }
+
+  // Open the expense sheet straight from the split screen (compute the split now
+  // if it hasn't been yet, so the expense has its total + people).
+  function openExpense(){
+    if (!split) setSplit(computeManualSplit(lines, people, assign, "", String(grandPreview/100)));
+    setExpenseOpen(true);
   }
 
   // Recent visits at the chosen restaurant (newest first). Always include the
@@ -8667,11 +8675,14 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               <button className="btn" style={{width:"auto",padding:"0 16px"}} onClick={addPerson}>Add</button>
             </div>
 
-            {/* receipt photo, when this split came from a logged visit - lets
-                you check item prices against the actual check */}
-            {initialReceiptPhoto ? (
-              <div style={{marginBottom:10}}>
-                <ReceiptReveal cfg={config} receipt={{ photo: initialReceiptPhoto, total: null }} />
+            {/* receipts (itemized + final), when this split came from a logged
+                visit - check item prices against the actual check, and turn it
+                into an expense item right here. */}
+            {(initialReceiptPhoto || initialFinalReceipt) ? (
+              <div style={{display:"flex", alignItems:"flex-start", gap:16, flexWrap:"wrap", marginBottom:10}}>
+                <ReceiptReveal cfg={config} receipt={{ photo: initialReceiptPhoto, final_photo: initialFinalReceipt, total: null }} />
+                <a href="#" className="tiny" style={{color:"var(--accent)", marginTop:8}}
+                   onClick={(e)=>{ e.preventDefault(); openExpense(); }}>Create expense item</a>
               </div>
             ) : null}
 
@@ -8905,9 +8916,13 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               city: (rsel && (rsel.city || rsel.location)) || "", items: its,
               total: Math.round(split.grandCents) / 100,
               people: split.people.map(p => ({ name: p.name, amount: Math.round(p.totalCents) / 100 })),
-              receipts: ((shots && shots[0])
-                ? [{ key:"itemized", label:"Itemized check", dataUrl: shots[0] }]
-                : (initialReceiptPhoto ? [{ key:"itemized", label:"Itemized check", path: initialReceiptPhoto }] : [])) };
+              receipts: (()=>{
+                const rs = [];
+                if (shots && shots[0]) rs.push({ key:"itemized", label:"Itemized check", dataUrl: shots[0] });
+                else if (initialReceiptPhoto) rs.push({ key:"itemized", label:"Itemized check", path: initialReceiptPhoto });
+                if (initialFinalReceipt) rs.push({ key:"final", label:"Final / total receipt", path: initialFinalReceipt });
+                return rs;
+              })() };
           })()}
           cfg={config}
           onClose={()=> setExpenseOpen(false)} />
@@ -11507,6 +11522,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
             menuNames={menuNames}
             onScanned={applyScannedFromSplit}
             initialReceiptPhoto={receiptSlot && receiptSlot.kind === "existing" ? receiptSlot.path : null}
+            initialFinalReceipt={finalReceiptSlot && finalReceiptSlot.kind === "existing" ? finalReceiptSlot.path : null}
             initialSplit={splitDraft || null}
             onApplyDraft={(splitObj)=>{ setSplitDraft(splitObj); setSplitOpen(false); }}
             onClose={()=> setSplitOpen(false)} />
