@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.197.0";
+const APP_VERSION   = "1.198.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10214,6 +10214,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
   const [dCuisine, setDCuisine] = useState("");       // "" = any food
   const [dRadius, setDRadius]   = useState(4800);     // default 3 mi
   const [dMinStars, setDMinStars] = useState(0);
+  const [dIncludeSaved, setDIncludeSaved] = useState(false);   // mix in my matching saved places
   const [dBusy, setDBusy]   = useState(false);
   const [dErr, setDErr]     = useState("");
   const [dUpsell, setDUpsell] = useState(false);
@@ -10318,15 +10319,43 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
       });
       let arr = (data.places || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
       if (dMinStars > 0) arr = arr.filter(p => typeof p.rating === "number" && p.rating >= dMinStars);
-      if (arr.length < 2){
-        setDErr("Only " + arr.length + " match. Widen the radius, lower the rating, or change cuisine.");
+      const discovered = arr.map(p => Object.assign({}, p, { _dist: distanceMiles(loc.lat, loc.lng, p.lat, p.lng) }));
+
+      // Optionally mix in MY saved places that match the same cuisine + radius.
+      // (Saved places are my own picks, so they ignore the Google rating filter;
+      // ones without coords still count - I can't distance-check them.)
+      let savedMatches = [];
+      if (dIncludeSaved){
+        const wantCuisine = dCuisine ? ((NEARME_CUISINES.find(c => c.key === dCuisine) || {}).label || "") : "";
+        const radiusMi = dRadius / 1609.34;
+        savedMatches = places.filter(r => {
+          if (wantCuisine){
+            const c = cuisineFromType(r.cuisine) || (r.cuisine || "");
+            if (c.toLowerCase() !== wantCuisine.toLowerCase()) return false;
+          }
+          if (r.lat != null && r.lng != null){
+            const d = distanceMiles(loc.lat, loc.lng, r.lat, r.lng);
+            if (d != null && d > radiusMi) return false;
+          }
+          return true;
+        }).map(r => Object.assign({}, r, {
+          _dist: (r.lat != null && r.lng != null) ? distanceMiles(loc.lat, loc.lng, r.lat, r.lng) : null,
+        }));
+        // drop any discovered place I already have saved (match on Google id)
+        const savedPids = new Set(savedMatches.map(r => r.google_place_id).filter(Boolean));
+        for (let i = discovered.length - 1; i >= 0; i--){ if (savedPids.has(discovered[i].place_id)) discovered.splice(i, 1); }
+      }
+
+      const pool = savedMatches.concat(discovered);
+      if (pool.length < 2){
+        setDErr("Only " + pool.length + " match. Widen the radius, lower the rating, change cuisine"
+          + (dIncludeSaved ? "" : ", or include your saved places") + ".");
         setDBusy(false); return;
       }
-      // shuffle (Fisher-Yates) for variety, then take up to 8 with a distance stamp
-      const sh = arr.slice();
+      // shuffle (Fisher-Yates) for variety, then take up to 8
+      const sh = pool.slice();
       for (let i = sh.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); const t = sh[i]; sh[i] = sh[j]; sh[j] = t; }
-      const list = sh.slice(0, 8).map(p => Object.assign({}, p, { _dist: distanceMiles(loc.lat, loc.lng, p.lat, p.lng) }));
-      startWheel(list);
+      startWheel(sh.slice(0, 8));
     } catch(err){
       const e = mapPlacesError(err);
       if (e.kind === "upsell"){ setDErr("Discovery is a Pro feature."); setDUpsell(true); }
@@ -10537,6 +10566,12 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
               <button style={spchip(dMinStars === 0)}   onClick={()=> setDMinStars(0)}>Any</button>
               <button style={spchip(dMinStars === 4)}   onClick={()=> setDMinStars(4)}>4&#9733;+</button>
               <button style={spchip(dMinStars === 4.5)} onClick={()=> setDMinStars(4.5)}>4.5&#9733;+</button>
+            </div>
+            <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
+              <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Mix in</span>
+              <button style={spchip(dIncludeSaved)} onClick={()=> setDIncludeSaved(v => !v)}>
+                {dIncludeSaved ? "My saved places: on" : "My saved places"}
+              </button>
             </div>
             {dErr ? (
               <div className="small" style={{color:"#e7a99e", margin:"8px 2px 0"}}>
