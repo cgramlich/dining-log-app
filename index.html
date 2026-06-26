@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.182.0";
+const APP_VERSION   = "1.183.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6082,7 +6082,7 @@ function VisitSplit({split}){
   return (
     <div className="vsplit">
       <button className="vsplit-head" onClick={(e)=>{ e.stopPropagation(); setOpen(o => !o); }}>
-        <span>Check split{split.grand ? " - " + money(split.grand) : ""}</span>
+        <span>Check split summary{split.grand ? " - " + money(split.grand) : ""}</span>
         <Icon name={open ? "chevd" : "chev"} size={15} />
       </button>
       {open ? (
@@ -8720,7 +8720,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 <a href="#" style={{color:"var(--accent)"}}
                    onClick={(e)=>{ e.preventDefault(); doSplit(); }}>See the split summary</a>
               ) : null}
-              <a href="#" style={{color:"var(--accent)", marginLeft:"auto"}}
+              <a href="#" style={{color:"var(--accent)"}}
                  onClick={(e)=>{ e.preventDefault(); openExpense(); }}>Expense this</a>
             </div>
             {showRcpts && (initialReceiptPhoto || initialFinalReceipt) ? (
