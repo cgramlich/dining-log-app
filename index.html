@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.168.0";
+const APP_VERSION   = "1.169.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7360,9 +7360,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
               <ReceiptReveal cfg={cfg} receipt={v.receipt} />
               <VisitSplit split={v.split} />
-              {onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
+              {((v.receipt && v.receipt.total) || v.split || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
                 <div className="row" style={{gap:8, marginTop:9, flexWrap:"wrap"}}>
-                  <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>Split the check</button>
+                  {onSplitVisit ? (
+                    <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>Split the check</button>
+                  ) : null}
                   <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); setExpenseVisit(v); }}>Create expense item</button>
                 </div>
               ) : null}
