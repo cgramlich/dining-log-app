@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.195.0";
+const APP_VERSION   = "1.196.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9693,6 +9693,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
       lat:center.lat, lng:center.lng,
       radius_m:radius, open_now:openNow,
       included_types: cdef ? [cdef.type] : tdef.types, max_results:20,
+      rank:"DISTANCE",   // nearest 20, so a close-but-modest place isn't crowded out
     };
     try {
       const data = await placesNearby(cfg, body);
@@ -9966,7 +9967,6 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
               <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Sort</span>
               <button style={chip(nearSort === "dist")}  onClick={()=> setNearSort("dist")}>Closest</button>
               <button style={chip(nearSort === "rated")} onClick={()=> setNearSort("rated")}>Top rated</button>
-              <button style={chip(nearSort === "pop")}   onClick={()=> setNearSort("pop")}>Popular</button>
               <button style={chip(nearSort === "az")}    onClick={()=> setNearSort("az")}>A&ndash;Z</button>
               <button style={chip(minStars === 4)} onClick={()=> setMinStars(v => v === 4 ? 0 : 4)}>4&#9733;+</button>
             </div>
@@ -10004,8 +10004,8 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
             no matter how you sort - point the user to the fixes. */}
         {geoState === "ok" && !loading && !searchMode && results.length >= 20 && (
           <div className="tiny faint" style={{padding:"0 14px 8px", lineHeight:1.45}}>
-            Showing Google's 20 most prominent nearby. In a busy area a specific spot
-            can be missing — narrow the radius or type its name in Search above.
+            Showing the 20 nearest matches (Google's cap). Something farther out may be
+            missing — narrow the radius or type its name in Search above.
           </div>
         )}
 
