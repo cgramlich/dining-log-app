@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.203.0";
+const APP_VERSION   = "1.204.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9512,6 +9512,26 @@ const NEARME_CUISINES = [
   { key:"breakfast",     label:"Breakfast",     type:"breakfast_restaurant" },
   { key:"vegan",         label:"Vegan",         type:"vegan_restaurant" },
 ];
+// The long tail, revealed behind a "More..." chip so the common ones stay up
+// front. All are real Google Places (New) types.
+const NEARME_CUISINES_MORE = [
+  { key:"american",      label:"American",       type:"american_restaurant" },
+  { key:"greek",         label:"Greek",          type:"greek_restaurant" },
+  { key:"spanish",       label:"Spanish",        type:"spanish_restaurant" },
+  { key:"turkish",       label:"Turkish",        type:"turkish_restaurant" },
+  { key:"lebanese",      label:"Lebanese",       type:"lebanese_restaurant" },
+  { key:"middleeast",    label:"Middle Eastern", type:"middle_eastern_restaurant" },
+  { key:"brazilian",     label:"Brazilian",      type:"brazilian_restaurant" },
+  { key:"indonesian",    label:"Indonesian",     type:"indonesian_restaurant" },
+  { key:"ramen",         label:"Ramen",          type:"ramen_restaurant" },
+  { key:"vegetarian",    label:"Vegetarian",     type:"vegetarian_restaurant" },
+  { key:"sandwich",      label:"Sandwiches",     type:"sandwich_shop" },
+  { key:"fastfood",      label:"Fast food",      type:"fast_food_restaurant" },
+  { key:"icecream",      label:"Ice cream",      type:"ice_cream_shop" },
+  { key:"coffee",        label:"Coffee",         type:"coffee_shop" },
+  { key:"brunch",        label:"Brunch",         type:"brunch_restaurant" },
+];
+const ALL_NEARME_CUISINES = NEARME_CUISINES.concat(NEARME_CUISINES_MORE);
 
 // Map a thrown places error (carries .status/.detail) to UI intent + copy.
 function mapPlacesError(err){
@@ -9647,6 +9667,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
   const [radiusM, setRadiusM] = useState(()=> { const p = loadNearMePrefs(); return typeof p.radiusM === "number" ? p.radiusM : 1600; });
   const [typeKey, setTypeKey] = useState(()=> loadNearMePrefs().typeKey || "all");
   const [cuisineKey, setCuisineKey] = useState(()=> loadNearMePrefs().cuisineKey || "");  // "" = no cuisine filter
+  const [cuisMore, setCuisMore] = useState(false);   // reveal the long-tail cuisines
   const [openNow, setOpenNow] = useState(()=> !!loadNearMePrefs().openNow);
   // Remember the last-used filters across sessions.
   useEffect(()=>{ saveNearMePrefs({ radiusM, typeKey, cuisineKey, openNow }); }, [radiusM, typeKey, cuisineKey, openNow]);
@@ -9728,7 +9749,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
     const radius = (opts && opts.radius_m) ? opts.radius_m : radiusM;
     setLoading(true); setError(null);
     const tdef = NEARME_TYPES.find(t => t.key === typeKey) || NEARME_TYPES[0];
-    const cdef = cuisineKey ? NEARME_CUISINES.find(c => c.key === cuisineKey) : null;
+    const cdef = cuisineKey ? ALL_NEARME_CUISINES.find(c => c.key === cuisineKey) : null;
     const body = {
       lat:center.lat, lng:center.lng,
       radius_m:radius, open_now:openNow,
@@ -9993,7 +10014,17 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
                 <button key={c.key} style={chip(cuisineKey === c.key)}
                   onClick={()=> setCuisineKey(v => v === c.key ? "" : c.key)}>{c.label}</button>
               ))}
+              <button style={chip(cuisMore || NEARME_CUISINES_MORE.some(c => c.key === cuisineKey))}
+                onClick={()=> setCuisMore(v => !v)}>{cuisMore ? "Less" : "More…"}</button>
             </div>
+            {(cuisMore || NEARME_CUISINES_MORE.some(c => c.key === cuisineKey)) && (
+              <div className="row" style={{gap:8, flexWrap:"wrap", paddingBottom:8}}>
+                {NEARME_CUISINES_MORE.map(c => (
+                  <button key={c.key} style={chip(cuisineKey === c.key)}
+                    onClick={()=> setCuisineKey(v => v === c.key ? "" : c.key)}>{c.label}</button>
+                ))}
+              </div>
+            )}
             <div className="row" style={{gap:10, justifyContent:"space-between", alignItems:"center"}}>
               <button style={chip(openNow)} onClick={()=> setOpenNow(v => !v)}>
                 {openNow ? "Open now: on" : "Open now"}
