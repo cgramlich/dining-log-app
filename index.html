@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.172.0";
+const APP_VERSION   = "1.173.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7936,15 +7936,20 @@ function ExpenseSheet({data, cfg, onClose}){
   const incSubtotal = items.reduce((a,it,i)=> a + (excluded[i] ? 0 : priceOf(it)), 0);
   const incTaxTip   = subtotal > 0 ? taxTip * (incSubtotal / subtotal) : taxTip;
   const amount = hasItems ? (incSubtotal + incTaxTip) : total;
-  const excludedItems = items.filter((it,i)=> excluded[i] && priceOf(it) > 0);
+  const nonExp = hasItems ? Math.max(0, total - amount) : 0;   // deducted dollars (items + their tax/tip)
   const cleanAttendees = attendees.map(s => s.trim()).filter(Boolean);
 
   const lines = ["Business meal expense"];
   if (data.date) lines.push("Date: " + fmtDate(data.date));
   lines.push("Merchant: " + (data.merchant || "Restaurant") + (data.city ? ", " + data.city : ""));
-  lines.push("Amount: " + money(amount));
+  if (nonExp > 0.005){
+    lines.push("Check total: " + money(total));
+    lines.push("Less non-expensable: -" + money(nonExp));
+    lines.push("Amount expensed: " + money(amount));
+  } else {
+    lines.push("Amount: " + money(amount));
+  }
   if (hasItems && taxTip > 0.005) lines.push("Includes tax & tip: " + money(incTaxTip));
-  if (excludedItems.length) lines.push("Excluded: " + excludedItems.map(it => it.name + " (" + money(priceOf(it)) + ")").join(", "));
   if (cleanAttendees.length) lines.push("Attendees: " + cleanAttendees.join(", "));
   if (client.trim()) lines.push("Client / company: " + client.trim());
   if (purpose.trim()) lines.push("Purpose: " + purpose.trim());
@@ -8024,9 +8029,14 @@ function ExpenseSheet({data, cfg, onClose}){
     doc.setFont("helvetica","bold"); doc.setFontSize(18); doc.text("Business meal expense", M, y);
     y += 12; doc.setDrawColor(214,205,191); doc.setLineWidth(1); doc.line(M, y, pageW - M, y); y += 30;
     doc.setFont("helvetica","bold"); doc.setFontSize(30); doc.text(money(amount), M, y); y += 12;
-    if (hasItems && taxTip > 0.005){
-      doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(130,120,105);
-      doc.text("includes " + money(incTaxTip) + " tax & tip", M, y);
+    {
+      const cap = [];
+      if (nonExp > 0.005) cap.push("amount expensed");
+      if (hasItems && taxTip > 0.005) cap.push("includes " + money(incTaxTip) + " tax & tip");
+      if (cap.length){
+        doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(130,120,105);
+        doc.text(cap.join(" · "), M, y);
+      }
     }
     y += 26; doc.setTextColor(30,26,22);
     const row = (label, val)=>{
@@ -8040,7 +8050,11 @@ function ExpenseSheet({data, cfg, onClose}){
     };
     row("Date", data.date ? fmtDate(data.date) : "");
     row("Merchant", (data.merchant || "Restaurant") + (data.city ? ", " + data.city : ""));
-    if (excludedItems.length) row("Excluded", excludedItems.map(it => it.name + " (" + money(priceOf(it)) + ")").join(", "));
+    if (nonExp > 0.005){
+      row("Check total", money(total));
+      row("Less non-expensable", "-" + money(nonExp));
+    }
+    if (hasItems && taxTip > 0.005) row("Tax & tip", money(incTaxTip));
     if (cleanAttendees.length) row("Attendees", cleanAttendees.join(", "));
     if (client.trim()) row("Client / company", client.trim());
     if (purpose.trim()) row("Purpose", purpose.trim());
@@ -8069,7 +8083,9 @@ function ExpenseSheet({data, cfg, onClose}){
       const blob = doc.output("blob");
       const file = new File([blob], fname, { type:"application/pdf" });
       if (navigator.canShare && navigator.canShare({ files:[file] })){
-        await navigator.share({ files:[file], title:"Expense", text: summary });
+        // PDF only - it's self-contained. No text body, so Messages/Mail don't
+        // try to send a separate (and failable) text alongside it.
+        await navigator.share({ files:[file], title:"Expense" });
       } else {
         doc.save(fname);
       }
@@ -8102,8 +8118,13 @@ function ExpenseSheet({data, cfg, onClose}){
             })}
           </div>
         ) : null}
-        <div className="spl-total" style={{marginTop: hasItems ? 4 : 0}}>
-          <span>Amount</span><span>{money(amount)}</span>
+        {nonExp > 0.005 ? (
+          <div className="tiny faint" style={{textAlign:"right", marginTop:4}}>
+            Check total {money(total)} &middot; less non-expensable {money(nonExp)}
+          </div>
+        ) : null}
+        <div className="spl-total" style={{marginTop:2}}>
+          <span>{nonExp > 0.005 ? "Amount expensed" : "Amount"}</span><span>{money(amount)}</span>
         </div>
         {hasItems && taxTip > 0.005 ? (
           <div className="tiny faint" style={{textAlign:"right", marginTop:2}}>includes {money(incTaxTip)} tax &amp; tip</div>
@@ -8151,17 +8172,14 @@ function ExpenseSheet({data, cfg, onClose}){
         </div>
 
         <div className="card" style={{whiteSpace:"pre-wrap"}}>{summary}</div>
-        <div className="row" style={{gap:9, marginTop:12}}>
-          <button className="btn primary" style={{flex:1}} onClick={doCopy}>{copied ? "Copied" : "Copy"}</button>
-          <button className="btn" style={{flex:1}} disabled={sharing} onClick={doShare}>
-            {sharing ? <span className="spin" /> : (anyReceiptPicked ? "Share with receipt" : "Share")}
-          </button>
-        </div>
-        <button className="btn ghost" style={{marginTop:9, width:"100%"}} disabled={pdfBusy} onClick={doPdf}>
-          {pdfBusy ? <span className="spin" /> : "Export as PDF"}
+        <button className="btn primary" style={{marginTop:12, width:"100%"}} disabled={pdfBusy} onClick={doPdf}>
+          {pdfBusy ? <span className="spin" /> : "Share as PDF"}
+        </button>
+        <button className="btn ghost" style={{marginTop:9, width:"100%"}} onClick={doCopy}>
+          {copied ? "Copied" : "Copy as text"}
         </button>
         <div className="tiny faint" style={{marginTop:10}}>
-          Copy is text only. Share or Export as PDF from your phone send the summary plus the receipt photo(s) you ticked.
+          Share as PDF sends one clean document with the receipt photo(s) you ticked. Copy is plain text for pasting into a form.
         </div>
       </div>
     </div>
