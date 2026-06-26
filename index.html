@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.175.0";
+const APP_VERSION   = "1.176.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -11200,21 +11200,28 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
               the expense item attaches. Scan or upload (the picker offers both). */}
           <input ref={finalReceiptRef} type="file" accept="image/*"
             style={{display:"none"}} onChange={onFinalReceiptPicked} />
-          <button className="btn ghost sm" style={{marginTop:10, width:"100%"}}
-            disabled={finalReceiptBusy}
-            onClick={()=> finalReceiptRef.current && finalReceiptRef.current.click()}>
-            {finalReceiptBusy ? <span className="spin" /> : <Icon name="receipt" size={16} />}
-            {finalReceiptBusy ? "Adding…" : (finalReceiptSlot ? "Replace final receipt" : "Add final receipt")}
-          </button>
-          <div className="tiny faint" style={{marginTop:4}}>
-            The payment slip with tip &amp; total. Scan or upload it — this is the one the expense item attaches.
-          </div>
+          {!finalReceiptSlot && (
+            <div>
+              <button className="btn ghost sm" style={{marginTop:10, width:"100%"}}
+                disabled={finalReceiptBusy}
+                onClick={()=> finalReceiptRef.current && finalReceiptRef.current.click()}>
+                {finalReceiptBusy ? <span className="spin" /> : <Icon name="receipt" size={16} />}
+                {finalReceiptBusy ? "Adding..." : "Add final / total receipt"}
+              </button>
+              <div className="tiny faint" style={{marginTop:4}}>
+                The payment slip with tip and total. Scan or upload it - this is the one the expense item attaches.
+              </div>
+            </div>
+          )}
           {finalReceiptSlot && (
             <div className="tiny muted" style={{marginTop:8}}>
-              Final receipt attached{" · "}
+              Final / total receipt attached{" · "}
               <a href="#" style={{color:"var(--accent)"}}
                  onClick={(e)=>{ e.preventDefault(); setFinalReceiptShow(s=>!s); }}>
                 {finalReceiptShow ? "hide" : "show"}</a>
+              {" · "}
+              <a href="#" style={{color:"var(--accent)"}}
+                 onClick={(e)=>{ e.preventDefault(); if (finalReceiptRef.current) finalReceiptRef.current.click(); }}>replace</a>
               {" · "}
               <a href="#" style={{color:"var(--accent)"}}
                  onClick={(e)=>{ e.preventDefault();
