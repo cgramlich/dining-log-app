@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.179.0";
+const APP_VERSION   = "1.180.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8032,55 +8032,87 @@ function ExpenseSheet({data, cfg, onClose}){
     const JSPDF = window.jspdf && window.jspdf.jsPDF;
     if (!JSPDF) throw new Error("PDF library unavailable");
     const doc = new JSPDF({ unit:"pt", format:"letter" });
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const M = 56; let y = M;
-    doc.setTextColor(30,26,22);
-    doc.setFont("helvetica","bold"); doc.setFontSize(18); doc.text("Business meal expense", M, y);
-    y += 12; doc.setDrawColor(214,205,191); doc.setLineWidth(1); doc.line(M, y, pageW - M, y); y += 30;
-    doc.setFont("helvetica","bold"); doc.setFontSize(30); doc.text(money(amount), M, y); y += 12;
-    {
-      const cap = [];
-      if (nonExp > 0.005) cap.push("amount expensed");
-      if (hasItems && taxTip > 0.005) cap.push("includes " + money(incTaxTip) + " tax & tip");
-      if (cap.length){
-        doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(130,120,105);
-        doc.text(cap.join(" · "), M, y);
-      }
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const M = 56;
+    const INK = [33,29,24], GRAY = [122,112,99], LINE = [223,215,202], ACCENT = [201,124,44];
+    const setInk = c => doc.setTextColor(c[0], c[1], c[2]);
+    const setDraw = c => doc.setDrawColor(c[0], c[1], c[2]);
+    const fmt = n => "$" + (Math.round((Number(n) || 0) * 100) / 100)
+      .toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
+    let y = 66;
+
+    // Header: eyebrow, merchant, date / city, accent rule.
+    doc.setFont("helvetica","bold"); doc.setFontSize(9); setInk(GRAY);
+    doc.text("BUSINESS MEAL EXPENSE", M, y);
+    y += 24; doc.setFont("helvetica","bold"); doc.setFontSize(21); setInk(INK);
+    doc.text(doc.splitTextToSize(data.merchant || "Restaurant", W - M * 2)[0], M, y);
+    const subBits = [data.date ? fmtDate(data.date) : "", data.city || ""].filter(Boolean);
+    if (subBits.length){
+      y += 17; doc.setFont("helvetica","normal"); doc.setFontSize(10.5); setInk(GRAY);
+      doc.text(subBits.join("   ·   "), M, y);
     }
-    y += 26; doc.setTextColor(30,26,22);
-    const row = (label, val)=>{
-      if (!val) return;
-      doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(120,110,96);
-      doc.text(label.toUpperCase(), M, y);
-      doc.setFont("helvetica","normal"); doc.setFontSize(12); doc.setTextColor(30,26,22);
-      const wrapped = doc.splitTextToSize(String(val), pageW - M - M - 120);
-      doc.text(wrapped, M + 120, y);
-      y += Math.max(18, wrapped.length * 15) + 6;
+    y += 14; setDraw(ACCENT); doc.setLineWidth(1.5); doc.line(M, y, W - M, y);
+    y += 32;
+
+    // Amount ledger: labels left, amounts right-aligned.
+    const ledger = (label, val, opts)=>{
+      opts = opts || {};
+      const size = opts.big ? 17 : 11;
+      doc.setFont("helvetica", opts.bold ? "bold" : "normal"); doc.setFontSize(size);
+      setInk(opts.bold ? INK : GRAY); doc.text(label, M, y);
+      setInk(INK); doc.text(val, W - M, y, { align:"right" });
+      y += opts.big ? 28 : 19;
     };
-    row("Date", data.date ? fmtDate(data.date) : "");
-    row("Merchant", (data.merchant || "Restaurant") + (data.city ? ", " + data.city : ""));
     if (nonExp > 0.005){
-      row("Check total", money(total));
-      row("Less non-expensable", "-" + money(nonExp));
+      ledger("Check total", fmt(total));
+      ledger("Less non-expensable", "-" + fmt(nonExp));
+      y -= 2; setDraw(LINE); doc.setLineWidth(0.8); doc.line(M, y, W - M, y); y += 18;
+      ledger("Amount expensed", fmt(amount), { bold:true, big:true });
+    } else {
+      ledger("Amount", fmt(amount), { bold:true, big:true });
     }
-    if (hasItems && taxTip > 0.005) row("Tax & tip", money(incTaxTip));
-    if (cleanAttendees.length) row("Attendees", cleanAttendees.join(", "));
-    if (client.trim()) row("Client / company", client.trim());
-    if (purpose.trim()) row("Purpose", purpose.trim());
+    if (hasItems && taxTip > 0.005) ledger("Includes tax & tip", fmt(incTaxTip));
+    y += 18;
+
+    // Detail rows with light dividers.
+    const detail = (label, val)=>{
+      if (!val) return;
+      doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setInk(GRAY);
+      doc.text(label.toUpperCase(), M, y);
+      doc.setFont("helvetica","normal"); doc.setFontSize(11.5); setInk(INK);
+      const wrapped = doc.splitTextToSize(String(val), W - M * 2);
+      doc.text(wrapped, M, y + 15);
+      y += 15 + wrapped.length * 14 + 14;
+      setDraw(LINE); doc.setLineWidth(0.5); doc.line(M, y - 8, W - M, y - 8);
+    };
+    if (cleanAttendees.length) detail("Attendees", cleanAttendees.join(", "));
+    if (client.trim()) detail("Client / company", client.trim());
+    if (purpose.trim()) detail("Business purpose", purpose.trim());
+
+    // Footer.
+    doc.setFont("helvetica","normal"); doc.setFontSize(8); setInk(GRAY);
+    doc.text("Generated by MenuCaptain", M, H - 40);
+
+    // Receipt pages: caption + centered, bordered image.
     const chosen = allReceipts.filter(r => picked[r.key]);
     for (let i = 0; i < chosen.length; i++){
       const durl = await receiptDataUrl(chosen[i]);
       if (!durl) continue;
       const dim = await imgDims(durl);
       doc.addPage();
-      doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(120,110,96);
-      doc.text((chosen[i].label || "Receipt").toUpperCase(), M, M);
-      const availW = pageW - M * 2;
-      const availH = pageH - (M + 18) - M;
+      doc.setFont("helvetica","bold"); doc.setFontSize(9); setInk(GRAY);
+      doc.text((chosen[i].label || "Receipt").toUpperCase(), M, 56);
+      const topY = 72;
+      const availW = W - M * 2;
+      const availH = H - topY - M;
       let w = availW, h = w * (dim.h / dim.w);
       if (h > availH){ h = availH; w = h * (dim.w / dim.h); }
-      try { doc.addImage(durl, "JPEG", M, M + 18, w, h); } catch(e){}
+      const x = M + (availW - w) / 2;
+      try {
+        doc.addImage(durl, "JPEG", x, topY, w, h);
+        setDraw(LINE); doc.setLineWidth(0.5); doc.rect(x, topY, w, h);
+      } catch(e){}
     }
     return doc;
   }
@@ -8252,6 +8284,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const [splitLabel, setSplitLabel] = useState(initialSplit && initialSplit.label ? initialSplit.label : "");  // standalone save label
   const [shots, setShots]     = useState([]);   // staged receipt photos (dataUrls), read together
   const [expenseOpen, setExpenseOpen] = useState(false);   // expense-item sheet over the result
+  const [showRcpts, setShowRcpts] = useState(false);       // reveal receipt images on the split screen
   const fileRef = useRef(null);
 
   const money = c => "$" + (Math.round(c) / 100).toFixed(2);
@@ -8675,14 +8708,35 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               <button className="btn" style={{width:"auto",padding:"0 16px"}} onClick={addPerson}>Add</button>
             </div>
 
-            {/* receipts (itemized + final), when this split came from a logged
-                visit - check item prices against the actual check, and turn it
-                into an expense item right here. */}
-            {(initialReceiptPhoto || initialFinalReceipt) ? (
-              <div style={{display:"flex", alignItems:"flex-start", gap:16, flexWrap:"wrap", marginBottom:10}}>
-                <ReceiptReveal cfg={config} receipt={{ photo: initialReceiptPhoto, final_photo: initialFinalReceipt, total: null }} />
-                <a href="#" className="tiny" style={{color:"var(--accent)", marginTop:8}}
-                   onClick={(e)=>{ e.preventDefault(); openExpense(); }}>Create expense item</a>
+            {/* Quick actions: see the split, expense it, or check the receipts -
+                all reachable from the top so you never scroll to the bottom. */}
+            <div className="tiny" style={{display:"flex", gap:18, flexWrap:"wrap", alignItems:"center", marginBottom:12}}>
+              {(initialReceiptPhoto || initialFinalReceipt) ? (
+                <a href="#" style={{color:"var(--accent)"}}
+                   onClick={(e)=>{ e.preventDefault(); setShowRcpts(s=>!s); }}>
+                  {showRcpts ? "Hide receipts" : "Show receipts"}</a>
+              ) : null}
+              <a href="#" style={{color:"var(--accent)"}}
+                 onClick={(e)=>{ e.preventDefault(); openExpense(); }}>Create expense item</a>
+              {canSplit ? (
+                <a href="#" style={{color:"var(--accent)"}}
+                   onClick={(e)=>{ e.preventDefault(); doSplit(); }}>See the split</a>
+              ) : null}
+            </div>
+            {showRcpts && (initialReceiptPhoto || initialFinalReceipt) ? (
+              <div style={{marginBottom:12}}>
+                {initialReceiptPhoto ? (
+                  <div style={{marginBottom:10}}>
+                    <div className="tiny faint" style={{marginBottom:4}}>Itemized check</div>
+                    <PhotoImg cfg={config} path={initialReceiptPhoto} style={{maxWidth:"100%", borderRadius:12}} />
+                  </div>
+                ) : null}
+                {initialFinalReceipt ? (
+                  <div>
+                    <div className="tiny faint" style={{marginBottom:4}}>Final / total receipt</div>
+                    <PhotoImg cfg={config} path={initialFinalReceipt} style={{maxWidth:"100%", borderRadius:12}} />
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
