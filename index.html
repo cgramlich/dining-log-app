@@ -853,7 +853,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.186.0";
+const APP_VERSION   = "1.187.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4055,6 +4055,7 @@ function Icon({name, size, color}){
               stroke:c, strokeWidth:1.7, strokeLinecap:"round", strokeLinejoin:"round" };
   const paths = {
     clock:   <g><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>,
+    home:    <g><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10.5V20h12v-9.5"/></g>,
     plate:   <g><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></g>,
     plus:    <g><path d="M12 5v14M5 12h14"/></g>,
     gear:    <g><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2l-.4-2.6h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12Z"/></g>,
@@ -4083,6 +4084,20 @@ function Icon({name, size, color}){
     locate:  <g><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="2.3"/></g>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
+}
+
+// Right-side header action used on drill-in screens: one tap collapses the whole
+// overlay stack back to the main tab view (vs. the back button, which steps up a
+// single level). When onHome isn't supplied it renders the usual 34px spacer so
+// the title stays centered. Deliberately NOT placed on create/edit forms, so a
+// stray tap can never drop a half-filled form.
+function HomeBtn({ onHome }){
+  if (!onHome) return <span style={{width:34}} />;
+  return (
+    <button className="x" onClick={onHome} aria-label="Home" title="Home">
+      <Icon name="home" size={20} />
+    </button>
+  );
 }
 
 // Read-only star display. Supports half-star values (e.g. 4.5):
@@ -5466,15 +5481,17 @@ function App(){
       )}
       {overlay && overlay.type === "connections" && (
         <ConnectionsScreen config={config} profile={profile}
-          onClose={()=> { setOverlay(null); refreshPendingReqs(); }} />
+          onClose={()=> { setOverlay(null); refreshPendingReqs(); }}
+          onHome={()=> { setOverlay(null); refreshPendingReqs(); }} />
       )}
       {overlay && overlay.type === "leaderboard" && (
         <LeaderboardScreen config={config} profile={profile} onProfileChange={setProfile}
-          onClose={()=> setOverlay(null)} />
+          onClose={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "shares" && (
         <ShareInbox config={config}
-          onClose={()=> { setOverlay(null); refreshShares(); }} />
+          onClose={()=> { setOverlay(null); refreshShares(); }}
+          onHome={()=> { setOverlay(null); refreshShares(); }} />
       )}
 
       {overlay && overlay.type === "groupStartMenu" && (
@@ -5647,7 +5664,8 @@ function App(){
               return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
             });
             commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
-          }} />
+          }}
+          onHome={()=> setOverlay(null)} />
       )}
 
       {overlay && (overlay.type === "addRestaurant" || overlay.type === "editRestaurant") && (
@@ -5919,7 +5937,7 @@ function App(){
       )}
 
       {overlay && overlay.type === "help" && (
-        <HelpView onClose={()=> setOverlay(null)} />
+        <HelpView onClose={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
       )}
 
       {overlay && overlay.type === "yearInFood" && (
@@ -5930,13 +5948,13 @@ function App(){
       {overlay && overlay.type === "passport" && (
         <FoodPassport visits={visits} restaurantById={restaurantById} cfg={config}
           onOpenVisit={(id)=>{ const v = visits.find(x => x.id === id); if (v) setOverlay({ type:"editVisit", visit:v }); }}
-          onClose={()=> setOverlay(null)} />
+          onClose={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
       )}
 
       {overlay && overlay.type === "publish" && (
         <PublishBuilder restaurants={restaurants} visits={visits} menus={menus} cfg={config}
           onPublished={handleListPublished}
-          onClose={()=> setOverlay(null)} />
+          onClose={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
       )}
 
       {overlay && overlay.type === "myLists" && (
@@ -5945,7 +5963,8 @@ function App(){
           onClose={()=> setOverlay(null)}
           onToggleFav={toggleListFav}
           onDelete={deleteSavedList}
-          onRefresh={refreshSavedList} />
+          onRefresh={refreshSavedList}
+          onHome={()=> setOverlay(null)} />
       )}
 
       {overlay && overlay.type === "map" && (
@@ -5961,7 +5980,8 @@ function App(){
             const next = restaurants.map(r => ups[r.id] ? Object.assign({}, r, ups[r.id]) : r);
             logMsg("MAP","Persisting coords for " + Object.keys(ups).length + " place(s)");
             commit({ restaurants: next }, ["restaurants"]);
-          }} />
+          }}
+          onHome={()=> setOverlay(null)} />
       )}
 
       {toast && <div className="toast">{toast}</div>}
@@ -6392,7 +6412,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
 //  - Persists new coords back up via onSaveCoords (one batched commit), and
 //    also flushes on unmount so partial progress is never lost.
 // Leaflet (global L) renders; if it failed to load we degrade gracefully.
-function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords }){
+function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, onHome }){
   const divRef   = useRef(null);
   const mapRef   = useRef(null);
   const layerRef = useRef(null);
@@ -6509,7 +6529,7 @@ function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords }
       <div className="ovhead">
         <button className="x" onClick={onClose}>Back</button>
         <h2>Map</h2>
-        <span style={{width:54}} />
+        <HomeBtn onHome={onHome} />
       </div>
       <div className="map-body">
         {!leafletReady && (
@@ -7595,7 +7615,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onRenameMenu, onSaveItemTags}){
+function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onRenameMenu, onSaveItemTags, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
@@ -7646,7 +7666,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
         <h2>{menu.label || "Menu"}</h2>
-        <span style={{width:40}} />
+        <HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
         <div className="tiny faint" style={{marginBottom:4}}>
@@ -14400,7 +14420,7 @@ function PublishedMenu({data}){
 
 // My Lists: a UI layer over the saved published-list records (data/lists.json).
 // No new storage. Favorites pin to the top; within that, the chosen sort applies.
-function MyListsOverlay({ lists, onClose, onToggleFav, onDelete, onRefresh }){
+function MyListsOverlay({ lists, onClose, onToggleFav, onDelete, onRefresh, onHome }){
   const [sortBy,   setSortBy]   = useState("recent");
   const [busyId,   setBusyId]   = useState(null);   // refresh in flight
   const [doneId,   setDoneId]   = useState(null);   // just-refreshed flash
@@ -14450,7 +14470,7 @@ function MyListsOverlay({ lists, onClose, onToggleFav, onDelete, onRefresh }){
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
         <h2>My Lists</h2>
-        <span style={{width:40}} />
+        <HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
         {(!lists || !lists.length) ? (
@@ -14505,7 +14525,7 @@ function MyListsOverlay({ lists, onClose, onToggleFav, onDelete, onRefresh }){
   );
 }
 
-function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose}){
+function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose, onHome}){
   const [title,setTitle] = useState("");
   const [sel,setSel] = useState({});
   const [q,setQ] = useState("");
@@ -14617,7 +14637,7 @@ function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose})
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
         <h2>Publish a list</h2>
-        <span style={{width:40}} />
+        <HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
         <input className="input" placeholder="List title (e.g. My Top Portland Spots)"
@@ -14678,7 +14698,7 @@ function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose})
   );
 }
 
-function FoodPassport({visits, restaurantById, cfg, onOpenVisit, onClose}){
+function FoodPassport({visits, restaurantById, cfg, onOpenVisit, onClose, onHome}){
   const items = buildPassportItems(visits, restaurantById);
   // group newest-first into month buckets, order preserved
   const groups = [];
@@ -14698,7 +14718,7 @@ function FoodPassport({visits, restaurantById, cfg, onOpenVisit, onClose}){
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
         <h2>Food passport</h2>
-        <span style={{width:40}} />
+        <HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
         {items.length === 0 ? (
@@ -14729,7 +14749,7 @@ function FoodPassport({visits, restaurantById, cfg, onOpenVisit, onClose}){
   );
 }
 
-function YearInFood({visits, restaurants, onClose}){
+function YearInFood({visits, restaurants, onClose, onHome}){
   // years that have visits, newest first
   const years = Array.from(new Set((visits || [])
     .map(v => parseInt(String(v.date || "").slice(0,4), 10))
@@ -14889,12 +14909,12 @@ function YearInFood({visits, restaurants, onClose}){
   );
 }
 
-function HelpView({onClose}){
+function HelpView({onClose, onHome}){
   return (
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}>Close</button>
-        <h2>Help &amp; Guide</h2><span style={{width:40}} />
+        <h2>Help &amp; Guide</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody help-body">
         {renderHelpMarkdown(HELP_DOC)}
@@ -15702,7 +15722,7 @@ function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub
   );
 }
 
-function ConnectionsScreen({config, profile, onClose}){
+function ConnectionsScreen({config, profile, onClose, onHome}){
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr]         = useState("");
@@ -15759,7 +15779,7 @@ function ConnectionsScreen({config, profile, onClose}){
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
-        <h2>Connections</h2><span style={{width:34}} />
+        <h2>Connections</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
         {noHandle ? (
@@ -15849,7 +15869,7 @@ async function setLeaderboardVisibility(cfg, on){
   return res.json();
 }
 
-function LeaderboardScreen({config, profile, onProfileChange, onClose}){
+function LeaderboardScreen({config, profile, onProfileChange, onClose, onHome}){
   const [rows, setRows]   = useState(null);
   const [err, setErr]     = useState("");
   const [vis, setVis]     = useState(()=> !(profile && profile.show_on_leaderboard === false));
@@ -15878,7 +15898,7 @@ function LeaderboardScreen({config, profile, onProfileChange, onClose}){
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
-        <h2>Leaderboard</h2><span style={{width:34}} />
+        <h2>Leaderboard</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
         <div className="small muted" style={{marginBottom:14, lineHeight:1.6}}>
@@ -16041,7 +16061,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList}){
 
 // "Shared with you" inbox overlay: received places/lists; tap to view (reuses
 // the public viewers, which include "Save to my places"), or dismiss.
-function ShareInbox({config, onClose}){
+function ShareInbox({config, onClose, onHome}){
   const [shares, setShares] = useState(null);
   const [open, setOpen]     = useState(null);   // the share being viewed
   const [busyId, setBusyId] = useState(null);
@@ -16065,7 +16085,7 @@ function ShareInbox({config, onClose}){
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
-        <h2>Shared with you</h2><span style={{width:34}} />
+        <h2>Shared with you</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
         {shares === null ? (
