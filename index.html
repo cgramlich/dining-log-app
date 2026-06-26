@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.204.0";
+const APP_VERSION   = "1.205.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6759,8 +6759,8 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       <SearchBar value={query} onChange={setQuery}
         placeholder="Search places, cuisine, city" />
       {onOpenMap && (
-        <div className="between" style={{margin:"0 0 10px", flexWrap:"wrap", gap:8}}>
-          <div className="row" style={{gap:8, flexWrap:"wrap"}}>
+        <div className="row" style={{margin:"0 0 10px", flexWrap:"wrap", gap:8}}>
+          <React.Fragment>
             {onNearMe ? (
               <button className="btn ghost sm" onClick={onNearMe}>
                 <Icon name="locate" size={15} color="var(--accent)" />
@@ -6785,7 +6785,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
                 My Lists
               </button>
             ) : null}
-          </div>
+          </React.Fragment>
           <button className="btn ghost sm map-open-btn" onClick={onOpenMap}>
             <Icon name="pin" size={15} color="var(--accent)" />
             Map
@@ -10283,6 +10283,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
   const [dRadius, setDRadius]   = useState(4800);     // default 3 mi
   const [dMinStars, setDMinStars] = useState(0);
   const [dIncludeSaved, setDIncludeSaved] = useState(false);   // mix in my matching saved places
+  const [dCuisMore, setDCuisMore] = useState(false);           // reveal long-tail cuisines
   const [dBusy, setDBusy]   = useState(false);
   const [dErr, setDErr]     = useState("");
   const [dUpsell, setDUpsell] = useState(false);
@@ -10379,7 +10380,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
     try {
       const loc = await getLocation().catch(()=> null);
       if (!loc){ setDErr("Couldn't get your location - enable it and try again."); setDBusy(false); return; }
-      const cdef = dCuisine ? NEARME_CUISINES.find(c => c.key === dCuisine) : null;
+      const cdef = dCuisine ? ALL_NEARME_CUISINES.find(c => c.key === dCuisine) : null;
       const data = await placesNearby(cfg, {
         lat:loc.lat, lng:loc.lng, radius_m:dRadius, open_now:false,
         included_types: cdef ? [cdef.type] : ["restaurant","cafe","bar","bakery","meal_takeaway"],
@@ -10394,7 +10395,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
       // ones without coords still count - I can't distance-check them.)
       let savedMatches = [];
       if (dIncludeSaved){
-        const wantCuisine = dCuisine ? ((NEARME_CUISINES.find(c => c.key === dCuisine) || {}).label || "") : "";
+        const wantCuisine = dCuisine ? ((ALL_NEARME_CUISINES.find(c => c.key === dCuisine) || {}).label || "") : "";
         const radiusMi = dRadius / 1609.34;
         savedMatches = places.filter(r => {
           if (wantCuisine){
@@ -10626,7 +10627,17 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
                 <button key={c.key} style={spchip(dCuisine === c.key)}
                   onClick={()=> setDCuisine(v => v === c.key ? "" : c.key)}>{c.label}</button>
               ))}
+              <button style={spchip(dCuisMore || NEARME_CUISINES_MORE.some(c => c.key === dCuisine))}
+                onClick={()=> setDCuisMore(v => !v)}>{dCuisMore ? "Less" : "More…"}</button>
             </div>
+            {(dCuisMore || NEARME_CUISINES_MORE.some(c => c.key === dCuisine)) && (
+              <div className="row" style={{gap:8, flexWrap:"wrap", paddingBottom:8}}>
+                {NEARME_CUISINES_MORE.map(c => (
+                  <button key={c.key} style={spchip(dCuisine === c.key)}
+                    onClick={()=> setDCuisine(v => v === c.key ? "" : c.key)}>{c.label}</button>
+                ))}
+              </div>
+            )}
             <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
               <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Within</span>
               {NEARME_RADII.map(r => (
