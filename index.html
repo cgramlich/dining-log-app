@@ -833,7 +833,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.173.0";
+const APP_VERSION   = "1.174.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7413,11 +7413,20 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           data={(()=>{
             const v = expenseVisit;
             const sp = v.split || null;
-            const items = (sp && Array.isArray(sp.items) && sp.items.length)
+            const usingSplit = !!(sp && Array.isArray(sp.items) && sp.items.length);
+            const items = usingSplit
               ? sp.items.map(it => ({ name: it.name, price: Number(it.price) || 0 }))
               : (v.dishes || []).filter(d => parsePrice(d.price)).map(d => ({ name: d.name, price: parsePrice(d.price) }));
-            const total = (v.receipt && v.receipt.total) || (sp && sp.grand)
-              || items.reduce((a,it)=> a + (it.price || 0), 0);
+            const itemsSub = items.reduce((a,it)=> a + (it.price || 0), 0);
+            const rt = (v.receipt && v.receipt.total) || 0;
+            // Keep TOTAL consistent with the items it's prorated against, or the
+            // gross/net math is wrong: for a split use its grand (derived from the
+            // same line items); for plain dishes use the scanned total only when the
+            // logged items plausibly ARE the whole check (<= ~50% over for tax+tip),
+            // otherwise they're just your picks so use their subtotal.
+            const total = usingSplit
+              ? ((typeof sp.grand === "number" && sp.grand > 0) ? sp.grand : (rt || itemsSub))
+              : ((itemsSub > 0 && rt >= itemsSub && rt <= itemsSub * 1.5) ? rt : (itemsSub || rt));
             return { date: v.date, merchant: (r && r.name) || v.restaurant_name || "Restaurant",
               city: (r && (r.city || r.location)) || "", items: items, total: total,
               people: (sp && sp.people) || [],
