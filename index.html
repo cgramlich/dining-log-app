@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.191.0";
+const APP_VERSION   = "1.192.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6618,6 +6618,7 @@ function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, 
 function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("alpha");
+  const [cuisineFilter, setCuisineFilter] = useState("All");
   if (!restaurants.length){
     // Still surface group orders / invites - a brand-new account (e.g. someone
     // invited to their first order) has no places yet but must see the invite.
@@ -6639,12 +6640,19 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   const cityChips = Array.from(new Set([].concat(locations || []).concat(inUse)))
     .sort((a,b)=> a.localeCompare(b));
 
+  // Cuisines actually in use (for the cuisine filter chips).
+  const cuisineInUse = Array.from(new Set(restaurants.map(r => (r.cuisine || "").trim()).filter(Boolean)))
+    .sort((a,b)=> a.localeCompare(b));
+
   const filter = activeFilter || "All";
-  const visible = filter === "All"
+  const byCity = filter === "All"
     ? restaurants
     : filter === "(no location)"
       ? restaurants.filter(r => !r.location)
       : restaurants.filter(r => r.location === filter);
+  const visible = cuisineFilter === "All"
+    ? byCity
+    : byCity.filter(r => (r.cuisine || "").trim().toLowerCase() === cuisineFilter.toLowerCase());
 
   const q = query.trim().toLowerCase();
   const searched = q ? visible.filter(r =>
@@ -6774,6 +6782,17 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
               className={"chip pick" + (filter === "(no location)" ? " on" : "")}
               onClick={()=> onFilterChange("(no location)")}>No location</span>
           )}
+        </div>
+      )}
+
+      {cuisineInUse.length >= 2 && (
+        <div className="chips" style={{margin:"0 0 14px"}}>
+          <span className={"chip pick" + (cuisineFilter === "All" ? " on" : "")}
+            onClick={()=> setCuisineFilter("All")}>All cuisines</span>
+          {cuisineInUse.map(c => (
+            <span key={c} className={"chip pick" + (cuisineFilter === c ? " on" : "")}
+              onClick={()=> setCuisineFilter(c)}>{c}</span>
+          ))}
         </div>
       )}
 
