@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.211.0";
+const APP_VERSION   = "1.212.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4422,7 +4422,7 @@ function PhotoLightbox({ cfg, paths, index, onClose }){
 // Subtle receipt reveal on a logged visit: the receipt is a record, not a
 // memory photo, so it never joins the photo strip or the Food passport -
 // it hides behind this link until asked for.
-function ReceiptReveal({cfg, receipt}){
+function ReceiptReveal({cfg, receipt, inline}){
   const [open, setOpen] = useState(false);
   if (!receipt || (!receipt.photo && !receipt.final_photo)) return null;
   const shots = [];
@@ -4430,7 +4430,7 @@ function ReceiptReveal({cfg, receipt}){
   if (receipt.final_photo) shots.push({ label:"Final receipt", path:receipt.final_photo });
   const multi = shots.length > 1;
   return (
-    <div style={{marginTop:8}}>
+    <div style={{marginTop: inline ? 0 : 8}}>
       <a href="#" className="tiny" style={{color:"var(--accent)"}}
          onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); setOpen(o=>!o); }}>
         {open ? "Hide receipt" : (multi ? "Show receipts" : "Show receipt")}
@@ -6286,10 +6286,15 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
 
 // Collapsible "Check split" block shown on a visit that has a saved split.
 // Renders nothing when there is no split, so it is safe to drop on every card.
-function VisitSplit({split}){
+// The "Check split summary" dropdown. When expanded it also HOSTS the related
+// actions - "See itemized split" and the receipts - so a card with a split stays
+// to a single clean line until you open it. cfg/receipt/onSeeItemized are
+// optional (cards without a split render those pieces standalone instead).
+function VisitSplit({split, cfg, receipt, onSeeItemized}){
   const [open, setOpen] = useState(false);
   if (!split || !Array.isArray(split.people) || !split.people.length) return null;
   const money = n => "$" + (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
+  const hasReceipt = receipt && (receipt.photo || receipt.final_photo);
   return (
     <div className="vsplit">
       <button className="vsplit-head" onClick={(e)=>{ e.stopPropagation(); setOpen(o => !o); }}>
@@ -6304,6 +6309,16 @@ function VisitSplit({split}){
               <div className="spl-amt">{money(p.amount)}</div>
             </div>
           ))}
+          {(onSeeItemized || hasReceipt) && (
+            <div className="row" style={{gap:14, flexWrap:"wrap", alignItems:"center",
+                 marginTop:10, paddingTop:10, borderTop:"1px solid var(--line-soft)"}}>
+              {onSeeItemized ? (
+                <a href="#" className="tiny" style={{color:"var(--accent)", fontWeight:600}}
+                   onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); onSeeItemized(); }}>See itemized split</a>
+              ) : null}
+              {hasReceipt ? <ReceiptReveal cfg={cfg} receipt={receipt} inline={true} /> : null}
+            </div>
+          )}
         </div>
       ) : null}
     </div>
@@ -6463,11 +6478,17 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             <DishTotal dishes={v.dishes} />
             <NutriLine n={v.nutrition} />
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
-            <ReceiptReveal cfg={cfg} receipt={v.receipt} />
-            <VisitSplit split={v.split} />
-            {onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
-              <button className="btn ghost sm" style={{marginTop:9}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "See itemized split" : "Split the check"}</button>
-            ) : null}
+            {v.split ? (
+              <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
+                onSeeItemized={onSplitVisit ? ()=> onSplitVisit(v) : null} />
+            ) : (
+              <React.Fragment>
+                <ReceiptReveal cfg={cfg} receipt={v.receipt} />
+                {onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
+                  <button className="btn ghost sm" style={{marginTop:9}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>Split the check</button>
+                ) : null}
+              </React.Fragment>
+            )}
           </div>
         );
       })}
@@ -7637,8 +7658,12 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <DishTotal dishes={v.dishes} />
               <NutriLine n={v.nutrition} />
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
-              <ReceiptReveal cfg={cfg} receipt={v.receipt} />
-              <VisitSplit split={v.split} />
+              {v.split ? (
+                <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
+                  onSeeItemized={onSplitVisit ? ()=> onSplitVisit(v) : null} />
+              ) : (
+                <ReceiptReveal cfg={cfg} receipt={v.receipt} />
+              )}
               <div className="row" style={{gap:8, marginTop:9, flexWrap:"wrap"}}>
                 {onAddPhotos ? (
                   <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{
@@ -7647,13 +7672,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                     if (addPhotoRef.current) addPhotoRef.current.click();
                   }}><Icon name="camera" size={15} />Add photo</button>
                 ) : null}
+                {!v.split && onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
+                  <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>Split the check</button>
+                ) : null}
                 {((v.receipt && v.receipt.total) || v.split || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
-                  <React.Fragment>
-                    {onSplitVisit ? (
-                      <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>{v.split ? "See itemized split" : "Split the check"}</button>
-                    ) : null}
-                    <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); setExpenseVisit(v); }}>Expense this</button>
-                  </React.Fragment>
+                  <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); setExpenseVisit(v); }}>Expense this</button>
                 ) : null}
               </div>
             </div>
