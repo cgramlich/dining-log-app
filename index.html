@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.214.0";
+const APP_VERSION   = "1.215.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6407,7 +6407,7 @@ function VisitSplit({split, cfg, receipt, onSeeItemized}){
                  marginTop:10, paddingTop:10, borderTop:"1px solid var(--line-soft)"}}>
               {onSeeItemized ? (
                 <a href="#" className="tiny" style={{color:"var(--accent)", fontWeight:600}}
-                   onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); onSeeItemized(); }}>See itemized split</a>
+                   onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); onSeeItemized(); }}>View / edit split</a>
               ) : null}
               {hasReceipt ? <ReceiptReveal cfg={cfg} receipt={receipt} inline={true} /> : null}
             </div>
@@ -9176,7 +9176,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
             ? <button className="x" onClick={shareSplit}>Share</button>
             : step === "edit"
               ? <button className="x" onClick={doSplit} disabled={!canSplit}
-                  style={{opacity: canSplit ? 1 : 0.4}}>{split ? "Update" : "Split"}</button>
+                  style={{opacity: canSplit ? 1 : 0.4}}>{(split || initialSplit) ? "Update" : "Split"}</button>
               : null}
           {onHome && (
             <button className="x" onClick={goHomeSplit} aria-label="Home" title="Home">
@@ -9506,7 +9506,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               </button>
             ) : fromVisit && onSaveToVisit ? (
               <button className="btn primary" style={{marginTop:10}} onClick={doSaveToVisit}>
-                Save to this visit
+                {initialSplit ? "Save changes to this visit" : "Save to this visit"}
               </button>
             ) : onSaveSplit ? (
               <div style={{marginTop:10}}>
