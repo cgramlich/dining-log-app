@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.205.0";
+const APP_VERSION   = "1.206.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6639,10 +6639,10 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   }
   const countVisits = (id)=> visits.filter(v => v.restaurant_id === id).length;
 
-  // collect all city values actually in use (in case a restaurant has a
-  // location that was deleted from the master list), plus the master list
-  const inUse = Array.from(new Set(restaurants.map(r => (r.location || "").trim()).filter(Boolean)));
-  const cityChips = Array.from(new Set([].concat(locations || []).concat(inUse)))
+  // Location filter chips come ONLY from the Settings master list (the curated
+  // set). A place can still have any free-text city, but it won't get a chip
+  // until that city is added in Settings - it just lives under "All".
+  const cityChips = Array.from(new Set(locations || []))
     .sort((a,b)=> a.localeCompare(b));
 
   // Cuisines actually in use, cleaned the same way Near me cleans Google types
@@ -6657,7 +6657,11 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
     return Array.from(seen.values()).sort((a,b)=> a.localeCompare(b));
   })();
 
-  const filter = activeFilter || "All";
+  // If a previously-selected city is no longer a curated chip, fall back to "All"
+  // (no side effect - just treat it as All for this render).
+  const filterRaw = activeFilter || "All";
+  const filter = (filterRaw === "All" || filterRaw === "(no location)" || cityChips.indexOf(filterRaw) !== -1)
+    ? filterRaw : "All";
   const byCity = filter === "All"
     ? restaurants
     : filter === "(no location)"
