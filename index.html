@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.218.0";
+const APP_VERSION   = "1.219.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8239,6 +8239,31 @@ function RestaurantPicker({restaurants, onClose, onPick, title, onPickOther, oth
   );
 }
 
+// ---- Venmo requests ----------------------------------------------------
+// Remember each person's Venmo @handle (keyed by name, on this device) so a
+// repeat request is one tap and pre-addressed.
+function loadVenmoHandles(){ try { return JSON.parse(localStorage.getItem("mc_venmo_handles") || "{}") || {}; } catch(e){ return {}; } }
+function getVenmoHandle(name){ return loadVenmoHandles()[(name || "").trim().toLowerCase()] || ""; }
+function saveVenmoHandle(name, handle){
+  try { const m = loadVenmoHandles(); const k = (name || "").trim().toLowerCase();
+    if (handle) m[k] = handle; else delete m[k];
+    localStorage.setItem("mc_venmo_handles", JSON.stringify(m));
+  } catch(e){}
+}
+// Build a Venmo "charge" (request money) link. Opens the app if installed, else
+// the web. recipients optional - omitted means "pick the person in Venmo".
+function venmoChargeUrl(handle, amountDollars, note){
+  const p = new URLSearchParams();
+  p.set("txn", "charge");
+  p.set("audience", "private");
+  const h = (handle || "").trim().replace(/^@/, "");
+  if (h) p.set("recipients", h);
+  const amt = Math.round((Number(amountDollars) || 0) * 100) / 100;
+  if (amt > 0) p.set("amount", amt.toFixed(2));
+  if (note) p.set("note", note);
+  return "https://venmo.com/?" + p.toString();
+}
+
 // ============================================================
 //   SPLIT A CHECK (standalone - no group order, no menu)
 // ============================================================
@@ -9014,6 +9039,22 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     setExpenseOpen(true);
   }
 
+  // Turn one person's share into a Venmo money request. Uses a saved @handle if
+  // we have one; otherwise asks once and remembers it (blank = pick in Venmo).
+  function requestVenmo(name, amountDollars){
+    let handle = getVenmoHandle(name);
+    if (!handle){
+      const entered = window.prompt("Venmo @username for " + name + "?\n(Leave blank to pick them inside Venmo.)", "");
+      if (entered === null) return;                       // cancelled
+      handle = (entered || "").trim().replace(/^@/, "");
+      if (handle) saveVenmoHandle(name, handle);
+    }
+    const r = (restaurants || []).find(x => x.id === (presetRestId || saveRest));
+    const note = (r && r.name ? r.name + " - " : "") + "your share of the check";
+    const url = venmoChargeUrl(handle, amountDollars, note);
+    try { window.open(url, "_blank"); } catch(e){ window.location.href = url; }
+  }
+
   // Recent visits at the chosen restaurant (newest first). Always include the
   // currently-selected visit (e.g. the one we were launched from) so its radio
   // can show as selected even if it falls outside the most-recent few.
@@ -9487,8 +9528,11 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                       <div className="spl-nm">{p.name}</div>
                       <div className="spl-sub">items {money(p.lineCents)}{breakdown}</div>
                     </div>
-                    <div className="row" style={{gap:8, flex:"none", alignItems:"center"}}>
+                    <div className="row" style={{gap:6, flex:"none", alignItems:"center"}}>
                       <div className="spl-amt">{money(p.totalCents)}</div>
+                      <button className="btn ghost sm" aria-label={"Request " + p.name + "'s share on Venmo"}
+                        style={{padding:"4px 10px", margin:0, minWidth:0, fontSize:"12px", color:"#3D95CE", borderColor:"#3D95CE"}}
+                        onClick={(e)=>{ e.stopPropagation(); requestVenmo(p.name, p.totalCents/100); }}>Venmo</button>
                       <button className="btn ghost sm" aria-label={"Copy " + p.name + "'s share"}
                         style={{padding:"4px 10px", margin:0, minWidth:0, fontSize:"12px"}}
                         onClick={(e)=>{
