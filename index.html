@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.222.0";
+const APP_VERSION   = "1.223.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7883,8 +7883,17 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             const total = usingSplit
               ? ((typeof sp.grand === "number" && sp.grand > 0) ? sp.grand : (rt || itemsSub))
               : ((itemsSub > 0 && rt >= itemsSub && rt <= itemsSub * 1.5) ? rt : (itemsSub || rt));
+            // tax in dollars from the saved split (for the optional itemized
+            // tax/gratuity breakout); null when there's no split to read it from.
+            const spTax = (()=>{
+              if (!sp || sp.tax == null) return null;
+              const t = Number(sp.tax) || 0;
+              if (sp.taxMode === "%"){ const subC = (sp.lines || []).reduce((a,l)=> a + (Number(l.price)||0), 0); return subC * t / 100; }
+              return t;
+            })();
             return { date: v.date, merchant: (r && r.name) || v.restaurant_name || "Restaurant",
               city: (r && (r.city || r.location)) || "", items: items, total: total,
+              tax: spTax,
               people: (sp && sp.people) || [],
               receipts: [
                 (v.receipt && v.receipt.photo) ? { key:"itemized", label:"Itemized check", path:v.receipt.photo } : null,
@@ -8418,6 +8427,7 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
   const items    = (data.items || []).filter(it => it && it.name);
   const receipts = (data.receipts || []).filter(r => r && (r.path || r.dataUrl));
   const [excluded, setExcluded] = useState({});      // item index -> true
+  const [itemizeTaxTip, setItemizeTaxTip] = useState(false);  // break out tax vs tip/gratuity on the PDF
   const [purpose, setPurpose]   = useState("");
   const [client, setClient]     = useState("");
   const [attendees, setAttendees] = useState(()=> (data.people || []).filter(p => p && p.name).map(p => p.name));
@@ -8446,6 +8456,14 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
   const amount = hasItems ? (incSubtotal + incTaxTip) : total;
   const nonExp = hasItems ? Math.max(0, total - amount) : 0;   // deducted dollars (items + their tax/tip)
   const cleanAttendees = attendees.map(s => s.trim()).filter(Boolean);
+  // Optional itemized tax vs tip/gratuity. We know tax (from the scan/split);
+  // everything else above items is tip + gratuity. Split the prorated combined
+  // figure by the tax:combined ratio so the two lines still sum exactly.
+  const taxAmt = (data.tax != null && !isNaN(Number(data.tax))) ? Number(data.tax) : null;
+  const canItemizeTT = hasItems && taxTip > 0.005 && taxAmt != null;
+  const taxShare = canItemizeTT ? incTaxTip * (Math.min(taxAmt, taxTip) / taxTip) : 0;
+  const tipShare = canItemizeTT ? Math.max(0, incTaxTip - taxShare) : 0;
+  const showItemizedTT = canItemizeTT && itemizeTaxTip;
 
   const lines = ["Business meal expense"];
   if (data.date) lines.push("Date: " + fmtDate(data.date));
@@ -8457,7 +8475,14 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
   } else {
     lines.push("Amount: " + money(amount));
   }
-  if (hasItems && taxTip > 0.005) lines.push("Includes tax & tip: " + money(incTaxTip));
+  if (hasItems && taxTip > 0.005){
+    if (showItemizedTT){
+      lines.push("Tax: " + money(taxShare));
+      lines.push("Tip & gratuity: " + money(tipShare));
+    } else {
+      lines.push("Includes tax & tip: " + money(incTaxTip));
+    }
+  }
   if (cleanAttendees.length) lines.push("Attendees: " + cleanAttendees.join(", "));
   if (client.trim()) lines.push("Client / company: " + client.trim());
   if (purpose.trim()) lines.push("Purpose: " + purpose.trim());
@@ -8591,7 +8616,14 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
     } else {
       ledger("Amount", fmt(amount), { bold:true, big:true });
     }
-    if (hasItems && taxTip > 0.005) ledger("Includes tax & tip", fmt(incTaxTip));
+    if (hasItems && taxTip > 0.005){
+      if (showItemizedTT){
+        ledger("Tax", fmt(taxShare));
+        ledger("Tip & gratuity", fmt(tipShare));
+      } else {
+        ledger("Includes tax & tip", fmt(incTaxTip));
+      }
+    }
     y += 18;
 
     // Detail rows with light dividers.
@@ -8755,7 +8787,20 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
           <span>{nonExp > 0.005 ? "Amount expensed" : "Amount"}</span><span>{money(amount)}</span>
         </div>
         {hasItems && taxTip > 0.005 ? (
-          <div className="tiny faint" style={{textAlign:"right", marginTop:2}}>includes {money(incTaxTip)} tax &amp; tip</div>
+          showItemizedTT ? (
+            <div className="tiny faint" style={{textAlign:"right", marginTop:2}}>
+              tax {money(taxShare)} &middot; tip &amp; gratuity {money(tipShare)}
+            </div>
+          ) : (
+            <div className="tiny faint" style={{textAlign:"right", marginTop:2}}>includes {money(incTaxTip)} tax &amp; tip</div>
+          )
+        ) : null}
+        {canItemizeTT ? (
+          <div className="pick-row" style={{display:"flex", alignItems:"center", gap:10, marginTop:8}}
+            onClick={()=> setItemizeTaxTip(v => !v)}>
+            <span className={"rcpt-check" + (itemizeTaxTip ? " on" : "")}>{itemizeTaxTip ? "✓" : ""}</span>
+            <span className="small">Break out tax &amp; gratuity as separate lines</span>
+          </div>
         ) : null}
 
         <div className="fld" style={{marginTop:14}}>
@@ -9666,6 +9711,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
             return { date: todayISO(), merchant: (rsel && rsel.name) || scannedMerchant || "Restaurant",
               city: (rsel && (rsel.city || rsel.location)) || "", items: its,
               total: Math.round(split.grandCents) / 100,
+              tax: Math.round(taxCents) / 100,
               people: split.people.map(p => ({ name: p.name, amount: Math.round(p.totalCents) / 100 })),
               receipts: (()=>{
                 const rs = [];
