@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.208.0";
+const APP_VERSION   = "1.209.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8836,6 +8836,10 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   // but it's shown so it isn't mistaken for tip. Shrinks to $0 as gaps are fixed.
   const unaccountedCents = overriding
     ? Math.max(0, grandPreview - subtotalCents - taxCents - tipCents) : 0;
+  // Double-count guard: items should never exceed the receipt total. If they do
+  // (by >5%), the same receipt was likely scanned twice. Live, so it clears when
+  // the duplicate lines are removed.
+  const looksDoubled = overriding && overrideCents > 0 && subtotalCents > Math.round(overrideCents * 1.05);
 
   function doSplit(){
     const res = computeManualSplit(lines, people, assign, "", String(grandPreview/100));
@@ -9059,10 +9063,13 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
           <div>
             <div className="card small muted">
               Scan the check (or enter it by hand), say who's at the table, and tap
-              to assign each item. You can add more than one photo - e.g. the
-              itemized receipt plus a separate tax/tip/total slip - and they're read
-              together. Tax and tip are split proportionally so it adds up to the
-              real total. Save it at the end to keep it, or just share it.
+              to assign each item. Tax and tip are split proportionally so it adds
+              up to the real total. Save it at the end to keep it, or just share it.
+              <div style={{marginTop:8, color:"var(--accent)"}}>
+                One photo is usually all you need - most receipts have the items
+                AND the totals. Only add a second photo if your tax/tip/total are
+                on a separate slip. Don't scan two copies of the same receipt.
+              </div>
             </div>
             {errMsg && <div className="card" style={{borderColor:"var(--danger)",color:"var(--danger)"}}>{errMsg}</div>}
             {busy ? (
@@ -9254,7 +9261,17 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 placeholder="0.00" inputMode="decimal"
                 onChange={e=> setRtotal(e.target.value)} />
             </label>
-            {unaccountedCents > 1 && (
+            {looksDoubled && (
+              <div className="card" style={{margin:"10px 0 0", padding:"10px 12px",
+                   border:"1px solid rgba(217,96,78,0.5)", background:"rgba(217,96,78,0.10)"}}>
+                <div style={{fontWeight:600, color:"#e7a99e"}}>Items add up to more than the total</div>
+                <div className="tiny faint" style={{marginTop:4, lineHeight:1.4}}>
+                  This usually means the same receipt was scanned twice. Remove the
+                  duplicate lines above - or start over and scan just one photo.
+                </div>
+              </div>
+            )}
+            {!looksDoubled && unaccountedCents > 1 && (
               <div className="card" style={{margin:"10px 0 0", padding:"10px 12px",
                    border:"1px solid rgba(201,124,44,0.45)", background:"rgba(201,124,44,0.08)"}}>
                 <div className="between" style={{alignItems:"baseline"}}>
@@ -12057,8 +12074,11 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
             <div className="small" style={{color:"#e7a99e", marginTop:6}}>{receiptErr}</div>
           )}
           <div className="lbl" style={{marginTop:14, marginBottom:2}}>Receipts</div>
-          <div className="tiny faint" style={{marginBottom:8}}>
-            Scan or upload the itemized check and the final / total receipt - add either or both. The expense item attaches the final.
+          <div className="tiny faint" style={{marginBottom:8, lineHeight:1.45}}>
+            Got one receipt? Most have it all - just <strong>Scan itemized check</strong>
+            {" "}below (it reads your dishes and grabs the total). Only add a
+            {" "}<strong>final / total receipt</strong> if your tip/total is on a separate
+            {" "}slip. The expense attaches the final if you add one, otherwise the itemized.
           </div>
           {!receiptSlot && (
             <button className="btn ghost sm" style={{width:"100%", marginBottom:8}} disabled={receiptBusy}
