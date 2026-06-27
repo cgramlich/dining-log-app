@@ -79,9 +79,17 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       position:sticky; top:0; z-index:30;
       background:var(--bg);
       padding:calc(14px + env(safe-area-inset-top)) 20px 12px;
+      display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
     }
     .topbar h1{font-size:30px; letter-spacing:-0.02em;}
     .topbar .sub{font-size:13px; color:var(--text-faint); margin-top:2px; letter-spacing:0.04em; text-transform:uppercase;}
+    .topbar-share{
+      flex:none; width:40px; height:40px; border-radius:50%; margin-top:3px;
+      background:var(--surface); border:1px solid var(--line);
+      display:flex; align-items:center; justify-content:center; cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .topbar-share:active{ background:var(--surface-2); border-color:var(--accent); }
     .content{padding:4px 20px 24px;}
 
     /* ---- sync banner ---- */
@@ -863,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.217.0";
+const APP_VERSION   = "1.218.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5384,7 +5392,7 @@ function App(){
 
   return (
     <div id="app-shell">
-      <TopBar tab={tab} />
+      <TopBar tab={tab} onShare={shareApp} />
 
       {/* update available - tap to cache-bust reload */}
       {update && (
@@ -6185,7 +6193,7 @@ function App(){
 /* ============================================================
    TOP BAR
    ============================================================ */
-function TopBar({tab}){
+function TopBar({tab, onShare}){
   const titles = {
     history:["MenuCaptain","Where you have been"],
     restaurants:["Places","Your restaurants & menus"],
@@ -6195,8 +6203,16 @@ function TopBar({tab}){
   const [t,s] = titles[tab] || titles.history;
   return (
     <div className="topbar">
-      <h1>{t}</h1>
-      <div className="sub">{s}</div>
+      <div>
+        <h1>{t}</h1>
+        <div className="sub">{s}</div>
+      </div>
+      {onShare ? (
+        <button className="topbar-share" onClick={onShare}
+          aria-label="Share MenuCaptain" title="Share MenuCaptain">
+          <Icon name="share" size={19} color="var(--accent)" />
+        </button>
+      ) : null}
     </div>
   );
 }
