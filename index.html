@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.221.0";
+const APP_VERSION   = "1.222.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3566,6 +3566,7 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
     "You are reading a restaurant receipt (an itemized check) from the "+
     "attached photo(s). Respond with ONLY valid JSON, no other text:\n"+
     "{\n"+
+    '  "merchant": string|null,\n'+
     '  "items": [ { "name": string, "qty": integer, "price": number|null, "menu_match": string|null } ],\n'+
     '  "subtotal": number|null,\n'+
     '  "tax": number|null,\n'+
@@ -3574,6 +3575,8 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
     '  "total": number|null\n'+
     "}\n\n"+
     "Rules:\n"+
+    "- merchant: the restaurant or business name printed at the top of the "+
+    "receipt (not the address, phone, or 'Guest Check'), or null if unclear.\n"+
     "- items: food and drink line items ONLY. Skip tax, tip, subtotal, total, "+
     "discounts, service charges, table/server/payment lines.\n"+
     "- name: the item as printed, lightly cleaned up. Expand an abbreviation "+
@@ -3667,10 +3670,11 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
   const tax = num(parsed.tax);
   const tip = num(parsed.tip);
   const service_charge = num(parsed.service_charge);
+  const merchant = parsed.merchant ? String(parsed.merchant).trim().slice(0, 80) : "";
   logMsg("RECEIPT","Parsed " + items.length + " line item(s), total=" + total +
-         " tax=" + tax + " tip=" + tip + " svc=" + service_charge);
+         " tax=" + tax + " tip=" + tip + " svc=" + service_charge + " merchant=" + merchant);
   if (!items.length) throw new Error("No line items found on that receipt. Try a clearer photo.");
-  return { items: items, total: total, subtotal: subtotal, tax: tax, tip: tip, service_charge: service_charge };
+  return { items: items, total: total, subtotal: subtotal, tax: tax, tip: tip, service_charge: service_charge, merchant: merchant };
 }
 
 /* ============================================================
@@ -8865,6 +8869,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const [saveVisit, setSaveVisit] = useState(presetVisitId || "new"); // "new" or an existing visit id
   const [splitLabel, setSplitLabel] = useState(initialSplit && initialSplit.label ? initialSplit.label : "");  // standalone save label
   const [shots, setShots]     = useState([]);   // staged receipt photos (dataUrls), read together
+  const [scannedMerchant, setScannedMerchant] = useState("");   // business name read off the receipt
   const [expenseOpen, setExpenseOpen] = useState(false);   // expense-item sheet over the result
   const [showRcpts, setShowRcpts] = useState(false);       // reveal receipt images on the split screen
   const fileRef = useRef(null);
@@ -8922,6 +8927,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       setTip(tipN > 0.005 ? tipN.toFixed(2) : "");
       setTipMode("$");
       setRtotal(parsed.total != null ? Number(parsed.total).toFixed(2) : "");
+      if (parsed.merchant) setScannedMerchant(parsed.merchant);
       setAssign({});
       logMsg("SPLIT","Receipt parsed: " + newLines.length + " lines, total=" + parsed.total);
       // This one scan can ALSO log what you ate: hand the parsed items + photo
@@ -9657,7 +9663,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
           data={(()=>{
             const rsel = (restaurants || []).find(x => x.id === (presetRestId || saveRest));
             const its = lines.filter(l => (l.name || "").trim()).map(l => ({ name: l.name.trim(), price: Number(l.price) || 0 }));
-            return { date: todayISO(), merchant: (rsel && rsel.name) || "Restaurant",
+            return { date: todayISO(), merchant: (rsel && rsel.name) || scannedMerchant || "Restaurant",
               city: (rsel && (rsel.city || rsel.location)) || "", items: its,
               total: Math.round(split.grandCents) / 100,
               people: split.people.map(p => ({ name: p.name, amount: Math.round(p.totalCents) / 100 })),
