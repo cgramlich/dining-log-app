@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.206.0";
+const APP_VERSION   = "1.207.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3559,6 +3559,10 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
     "attached photo(s). Respond with ONLY valid JSON, no other text:\n"+
     "{\n"+
     '  "items": [ { "name": string, "qty": integer, "price": number|null, "menu_match": string|null } ],\n'+
+    '  "subtotal": number|null,\n'+
+    '  "tax": number|null,\n'+
+    '  "tip": number|null,\n'+
+    '  "service_charge": number|null,\n'+
     '  "total": number|null\n'+
     "}\n\n"+
     "Rules:\n"+
@@ -3578,6 +3582,14 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
     "- price: the line's printed price as a number, the TOTAL for the whole line "+
     "(all units together), or null if unreadable. When qty > 1 the per-unit price "+
     "is price / qty.\n"+
+    "- subtotal: the printed subtotal (items before tax/tip/charges), or null.\n"+
+    "- tax: the printed tax amount, or null.\n"+
+    "- tip: a gratuity/tip the customer ADDED (a line labeled Tip or Gratuity, "+
+    "often handwritten or on the card slip), or null.\n"+
+    "- service_charge: a MANDATORY auto-gratuity or service charge baked into the "+
+    "check (e.g. 'Service Charge', 'Auto Gratuity', '20% gratuity', 'Party of 6+', "+
+    "'Large Party', '6 or More') - the amount, or null. Keep it SEPARATE from a "+
+    "customer-added tip.\n"+
     "- total: the final total printed on the check, or null.\n";
   if (menuItemNames && menuItemNames.length){
     prompt +=
@@ -3641,11 +3653,16 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
       ? null : Number(it.price),
     menu_match: it.menu_match ? String(it.menu_match).trim() : null,
   })).filter(it => it.name);
-  const total = (parsed.total === null || parsed.total === undefined || isNaN(Number(parsed.total)))
-    ? null : Number(parsed.total);
-  logMsg("RECEIPT","Parsed " + items.length + " line item(s), total=" + total);
+  const num = (v)=> (v === null || v === undefined || isNaN(Number(v))) ? null : Number(v);
+  const total = num(parsed.total);
+  const subtotal = num(parsed.subtotal);
+  const tax = num(parsed.tax);
+  const tip = num(parsed.tip);
+  const service_charge = num(parsed.service_charge);
+  logMsg("RECEIPT","Parsed " + items.length + " line item(s), total=" + total +
+         " tax=" + tax + " tip=" + tip + " svc=" + service_charge);
   if (!items.length) throw new Error("No line items found on that receipt. Try a clearer photo.");
-  return { items: items, total: total };
+  return { items: items, total: total, subtotal: subtotal, tax: tax, tip: tip, service_charge: service_charge };
 }
 
 /* ============================================================
@@ -8701,12 +8718,27 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
         qty: it.qty || 1,   // carried so a bundled line ("3 GL x $66") can be split into units
       }));
       setLines(newLines);
-      // Put the receipt's extra (total - items) into Tax so the calculated
-      // total stays correct and "auto" never drops the baked-in tax.
+      // Break out tax vs tip from the receipt. Auto-gratuity / service charge
+      // ("party of 6+") folds into TIP, not tax. We trust the printed tax and
+      // let tip absorb the rest (tip + auto-grat + any rounding) so the split
+      // total always equals the receipt total exactly.
       const subDollars = newLines.reduce((a,l)=> a + (Number(l.price)||0), 0);
-      const extra = parsed.total != null ? (Number(parsed.total) - subDollars) : 0;
-      setTax(extra > 0.005 ? extra.toFixed(2) : "");
+      const extra = parsed.total != null ? Math.max(0, Number(parsed.total) - subDollars) : 0;
+      const clamp = (v)=> Math.max(0, Math.min(v, extra));
+      let taxN = 0, tipN = 0;
+      if (parsed.total != null && parsed.tax != null){
+        taxN = clamp(parsed.tax);
+        tipN = extra - taxN;                                   // tip + auto-grat + remainder
+      } else if (parsed.total != null && (parsed.tip != null || parsed.service_charge != null)){
+        tipN = clamp((parsed.tip || 0) + (parsed.service_charge || 0));
+        taxN = extra - tipN;
+      } else {
+        taxN = extra;                                          // fallback: all into tax (old behavior)
+      }
+      setTax(taxN > 0.005 ? taxN.toFixed(2) : "");
       setTaxMode("$");
+      setTip(tipN > 0.005 ? tipN.toFixed(2) : "");
+      setTipMode("$");
       setRtotal("");
       setAssign({});
       logMsg("SPLIT","Receipt parsed: " + newLines.length + " lines, total=" + parsed.total);
