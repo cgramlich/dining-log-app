@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.224.0";
+const APP_VERSION   = "1.225.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5312,6 +5312,38 @@ function App(){
     }
   }
 
+  // Save edits to an EXISTING restaurant (reused by the edit-place flow nested in
+  // the visit editor). Mirrors the editRestaurant overlay's save. Returns false
+  // if a photo upload fails so the caller can keep the form open.
+  async function saveRestaurantEdit(rec, extras){
+    const newLocationsToAdd = (extras && extras.newLocationsToAdd) || [];
+    const photoBlob = extras && extras.photoBlob;
+    const photoPath = extras && extras.photoPath;
+    if (photoBlob && photoPath){
+      try { await uploadPhotoBatch([{ path: photoPath, blob: photoBlob }]); }
+      catch(err){ flash("Photo upload failed - " + err.message); return false; }
+    }
+    let nextLocations = locations, recOut = rec;
+    if (newLocationsToAdd.length){
+      const lcMap = new Map();
+      locations.forEach(l => lcMap.set(l.toLowerCase(), l));
+      const trueNew = [];
+      newLocationsToAdd.forEach(loc => {
+        const trimmed = (loc || "").trim(); if (!trimmed) return;
+        const existingCasing = lcMap.get(trimmed.toLowerCase());
+        if (existingCasing){ if (recOut.location === trimmed) recOut = Object.assign({}, recOut, { location: existingCasing }); }
+        else { trueNew.push(trimmed); lcMap.set(trimmed.toLowerCase(), trimmed); }
+      });
+      if (trueNew.length) nextLocations = locations.concat(trueNew).sort((a,b)=> a.localeCompare(b));
+    }
+    const next = restaurants.map(r => r.id === recOut.id ? recOut : r);
+    const updates = { restaurants: next }; const files = ["restaurants"];
+    if (nextLocations !== locations){ updates.locations = nextLocations; files.push("locations"); }
+    commit(updates, files);
+    flash("Restaurant updated");
+    return true;
+  }
+
   async function commit(updates, filesToPush){
     // updates: {restaurants?, menus?, visits?, locations?}; filesToPush: [logical names]
     const nextR = updates.restaurants !== undefined ? updates.restaurants : restaurants;
@@ -5961,6 +5993,8 @@ function App(){
           restaurants={restaurants}
           menus={menus}
           visits={visits}
+          locations={locations}
+          onSaveRestaurant={saveRestaurantEdit}
           presetRestaurantId={overlay.restaurantId}
           existing={overlay.type==="editVisit" ? overlay.visit : null}
           seedFromSplit={overlay.seedFromSplit || null}
@@ -11476,7 +11510,8 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
+function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
+  const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   // seedFromSplit (new visits only): {items, total, splitDraft, receiptDataUrl} handed
   // over when you tap "Log as a visit" from a standalone split - so that one receipt
   // scan + split carries straight into logging the meal (no re-scan, no re-entry).
@@ -12149,6 +12184,13 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
             </>
           )}
         </div>
+        {chosenRest && !restOpen && onSaveRestaurant ? (
+          <div className="tiny" style={{margin:"-8px 2px 14px"}}>
+            <a href="#" style={{color:"var(--accent)"}}
+               onClick={(e)=>{ e.preventDefault(); setEditPlaceOpen(true); }}>
+              Edit {chosenRest.name}'s details (address, link to Google, photo)</a>
+          </div>
+        ) : null}
 
         <label className="fld"><span className="lbl">Date</span>
           <input className="input" type="date" value={date}
@@ -12755,6 +12797,20 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
       {photoLightbox && (
         <PhotoLightbox cfg={cfg} paths={photoLightbox.paths} index={photoLightbox.index}
           onClose={()=> setPhotoLightbox(null)} />
+      )}
+      {editPlaceOpen && chosenRest && (
+        // Nested higher-z layer so the visit draft is preserved underneath.
+        <div style={{position:"fixed", inset:0, zIndex:60}}>
+          <RestaurantForm
+            existing={chosenRest}
+            locations={locations || []}
+            cfg={cfg}
+            onClose={()=> setEditPlaceOpen(false)}
+            onSave={async (rec, extras)=>{
+              const ok = onSaveRestaurant ? await onSaveRestaurant(rec, extras) : true;
+              if (ok !== false) setEditPlaceOpen(false);
+            }} />
+        </div>
       )}
     </div>
   );
