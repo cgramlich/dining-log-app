@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.213.0";
+const APP_VERSION   = "1.214.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -12190,30 +12190,33 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
               {receiptBusy ? "Reading the check..." : "Edit dishes from the check"}
             </button>
           ) : null}
-          <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
-            onClick={()=> setSplitOpen(true)}>{splitDraft ? "See itemized split" : "Split the check"}</button>
-          {splitDraft && (
+          {splitDraft ? (
             <div style={{marginTop:8}}>
               <VisitSplit split={splitDraft} />
               <div className="tiny muted" style={{marginTop:6}}>
                 <a href="#" style={{color:"var(--accent)"}}
-                   onClick={(e)=>{ e.preventDefault(); setSplitOpen(true); }}>edit</a>
+                   onClick={(e)=>{ e.preventDefault(); setSplitOpen(true); }}>Edit split</a>
                 {" \u00b7 "}
                 <a href="#" style={{color:"var(--accent)"}}
-                   onClick={(e)=>{ e.preventDefault(); setSplitDraft(null); }}>remove</a>
+                   onClick={(e)=>{ e.preventDefault(); setSplitDraft(null); }}>Remove</a>
               </div>
             </div>
+          ) : (
+            <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
+              onClick={()=> setSplitOpen(true)}>Split the check</button>
           )}
           {receiptErr && (
             <div className="small" style={{color:"#e7a99e", marginTop:6}}>{receiptErr}</div>
           )}
           <div className="lbl" style={{marginTop:14, marginBottom:2}}>Receipts</div>
-          <div className="tiny faint" style={{marginBottom:8, lineHeight:1.45}}>
-            Got one receipt? Most have it all - just <strong>Scan or upload itemized check</strong>
-            {" "}below (it reads your dishes and grabs the total). Only add a
-            {" "}<strong>final / total receipt</strong> if your tip/total is on a separate
-            {" "}slip. The expense attaches the final if you add one, otherwise the itemized.
-          </div>
+          {!receiptSlot && !finalReceiptSlot && (
+            <div className="tiny faint" style={{marginBottom:8, lineHeight:1.45}}>
+              Got one receipt? Most have it all - just <strong>Scan or upload itemized check</strong>
+              {" "}below (it reads your dishes and grabs the total). Only add a
+              {" "}<strong>final / total receipt</strong> if your tip/total is on a separate
+              {" "}slip. The expense attaches the final if you add one, otherwise the itemized.
+            </div>
+          )}
           {!receiptSlot && (
             <button className="btn ghost sm" style={{width:"100%", marginBottom:8}} disabled={receiptBusy}
               onClick={()=> receiptRef.current && receiptRef.current.click()}>
