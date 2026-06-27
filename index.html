@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.215.0";
+const APP_VERSION   = "1.216.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4481,7 +4481,7 @@ function installPlatform(){
 }
 // The "Add to Home Screen" hint. Renders nothing once installed (standalone).
 // Android/Chrome gets a one-tap button; iOS and others get the manual steps.
-function InstallHint({ onClose }){
+function InstallHint({ onClose, force }){
   const [evt, setEvt] = useState(_installEvent);
   const [installed, setInstalled] = useState(false);
   useEffect(()=>{
@@ -4492,7 +4492,8 @@ function InstallHint({ onClose }){
     return ()=>{ window.removeEventListener("mc-install-ready", onReady);
                  window.removeEventListener("appinstalled", onInstalled); };
   }, []);
-  if (isStandalone() || installed) return null;
+  // force = shown on demand (Settings button), so render even if already installed.
+  if (!force && (isStandalone() || installed)) return null;
   const plat = installPlatform();
   async function doInstall(){
     if (!evt) return;
@@ -5491,6 +5492,7 @@ function App(){
             pendingReqs={pendingReqs}
             onEdit={()=> setOverlay({ type:"settings" })}
             onOpenHelp={()=> setOverlay({ type:"help" })}
+            onShowInstall={()=> setOverlay({ type:"installHelp" })}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             onOpenPassport={()=> setOverlay({ type:"passport" })}
             counts={{
@@ -6109,6 +6111,17 @@ function App(){
 
       {overlay && overlay.type === "help" && (
         <HelpView onClose={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
+      )}
+      {overlay && overlay.type === "installHelp" && (
+        <div className="overlay">
+          <div className="ovhead">
+            <button className="x" onClick={()=> setOverlay(null)}><Icon name="back" size={20} /></button>
+            <h2>Add to Home Screen</h2><span style={{width:34}} />
+          </div>
+          <div className="ovbody">
+            <InstallHint force={true} />
+          </div>
+        </div>
       )}
 
       {overlay && overlay.type === "yearInFood" && (
@@ -16859,7 +16872,7 @@ function ShareInbox({config, onClose, onHome}){
 function SettingsView({config, profile, onProfileChange, onOpenConnections, pendingReqs, onEdit, counts, lastSync, onResync,
                        locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
-                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onOpenYearInFood, onOpenPassport}){
+                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
   const [theme,setTheme]     = useState(currentTheme());
   const [showPrint,setShowPrint] = useState(false);   // printable-history overlay
@@ -17106,6 +17119,12 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           <Icon name="info" size={15} color="var(--text-dim)" />
           User guide
         </button>
+        {onShowInstall ? (
+          <button className="btn ghost sm" onClick={onShowInstall}>
+            <Icon name="home" size={15} color="var(--text-dim)" />
+            Add to Home Screen
+          </button>
+        ) : null}
       </div>
 
       <div className="set-group">About</div>
