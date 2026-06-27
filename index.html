@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.207.0";
+const APP_VERSION   = "1.208.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8718,28 +8718,18 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
         qty: it.qty || 1,   // carried so a bundled line ("3 GL x $66") can be split into units
       }));
       setLines(newLines);
-      // Break out tax vs tip from the receipt. Auto-gratuity / service charge
-      // ("party of 6+") folds into TIP, not tax. We trust the printed tax and
-      // let tip absorb the rest (tip + auto-grat + any rounding) so the split
-      // total always equals the receipt total exactly.
-      const subDollars = newLines.reduce((a,l)=> a + (Number(l.price)||0), 0);
-      const extra = parsed.total != null ? Math.max(0, Number(parsed.total) - subDollars) : 0;
-      const clamp = (v)=> Math.max(0, Math.min(v, extra));
-      let taxN = 0, tipN = 0;
-      if (parsed.total != null && parsed.tax != null){
-        taxN = clamp(parsed.tax);
-        tipN = extra - taxN;                                   // tip + auto-grat + remainder
-      } else if (parsed.total != null && (parsed.tip != null || parsed.service_charge != null)){
-        tipN = clamp((parsed.tip || 0) + (parsed.service_charge || 0));
-        taxN = extra - tipN;
-      } else {
-        taxN = extra;                                          // fallback: all into tax (old behavior)
-      }
+      // Anchor the split to the receipt's printed total, and fill tax + tip from
+      // the scan (auto-gratuity / "party of 6+" folds into TIP, not tax).
+      // Anything the scan couldn't account for - e.g. a price it failed to read -
+      // surfaces as "Unaccounted" below rather than silently hiding in tip. As
+      // you fill the missing price, that unaccounted amount shrinks to $0.
+      const taxN = parsed.tax != null ? Number(parsed.tax) : 0;
+      const tipN = (parsed.tip || 0) + (parsed.service_charge || 0);
       setTax(taxN > 0.005 ? taxN.toFixed(2) : "");
       setTaxMode("$");
       setTip(tipN > 0.005 ? tipN.toFixed(2) : "");
       setTipMode("$");
-      setRtotal("");
+      setRtotal(parsed.total != null ? Number(parsed.total).toFixed(2) : "");
       setAssign({});
       logMsg("SPLIT","Receipt parsed: " + newLines.length + " lines, total=" + parsed.total);
       // This one scan can ALSO log what you ate: hand the parsed items + photo
@@ -8840,6 +8830,12 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const overriding = rtotal !== "" && overrideCents > 0;
   const grandPreview = overriding ? Math.max(subtotalCents, overrideCents) : computedGrandCents;
   const canSplit = people.length >= 2 && grandPreview > 0;
+  // The part of the total not explained by items + tax + tip. Only meaningful
+  // when a receipt total anchors the split (overriding) - e.g. a price the scan
+  // couldn't read. It's still split across everyone (it's part of the bill),
+  // but it's shown so it isn't mistaken for tip. Shrinks to $0 as gaps are fixed.
+  const unaccountedCents = overriding
+    ? Math.max(0, grandPreview - subtotalCents - taxCents - tipCents) : 0;
 
   function doSplit(){
     const res = computeManualSplit(lines, people, assign, "", String(grandPreview/100));
@@ -9258,6 +9254,20 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 placeholder="0.00" inputMode="decimal"
                 onChange={e=> setRtotal(e.target.value)} />
             </label>
+            {unaccountedCents > 1 && (
+              <div className="card" style={{margin:"10px 0 0", padding:"10px 12px",
+                   border:"1px solid rgba(201,124,44,0.45)", background:"rgba(201,124,44,0.08)"}}>
+                <div className="between" style={{alignItems:"baseline"}}>
+                  <span style={{fontWeight:600}}>Unaccounted</span>
+                  <span style={{fontWeight:700}}>{money(unaccountedCents)}</span>
+                </div>
+                <div className="tiny faint" style={{marginTop:4, lineHeight:1.4}}>
+                  Part of the total the scan couldn't match to items, tax, or tip -
+                  often a price it missed. Check for a blank price above; it's still
+                  split across everyone. Edit an item or the total to clear it.
+                </div>
+              </div>
+            )}
             <div className="small muted" style={{margin:"8px 2px 0"}}>
               Splitting {money(grandPreview)}.
               {(taxCents>0 || tipCents>0 || grandPreview>subtotalCents)
