@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.210.0";
+const APP_VERSION   = "1.211.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9110,7 +9110,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                   </div>
                 )}
                 <button className="btn" onClick={()=> fileRef.current && fileRef.current.click()}>
-                  {shots.length ? "Add another photo" : "Scan the check"}
+                  {shots.length ? "Add another photo" : "Scan or upload the check"}
                 </button>
                 {shots.length > 0 && (
                   <button className="btn primary" style={{marginTop:10}} onClick={readShots}>
@@ -10327,7 +10327,7 @@ function ActionSheet({onClose, onPick}){
         <div className="sheet-item" onClick={()=> onPick("splitCheck")}>
           <span className="ic"><Icon name="receipt" size={21} color="#e0764a" /></span>
           <div><div className="t1">Split a check</div>
-            <div className="t2">Scan a receipt and split it by who had what</div></div>
+            <div className="t2">Scan or upload a receipt and split it by who had what</div></div>
         </div>
         <div className="sheet-item" onClick={()=> onPick("nearMe")}>
           <span className="ic"><Icon name="locate" size={21} color="#e0764a" /></span>
@@ -12093,7 +12093,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
           )}
           <div className="lbl" style={{marginTop:14, marginBottom:2}}>Receipts</div>
           <div className="tiny faint" style={{marginBottom:8, lineHeight:1.45}}>
-            Got one receipt? Most have it all - just <strong>Scan itemized check</strong>
+            Got one receipt? Most have it all - just <strong>Scan or upload itemized check</strong>
             {" "}below (it reads your dishes and grabs the total). Only add a
             {" "}<strong>final / total receipt</strong> if your tip/total is on a separate
             {" "}slip. The expense attaches the final if you add one, otherwise the itemized.
@@ -12101,7 +12101,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
           {!receiptSlot && (
             <button className="btn ghost sm" style={{width:"100%", marginBottom:8}} disabled={receiptBusy}
               onClick={()=> receiptRef.current && receiptRef.current.click()}>
-              {receiptBusy ? <span className="spin" /> : <Icon name="camera" size={15} />} Scan itemized check
+              {receiptBusy ? <span className="spin" /> : <Icon name="camera" size={15} />} Scan or upload itemized check
             </button>
           )}
           {receiptSlot && (
@@ -12150,7 +12150,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
                 disabled={finalReceiptBusy}
                 onClick={()=> finalReceiptRef.current && finalReceiptRef.current.click()}>
                 {finalReceiptBusy ? <span className="spin" /> : <Icon name="receipt" size={16} />}
-                {finalReceiptBusy ? "Adding..." : "Add final / total receipt"}
+                {finalReceiptBusy ? "Adding..." : "Scan or upload final / total receipt"}
               </button>
               <div className="tiny faint" style={{marginTop:4}}>
                 The payment slip with tip and total. Scan or upload it - this is the one the expense item attaches.
@@ -13606,7 +13606,7 @@ function SplitCheck({cfg, menuSnapshot, picks}){
             style={{display:"none"}} onChange={onPick} />
           <button className="btn ghost sm" style={{marginTop:12}} disabled={busy}
             onClick={()=> fileRef.current && fileRef.current.click()}>
-            {busy ? <span className="spin" /> : (receipt ? "Re-scan the receipt" : "Scan the receipt")}
+            {busy ? <span className="spin" /> : (receipt ? "Re-scan or upload the receipt" : "Scan or upload the receipt")}
           </button>
         </>
       )}
