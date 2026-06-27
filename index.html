@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.216.0";
+const APP_VERSION   = "1.217.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5085,7 +5085,7 @@ function App(){
   // detected from the share sheet); increments meta.app_shares.
   async function shareApp(){
     const shareUrl = "https://menucaptain.com/welcome.html";
-    const txt = "I'm using MenuCaptain to remember every great meal - thought you'd like it.";
+    const txt = "I'm using MenuCaptain to remember every great meal. Thought you'd like it.";
     try {
       if (navigator.share){ await navigator.share({ title:"MenuCaptain", text:txt, url:shareUrl }); }
       else { await navigator.clipboard.writeText(shareUrl); flash("Link copied - share it with someone"); }
