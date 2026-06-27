@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.209.0";
+const APP_VERSION   = "1.210.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8749,6 +8749,19 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     setRtotal(""); setTax(""); setTip(""); setAssign({}); setErrMsg(""); setStep("edit");
   }
 
+  // Wipe the whole check (scanned photos, items, tax/tip/total, assignments,
+  // computed split) and go back to the start - so a re-scan begins clean and
+  // can't merge with the old photos (the cause of double-counted items). People
+  // are kept, since re-typing the table is the tedious part.
+  function startOver(){
+    if ((shots.length || lines.length) &&
+        !window.confirm("Start over? This clears the scanned receipt, items, and totals. The people you added stay.")) return;
+    setShots([]); setLines([]); setAssign({});
+    setTax(""); setTaxMode("$"); setTip(""); setTipMode("$"); setRtotal("");
+    setSplit(null); setErrMsg("");
+    setStep("pick");
+  }
+
   // ---- people editor ----
   function addPerson(){
     const nm = (nameDraft || "").trim().slice(0, 40);
@@ -9297,6 +9310,9 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
             {!canSplit && <div className="tiny faint" style={{textAlign:"center",marginTop:8}}>
               Add at least two people and a total to split.
             </div>}
+            <button className="btn ghost sm" style={{marginTop:10, width:"100%"}} onClick={startOver}>
+              Start over / re-scan
+            </button>
           </div>
         )}
 
@@ -9403,6 +9419,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
             ) : null}
             <button className="btn ghost" style={{marginTop:10}} onClick={()=> setExpenseOpen(true)}>Expense this</button>
             <button className="btn ghost" style={{marginTop:10}} onClick={()=> setStep("edit")}>Edit</button>
+            <button className="btn ghost" style={{marginTop:10}} onClick={startOver}>Start over / re-scan</button>
             <button className="btn ghost" style={{marginTop:10}} onClick={onClose}>Close without saving</button>
           </div>
         )}
@@ -11237,6 +11254,7 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
       ? { kind:"existing", path: existing.receipt.final_photo } : null);
   const [finalReceiptBusy,setFinalReceiptBusy] = useState(false);
   const [finalReceiptShow,setFinalReceiptShow] = useState(false);
+  const [showFinalManual,setShowFinalManual] = useState(false);  // reveal final-receipt slot when itemized already has the total
   const finalReceiptRef = useRef(null);
   async function onFinalReceiptPicked(e){
     const file = e.target.files && e.target.files[0];
@@ -12115,7 +12133,18 @@ function VisitForm({restaurants, menus, visits, presetRestaurantId, existing, cf
               the expense item attaches. Scan or upload (the picker offers both). */}
           <input ref={finalReceiptRef} type="file" accept="image/*"
             style={{display:"none"}} onChange={onFinalReceiptPicked} />
-          {!finalReceiptSlot && (
+          {!finalReceiptSlot && receiptTotal != null && !showFinalManual && (
+            /* The itemized scan already has the total, so the separate slot is
+               usually unnecessary - collapse it to a one-line opt-in. */
+            <div className="tiny faint" style={{marginTop:8}}>
+              Total captured from the itemized check.
+              {" "}
+              <a href="#" style={{color:"var(--accent)"}}
+                 onClick={(e)=>{ e.preventDefault(); setShowFinalManual(true); }}>
+                Total on a separate slip? Add it</a>
+            </div>
+          )}
+          {!finalReceiptSlot && (receiptTotal == null || showFinalManual) && (
             <div>
               <button className="btn ghost sm" style={{marginTop:10, width:"100%"}}
                 disabled={finalReceiptBusy}
