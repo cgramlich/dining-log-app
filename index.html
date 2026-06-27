@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.223.0";
+const APP_VERSION   = "1.224.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7193,6 +7193,10 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const [enrichErr, setEnrichErr]   = useState("");
   const [linkBusy, setLinkBusy]     = useState(false);
   const [linkErr, setLinkErr]       = useState("");
+  const [linkQuery, setLinkQuery]   = useState(()=>
+    (restaurant && restaurant.name ? restaurant.name : "")
+    + (restaurant && (restaurant.address || restaurant.location)
+        ? ", " + (restaurant.address || restaurant.location) : ""));
   const [candidates, setCandidates] = useState(null);   // Google match candidates, or null
   // ---- menu drag-to-reorder state (pointer events; touch + mouse) ----
   const [dragMenuId, setDragMenuId] = useState(null);   // id being dragged (for styling)
@@ -7244,11 +7248,15 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   // "Find on Google": for a place with NO google_place_id, text-search by name
   // (+ city + coords bias) and let the user confirm the match. The pick stamps
   // google_place_id (via onLinkGoogle); "Update from Google" can then enrich.
-  async function linkSearch(){
+  async function linkSearch(override){
     if (linkBusy) return;
     setLinkBusy(true); setLinkErr(""); setCandidates(null);
     try {
-      const body = { query: r.name + (r.location ? (" " + r.location) : "") };
+      // Prefer the full address (best disambiguator for generic names like
+      // "W Lounge"); fall back to city; allow a typed override to refine.
+      const auto = r.name + (r.address ? (", " + r.address) : (r.location ? (", " + r.location) : ""));
+      const q = (override && override.trim()) ? override.trim() : auto;
+      const body = { query: q, max_results: 8 };
       if (r.lat != null && r.lng != null) { body.lat = r.lat; body.lng = r.lng; }
       const data = await placesSearchText(cfg, body);
       setCandidates((data && data.places) || []);
@@ -7588,11 +7596,24 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         {enrichErr ? <div className="tiny faint" style={{marginTop:6}}>{enrichErr}</div> : null}
 
         {!r.google_place_id && (
-          <button className="btn ghost" onClick={linkSearch} disabled={linkBusy} style={{marginTop:8}}>
-            {linkBusy
-              ? <span className="spin" />
-              : <><Icon name="locate" size={16} color="var(--accent)" />Find on Google</>}
-          </button>
+          <div style={{marginTop:8}}>
+            <button className="btn ghost" onClick={()=> linkSearch()} disabled={linkBusy} style={{width:"100%"}}>
+              {linkBusy
+                ? <span className="spin" />
+                : <><Icon name="locate" size={16} color="var(--accent)" />Find on Google</>}
+            </button>
+            <div className="row" style={{gap:8, marginTop:8}}>
+              <input className="input" value={linkQuery}
+                onChange={e=> setLinkQuery(e.target.value)}
+                onKeyDown={e=>{ if (e.key === "Enter") linkSearch(linkQuery); }}
+                placeholder="Refine: name + street or city" />
+              <button className="btn ghost sm" style={{flex:"none"}}
+                disabled={linkBusy || !linkQuery.trim()} onClick={()=> linkSearch(linkQuery)}>Search</button>
+            </div>
+            <div className="tiny faint" style={{marginTop:5}}>
+              Generic names ("W Lounge") need the city or street to match. Try "W Lounge, 100 Stuart St Boston".
+            </div>
+          </div>
         )}
         {linkErr ? <div className="tiny faint" style={{marginTop:6}}>{linkErr}</div> : null}
         {candidates && candidates.length > 0 && (
@@ -7614,7 +7635,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           </div>
         )}
         {candidates && candidates.length === 0 && (
-          <div className="tiny faint" style={{marginTop:6}}>No Google matches for that name - try editing the name or city.</div>
+          <div className="tiny faint" style={{marginTop:6}}>No Google matches. Add the city or street address in the box above and search again.</div>
         )}
 
         {visitPhotos.length > 0 && (
