@@ -863,7 +863,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.212.0";
+const APP_VERSION   = "1.213.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4455,6 +4455,93 @@ function ReceiptReveal({cfg, receipt, inline}){
 }
 
 /* ============================================================
+   ADD TO HOME SCREEN (PWA install)
+   ============================================================ */
+// Capture Chrome/Android's install event as early as the script runs, so the
+// hint can offer a one-tap install. iOS has no such API - we show manual steps.
+let _installEvent = null;
+if (typeof window !== "undefined" && window.addEventListener){
+  window.addEventListener("beforeinstallprompt", function(e){
+    e.preventDefault(); _installEvent = e;
+    try { window.dispatchEvent(new Event("mc-install-ready")); } catch(_e){}
+  });
+}
+function isStandalone(){
+  try {
+    return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
+      || window.navigator.standalone === true;   // iOS Safari
+  } catch(e){ return false; }
+}
+function installPlatform(){
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+  if (/Android/i.test(ua)) return "android";
+  if (/Macintosh/i.test(ua) && typeof document !== "undefined" && "ontouchend" in document) return "ios"; // iPadOS
+  return "other";
+}
+// The "Add to Home Screen" hint. Renders nothing once installed (standalone).
+// Android/Chrome gets a one-tap button; iOS and others get the manual steps.
+function InstallHint({ onClose }){
+  const [evt, setEvt] = useState(_installEvent);
+  const [installed, setInstalled] = useState(false);
+  useEffect(()=>{
+    const onReady = ()=> setEvt(_installEvent);
+    const onInstalled = ()=> setInstalled(true);
+    window.addEventListener("mc-install-ready", onReady);
+    window.addEventListener("appinstalled", onInstalled);
+    return ()=>{ window.removeEventListener("mc-install-ready", onReady);
+                 window.removeEventListener("appinstalled", onInstalled); };
+  }, []);
+  if (isStandalone() || installed) return null;
+  const plat = installPlatform();
+  async function doInstall(){
+    if (!evt) return;
+    try { evt.prompt(); await evt.userChoice; } catch(e){}
+    _installEvent = null; setEvt(null);
+  }
+  const step = (n, body)=> (
+    <div className="row" style={{gap:8, alignItems:"flex-start", marginBottom:6}}>
+      <span style={{flex:"none", width:18, height:18, borderRadius:9, background:"var(--accent)",
+        color:"#1b1714", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
+        justifyContent:"center", marginTop:1}}>{n}</span>
+      <span style={{flex:1, lineHeight:1.45}}>{body}</span>
+    </div>
+  );
+  return (
+    <div className="card" style={{border:"1px solid rgba(201,124,44,0.45)", background:"rgba(201,124,44,0.07)"}}>
+      <div className="between" style={{alignItems:"flex-start"}}>
+        <div style={{fontWeight:700, fontSize:16}}>Add MenuCaptain to your Home Screen</div>
+        {onClose ? (
+          <button className="x" onClick={onClose} aria-label="Dismiss" style={{flex:"none", margin:"-4px -6px 0 0"}}>
+            <Icon name="close" size={18} color="#b3a591" />
+          </button>
+        ) : null}
+      </div>
+      <div className="small muted" style={{margin:"4px 0 12px", lineHeight:1.5}}>
+        Install it once for a full-screen app, offline access, and a faster launch - no app store needed.
+      </div>
+      {plat === "android" && evt ? (
+        <button className="btn primary" style={{width:"100%"}} onClick={doInstall}>
+          <Icon name="home" size={17} color="#1b1714" /> Add to Home Screen
+        </button>
+      ) : plat === "ios" ? (
+        <div className="small">
+          {step(1, <span>Tap the <strong>Share</strong> button <span style={{display:"inline-flex", verticalAlign:"-3px"}}><Icon name="share" size={15} color="var(--accent)" /></span> at the bottom of Safari.</span>)}
+          {step(2, <span>Scroll down and tap <strong>Add to Home Screen</strong>.</span>)}
+          {step(3, <span>Tap <strong>Add</strong> - MenuCaptain lands on your Home Screen.</span>)}
+        </div>
+      ) : (
+        <div className="small">
+          {step(1, <span>Open your browser menu (<strong>⋮</strong> in Chrome, top-right).</span>)}
+          {step(2, <span>Tap <strong>Add to Home screen</strong> (or <strong>Install app</strong>).</span>)}
+          {step(3, <span>Confirm - MenuCaptain installs like an app.</span>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
    ROOT COMPONENT
    ============================================================ */
 /* ============================================================
@@ -4575,6 +4662,7 @@ function App(){
 
   // ui
   const [tab, setTab]         = useState("history");
+  const [a2hsDismissed, setA2hsDismissed] = useState(()=>{ try { return localStorage.getItem("mc_a2hs_dismissed") === "1"; } catch(e){ return false; } });
   const [overlay, setOverlay] = useState(null);            // {type, ...}
   const [sheet, setSheet]     = useState(false);
   const [sync, setSync]       = useState({ status:"idle", msg:"" });
@@ -5357,6 +5445,11 @@ function App(){
               onClick={(e)=>{ e.stopPropagation(); setReqSeen(pendingReqs); }}>
               <Icon name="close" size={15} color="#1b1714" />
             </button>
+          </div>
+        )}
+        {!a2hsDismissed && !isStandalone() && (
+          <div style={{marginBottom:13}}>
+            <InstallHint onClose={()=>{ try { localStorage.setItem("mc_a2hs_dismissed", "1"); } catch(e){} setA2hsDismissed(true); }} />
           </div>
         )}
         {tab === "history" && (
@@ -17452,6 +17545,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           <a href="#" onClick={(e)=>{e.preventDefault(); switchTo("signin");}}>Back to sign in</a>
         </span>)}
       </div>
+      <div style={{marginTop:18}}><InstallHint /></div>
       <div style={{height:24}} />
     </div>
   );
