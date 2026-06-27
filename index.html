@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.219.0";
+const APP_VERSION   = "1.220.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6044,6 +6044,7 @@ function App(){
           initialTotal={overlay.fromVisit && overlay.fromVisit.receipt ? overlay.fromVisit.receipt.total : null}
           presetRestId={overlay.fromVisit ? overlay.fromVisit.restaurant_id : ""}
           presetVisitId={overlay.fromVisit ? overlay.fromVisit.id : "new"}
+          initialDate={overlay.fromVisit ? overlay.fromVisit.date : null}
           initialReceiptPhoto={overlay.fromVisit && overlay.fromVisit.receipt ? overlay.fromVisit.receipt.photo : null}
           initialFinalReceipt={overlay.fromVisit && overlay.fromVisit.receipt ? overlay.fromVisit.receipt.final_photo : null}
           onSaveToVisit={(rec, isNew)=>{
@@ -8791,7 +8792,7 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
 function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraft, onClose, flash,
                          initialLines, initialTotal, presetRestId, presetVisitId,
                          initialReceiptPhoto, initialFinalReceipt, initialSplit, onSaveSplit,
-                         onScanned, menuNames, onLogVisit, onUpgrade, onHome}){
+                         onScanned, menuNames, onLogVisit, onUpgrade, onHome, initialDate}){
   // When launched FROM a visit we arrive pre-loaded with that visit's priced
   // dishes and total, jump straight to the edit step, and default the save back
   // to that same visit.
@@ -9050,7 +9051,9 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       if (handle) saveVenmoHandle(name, handle);
     }
     const r = (restaurants || []).find(x => x.id === (presetRestId || saveRest));
-    const note = (r && r.name ? r.name + " - " : "") + "your share of the check";
+    const dateStr = fmtDate(initialDate || todayISO());
+    const note = "Your share" + (r && r.name ? " at " + r.name : "")
+               + (dateStr ? ", " + dateStr : "");
     const url = venmoChargeUrl(handle, amountDollars, note);
     try { window.open(url, "_blank"); } catch(e){ window.location.href = url; }
   }
