@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.225.0";
+const APP_VERSION   = "1.226.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6658,6 +6658,9 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             <DishTotal dishes={v.dishes} />
             <NutriLine n={v.nutrition} />
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
+            {(v.companions || []).length ? (
+              <div className="small muted" style={{marginTop:8}}>With {v.companions.map(p=> p.name).join(", ")}</div>
+            ) : null}
             {v.split ? (
               <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
                 merchant={v.restaurant_name} date={v.date}
@@ -7860,6 +7863,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <DishTotal dishes={v.dishes} />
               <NutriLine n={v.nutrition} />
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
+              {(v.companions || []).length ? (
+                <div className="small muted" style={{marginTop:8}}>With {v.companions.map(p=> p.name).join(", ")}</div>
+              ) : null}
               {v.split ? (
                 <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
                   merchant={v.restaurant_name} date={v.date}
@@ -11507,11 +11513,96 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
   );
 }
 
+// Tag the people you were with. value/onChange is an array of
+// { name, username?, user_id?, handle? }. roster feeds autocomplete (your
+// connections first, then names you've tagged before). A name that matches a
+// connection links to that account (shown with an @); otherwise it's just a tag.
+function PeopleTag({ value, onChange, roster }){
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const list = value || [];
+  const added = new Set(list.map(p => (p.name || "").trim().toLowerCase()));
+  const ql = q.trim().toLowerCase();
+  const sugg = (roster || [])
+    .filter(p => p.name && !added.has(p.name.toLowerCase()))
+    .filter(p => !ql || p.name.toLowerCase().indexOf(ql) !== -1 || (p.username || "").toLowerCase().indexOf(ql) !== -1)
+    .slice(0, 6);
+  function add(p){
+    const nm = (p.name || "").trim(); if (!nm) return;
+    if (added.has(nm.toLowerCase())){ setQ(""); setOpen(false); return; }
+    onChange(list.concat([{ name:nm, username:p.username || undefined, user_id:p.user_id || undefined, handle:p.handle || undefined }]));
+    setQ(""); setOpen(false);
+  }
+  function addFree(){
+    const nm = q.trim(); if (!nm) return;
+    const hit = (roster || []).find(p => p.name && p.name.toLowerCase() === nm.toLowerCase());
+    add(hit || { name: nm });
+  }
+  return (
+    <div>
+      {list.length ? (
+        <div className="go-chips" style={{marginBottom:8}}>
+          {list.map((p,i)=>(
+            <span key={i} className="go-chip">{p.name}
+              {p.user_id || p.username ? <span style={{color:"var(--accent)", marginLeft:3}} title="Linked to a MenuCaptain account">@</span> : null}
+              <button className="go-chip-x" onClick={()=> onChange(list.filter((_,j)=> j!==i))}>&times;</button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="spl-row" style={{position:"relative"}}>
+        <input className="input" value={q} placeholder="Add a name"
+          onChange={e=>{ setQ(e.target.value); setOpen(true); }}
+          onFocus={()=> setOpen(true)}
+          onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); addFree(); } }} />
+        <button className="btn" style={{width:"auto", padding:"0 16px"}} onClick={addFree}>Add</button>
+        {open && sugg.length ? (
+          <div className="card" style={{position:"absolute", top:"100%", left:0, right:0, zIndex:6,
+               marginTop:4, maxHeight:200, overflowY:"auto", padding:"4px 0"}}>
+            {sugg.map((p,i)=>(
+              <div key={i} className="pick-row" style={{padding:"9px 14px", display:"flex", alignItems:"center", gap:8}}
+                onClick={()=> add(p)}>
+                <span style={{flex:1, minWidth:0}}>{p.name}</span>
+                {p.username ? <span className="tiny faint" style={{flex:"none"}}>@{p.username}</span>
+                  : (p.handle ? <span className="tiny faint" style={{flex:"none"}}>Venmo</span> : null)}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
 function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
+  const [companions, setCompanions] = useState(()=> (existing && Array.isArray(existing.companions)) ? existing.companions : []);
+  const [conns, setConns] = useState([]);   // accepted connections (for tag autocomplete)
+  useEffect(()=>{
+    let alive = true;
+    getConnections(cfg).then(d => { if (alive) setConns((d && d.connections) || []); }).catch(()=>{});
+    return ()=> { alive = false; };
+  // eslint-disable-next-line
+  }, []);
+  // Roster for "Who was with you?" autocomplete: connections first (link to an
+  // account), then names tagged on past visits, with any saved Venmo handle attached.
+  const peopleRoster = (function(){
+    const venmo = loadVenmoHandles();
+    const byKey = new Map();   // lower name -> entry
+    const put = (name, extra)=>{
+      const nm = (name || "").trim(); if (!nm) return;
+      const k = nm.toLowerCase();
+      const cur = byKey.get(k) || { name: nm };
+      byKey.set(k, Object.assign(cur, extra || {}, { name: cur.name || nm,
+        handle: cur.handle || extra && extra.handle || venmo[k] || undefined }));
+    };
+    (conns || []).forEach(c => put(c.display_name || c.username, { username: c.username || undefined, user_id: c.user_id || c.id || undefined }));
+    (visits || []).forEach(v => (v.companions || []).forEach(p => put(p.name, { username: p.username, user_id: p.user_id })));
+    return Array.from(byKey.values()).sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+  })();
   // seedFromSplit (new visits only): {items, total, splitDraft, receiptDataUrl} handed
   // over when you tap "Log as a visit" from a standalone split - so that one receipt
   // scan + split carries straight into logging the meal (no re-scan, no re-entry).
@@ -12100,6 +12191,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
       nutrition: nutrition || null,              // meal-photo estimate (or null)
       logged_at: existing ? existing.logged_at : Date.now(),
       split: splitDraft || null,                 // who-pays-what split, saved with the visit
+      companions: companions,                    // people you were with [{name, username?, user_id?, handle?}]
     };
     onSave(rec, { pendingUploads: pendingUploads });
   }
@@ -12750,9 +12842,17 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
           )}
         </div>
 
+        <label className="fld"><span className="lbl">Who was with you?</span></label>
+        <div className="tiny faint" style={{margin:"-6px 0 8px"}}>
+          Tag the people you dined with. Names you've used before (and your connections) autocomplete.
+        </div>
+        <div className="fld">
+          <PeopleTag value={companions} onChange={setCompanions} roster={peopleRoster} />
+        </div>
+
         <label className="fld"><span className="lbl">Notes</span>
           <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
-            placeholder="How was it? Who were you with? Worth returning?" />
+            placeholder="How was it? Worth returning?" />
         </label>
 
         {onDelete && (
