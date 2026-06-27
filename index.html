@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.220.0";
+const APP_VERSION   = "1.221.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6413,11 +6413,25 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
 // actions - "See itemized split" and the receipts - so a card with a split stays
 // to a single clean line until you open it. cfg/receipt/onSeeItemized are
 // optional (cards without a split render those pieces standalone instead).
-function VisitSplit({split, cfg, receipt, onSeeItemized}){
+function VisitSplit({split, cfg, receipt, onSeeItemized, merchant, date}){
   const [open, setOpen] = useState(false);
   if (!split || !Array.isArray(split.people) || !split.people.length) return null;
   const money = n => "$" + (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
   const hasReceipt = receipt && (receipt.photo || receipt.final_photo);
+  // Request one person's share on Venmo, straight from the summary. Same hybrid
+  // saved-handle flow as the live split.
+  function requestVenmoFor(name, amount){
+    let handle = getVenmoHandle(name);
+    if (!handle){
+      const entered = window.prompt("Venmo @username for " + name + "?\n(Leave blank to pick them inside Venmo.)", "");
+      if (entered === null) return;
+      handle = (entered || "").trim().replace(/^@/, "");
+      if (handle) saveVenmoHandle(name, handle);
+    }
+    const note = "Your share" + (merchant ? " at " + merchant : "") + (date ? ", " + fmtDate(date) : "");
+    const url = venmoChargeUrl(handle, amount, note);
+    try { window.open(url, "_blank"); } catch(e){ window.location.href = url; }
+  }
   return (
     <div className="vsplit">
       <button className="vsplit-head" onClick={(e)=>{ e.stopPropagation(); setOpen(o => !o); }}>
@@ -6429,7 +6443,12 @@ function VisitSplit({split, cfg, receipt, onSeeItemized}){
           {split.people.map((p,i)=>(
             <div key={i} className="spl-res">
               <div className="spl-nm">{p.name}</div>
-              <div className="spl-amt">{money(p.amount)}</div>
+              <div className="row" style={{gap:8, flex:"none", alignItems:"center"}}>
+                <div className="spl-amt">{money(p.amount)}</div>
+                <button className="btn ghost sm" aria-label={"Request " + p.name + "'s share on Venmo"}
+                  style={{padding:"3px 9px", margin:0, minWidth:0, fontSize:"12px", color:"#3D95CE", borderColor:"#3D95CE"}}
+                  onClick={(e)=>{ e.stopPropagation(); requestVenmoFor(p.name, p.amount); }}>Venmo</button>
+              </div>
             </div>
           ))}
           {(onSeeItemized || hasReceipt) && (
@@ -6603,6 +6622,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
             {v.split ? (
               <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
+                merchant={v.restaurant_name} date={v.date}
                 onSeeItemized={onSplitVisit ? ()=> onSplitVisit(v) : null} />
             ) : (
               <React.Fragment>
@@ -7783,6 +7803,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
               {v.split ? (
                 <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
+                  merchant={v.restaurant_name} date={v.date}
                   onSeeItemized={onSplitVisit ? ()=> onSplitVisit(v) : null} />
               ) : (
                 <ReceiptReveal cfg={cfg} receipt={v.receipt} />
@@ -8254,15 +8275,15 @@ function saveVenmoHandle(name, handle){
 // Build a Venmo "charge" (request money) link. Opens the app if installed, else
 // the web. recipients optional - omitted means "pick the person in Venmo".
 function venmoChargeUrl(handle, amountDollars, note){
-  const p = new URLSearchParams();
-  p.set("txn", "charge");
-  p.set("audience", "private");
+  // Build the query with encodeURIComponent (spaces -> %20). URLSearchParams uses
+  // "+" for spaces, which Venmo's note field shows literally ("Your+share+...").
+  const parts = ["txn=charge", "audience=private"];
   const h = (handle || "").trim().replace(/^@/, "");
-  if (h) p.set("recipients", h);
+  if (h) parts.push("recipients=" + encodeURIComponent(h));
   const amt = Math.round((Number(amountDollars) || 0) * 100) / 100;
-  if (amt > 0) p.set("amount", amt.toFixed(2));
-  if (note) p.set("note", note);
-  return "https://venmo.com/?" + p.toString();
+  if (amt > 0) parts.push("amount=" + amt.toFixed(2));
+  if (note) parts.push("note=" + encodeURIComponent(note));
+  return "https://venmo.com/?" + parts.join("&");
 }
 
 // ============================================================
@@ -9538,15 +9559,28 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                         onClick={(e)=>{ e.stopPropagation(); requestVenmo(p.name, p.totalCents/100); }}>Venmo</button>
                       <button className="btn ghost sm" aria-label={"Copy " + p.name + "'s share"}
                         style={{padding:"4px 10px", margin:0, minWidth:0, fontSize:"12px"}}
-                        onClick={(e)=>{
+                        onClick={async (e)=>{
                           e.stopPropagation();
                           const text = p.name + ": " + money(p.totalCents);
+                          let ok = false;
                           try {
                             if (navigator.clipboard && navigator.clipboard.writeText){
-                              navigator.clipboard.writeText(text);
-                              flash && flash("Copied " + p.name + "'s share");
-                            } else { flash && flash("Copy not supported here"); }
-                          } catch(err){ flash && flash("Couldn't copy"); }
+                              await navigator.clipboard.writeText(text); ok = true;
+                            }
+                          } catch(err){ ok = false; }
+                          if (!ok){
+                            // Fallback for older iOS / restricted clipboard: select a hidden field.
+                            try {
+                              const ta = document.createElement("textarea");
+                              ta.value = text; ta.setAttribute("readonly", "");
+                              ta.style.position = "fixed"; ta.style.top = "0"; ta.style.opacity = "0";
+                              document.body.appendChild(ta); ta.focus(); ta.select();
+                              ta.setSelectionRange(0, text.length);
+                              ok = document.execCommand("copy");
+                              document.body.removeChild(ta);
+                            } catch(err2){ ok = false; }
+                          }
+                          flash && flash(ok ? ("Copied " + p.name + "'s share") : "Couldn't copy");
                         }}>Copy</button>
                     </div>
                   </div>
