@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.237.0";
+const APP_VERSION   = "1.238.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4880,7 +4880,7 @@ function App(){
   const [dirty, setDirty]             = useState({});      // logical name -> bool (unpushed)
 
   // ui
-  const [tab, setTab]         = useState("history");
+  const [tab, setTab]         = useState(getDefaultTab);
   const [a2hsDismissed, setA2hsDismissed] = useState(()=>{ try { return localStorage.getItem("mc_a2hs_dismissed") === "1"; } catch(e){ return false; } });
   const [overlay, setOverlay] = useState(null);            // {type, ...}
   const [sheet, setSheet]     = useState(false);
@@ -5827,11 +5827,11 @@ function App(){
 
       {/* bottom navigation */}
       <nav className="nav">
-        <button className={tab==="history" ? "on" : ""} onClick={()=> setTab("history")}>
-          <span className="navicon"><Icon name="clock" size={23} /></span>History
-        </button>
         <button className={tab==="restaurants" ? "on" : ""} onClick={()=> setTab("restaurants")}>
           <span className="navicon"><Icon name="plate" size={23} /></span>Places
+        </button>
+        <button className={tab==="history" ? "on" : ""} onClick={()=> setTab("history")}>
+          <span className="navicon"><Icon name="clock" size={23} /></span>History
         </button>
         <button onClick={()=> setSheet(true)}>
           <span className="add"><Icon name="plus" size={24} color="#1b1714" /></span>
@@ -17035,6 +17035,24 @@ function applyTheme(key, setTheme){
   if (setTheme) setTheme(key);
 }
 
+// Which tab the app opens to. User-configurable in Settings; defaults to
+// Places. Stored locally (a per-device UI preference, not synced data).
+const DEFAULT_TABS = [
+  { key:"restaurants", name:"Places",  icon:"plate" },
+  { key:"history",     name:"History", icon:"clock" },
+  { key:"discover",    name:"You",     icon:"compass" },
+];
+function getDefaultTab(){
+  try {
+    const v = localStorage.getItem("mc_default_tab");
+    if (DEFAULT_TABS.some(t => t.key === v)) return v;
+  } catch(e){}
+  return "restaurants";
+}
+function setDefaultTab(key){
+  try { localStorage.setItem("mc_default_tab", key); } catch(e){}
+}
+
 /* ============================================================
    PROFILE (usernames) - Phase A of the connections epic.
    ============================================================ */
@@ -17835,6 +17853,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
   const [theme,setTheme]     = useState(currentTheme());
+  const [defTab,setDefTab]   = useState(getDefaultTab);   // which tab the app opens to
   const [showPrint,setShowPrint] = useState(false);   // printable-history overlay
   const [expMsg,setExpMsg]       = useState("");      // export error message, if any
 
@@ -18053,6 +18072,24 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
               </div>
               <div className="theme-name">{t.name}</div>
               {on ? <span className="theme-check">{"\u2713"}</span> : null}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="set-group">Startup</div>
+      <div className="card">
+        <div className="tiny faint" style={{margin:"0 2px 8px"}}>Which tab the app opens to.</div>
+        {DEFAULT_TABS.map(t => {
+          const on = defTab === t.key;
+          return (
+            <div key={t.key} className="theme-row"
+              onClick={()=>{ setDefaultTab(t.key); setDefTab(t.key); }}>
+              <span className="navicon" style={{width:26, display:"inline-flex", justifyContent:"center"}}>
+                <Icon name={t.icon} size={20} color={on ? "var(--accent)" : "var(--text-dim)"} />
+              </span>
+              <div className="theme-name">{t.name}</div>
+              {on ? <span className="theme-check">{"✓"}</span> : null}
             </div>
           );
         })}
