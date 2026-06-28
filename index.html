@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.231.0";
+const APP_VERSION   = "1.232.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4391,18 +4391,28 @@ function PhotoImg({cfg, path, alt, className, style, onClick}){
 // Restaurant hero from a Google place photo. Resolves the photo resource name to
 // a loadable URL on demand (never stored) and renders it WITH attribution, per
 // Google's terms. Shown only when there's no user-uploaded photo.
-function GooglePhoto({cfg, name, attribution}){
+function GooglePhoto({cfg, name, attribution, thumb}){
   const [url, setUrl] = useState(null);
   const [failed, setFailed] = useState(false);
   useEffect(()=>{
     let alive = true;
     if (!name || !cfg){ return; }
-    placesPhoto(cfg, name, 1000)
+    placesPhoto(cfg, name, thumb ? 200 : 1000)
       .then(d => { if (alive) setUrl(d && d.url); })
       .catch(()=> { if (alive) setFailed(true); });
     return ()=> { alive = false; };
   }, [name, cfg && cfg.userId]);
-  if (failed || !url) return null;
+  if (failed || !url){
+    return thumb ? (
+      <div className="photo-shell" style={{width:72,height:72,borderRadius:10}}>
+        <Icon name="image" size={24} color="#5a5045" />
+      </div>
+    ) : null;
+  }
+  if (thumb){
+    return <img className="photo-img" src={url} alt=""
+      style={{width:72,height:72,borderRadius:10,objectFit:"cover"}} />;
+  }
   return (
     <div className="rest-hero">
       <img className="photo-img" src={url} alt="" style={{width:"100%"}} />
@@ -11440,6 +11450,10 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
       geo_failed: (existing && !geo) ? !!existing.geo_failed : false,
       // Discovery linkage (dedup / future re-enrich). Null for hand-added places.
       google_place_id: googlePlaceId,
+      // Google place photo (from Update from Google): carried from `seed` so the
+      // enriched name/attribution actually persist and the hero can render it.
+      google_photo_name: (seed && seed.google_photo_name) || null,
+      google_photo_attr: (seed && seed.google_photo_attr) || "",
     });
     onSave(rec, {
       newLocationsToAdd: newLocationsToAdd,
@@ -11467,7 +11481,10 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
             <PhotoImg cfg={cfg} path={existingPhotoPath}
               style={{width:72,height:72,borderRadius:10,objectFit:"cover"}} />
           )}
-          {!hasAnyPhoto && (
+          {!hasAnyPhoto && seed && seed.google_photo_name && cfg && (
+            <GooglePhoto cfg={cfg} name={seed.google_photo_name} attribution={seed.google_photo_attr} thumb={true} />
+          )}
+          {!hasAnyPhoto && !(seed && seed.google_photo_name) && (
             <div className="photo-shell"
               style={{width:72,height:72,borderRadius:10}}>
               <Icon name="image" size={24} color="#5a5045" />
@@ -11496,6 +11513,11 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
             {!photoBusy && pendingBlob && (
               <div className="tiny faint" style={{marginTop:6}}>
                 Photo uploads when you tap Save.
+              </div>
+            )}
+            {!photoBusy && !hasAnyPhoto && seed && seed.google_photo_name && (
+              <div className="tiny faint" style={{marginTop:6}}>
+                Using Google's photo on the place page. Add your own to replace it.
               </div>
             )}
           </div>
