@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.240.0";
+const APP_VERSION   = "1.241.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9455,6 +9455,14 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const [people, setPeople]   = useState(reopened && Array.isArray(reopened.people) ? reopened.people.slice()
     : (fallbackPeople.length ? fallbackPeople.slice() : []));
   const [nameDraft, setNameDraft] = useState("");
+  const [nameOpen, setNameOpen]   = useState(false);   // name autocomplete dropdown
+  const [conns, setConns]         = useState([]);       // accepted connections (for suggestions)
+  useEffect(()=>{
+    let alive = true;
+    getConnections(config).then(d => { if (alive) setConns((d && d.connections) || []); }).catch(()=>{});
+    return ()=> { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [assign, setAssign]   = useState(reopened && reopened.assign ? reopened.assign : {});  // {lineId:[name]}
   const [tip, setTip]         = useState(reopened && reopened.tip != null ? String(reopened.tip) : "");
   const [tipMode, setTipMode] = useState(reopened && reopened.tipMode ? reopened.tipMode : "$");
@@ -9563,9 +9571,28 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   }
 
   // ---- people editor ----
-  function addPerson(){
-    const nm = (nameDraft || "").trim().slice(0, 40);
+  // Roster for the name autocomplete: connections first, then anyone tagged on
+  // past visits. Same idea as the visit "Who was with you?" field, so the names
+  // you use line up across both screens.
+  const splitRoster = (function(){
+    const byKey = new Map();   // lower name -> display name
+    const put = (nm)=>{ const s = (nm || "").trim(); if (!s) return; const k = s.toLowerCase(); if (!byKey.has(k)) byKey.set(k, s); };
+    (conns || []).forEach(c => put(c.display_name || c.username));
+    (visits || []).forEach(v => (v.companions || []).forEach(p => put(p && p.name)));
+    return Array.from(byKey.values()).sort((a,b)=> a.localeCompare(b));
+  })();
+  function nameSuggestions(){
+    const q = (nameDraft || "").trim().toLowerCase();
+    const taken = new Set(people.map(p => p.toLowerCase()));
+    return splitRoster
+      .filter(n => !taken.has(n.toLowerCase()))
+      .filter(n => !q || n.toLowerCase().indexOf(q) !== -1)
+      .slice(0, 6);
+  }
+  function addPerson(name){
+    const nm = ((typeof name === "string" ? name : nameDraft) || "").trim().slice(0, 40);
     if (!nm) return;
+    setNameOpen(false);
     const exists = people.some(p => p.toLowerCase() === nm.toLowerCase());
     if (exists){ setNameDraft(""); return; }
     if (people.length >= 20){ flash && flash("That's a lot of people - 20 max"); return; }
@@ -9956,11 +9983,24 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 </span>
               ))}
             </div>
-            <div className="spl-row" style={{marginBottom:14}}>
+            <div className="spl-row" style={{marginBottom:14, position:"relative"}}>
               <input className="input" value={nameDraft} placeholder="Add a name"
-                onChange={e=> setNameDraft(e.target.value)}
+                onChange={e=> { setNameDraft(e.target.value); setNameOpen(true); }}
+                onFocus={()=> setNameOpen(true)}
+                onBlur={()=> setTimeout(()=> setNameOpen(false), 150)}
                 onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); addPerson(); } }} />
-              <button className="btn" style={{width:"auto",padding:"0 16px"}} onClick={addPerson}>Add</button>
+              <button className="btn" style={{width:"auto",padding:"0 16px"}} onClick={()=> addPerson()}>Add</button>
+              {nameOpen && nameSuggestions().length ? (
+                <div className="card" style={{position:"absolute", top:"100%", left:0, right:0, zIndex:6,
+                     marginTop:4, maxHeight:200, overflowY:"auto", padding:"4px 0"}}>
+                  {nameSuggestions().map((n,i)=>(
+                    <div key={i} className="pick-row" style={{padding:"9px 14px", cursor:"pointer"}}
+                      onMouseDown={(e)=>{ e.preventDefault(); addPerson(n); }}>
+                      {n}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             {/* Quick actions: see the split, expense it, or check the receipts -
