@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.241.0";
+const APP_VERSION   = "1.242.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9482,6 +9482,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const [scannedMerchant, setScannedMerchant] = useState("");   // business name read off the receipt
   const [expenseOpen, setExpenseOpen] = useState(false);   // expense-item sheet over the result
   const [showRcpts, setShowRcpts] = useState(false);       // reveal receipt images on the split screen
+  const [savedToVisit, setSavedToVisit] = useState(false); // one-tap save state (fromVisit)
   const fileRef = useRef(null);
 
   const money = c => "$" + (Math.round(c) / 100).toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -9684,8 +9685,19 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   function doSplit(){
     const res = computeManualSplit(lines, people, assign, "", String(grandPreview/100));
     setSplit(res);
+    setSavedToVisit(false);   // a preview, not yet saved
     logMsg("SPLIT","Computed split across " + res.people.length +
            " people, grand=" + money(res.grandCents));
+    setStep("result");
+  }
+
+  // One tap from a logged visit: compute the split, save it onto the visit, AND
+  // show the summary - so "Save" lands you on the result, already saved.
+  function saveToVisitAndShow(){
+    const res = computeManualSplit(lines, people, assign, "", String(grandPreview/100));
+    setSplit(res);
+    persistSplitToVisit(res);
+    setSavedToVisit(true);
     setStep("result");
   }
 
@@ -9745,13 +9757,15 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     };
   }
 
-  function doSaveToVisit(){
-    if (!split || !saveRest || !onSaveToVisit) return;
+  // Persist a computed split (res) onto the visit. Does NOT close the flow - the
+  // caller decides what to show next (one-tap save stays on the summary).
+  function persistSplitToVisit(res){
+    if (!res || !saveRest || !onSaveToVisit) return;
     const r = (restaurants || []).find(x => x.id === saveRest);
     const toDollars = c => Math.round(c) / 100;
-    const grand = toDollars(split.grandCents);
+    const grand = toDollars(res.grandCents);
     const splitObj = {
-      people: split.people.map(p => ({ name: p.name, amount: toDollars(p.totalCents) })),
+      people: res.people.map(p => ({ name: p.name, amount: toDollars(p.totalCents) })),
       grand: grand,
       items: lines.filter(l => (l.name || "").trim())
         .map(l => ({ name: l.name.trim(), price: (Number(l.price) || 0) })),
@@ -9773,7 +9787,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
         logged_at: Date.now(),
         split: splitObj,
       };
-      logMsg("SPLIT","Saving split to a NEW visit at " + (r ? r.name : saveRest) + ", grand=" + money(split.grandCents));
+      logMsg("SPLIT","Saving split to a NEW visit at " + (r ? r.name : saveRest) + ", grand=" + money(res.grandCents));
       onSaveToVisit(rec, true);
     } else {
       const v = (visits || []).find(x => x.id === saveVisit);
@@ -9784,10 +9798,9 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
         ? v.receipt
         : { photo: (v.receipt && v.receipt.photo) || null, total: grand };
       const rec = Object.assign({}, v, { split: splitObj, receipt: receipt });
-      logMsg("SPLIT","Saving split to existing visit " + saveVisit + ", grand=" + money(split.grandCents));
+      logMsg("SPLIT","Saving split to existing visit " + saveVisit + ", grand=" + money(res.grandCents));
       onSaveToVisit(rec, false);
     }
-    onClose();
   }
 
   // Standalone -> "Log as a visit": hand the scanned check (line items + photo)
@@ -10011,7 +10024,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                    onClick={(e)=>{ e.preventDefault(); setShowRcpts(s=>!s); }}>
                   {showRcpts ? "Hide receipts" : "Show receipts"}</a>
               ) : null}
-              {canSplit ? (
+              {canSplit && !(fromVisit && onSaveToVisit) ? (
                 <a href="#" style={{color:"var(--accent)"}}
                    onClick={(e)=>{ e.preventDefault(); doSplit(); }}>See the split summary</a>
               ) : null}
@@ -10162,8 +10175,10 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 ? " Tax and tip are split across everyone's share." : ""}
             </div>
 
-            <button className="btn" style={{marginTop:14}} disabled={!canSplit} onClick={doSplit}>
-              {split ? "Update the split" : "See the split summary"}
+            <button className={"btn" + ((fromVisit && onSaveToVisit) ? " primary" : "")} style={{marginTop:14}}
+              disabled={!canSplit} onClick={(fromVisit && onSaveToVisit) ? saveToVisitAndShow : doSplit}>
+              {(fromVisit && onSaveToVisit) ? "Save split"
+                : (split ? "Update the split" : "See the split summary")}
             </button>
             {!canSplit && <div className="tiny faint" style={{textAlign:"center",marginTop:8}}>
               Add at least two people and a total to split.
@@ -10263,9 +10278,19 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 Use this split
               </button>
             ) : fromVisit && onSaveToVisit ? (
-              <button className="btn primary" style={{marginTop:10}} onClick={doSaveToVisit}>
-                {initialSplit ? "Save changes to this visit" : "Save to this visit"}
-              </button>
+              savedToVisit ? (
+                <div style={{marginTop:10}}>
+                  <div className="tiny" style={{textAlign:"center", color:"var(--ok)", fontWeight:600, marginBottom:10}}>
+                    &#10003; Saved to this visit
+                  </div>
+                  <button className="btn primary" style={{width:"100%"}} onClick={onClose}>Done</button>
+                </div>
+              ) : (
+                <button className="btn primary" style={{marginTop:10}}
+                  onClick={()=>{ persistSplitToVisit(split); setSavedToVisit(true); }}>
+                  {initialSplit ? "Save changes to this visit" : "Save to this visit"}
+                </button>
+              )
             ) : onSaveSplit ? (
               <div style={{marginTop:10}}>
                 <label className="fld" style={{marginBottom:8}}>
