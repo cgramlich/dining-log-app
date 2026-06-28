@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.235.0";
+const APP_VERSION   = "1.236.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7932,12 +7932,6 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           {menuList.length >= 1 && (
             <ShareToConnectionButton cfg={cfg} restaurant={r} menuList={menuList} />
           )}
-          {menuList.length === 1 && (
-            <button className="btn ghost sm" onClick={()=> onOpenMenu(menuList[0].menu_id)}
-              style={{flex:"none",padding:"6px 12px",margin:0,marginRight:8}}>
-              Open menu
-            </button>
-          )}
           <button className="btn ghost sm" onClick={onAddMenu}
             style={{flex:"none",padding:"6px 12px",margin:0}}>
             <Icon name="plus" size={15} />Add menu
@@ -7992,22 +7986,28 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         )}
 
         {!dietFilter && menuList.length === 1 && (() => {
-          // Lightweight label header so a single menu's name (e.g. "Brunch")
-          // stays visible - with 2+ menus the card chrome shows it, but a lone
-          // menu renders inline, which would otherwise hide the label.
+          // A lone menu shows as a compact card (same as multi-menu places),
+          // tappable to open the full menu page - rather than dumping every
+          // item onto the place's cover page. The card keeps the menu's label
+          // (e.g. "Brunch") visible and matches the multi-menu look.
           const m0 = menuList[0];
           const n0 = (m0.sections || []).reduce((n,s)=> n + ((s.items || []).length), 0);
-          return (
-            <>
-              <div className="row between" style={{alignItems:"baseline", margin:"0 2px 8px"}}>
+          const row = (
+            <div className="menu-row" onClick={()=> onOpenMenu(m0.menu_id)}>
+              <div style={{flex:1, minWidth:0}}>
                 <div className="menu-row-label">{m0.label || "Menu"}</div>
-                <div className="tiny faint">{n0} item{n0 === 1 ? "" : "s"}{m0.captured_date ? "  ·  Captured " + fmtDate(m0.captured_date) : ""}</div>
+                <div className="tiny faint" style={{marginTop:3}}>
+                  {n0} item{n0 === 1 ? "" : "s"}
+                  {m0.captured_date ? "  ·  Captured " + fmtDate(m0.captured_date) : ""}
+                  {m0.source === "community" ? " (community)" : m0.source === "web" ? " (web)" : m0.source === "seed" ? " (starter)" : ""}
+                </div>
               </div>
-              <MenuView menu={m0} cfg={cfg} restaurantName={r.name}
-                onSaveItemNutrition={(si,ii,est)=>
-                  onSaveItemNutrition && onSaveItemNutrition(m0.menu_id, si, ii, est)} />
-            </>
+              <Icon name="chev" size={18} color="#80715f" />
+            </div>
           );
+          return onDeleteMenuById
+            ? <SwipeToDelete key={m0.menu_id} onDelete={()=> onDeleteMenuById(m0.menu_id)}>{row}</SwipeToDelete>
+            : <div key={m0.menu_id}>{row}</div>;
         })()}
 
         {!dietFilter && menuList.length > 1 && (
