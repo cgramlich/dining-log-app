@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.227.0";
+const APP_VERSION   = "1.228.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -12102,6 +12102,17 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
   (menuGroups || []).forEach(g => (g.sections || []).forEach(s =>
     (s.items || []).forEach(nm => { if (nm) menuNames.push(nm); })));
 
+  // Autocomplete pool for "What you had": this place's menu items + any dish
+  // you've logged before (so it works even without a digitized menu). Deduped,
+  // menu items first. When nothing matches, typing + Add just creates the item.
+  const dishPool = (function(){
+    const seen = new Map();   // lower -> display
+    menuNames.forEach(n => { const k = n.toLowerCase(); if (!seen.has(k)) seen.set(k, n); });
+    (visits || []).forEach(v => (v.dishes || []).forEach(d => {
+      if (d && d.name){ const k = d.name.toLowerCase(); if (!seen.has(k)) seen.set(k, d.name); } }));
+    return Array.from(seen.values());
+  })();
+
   function addDish(name){
     const n = (name || "").trim();
     if (!n) return;
@@ -12489,13 +12500,29 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
 
         <div className="fld">
           <span className="lbl">What you had</span>
-          <div className="row" style={{gap:8}}>
+          <div className="row" style={{gap:8, position:"relative"}}>
             <input className="input" value={dishInput}
               onChange={e=>setDishInput(e.target.value)}
               onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); addDish(dishInput); } }}
-              placeholder="Type a dish, then Add" />
+              placeholder="Search the menu or type a dish" />
             <button className="btn ghost sm" onClick={()=> addDish(dishInput)}
               style={{flex:"none"}}>Add</button>
+            {(()=>{
+              const dq = dishInput.trim().toLowerCase();
+              if (!dq) return null;
+              const sugg = dishPool.filter(n => n.toLowerCase().indexOf(dq) !== -1
+                && dishNames.indexOf(n) === -1).slice(0, 8);
+              if (!sugg.length) return null;
+              return (
+                <div className="card" style={{position:"absolute", top:"100%", left:0, right:0, zIndex:6,
+                     marginTop:4, maxHeight:220, overflowY:"auto", padding:"4px 0"}}>
+                  {sugg.map((n,i)=>(
+                    <div key={i} className="pick-row" style={{padding:"9px 14px"}}
+                      onClick={()=> addDish(n)}>{n}</div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
           <input ref={receiptRef} type="file" accept="image/*"
             style={{display:"none"}} onChange={onReceiptPicked} />
