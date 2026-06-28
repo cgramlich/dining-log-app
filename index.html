@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.229.0";
+const APP_VERSION   = "1.230.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -12503,6 +12503,14 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
           )}
         </div>
 
+        <label className="fld"><span className="lbl">Who was with you?</span></label>
+        <div className="tiny faint" style={{margin:"-6px 0 8px"}}>
+          Tag the people you dined with. Names you've used before (and your connections) autocomplete.
+        </div>
+        <div className="fld">
+          <PeopleTag value={companions} onChange={setCompanions} roster={peopleRoster} />
+        </div>
+
         <div className="fld">
           <span className="lbl">What you had</span>
           <div className="row" style={{gap:8, position:"relative"}}>
@@ -12871,14 +12879,6 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
               ))}
             </div>
           )}
-        </div>
-
-        <label className="fld"><span className="lbl">Who was with you?</span></label>
-        <div className="tiny faint" style={{margin:"-6px 0 8px"}}>
-          Tag the people you dined with. Names you've used before (and your connections) autocomplete.
-        </div>
-        <div className="fld">
-          <PeopleTag value={companions} onChange={setCompanions} roster={peopleRoster} />
         </div>
 
         <label className="fld"><span className="lbl">Notes</span>
