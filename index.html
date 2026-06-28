@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.242.0";
+const APP_VERSION   = "1.243.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5830,6 +5830,12 @@ function App(){
             savedListCount={(lists || []).length}
             onNearMe={()=> setOverlay({ type:"nearMe" })}
             onSpin={()=> setOverlay({ type:"spinPick" })}
+            onCreateRestaurant={(rec)=>{
+              const next = [rec].concat(restaurants);
+              commit({ restaurants: next }, ["restaurants"]);
+              flash("Added " + (rec.name || "place"));
+              setOverlay({ type:"restaurant", id: rec.id });
+            }}
             onOpen={(r)=> setOverlay({ type:"restaurant", id:r.id })} />
         )}
         {tab === "settings" && (
@@ -7150,10 +7156,59 @@ function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, 
 }
 
 
-function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin}){
+function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin, onCreateRestaurant}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("alpha");
   const [cuisineFilter, setCuisineFilter] = useState("All");
+  // Google search from the box (only offered when nothing saved matches).
+  const [gBusy, setGBusy] = useState(false);
+  const [gErr, setGErr]   = useState("");
+  const [gResults, setGResults] = useState(null);   // null=not searched | array
+  function gMapErr(err){
+    if (err && err.status === 402) return "Finding places on Google is a Pro feature.";
+    return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
+  }
+  function geoOnce(){
+    return new Promise((resolve)=>{
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat:p.coords.latitude, lng:p.coords.longitude }),
+        () => resolve(null),
+        { enableHighAccuracy:false, timeout:8000, maximumAge:300000 });
+    });
+  }
+  async function runGooglePlaceSearch(term){
+    const qy = (term || "").trim();
+    if (!qy) return;
+    setGBusy(true); setGErr(""); setGResults(null);
+    try {
+      const loc = await geoOnce();
+      const body = { query:qy, max_results:12 };
+      if (loc){ body.lat = loc.lat; body.lng = loc.lng; }
+      const data = await placesSearchText(cfg, body);
+      const list = ((data && data.places) || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      setGResults(list);
+      if (!list.length) setGErr("No matches on Google. Add the city or street and try again.");
+    } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
+    finally { setGBusy(false); }
+  }
+  function pickGooglePlace(c){
+    if (!onCreateRestaurant){ setGErr("Can't add a place here."); return; }
+    const newRest = {
+      id: uid("rest"),
+      name: (c.name || query.trim() || "New place"),
+      cuisine: "", location: c.city || "",
+      address: c.address || "", phone: c.phone || "", website: c.website || "", notes: "",
+      favorite: false, added_date: todayISO(),
+      google_place_id: c.place_id || undefined,
+      lat: (c.lat != null ? c.lat : undefined),
+      lng: (c.lng != null ? c.lng : undefined),
+    };
+    onCreateRestaurant(newRest);   // parent commits + opens the new place
+  }
+  // Reset any Google results when the search text changes, so the finder starts
+  // fresh on the next no-match search rather than showing stale hits.
+  useEffect(()=>{ setGResults(null); setGErr(""); }, [query]);
   if (!restaurants.length){
     // Still surface group orders / invites - a brand-new account (e.g. someone
     // invited to their first order) has no places yet but must see the invite.
@@ -7380,8 +7435,34 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         <div className="empty" style={{padding:"30px 20px"}}>
           <div className="big">{q ? "No matches" : "Nothing in " + filter}</div>
           <div>{q
-            ? "No places match that search."
+            ? "Not in your places yet."
             : "Add a restaurant in this location, or pick a different filter."}</div>
+          {q && onCreateRestaurant ? (
+            <div style={{marginTop:14}}>
+              <button className="btn ghost sm" disabled={gBusy}
+                onClick={()=> runGooglePlaceSearch(query)}>
+                {gBusy ? <span className="spin" />
+                  : <span className="row" style={{gap:6, justifyContent:"center"}}>
+                      <Icon name="locate" size={15} color="var(--accent)" />
+                      Search Google for "{query.trim()}"
+                    </span>}
+              </button>
+              {gErr ? <div className="tiny faint" style={{marginTop:8}}>{gErr}</div> : null}
+              {Array.isArray(gResults) && gResults.length > 0 ? (
+                <div style={{marginTop:12, textAlign:"left"}}>
+                  {gResults.map((c,i)=>(
+                    <div key={i} className="pick-row"
+                      style={{padding:"10px 12px", borderBottom:"1px solid var(--line-soft)", cursor:"pointer"}}
+                      onClick={()=> pickGooglePlace(c)}>
+                      <div className="small" style={{fontWeight:600}}>{c.name}</div>
+                      {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+                    </div>
+                  ))}
+                  <div className="tiny faint" style={{marginTop:8, textAlign:"center"}}>Tap a result to add it to your places.</div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
 
