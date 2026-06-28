@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.238.0";
+const APP_VERSION   = "1.239.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4051,6 +4051,76 @@ async function askMenu(cfg, restaurant, menu, visits, question){
     .filter(b => b.type === "text").map(b => b.text).join("\n").trim();
   logMsg("ASK","Received answer (" + text.length + " chars)");
   if (!text) throw new Error("The model returned an empty answer. Try rephrasing.");
+  return text;
+}
+
+/* Explain a menu (or just the dishes the diner picked). Reuses the Pro-gated,
+   metered /api/ai/relay. When `selectedNames` is non-empty, explain ONLY those;
+   otherwise walk the menu and explain the items a typical diner might not
+   recognize (foreign names, regional specialties, unusual ingredients). Honest
+   over confident: the model is told to say so rather than guess. */
+async function explainMenu(cfg, restaurant, menu, selectedNames){
+  const rName    = (restaurant && restaurant.name) ? restaurant.name : "this restaurant";
+  const menuText = menuToText(menu);
+  const focused  = Array.isArray(selectedNames) && selectedNames.length > 0;
+
+  let prompt =
+    "You are a warm, knowledgeable dining companion helping someone understand a "+
+    "menu at " + rName + ".\n\n";
+  if (focused){
+    prompt +=
+      "Explain ONLY these dishes the diner picked, in the order given:\n  " +
+      selectedNames.join("\n  ") + "\n\n";
+  } else {
+    prompt +=
+      "Walk through the menu below and explain the dishes a typical diner might "+
+      "not immediately recognize - especially foreign-language names, regional "+
+      "specialties, unusual ingredients, or preparations. Skip the obvious ones "+
+      "(a plain 'cheeseburger' or 'side salad' needs no explanation).\n\n";
+  }
+  prompt +=
+    "For each dish give a short, plain-English description: what it is, the key "+
+    "ingredients, and how it's typically prepared or served. One or two sentences "+
+    "each. Lead each with the dish name.\n"+
+    "Rules:\n"+
+    "- Only discuss items that actually appear on THE MENU BELOW. Never invent "+
+    "dishes.\n"+
+    "- If you are not confident what a specific dish is, say so honestly rather "+
+    "than guessing - accuracy matters more than sounding sure.\n"+
+    "- Be concise and friendly. No long preamble, no headings, no markdown.\n"+
+    "\nMENU:\n" + menuText;
+
+  logMsg("EXPLAIN","Explaining menu (" + menuText.length + " chars, focused=" +
+         (focused ? selectedNames.length : "all") + ")");
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body:JSON.stringify({
+        task:"explain_menu",
+        model:ASK_MODEL,
+        max_tokens: focused ? 800 : 1200,
+        messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
+      }),
+    });
+  } catch(err){
+    logMsg("ERROR","Explain network failure: " + err.message);
+    throw new Error("Network error reaching the AI service. Check your connection.");
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    let _detail = ""; try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
+    if (res.status === 402) throw new Error(_detail || "You’ve reached this month’s AI usage limit.");
+    if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
+    if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
+    throw new Error(_detail || ("AI request failed (" + res.status + ")"));
+  }
+  const json = await res.json();
+  const text = (json.content || [])
+    .filter(b => b.type === "text").map(b => b.text).join("\n").trim();
+  logMsg("EXPLAIN","Received explanation (" + text.length + " chars)");
+  if (!text) throw new Error("The model returned an empty answer. Try again.");
   return text;
 }
 
@@ -8228,6 +8298,12 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
   const [asking,   setAsking]   = useState(false);
   const [answer,   setAnswer]   = useState(null);
   const [askErr,   setAskErr]   = useState(null);
+  // "explain the menu" state
+  const [explainOpen, setExplainOpen] = useState(false);   // pick-dishes mode
+  const [explainPicks, setExplainPicks] = useState({});    // dish name -> bool
+  const [explaining, setExplaining] = useState(false);
+  const [explanation, setExplanation] = useState(null);
+  const [explainErr, setExplainErr] = useState(null);
   const hasKey = configComplete(cfg);
   const _dh = dishHistory(visits);
   const hasHistory = _dh.loved.length > 0 || _dh.disliked.length > 0;
@@ -8245,6 +8321,27 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
       setAskErr(err.message || "Something went wrong. Try again.");
     } finally {
       setAsking(false);
+    }
+  }
+
+  // All dish names on this menu (for the pick-dishes-to-explain chips).
+  const allDishNames = (menu.sections || [])
+    .flatMap(s => (s.items || []).map(it => (it.name || "").trim()))
+    .filter(Boolean);
+  const pickedNames = allDishNames.filter(n => explainPicks[n]);
+
+  async function runExplain(){
+    if (!hasKey){ setExplainErr("Set up your account in Settings first."); return; }
+    const picks = explainOpen ? pickedNames : [];
+    if (explainOpen && !picks.length){ setExplainErr("Pick at least one dish to explain."); return; }
+    setExplaining(true); setExplainErr(null); setExplanation(null);
+    try {
+      const a = await explainMenu(cfg, restaurant, menu, picks);
+      setExplanation(a);
+    } catch(err){
+      setExplainErr(err.message || "Something went wrong. Try again.");
+    } finally {
+      setExplaining(false);
     }
   }
 
@@ -8390,6 +8487,63 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
           {answer && (
             <div className="ask-answer">
               {answer.split("\n").filter(Boolean).map((line,i)=>(
+                <p key={i} style={{margin:i ? "8px 0 0" : 0}}>{line}</p>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ---- explain the menu (AI) ---- */}
+        <div className="card ask">
+          <div className="ask-head">
+            <Icon name="info" size={15} color="#e0764a" />
+            <span>Explain the menu</span>
+          </div>
+          <div className="tiny faint" style={{margin:"0 0 8px"}}>
+            {explainOpen
+              ? "Tap the dishes you're curious about, then explain just those."
+              : "Plain-English descriptions of the dishes that aren't obvious - foreign names, regional specialties, unusual ingredients."}
+          </div>
+
+          {explainOpen && (
+            <div className="chips" style={{gap:6, maxHeight:200, overflowY:"auto", marginBottom:10}}>
+              {allDishNames.map((n,i)=>(
+                <span key={i} className={"chip pick" + (explainPicks[n] ? " on" : "")}
+                  onClick={()=> setExplainPicks(p => Object.assign({}, p, { [n]: !p[n] }))}>
+                  {n}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="row" style={{gap:8, flexWrap:"wrap"}}>
+            <button className="btn primary sm ask-go" style={{flex:"none"}}
+              disabled={explaining || (explainOpen && !pickedNames.length)}
+              onClick={runExplain}>
+              {explaining ? <span className="spin" /> : <Icon name="sparkle" size={16} color="#1b1714" />}
+              {explaining ? "Reading the menu..."
+                : explainOpen ? ("Explain selected" + (pickedNames.length ? " (" + pickedNames.length + ")" : ""))
+                : "Explain this menu"}
+            </button>
+            <button className="btn ghost sm" style={{flex:"none"}}
+              onClick={()=>{ setExplainOpen(o=> !o); setExplainErr(null); }}>
+              {explainOpen ? "Whole menu instead" : "Pick specific dishes"}
+            </button>
+            {explainOpen && pickedNames.length ? (
+              <button className="btn ghost sm" style={{flex:"none"}}
+                onClick={()=> setExplainPicks({})}>Clear</button>
+            ) : null}
+          </div>
+
+          {!hasKey && (
+            <div className="tiny faint" style={{marginTop:8}}>
+              Set up your account in Settings to use this.
+            </div>
+          )}
+          {explainErr && <div className="ask-err">{explainErr}</div>}
+          {explanation && (
+            <div className="ask-answer">
+              {explanation.split("\n").filter(Boolean).map((line,i)=>(
                 <p key={i} style={{margin:i ? "8px 0 0" : 0}}>{line}</p>
               ))}
             </div>
