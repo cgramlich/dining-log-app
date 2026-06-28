@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.233.0";
+const APP_VERSION   = "1.234.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2226,6 +2226,19 @@ function decodeMenuPayload(s){
   catch(e){ return null; }
 }
 
+// Decode a shared-VISIT blob. Same transport as lists/menus; validates the
+// visit marker {k:"v", r:<place>} so it never cross-renders as a list/menu.
+function decodeVisitPayload(s){
+  try {
+    if (window.LZString){
+      const j = LZString.decompressFromEncodedURIComponent(s);
+      if (j){ const o = JSON.parse(j); if (o && o.k === "v" && o.r) return o; }
+    }
+  } catch(e){}
+  try { const o = JSON.parse(b64urlDecode(s)); return (o && o.k === "v" && o.r) ? o : null; }
+  catch(e){ return null; }
+}
+
 // Shorten a long URL via CORS-friendly, keyless providers, tried in order.
 // TinyURL is first: it is a plain GET (no POST body, no CORS preflight), which
 // is the least likely to be blocked from an installed PWA - CleanURI/spoo.me
@@ -2404,6 +2417,110 @@ async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr){
   return publishAndShareMenu(cfg, restaurant, combined, setBusy, setErr);
 }
 
+/* ---- publish-a-VISIT short page (via the backend) ----
+   Mirror of publishListPage / publishMenuPage. A shared visit gets a tiny
+   static page at menucaptain.com/v/<slug>.html that redirects into the app's
+   no-account visit viewer (?visit=...), so a texted link shows a real preview
+   card. Returns the short URL, or null so callers fall back to the long
+   ?visit= link (which always works). */
+async function publishVisitPage(cfg, payload, encoded){
+  try {
+    const people = ((payload && payload.ppl) || []).length;
+    const headers = await authHeaders(cfg);
+    headers["Content-Type"] = "application/json";
+    logMsg("PUBLISH","Publishing visit page via backend");
+    const res = await fetch(apiBase(cfg) + "/api/publish-visit", {
+      method:"POST", headers,
+      body: JSON.stringify({
+        restaurant: (payload && payload.r) || "A visit",
+        place: (payload && payload.c) || "",
+        people: people,
+        encoded: encoded,
+      }),
+    });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok || !data.url){
+      logMsg("PUBLISH","Backend visit publish failed (" + res.status + ") - using long link");
+      return null;
+    }
+    logMsg("PUBLISH", (data.created ? "Visit page created: " : "Visit page reused: ") + data.url);
+    return data.url;
+  } catch(e){
+    logMsg("PUBLISH","Visit publish error: " + e.message + " - using long link");
+    return null;
+  }
+}
+
+/* Ask the backend to mint long-lived (30-day) signed URLs for the caller's
+   own meal photos, so a no-account recipient can see them in a shared visit.
+   Scoped server-side to {user_id}/{path}, so only your own photos sign.
+   Returns an array of URLs (best-effort; missing/failed photos are dropped). */
+async function signVisitPhotos(cfg, paths){
+  const want = (paths || []).filter(Boolean).slice(0, 12);
+  if (!want.length) return [];
+  try {
+    const res = await fetch(apiBase(cfg) + "/api/photos/share-sign", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body: JSON.stringify({ paths: want }),
+    });
+    if (!res.ok){ logMsg("PUBLISH","photo share-sign failed " + res.status); return []; }
+    const data = await res.json().catch(()=> ({}));
+    const urls = (data && data.urls) || {};
+    return want.map(p => urls[p]).filter(Boolean);
+  } catch(e){
+    logMsg("PUBLISH","photo share-sign error: " + (e && e.message));
+    return [];
+  }
+}
+
+/* One-tap: sign the meal photos, build the visit payload, publish a short page
+   (fall back to the long ?visit= link), then hand it to the native share sheet.
+   NO private notes and NO dishes travel in the link (see buildVisitPayload).
+   setBusy/setErr are optional setters for a spinner / a small note. Any failure
+   still ends with SOME shareable link - the long link never fails. */
+async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr){
+  if (!visit){ return; }
+  if (setBusy) setBusy(true);
+  if (setErr) setErr(null);
+  try {
+    const photoUrls = await signVisitPhotos(cfg, (visit.photos || []).filter(Boolean));
+    const payload = buildVisitPayload(visit, restaurant, menuList, photoUrls);
+    let enc     = encodeListPayload(payload);   // same transport as lists/menus
+    // Guard the backend's 80k blob cap: if menus push it over, drop the menu
+    // (photos + place + people are the heart of a shared visit) and re-encode.
+    if (enc.length > 80000 && payload.s){
+      delete payload.s;
+      enc = encodeListPayload(payload);
+      if (setErr) setErr("Menu was too large to include - sharing the visit without it.");
+    }
+    const longUrl = location.origin + location.pathname + "?visit=" + enc;
+    let url = longUrl;
+    try {
+      const short = await publishVisitPage(cfg, payload, enc);
+      if (short) url = short;
+    } catch(e){
+      logMsg("PUBLISH","publish-visit threw, using long link: " + (e && e.message));
+    }
+    const place = (restaurant && restaurant.name) || visit.restaurant_name || "a visit";
+    if (navigator.share){
+      try {
+        await navigator.share({ title:"A visit on MenuCaptain",
+          text:"Take a look at my visit to " + place + ":", url });
+        logMsg("PUBLISH","Visit shared via native sheet");
+      } catch(e){ /* user cancelled - not an error */ }
+    } else {
+      try { await navigator.clipboard.writeText(url); if (setErr) setErr("Link copied to clipboard."); }
+      catch(e){ if (setErr) setErr("Here is the link: " + url); }
+    }
+  } catch(e){
+    logMsg("PUBLISH","Visit share failed: " + (e && e.message));
+    if (setErr) setErr("Could not create the share link. Try again.");
+  } finally {
+    if (setBusy) setBusy(false);
+  }
+}
+
 // Pure: build the lean, shareable payload from selected restaurants. Short keys
 // keep the URL small. Only clearly-shareable fields - never tokens/keys, and no
 // phone/notes. The street address (key "a") IS included so the shared view can
@@ -2475,6 +2592,44 @@ function buildMenuPayload(restaurant, menu){
   if (restaurant && restaurant.location) o.c = restaurant.location;
   if (restaurant && restaurant.cuisine) o.cu = restaurant.cuisine;
   if (menu && menu.label) o.l = menu.label;
+  return o;
+}
+
+/* Pure: build the lean, shareable VISIT payload. Marker k:"v". Carries the
+   place (so the recipient can add it), the people's NAMES (no usernames /
+   account ids - a published link is public), the date, the meal-photo URLs
+   (pre-signed by the caller, 30-day), and the place's combined menu (short
+   form). DELIBERATELY EXCLUDED: private notes, and what was actually eaten
+   (no dishes) - a shared visit invites the recipient to log their own meal,
+   it never exposes the sharer's order or per-dish estimates/ratings. Shape:
+     { k:"v", v:1, r,cu,c,a,gpid,lat,lng, dt, ppl:[names], ph:[urls],
+       s:[ { n, i:[ { n,d,p,t } ] } ] } */
+function buildVisitPayload(visit, restaurant, menuList, photoUrls){
+  const usable = (menuList || []).filter(m => m && (m.sections || []).length);
+  const combined = usable.length ? (usable.length === 1 ? usable[0] : combineGroupMenus(usable)) : null;
+  const sections = (((combined && combined.sections) || []).map(s => ({
+    n: (s && s.name) || "",
+    i: ((s && s.items) || []).map(it => {
+      const x = { n: (it && it.name) || "" };
+      if (it && it.description) x.d = it.description;
+      if (it && it.price)       x.p = it.price;
+      if (it && it.tags && it.tags.length) x.t = it.tags.slice(0, 6);
+      return x;
+    }),
+  }))).filter(s => s.i.length);
+  const o = { k:"v", v:1, r: (restaurant && restaurant.name) || (visit && visit.restaurant_name) || "A visit" };
+  if (restaurant && restaurant.cuisine)  o.cu  = restaurant.cuisine;
+  if (restaurant && restaurant.location) o.c   = restaurant.location;
+  if (restaurant && restaurant.address)  o.a   = restaurant.address;
+  if (restaurant && restaurant.google_place_id) o.gpid = restaurant.google_place_id;
+  if (restaurant && restaurant.lat != null) o.lat = restaurant.lat;
+  if (restaurant && restaurant.lng != null) o.lng = restaurant.lng;
+  if (visit && visit.date) o.dt = visit.date;
+  const names = ((visit && visit.companions) || []).map(p => p && p.name).filter(Boolean);
+  if (names.length) o.ppl = names.slice(0, 20);
+  const ph = (photoUrls || []).filter(Boolean);
+  if (ph.length) o.ph = ph.slice(0, 12);
+  if (sections.length) o.s = sections;
   return o;
 }
 
@@ -11665,6 +11820,8 @@ function PeopleTag({ value, onChange, roster }){
 function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [companions, setCompanions] = useState(()=> (existing && Array.isArray(existing.companions)) ? existing.companions : []);
+  const [shareBusy, setShareBusy] = useState(false);   // sharing this visit
+  const [shareErr, setShareErr]   = useState(null);
   const [conns, setConns] = useState([]);   // accepted connections (for tag autocomplete)
   useEffect(()=>{
     let alive = true;
@@ -13062,6 +13219,26 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             placeholder="How was it? Worth returning?" />
         </label>
 
+        {existing && (
+          <div style={{margin:"4px 0 14px"}}>
+            <button className="btn ghost" disabled={shareBusy} onClick={()=>{
+              const shareVisitObj = Object.assign({}, existing, {
+                date: date,
+                companions: companions,
+                photos: photoSlots.filter(s => s && s.kind === "existing").map(s => s.path),
+              });
+              shareVisit(cfg, shareVisitObj, chosenRest, (menus && menus[restId]) || [], setShareBusy, setShareErr);
+            }}>
+              {shareBusy ? <span className="spin" />
+                : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="share" size={16} />Share this visit</span>}
+            </button>
+            <div className="tiny faint" style={{marginTop:6}}>
+              Shares the place, the photos, who you were with, and the menu - never your notes or what you ate.
+            </div>
+            {shareErr ? <div className="tiny" style={{color:"var(--accent)", marginTop:5}}>{shareErr}</div> : null}
+          </div>
+        )}
+
         {onDelete && (
           !confirmDel ? (
             <button className="btn danger" onClick={()=> setConfirmDel(true)}>
@@ -13846,6 +14023,230 @@ function PublishedList({data}){
           </div>
         ))}
       </div>
+      <div className="pub-foot">
+        <div className="tiny faint" style={{marginBottom:10}}>Made with MenuCaptain</div>
+        <a className="btn ghost sm" href={home}>Make your own</a>
+      </div>
+    </div>
+  );
+}
+
+/* No-account viewer for a shared VISIT (?visit=...). Shows the place, the date,
+   the people who were there, the meal photos (pre-signed, embedded in the blob),
+   and the place's menu. Intentionally has NO notes and NO dishes - a shared
+   visit invites the recipient to log their OWN meal, never exposing the sharer's
+   order. A signed-in viewer can "Add to my places" (place + menu), asking before
+   overwriting; a no-account viewer gets a "Create your free account" bridge. */
+function PublishedVisit({data}){
+  const home = location.origin + location.pathname;
+  const [openMenu, setOpenMenu] = useState(false);
+  const [lb, setLb] = useState(-1);          // lightbox photo index, -1 = closed
+  const myCfg = loadConfig();
+  const canSave = configComplete(myCfg);
+  const [saveState, setSaveState] = useState("");   // "" | saving | saved | err
+  const [saveMsg, setSaveMsg]     = useState("");
+  const [dupAsk, setDupAsk]       = useState(null);  // {restaurants, menus, match}
+
+  if (!data || !data.r){
+    return (
+      <div className="pub-wrap">
+        <div className="pub-title">This link looks broken</div>
+        <div className="muted" style={{textAlign:"center",marginBottom:20}}>The visit could not be read.</div>
+        <div style={{textAlign:"center"}}><a className="btn primary" href={home}>Open MenuCaptain</a></div>
+      </div>
+    );
+  }
+
+  const photos = Array.isArray(data.ph) ? data.ph.filter(Boolean) : [];
+  const people = Array.isArray(data.ppl) ? data.ppl.filter(Boolean) : [];
+  const sections = Array.isArray(data.s) ? data.s : [];
+
+  // Shared payload (short keys) -> the app's internal menu section shape.
+  function sharedToSections(){
+    return sections.map(s => ({
+      name: s.n || "",
+      items: (s.i || []).map(it => ({
+        name: it.n || "", description: it.d || "", price: it.p || "",
+        tags: Array.isArray(it.t) ? it.t : [],
+      })),
+    }));
+  }
+  function buildSavedMenu(rid){
+    return { menu_id: uid("menu"), label: "Menu", restaurant_id: rid,
+      captured_date: todayISO(), last_updated: todayISO(), source: "shared",
+      sections: sharedToSections(), raw_text: "" };
+  }
+  function buildSavedRestaurant(rid){
+    const r = { id:rid, name:data.r || "Restaurant", cuisine:data.cu || "",
+      location:data.c || "", address:data.a || "", phone:"", website:"", notes:"",
+      favorite:false, added_date:todayISO() };
+    if (data.gpid) r.google_place_id = data.gpid;
+    if (data.lat != null) r.lat = data.lat;
+    if (data.lng != null) r.lng = data.lng;
+    return r;
+  }
+  async function startSave(){
+    if (!canSave) return;
+    setSaveState("saving"); setSaveMsg("");
+    try {
+      const rGot = await ghGetFile(myCfg, "data/restaurants.json");
+      const restaurants = Array.isArray(rGot.data) ? rGot.data : [];
+      const mGot = await ghGetFile(myCfg, "data/menus.json");
+      const menus = (mGot.data && typeof mGot.data === "object" && !Array.isArray(mGot.data)) ? mGot.data : {};
+      const match = restaurants.find(r => r && norm(r.name) === norm(data.r || ""));
+      if (match){ setDupAsk({ restaurants, menus, match }); setSaveState(""); return; }
+      await doSave("new", { restaurants, menus });
+    } catch(e){ setSaveState("err"); setSaveMsg((e && e.message) || "Could not save."); }
+  }
+  async function doSave(mode, ctx){
+    setSaveState("saving");
+    try {
+      const restaurants = (ctx.restaurants || []).slice();
+      const menus = Object.assign({}, ctx.menus || {});
+      let writeRestaurants = false;
+      let rid;
+      if (mode === "new"){
+        rid = uid("rest");
+        restaurants.push(buildSavedRestaurant(rid));
+        writeRestaurants = true;
+      } else {
+        rid = ctx.match.id;
+      }
+      if (sections.length){
+        const m = buildSavedMenu(rid);
+        menus[rid] = (mode === "replace") ? [m]
+          : (Array.isArray(menus[rid]) ? menus[rid].concat([m]) : [m]);
+      }
+      if (writeRestaurants) await ghPutFile(myCfg, "data/restaurants.json", restaurants, null);
+      if (sections.length) await ghPutFile(myCfg, "data/menus.json", menus, null);
+      setDupAsk(null); setSaveState("saved");
+      setSaveMsg(mode === "new" ? ("Added " + (data.r || "the place") + " to your places.")
+               : sections.length ? ((mode === "replace" ? "Replaced the menu on " : "Added the menu to ") + (data.r || "your place") + ".")
+               : "You already have this place.");
+      logMsg("SHARE","saved shared visit place mode=" + mode);
+    } catch(e){ setDupAsk(null); setSaveState("err"); setSaveMsg((e && e.message) || "Could not save."); }
+  }
+
+  const sub = [data.cu, data.c].filter(Boolean).join("  ·  ");
+
+  return (
+    <div className="pub-wrap">
+      <div className="pub-kicker">A visit on MenuCaptain</div>
+      <div className="pub-title">{data.r}</div>
+      {sub ? <div className="pub-sub">{sub}</div> : null}
+      {data.dt ? <div className="pub-sub" style={{marginTop:2}}>{fmtDate(data.dt)}</div> : null}
+
+      {photos.length > 0 && (
+        <div className="visit-photos" style={{justifyContent:"center", marginTop:14, marginBottom:4}}>
+          {photos.map((u,i)=>(
+            <div key={i} className="visit-photo tap" onClick={()=> setLb(i)}>
+              <img src={u} alt="" style={{width:"100%", height:"100%", objectFit:"cover"}} loading="lazy" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {people.length > 0 && (
+        <div className="pub-sub" style={{marginTop:10}}>With {people.join(", ")}</div>
+      )}
+
+      {data.a ? (
+        <div style={{textAlign:"center", marginTop:10}}>
+          <a className="btn ghost sm"
+             href={"https://maps.google.com/?q=" + encodeURIComponent((data.r ? data.r + ", " : "") + data.a)}
+             target="_blank" rel="noopener noreferrer">Directions</a>
+        </div>
+      ) : null}
+
+      {canSave ? (
+        <div style={{textAlign:"center", marginTop:16}}>
+          {saveState === "saved" ? (
+            <div className="tiny" style={{color:"var(--ok)", fontWeight:600}}>&#10003; {saveMsg}</div>
+          ) : (
+            <>
+              <button className="btn ghost sm" disabled={saveState === "saving"} onClick={startSave}>
+                {saveState === "saving"
+                  ? <span className="spin" />
+                  : <span className="row" style={{gap:5, justifyContent:"center"}}><Icon name="plus" size={14} />Add to my places{sections.length ? " + menu" : ""}</span>}
+              </button>
+              {saveState === "err" ? <div className="tiny" style={{color:"var(--danger)", marginTop:6}}>{saveMsg}</div> : null}
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="card" style={{marginTop:18, textAlign:"center"}}>
+          <div style={{fontWeight:600, marginBottom:5}}>Keep your own dining log</div>
+          <div className="small muted" style={{marginBottom:12}}>
+            Save this place, log your own visits, and share them back. Free.
+          </div>
+          <a className="btn primary" href={home}>Create your free account</a>
+        </div>
+      )}
+
+      {dupAsk ? (
+        <div style={{position:"fixed", inset:0, zIndex:80, background:"rgba(0,0,0,0.6)",
+             display:"flex", alignItems:"center", justifyContent:"center", padding:20}}
+             onClick={()=> setDupAsk(null)}>
+          <div className="card" style={{maxWidth:380, width:"100%", margin:0}} onClick={(e)=> e.stopPropagation()}>
+            <div style={{fontWeight:600, marginBottom:6}}>You already have {dupAsk.match.name}</div>
+            <div className="small muted" style={{marginBottom:14}}>
+              {sections.length ? "Add this shared menu to it, or replace its current menu(s)?"
+                               : "This place is already in your list."}
+            </div>
+            <div style={{display:"flex", flexDirection:"column", gap:8}}>
+              {sections.length ? (
+                <>
+                  <button className="btn primary" disabled={saveState === "saving"} onClick={()=> doSave("add", dupAsk)}>Add this menu to it</button>
+                  <button className="btn ghost" disabled={saveState === "saving"} onClick={()=> doSave("replace", dupAsk)}>Replace its menu(s)</button>
+                </>
+              ) : null}
+              <button className="btn ghost" onClick={()=> setDupAsk(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {sections.length > 0 && (
+        <div style={{marginTop:18}}>
+          <button className="btn ghost sm" onClick={()=> setOpenMenu(o=> !o)}>
+            {openMenu ? "Hide menu" : "View the menu"}
+          </button>
+          {openMenu ? (
+            <div className="pub-menu" style={{marginTop:10}}>
+              {sections.map((s,si)=>(
+                <div key={si} className="pub-msec">
+                  {s.n ? <div className="pub-msec-head"><span className="nm">{s.n}</span><span className="ct">{(s.i || []).length}</span></div> : null}
+                  {(s.i || []).map((it,ii)=>(
+                    <div key={ii} className="pub-mitem" style={{cursor:"default"}}>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div className="pub-mitem-head">
+                          <span className="inm">{it.n}</span>
+                          {it.p ? <span className="ipr">{it.p}</span> : null}
+                        </div>
+                        {it.d ? <div className="idesc">{it.d}</div> : null}
+                        {it.t && it.t.length > 0 && (
+                          <div className="chips" style={{marginTop:6}}>
+                            {it.t.map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {lb >= 0 && photos[lb] ? (
+        <div style={{position:"fixed", inset:0, zIndex:90, background:"rgba(0,0,0,0.92)",
+             display:"flex", alignItems:"center", justifyContent:"center", padding:16}}
+             onClick={()=> setLb(-1)}>
+          <img src={photos[lb]} alt="" style={{maxWidth:"100%", maxHeight:"100%", objectFit:"contain"}} />
+        </div>
+      ) : null}
+
       <div className="pub-foot">
         <div className="tiny faint" style={{marginBottom:10}}>Made with MenuCaptain</div>
         <a className="btn ghost sm" href={home}>Make your own</a>
@@ -18150,6 +18551,12 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     const mm = (location.search || "").match(/[?&]menu=([^&]+)/);
     if (mm) publishedMenu = decodeMenuPayload(mm[1]);
   } catch(e){ publishedMenu = null; }
+  // Shared-visit links (?visit=...) render the no-account PublishedVisit viewer.
+  let publishedVisit = null;
+  try {
+    const vm = (location.search || "").match(/[?&]visit=([^&]+)/);
+    if (vm) publishedVisit = decodeVisitPayload(vm[1]);
+  } catch(e){ publishedVisit = null; }
   // Group-order links (?g=<code>) render the no-account guest screen.
   let groupCode = null;
   try {
@@ -18178,6 +18585,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
                             expiresIn={recovery.expiresIn} />
             : published ? <PublishedList data={published} />
             : publishedMenu ? <PublishedMenu data={publishedMenu} />
+            : publishedVisit ? <PublishedVisit data={publishedVisit} />
             : groupCode ? <GroupOrderGuest code={groupCode} />
             : <App />);
 })();
