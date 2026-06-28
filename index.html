@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.226.0";
+const APP_VERSION   = "1.227.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -12245,9 +12245,16 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
         <label className="fld"><span className="lbl">Restaurant</span></label>
         <div style={{position:"relative", marginBottom:14}}>
           {chosenRest && !restOpen ? (
-            <div className="input" style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer"}}
+            <div className="input" style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}
               onClick={()=>{ setRestOpen(true); setRestQuery(""); }}>
               <span style={{flex:1, minWidth:0}}>{chosenRest.name}</span>
+              {onSaveRestaurant ? (
+                <button aria-label="Edit place details" title="Edit place details"
+                  style={{flex:"none", background:"none", border:"none", padding:2, cursor:"pointer", display:"flex"}}
+                  onClick={(e)=>{ e.stopPropagation(); setEditPlaceOpen(true); }}>
+                  <Icon name="edit" size={17} color="var(--accent)" />
+                </button>
+              ) : null}
               <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>Change</span>
             </div>
           ) : (
@@ -12276,14 +12283,6 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
             </>
           )}
         </div>
-        {chosenRest && !restOpen && onSaveRestaurant ? (
-          <div className="tiny" style={{margin:"-8px 2px 14px"}}>
-            <a href="#" style={{color:"var(--accent)"}}
-               onClick={(e)=>{ e.preventDefault(); setEditPlaceOpen(true); }}>
-              Edit {chosenRest.name}'s details (address, link to Google, photo)</a>
-          </div>
-        ) : null}
-
         <label className="fld"><span className="lbl">Date</span>
           <input className="input" type="date" value={date}
             onChange={e=>setDate(e.target.value)} />
