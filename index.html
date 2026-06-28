@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.232.0";
+const APP_VERSION   = "1.233.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4404,14 +4404,14 @@ function GooglePhoto({cfg, name, attribution, thumb}){
   }, [name, cfg && cfg.userId]);
   if (failed || !url){
     return thumb ? (
-      <div className="photo-shell" style={{width:72,height:72,borderRadius:10}}>
-        <Icon name="image" size={24} color="#5a5045" />
+      <div className="photo-shell" style={{width:"100%",height:"100%"}}>
+        <Icon name="image" size={20} color="#5a5045" />
       </div>
     ) : null;
   }
   if (thumb){
     return <img className="photo-img" src={url} alt=""
-      style={{width:72,height:72,borderRadius:10,objectFit:"cover"}} />;
+      style={{width:"100%",height:"100%",objectFit:"cover"}} />;
   }
   return (
     <div className="rest-hero">
@@ -6977,6 +6977,10 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       {r.photo ? (
         <div className="rest-thumb">
           <PhotoImg cfg={cfg} path={r.photo} />
+        </div>
+      ) : (r.google_photo_name && cfg) ? (
+        <div className="rest-thumb">
+          <GooglePhoto cfg={cfg} name={r.google_photo_name} attribution={r.google_photo_attr} thumb={true} />
         </div>
       ) : (
         <div className="rest-thumb photo-shell">
@@ -11482,7 +11486,9 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
               style={{width:72,height:72,borderRadius:10,objectFit:"cover"}} />
           )}
           {!hasAnyPhoto && seed && seed.google_photo_name && cfg && (
-            <GooglePhoto cfg={cfg} name={seed.google_photo_name} attribution={seed.google_photo_attr} thumb={true} />
+            <div style={{width:72,height:72,borderRadius:10,overflow:"hidden",flex:"none"}}>
+              <GooglePhoto cfg={cfg} name={seed.google_photo_name} attribution={seed.google_photo_attr} thumb={true} />
+            </div>
           )}
           {!hasAnyPhoto && !(seed && seed.google_photo_name) && (
             <div className="photo-shell"
