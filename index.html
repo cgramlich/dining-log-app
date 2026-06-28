@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.228.0";
+const APP_VERSION   = "1.229.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7496,6 +7496,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
         <h2>{r.name}</h2>
+        {onEdit ? (
+          <button className="x" onClick={onEdit} aria-label="Edit place" title="Edit place">
+            <Icon name="edit" size={19} color="#b3a591" />
+          </button>
+        ) : null}
         <button className="x" onClick={share} disabled={shareBusy} aria-label="Share">
           {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
         </button>
