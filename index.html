@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.230.0";
+const APP_VERSION   = "1.231.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1022,6 +1022,22 @@ async function placesDetails(cfg, placeId){
     throw err;
   }
   return data;   // { place:{...}, cached }
+}
+
+async function placesPhoto(cfg, name, maxwidth){
+  // Resolve a Google place-photo resource name to a loadable URL (fetched on
+  // demand, never stored - Google's terms allow display-with-attribution only).
+  const headers = await authHeaders(cfg);
+  const u = apiBase(cfg) + "/api/places/photo?name=" + encodeURIComponent(name)
+    + "&maxwidth=" + (maxwidth || 800);
+  const res = await fetch(u, { headers });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok){
+    const err = new Error(data.detail || ("photo failed (" + res.status + ")"));
+    err.status = res.status; err.detail = data.detail || "";
+    throw err;
+  }
+  return data;   // { url }
 }
 
 async function placesSearchText(cfg, body){
@@ -1902,7 +1918,7 @@ function uid(prefix){
   return prefix + "_" + Date.now().toString(36) + "_" +
          Math.random().toString(36).slice(2,7);
 }
-function todayISO(){ return new Date().toISOString().slice(0,10); }
+function todayISO(){ const d=new Date(), p=n=>String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
 
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
@@ -4372,6 +4388,31 @@ function PhotoImg({cfg, path, alt, className, style, onClick}){
               onClick={onClick} />;
 }
 
+// Restaurant hero from a Google place photo. Resolves the photo resource name to
+// a loadable URL on demand (never stored) and renders it WITH attribution, per
+// Google's terms. Shown only when there's no user-uploaded photo.
+function GooglePhoto({cfg, name, attribution}){
+  const [url, setUrl] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(()=>{
+    let alive = true;
+    if (!name || !cfg){ return; }
+    placesPhoto(cfg, name, 1000)
+      .then(d => { if (alive) setUrl(d && d.url); })
+      .catch(()=> { if (alive) setFailed(true); });
+    return ()=> { alive = false; };
+  }, [name, cfg && cfg.userId]);
+  if (failed || !url) return null;
+  return (
+    <div className="rest-hero">
+      <img className="photo-img" src={url} alt="" style={{width:"100%"}} />
+      <div className="tiny faint" style={{marginTop:4}}>
+        {attribution ? "Photo: " + attribution + " (via Google)" : "Photo via Google"}
+      </div>
+    </div>
+  );
+}
+
 // How many meal photos a single visit can hold (shared by the editor and the
 // quick "Add photo" on the visit card).
 const MAX_VISIT_PHOTOS = 8;
@@ -5995,6 +6036,11 @@ function App(){
           visits={visits}
           locations={locations}
           onSaveRestaurant={saveRestaurantEdit}
+          onCreateRestaurant={(rec)=>{
+            const next = [rec].concat(restaurants);
+            commit({ restaurants: next }, ["restaurants"]);
+            flash("Added " + (rec.name || "place"));
+          }}
           presetRestaurantId={overlay.restaurantId}
           existing={overlay.type==="editVisit" ? overlay.visit : null}
           seedFromSplit={overlay.seedFromSplit || null}
@@ -7267,6 +7313,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
       if (p.website) enrich.website = p.website;
       if (p.lat != null) enrich.lat = p.lat;
       if (p.lng != null) enrich.lng = p.lng;
+      // Google place photo: store the resource name + required attribution (not the
+      // image itself - it's fetched on demand via /api/places/photo and shown with credit).
+      if (p.photo_name){ enrich.google_photo_name = p.photo_name; enrich.google_photo_attr = p.photo_attribution || ""; }
       // Stamp display-only Google meta (rating/price/hours) straight onto the
       // place so it's fetched once, not per page view (Places calls cost money).
       const meta = { g_enriched_at: todayISO() };
@@ -7515,6 +7564,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <div className="rest-hero">
             <PhotoImg cfg={cfg} path={r.photo} />
           </div>
+        )}
+        {!r.photo && r.google_photo_name && cfg && (
+          <GooglePhoto cfg={cfg} name={r.google_photo_name} attribution={r.google_photo_attr} />
         )}
         <div className="meta-line">
           {r.cuisine || "Restaurant"}
@@ -11582,7 +11634,7 @@ function PeopleTag({ value, onChange, roster }){
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
+function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [companions, setCompanions] = useState(()=> (existing && Array.isArray(existing.companions)) ? existing.companions : []);
   const [conns, setConns] = useState([]);   // accepted connections (for tag autocomplete)
@@ -11624,6 +11676,71 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
   const filteredRests = rq
     ? sortedRests.filter(r => ((r.name||"") + " " + (r.cuisine||"") + " " + (r.location||"")).toLowerCase().includes(rq))
     : sortedRests;
+  // ---- inline Google finder: add a place that isn't saved yet, without leaving
+  // the visit. Reuses the Places relay (search-text + nearby). Pro-gated server-side. ----
+  const [gBusy,setGBusy]       = useState(false);
+  const [gErr,setGErr]         = useState("");
+  const [gResults,setGResults] = useState([]);
+  function getGeoOnce(){
+    return new Promise((resolve)=>{
+      if (!navigator.geolocation){ resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat:p.coords.latitude, lng:p.coords.longitude }),
+        ()=> resolve(null),
+        { enableHighAccuracy:false, timeout:8000, maximumAge:300000 });
+    });
+  }
+  function gMapErr(err){
+    if (err && err.status === 402) return "Finding places on Google is a Pro feature.";
+    return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
+  }
+  async function runGoogleSearch(){
+    const q = restQuery.trim();
+    if (!q){ setGErr("Type a name first, then Search Google."); return; }
+    setGBusy(true); setGErr("");
+    try {
+      let loc = null; try { loc = await getGeoOnce(); } catch(_e){}
+      const body = { query:q, max_results:12 };
+      if (loc){ body.lat = loc.lat; body.lng = loc.lng; }
+      const data = await placesSearchText(cfg, body);
+      const list = ((data && data.places) || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      setGResults(list);
+      if (!list.length) setGErr("No matches. Add the city or street and try again.");
+    } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
+    finally { setGBusy(false); }
+  }
+  async function runNearMe(){
+    setGBusy(true); setGErr("");
+    try {
+      const loc = await getGeoOnce();
+      if (!loc){ setGErr("Location unavailable. Allow location, or use Search Google."); setGBusy(false); return; }
+      const data = await placesNearby(cfg, {
+        lat:loc.lat, lng:loc.lng, radius_m:1500, open_now:false,
+        included_types:["restaurant","cafe","bar","bakery","meal_takeaway"],
+        max_results:15, rank:"DISTANCE",
+      });
+      const list = ((data && data.places) || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      setGResults(list);
+      if (!list.length) setGErr("Nothing found nearby.");
+    } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
+    finally { setGBusy(false); }
+  }
+  function pickGoogle(c){
+    if (!onCreateRestaurant){ setGErr("Can't add a place here."); return; }
+    const newRest = {
+      id: uid("rest"),
+      name: (c.name || restQuery.trim() || "New place"),
+      cuisine: "", location: c.city || "",
+      address: c.address || "", phone: c.phone || "", website: c.website || "", notes: "",
+      favorite: false, added_date: todayISO(),
+      google_place_id: c.place_id || undefined,
+      lat: (c.lat != null ? c.lat : undefined),
+      lng: (c.lng != null ? c.lng : undefined),
+    };
+    onCreateRestaurant(newRest);
+    setRestId(newRest.id);
+    setRestOpen(false); setRestQuery(""); setGResults([]); setGErr("");
+  }
   const [date,setDate]     = useState(existing ? existing.date : todayISO());
   const [rating,setRating] = useState(()=> placeRating(
     (restaurants||[]).find(x=>x.id===restId),
@@ -12296,6 +12413,36 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
                   ))}
                 </div>
               ) : null}
+
+              {/* Not in your places? Find it on Google and add it inline, without
+                  losing this visit draft. */}
+              <div className="row" style={{gap:8, marginTop:8}}>
+                <button className="btn ghost sm" style={{flex:1}} disabled={gBusy} onClick={runGoogleSearch}>
+                  {gBusy ? <span className="spin" /> : <Icon name="locate" size={15} color="var(--accent)" />}
+                  Search Google
+                </button>
+                <button className="btn ghost sm" style={{flex:1}} disabled={gBusy} onClick={runNearMe}>
+                  {gBusy ? <span className="spin" /> : <Icon name="locate" size={15} color="var(--accent)" />}
+                  Near me
+                </button>
+              </div>
+              {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
+              {gResults.length > 0 ? (
+                <div className="card" style={{marginTop:6, maxHeight:260, overflowY:"auto", padding:"4px 0"}}>
+                  <div className="small muted" style={{padding:"6px 14px"}}>From Google &mdash; tap to add:</div>
+                  {gResults.map(c => (
+                    <div key={c.place_id} className="pick-row"
+                      style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8}}
+                      onClick={()=> pickGoogle(c)}>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div>{c.name}</div>
+                        {c.address ? <div className="tiny faint">{c.address}</div> : null}
+                      </div>
+                      <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>Add</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </>
           )}
         </div>
@@ -12406,99 +12553,6 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
             <div className="tiny faint" style={{marginTop:6}}>
               {photoSlots.filter(s => s.kind === "pending").length} new photo(s) will
               upload when you tap Save.
-            </div>
-          )}
-        </div>
-
-        {/* Meal nutrition - estimate from a photo. Informative & celebratory,
-            never restrictive: no targets, no budgets, no warnings. */}
-        <div className="fld">
-          <span className="lbl">
-            Nutrition <span className="faint" style={{fontWeight:400}}>(estimate from a photo)</span>
-          </span>
-          <input ref={nutFileRef} type="file" accept="image/*"
-            style={{display:"none"}} onChange={onPickNutritionPhoto} />
-
-          {!nutrition && (
-            <div>
-              <button className="btn ghost" disabled={nutBusy}
-                onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
-                {nutBusy ? <span className="spin" /> : <Icon name="sparkle" size={16} />}
-                {nutBusy ? "Estimating..." : "Estimate from a photo"}
-              </button>
-              <div className="tiny faint" style={{marginTop:6}}>
-                Snap your plate and the app estimates calories and macros - just for
-                memory and curiosity.
-              </div>
-            </div>
-          )}
-
-          {nutErr && <div className="ask-err" style={{marginTop:8}}>{nutErr}</div>}
-
-          {nutrition && (
-            <div className="card nutri">
-              <div className="row between" style={{alignItems:"baseline"}}>
-                <div className="nutri-kcal">
-                  {(nutrition.source==="photo_estimate"||nutrition.source==="menu_estimate") ? "~" : ""}
-                  {nutrition.kcal}<span className="nutri-kcal-u"> cal</span>
-                </div>
-                <div className="row" style={{gap:6,flex:"none"}}>
-                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-                    title="Re-estimate from a new photo"
-                    onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
-                    {nutBusy ? <span className="spin" /> : <Icon name="camera" size={15} />}
-                  </button>
-                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-                    title={nutEdit ? "Done" : "Edit numbers"}
-                    onClick={()=> nutEdit ? commitNutEdit() : startNutEdit()}>
-                    <Icon name={nutEdit ? "check" : "edit"} size={15} />
-                  </button>
-                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-                    title="Remove" onClick={removeNutrition}>
-                    <Icon name="trash" size={15} color="#80715f" />
-                  </button>
-                </div>
-              </div>
-
-              {!nutEdit && (
-                <div className="nutri-macros">
-                  <span><b>{nutrition.protein_g}g</b> protein</span>
-                  <span><b>{nutrition.carbs_g}g</b> carbs</span>
-                  <span><b>{nutrition.fat_g}g</b> fat</span>
-                </div>
-              )}
-
-              {nutEdit && (
-                <div className="nutri-edit">
-                  <label>cal<input className="input" type="number" inputMode="numeric"
-                    value={nutrition.kcal} onChange={e=> setNutNum("kcal", e.target.value)} /></label>
-                  <label>protein (g)<input className="input" type="number" inputMode="numeric"
-                    value={nutrition.protein_g} onChange={e=> setNutNum("protein_g", e.target.value)} /></label>
-                  <label>carbs (g)<input className="input" type="number" inputMode="numeric"
-                    value={nutrition.carbs_g} onChange={e=> setNutNum("carbs_g", e.target.value)} /></label>
-                  <label>fat (g)<input className="input" type="number" inputMode="numeric"
-                    value={nutrition.fat_g} onChange={e=> setNutNum("fat_g", e.target.value)} /></label>
-                  <label className="wide">ingredients
-                    <input className="input" value={nutIngStr}
-                      onChange={e=> setNutIngStr(e.target.value)}
-                      placeholder="comma, separated, list" /></label>
-                </div>
-              )}
-
-              {!nutEdit && nutrition.ingredients && nutrition.ingredients.length > 0 && (
-                <div className="chips" style={{marginTop:10}}>
-                  {nutrition.ingredients.map((ing,i)=> <span key={i} className="chip">{ing}</span>)}
-                </div>
-              )}
-
-              <div className="nutri-foot">
-                {nutrition.source === "manual" ? "Edited by you" : "Estimated from photo"}
-                {nutrition.source !== "manual" && nutrition.confidence
-                  ? " - " + nutrition.confidence + " confidence" : ""}
-              </div>
-              {nutrition.note && !nutEdit && (
-                <div className="tiny faint" style={{marginTop:4}}>{nutrition.note}</div>
-              )}
             </div>
           )}
         </div>
@@ -12877,6 +12931,100 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, pre
                   ))}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Meal nutrition - estimate from a photo. Sits just below the dishes so
+            the whole-plate estimate is next to what you ordered. Informative &
+            celebratory, never restrictive: no targets, no budgets, no warnings. */}
+        <div className="fld">
+          <span className="lbl">
+            Nutrition <span className="faint" style={{fontWeight:400}}>(estimate from a photo)</span>
+          </span>
+          <input ref={nutFileRef} type="file" accept="image/*"
+            style={{display:"none"}} onChange={onPickNutritionPhoto} />
+
+          {!nutrition && (
+            <div>
+              <button className="btn ghost" disabled={nutBusy}
+                onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
+                {nutBusy ? <span className="spin" /> : <Icon name="sparkle" size={16} />}
+                {nutBusy ? "Estimating..." : "Estimate from a photo"}
+              </button>
+              <div className="tiny faint" style={{marginTop:6}}>
+                Snap your plate and the app estimates calories and macros - just for
+                memory and curiosity.
+              </div>
+            </div>
+          )}
+
+          {nutErr && <div className="ask-err" style={{marginTop:8}}>{nutErr}</div>}
+
+          {nutrition && (
+            <div className="card nutri">
+              <div className="row between" style={{alignItems:"baseline"}}>
+                <div className="nutri-kcal">
+                  {(nutrition.source==="photo_estimate"||nutrition.source==="menu_estimate") ? "~" : ""}
+                  {nutrition.kcal}<span className="nutri-kcal-u"> cal</span>
+                </div>
+                <div className="row" style={{gap:6,flex:"none"}}>
+                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                    title="Re-estimate from a new photo"
+                    onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
+                    {nutBusy ? <span className="spin" /> : <Icon name="camera" size={15} />}
+                  </button>
+                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                    title={nutEdit ? "Done" : "Edit numbers"}
+                    onClick={()=> nutEdit ? commitNutEdit() : startNutEdit()}>
+                    <Icon name={nutEdit ? "check" : "edit"} size={15} />
+                  </button>
+                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                    title="Remove" onClick={removeNutrition}>
+                    <Icon name="trash" size={15} color="#80715f" />
+                  </button>
+                </div>
+              </div>
+
+              {!nutEdit && (
+                <div className="nutri-macros">
+                  <span><b>{nutrition.protein_g}g</b> protein</span>
+                  <span><b>{nutrition.carbs_g}g</b> carbs</span>
+                  <span><b>{nutrition.fat_g}g</b> fat</span>
+                </div>
+              )}
+
+              {nutEdit && (
+                <div className="nutri-edit">
+                  <label>cal<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.kcal} onChange={e=> setNutNum("kcal", e.target.value)} /></label>
+                  <label>protein (g)<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.protein_g} onChange={e=> setNutNum("protein_g", e.target.value)} /></label>
+                  <label>carbs (g)<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.carbs_g} onChange={e=> setNutNum("carbs_g", e.target.value)} /></label>
+                  <label>fat (g)<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.fat_g} onChange={e=> setNutNum("fat_g", e.target.value)} /></label>
+                  <label className="wide">ingredients
+                    <input className="input" value={nutIngStr}
+                      onChange={e=> setNutIngStr(e.target.value)}
+                      placeholder="comma, separated, list" /></label>
+                </div>
+              )}
+
+              {!nutEdit && nutrition.ingredients && nutrition.ingredients.length > 0 && (
+                <div className="chips" style={{marginTop:10}}>
+                  {nutrition.ingredients.map((ing,i)=> <span key={i} className="chip">{ing}</span>)}
+                </div>
+              )}
+
+              <div className="nutri-foot">
+                {nutrition.source === "manual" ? "Edited by you" : "Estimated from photo"}
+                {nutrition.source !== "manual" && nutrition.confidence
+                  ? " - " + nutrition.confidence + " confidence" : ""}
+              </div>
+              {nutrition.note && !nutEdit && (
+                <div className="tiny faint" style={{marginTop:4}}>{nutrition.note}</div>
+              )}
             </div>
           )}
         </div>
