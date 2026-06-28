@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.236.0";
+const APP_VERSION   = "1.237.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8350,11 +8350,24 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
             <Icon name="sparkle" size={15} color="#e0764a" />
             <span>Help me order</span>
           </div>
-          <textarea className="input ask-input" rows={2}
-            placeholder={"What are you in the mood for?  e.g. something light, no pork, best value"}
-            value={askInput}
-            onChange={e=> setAskInput(e.target.value)}
-            onKeyDown={e=>{ if (e.key === "Enter" && (e.metaKey || e.ctrlKey)){ e.preventDefault(); runAsk(); } }} />
+          <div style={{position:"relative"}}>
+            <textarea className="input ask-input" rows={2}
+              placeholder={"What are you in the mood for?  e.g. something light, no pork, best value"}
+              value={askInput}
+              style={askInput ? {paddingRight:34} : undefined}
+              onChange={e=> setAskInput(e.target.value)}
+              onKeyDown={e=>{ if (e.key === "Enter" && (e.metaKey || e.ctrlKey)){ e.preventDefault(); runAsk(); } }} />
+            {askInput ? (
+              <button type="button" aria-label="Clear" title="Clear"
+                onClick={()=>{ setAskInput(""); setAskErr && setAskErr(null); }}
+                style={{position:"absolute", top:7, right:7, width:24, height:24, borderRadius:"50%",
+                        border:"none", background:"var(--surface-2)", color:"var(--text-faint)",
+                        cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+                        fontSize:15, lineHeight:1, padding:0}}>
+                {"✕"}
+              </button>
+            ) : null}
+          </div>
           <div className="chips ask-egs">
             {["Something healthy","Not too heavy","Something for sharing","Best value"]
               .concat(hasHistory ? ["What did I love here?","What do I usually get?"] : [])
