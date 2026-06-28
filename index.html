@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.239.0";
+const APP_VERSION   = "1.240.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4122,6 +4122,33 @@ async function explainMenu(cfg, restaurant, menu, selectedNames){
   logMsg("EXPLAIN","Received explanation (" + text.length + " chars)");
   if (!text) throw new Error("The model returned an empty answer. Try again.");
   return text;
+}
+
+/* Find real photos of a dish on the web (Pro). The backend runs the image
+   search (Google Programmable Search) and returns thumbnail + source links;
+   we never get or store the raw image bytes. Returns [{thumb, full, source,
+   title}]. Throws with a friendly message on 402 (Pro) / 503 (not set up). */
+async function dishImages(cfg, name, cuisine){
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/dish/images", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body:JSON.stringify({ name: name || "", cuisine: cuisine || "" }),
+    });
+  } catch(err){
+    throw new Error("Network error reaching the photo search.");
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    let _detail = ""; try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
+    if (res.status === 402) throw new Error(_detail || "Dish photos are a MenuCaptain Pro feature.");
+    if (res.status === 503) throw new Error(_detail || "Dish photo search isn’t set up yet.");
+    if (res.status === 429) throw new Error(_detail || "Photo search is busy. Try again in a bit.");
+    throw new Error(_detail || ("Photo search failed (" + res.status + ")"));
+  }
+  const json = await res.json();
+  return Array.isArray(json.images) ? json.images : [];
 }
 
 /* ============================================================
@@ -8036,7 +8063,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <button className="btn ghost sm" style={{flex:"none"}} onClick={()=> setDietFilter(null)}>Show all menus</button>
             </div>
             {dietMenu && dietMenu.sections.length > 0
-              ? <MenuView menu={dietMenu} cfg={cfg} restaurantName={r.name} />
+              ? <MenuView menu={dietMenu} cfg={cfg} restaurantName={r.name} cuisine={r.cuisine} />
               : <div className="card" style={{textAlign:"center"}}>
                   <div className="small muted">No {dietFilter} items found in this place's menus.</div>
                 </div>}
@@ -8552,6 +8579,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
 
         <MenuView menu={menu} cfg={cfg}
           restaurantName={restaurant ? restaurant.name : ""}
+          cuisine={restaurant ? restaurant.cuisine : ""}
           onSaveItemNutrition={onSaveItemNutrition}
           onSaveItemTags={onSaveItemTags} />
         <div style={{height:20}} />
@@ -8563,7 +8591,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, onSaveItemNutrition, onSaveItemTags}){
+function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSaveItemTags}){
   const [open, setOpen]   = useState(()=> {
     const o = {}; (menu.sections||[]).forEach((s,i)=> { o[i] = i < 2; }); return o;
   });
@@ -8571,8 +8599,29 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition, onSaveItemTag
   const [itemBusy, setItemBusy] = useState({});   // "si:ii" -> bool
   const [itemErr,  setItemErr]  = useState({});    // "si:ii" -> message
   const [editTags, setEditTags] = useState(false); // manual dietary-tag editing
+  const [imgBusy, setImgBusy]   = useState({});    // "si:ii" -> bool (photo search)
+  const [imgErr,  setImgErr]    = useState({});    // "si:ii" -> message
+  const [imgRes,  setImgRes]    = useState({});    // "si:ii" -> [{thumb,full,source,title}] | "none"
   const q = filter.trim().toLowerCase();
   const canEstimate = !!(cfg && onSaveItemNutrition);
+
+  async function findPhotos(si, ii, it){
+    const key = si + ":" + ii;
+    if (!configComplete(cfg)){
+      setImgErr(e => Object.assign({}, e, { [key]:"Set up your account in Settings." }));
+      return;
+    }
+    setImgErr(e => Object.assign({}, e, { [key]:null }));
+    setImgBusy(b => Object.assign({}, b, { [key]:true }));
+    try {
+      const imgs = await dishImages(cfg, it.name, cuisine);
+      setImgRes(r => Object.assign({}, r, { [key]: imgs.length ? imgs : "none" }));
+    } catch(err){
+      setImgErr(e => Object.assign({}, e, { [key]:err.message || "Couldn't find photos." }));
+    } finally {
+      setImgBusy(b => Object.assign({}, b, { [key]:false }));
+    }
+  }
 
   // carry each item's ORIGINAL index so estimates write back to the right item
   const sections = (menu.sections || []).map((s,i)=>{
@@ -8681,6 +8730,47 @@ function MenuView({menu, cfg, restaurantName, onSaveItemNutrition, onSaveItemTag
                         {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
                       </div>
                     )}
+
+                {/* See real photos of this dish from the web (Pro) */}
+                {cfg && !imgRes[key] && (
+                  <div className="iest" style={{marginTop:6}}>
+                    <button className="iest-btn" disabled={imgBusy[key]}
+                      onClick={()=> findPhotos(i, oj, it)}>
+                      {imgBusy[key]
+                        ? <span className="spin" />
+                        : <Icon name="image" size={12} color="#e0764a" />}
+                      {imgBusy[key] ? "Finding photos..." : "See photos"}
+                    </button>
+                    {imgErr[key] && <span className="iest-err">{imgErr[key]}</span>}
+                  </div>
+                )}
+                {Array.isArray(imgRes[key]) && (
+                  <div style={{marginTop:8}}>
+                    <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
+                      {imgRes[key].map((im,k)=>(
+                        <a key={k} href={im.source} target="_blank" rel="noopener noreferrer"
+                           title={im.title || it.name}
+                           style={{flex:"none", width:96, height:96, borderRadius:10, overflow:"hidden",
+                                   border:"1px solid var(--line-soft)", background:"var(--surface-2)"}}>
+                          <img src={im.thumb} alt={im.title || it.name} loading="lazy"
+                               style={{width:"100%", height:"100%", objectFit:"cover"}} />
+                        </a>
+                      ))}
+                    </div>
+                    <div className="row between" style={{marginTop:4}}>
+                      <span className="tiny faint">Photos from the web · tap to open the source</span>
+                      <button className="btn ghost sm" style={{flex:"none"}}
+                        onClick={()=> setImgRes(r=>{ const n=Object.assign({},r); delete n[key]; return n; })}>Hide</button>
+                    </div>
+                  </div>
+                )}
+                {imgRes[key] === "none" && (
+                  <div className="row between" style={{marginTop:6}}>
+                    <span className="tiny faint">No photos found for this dish.</span>
+                    <button className="btn ghost sm" style={{flex:"none"}}
+                      onClick={()=> setImgRes(r=>{ const n=Object.assign({},r); delete n[key]; return n; })}>Dismiss</button>
+                  </div>
+                )}
               </div>
             );
           })}
