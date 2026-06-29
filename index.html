@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.252.0";
+const APP_VERSION   = "1.253.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1006,6 +1006,19 @@ async function placesNearby(cfg, body){
     throw err;
   }
   return data;   // { places:[...], cached }
+}
+
+// Pull the display-only Google meta (rating / review count / price) off a Places
+// search or nearby result, so a place added from discovery shows its Google
+// rating immediately - no "Update from Google" tap needed. Same g_* keys the
+// detail page already reads.
+function googleMetaFrom(c){
+  const m = {};
+  if (c && typeof c.rating === "number")        m.g_rating = c.rating;
+  if (c && typeof c.rating_count === "number")  m.g_rating_count = c.rating_count;
+  if (c && c.price_level != null && c.price_level !== "") m.g_price_level = c.price_level;
+  if (Object.keys(m).length) m.g_enriched_at = todayISO();
+  return m;
 }
 
 async function placesDetails(cfg, placeId){
@@ -7395,7 +7408,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   }
   function pickGooglePlace(c){
     if (!onCreateRestaurant){ setGErr("Can't add a place here."); return; }
-    const newRest = {
+    const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || query.trim() || "New place"),
       cuisine: "", location: c.city || "",
@@ -7404,7 +7417,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       google_place_id: c.place_id || undefined,
       lat: (c.lat != null ? c.lat : undefined),
       lng: (c.lng != null ? c.lng : undefined),
-    };
+    }, googleMetaFrom(c));   // carry Google rating/count/price so it shows right away
     onCreateRestaurant(newRest);   // parent commits + opens the new place
   }
   // Reset any Google results when the search text changes, so the finder starts
@@ -7515,6 +7528,8 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
             <div className="meta-line" style={{marginTop:4}}>
               {r.cuisine || "Restaurant"}
               {r.location ? "  \u00b7  " + r.location : ""}
+              {r.g_rating != null ? "  \u00b7  \u2605 " + Number(r.g_rating).toFixed(1)
+                + (r.g_rating_count ? " (" + Number(r.g_rating_count).toLocaleString() + ")" : "") : ""}
               {countVisits(r.id) > 0 ? "  \u00b7  " + countVisits(r.id) + " visit(s)" : ""}
             </div>
           </div>
@@ -8172,7 +8187,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               {r.g_rating != null && (
                 <span className="small">
                   <span style={{color:"var(--accent)"}}>{"\u2605"}</span> {Number(r.g_rating).toFixed(1)}
-                  {r.g_rating_count ? <span className="faint"> ({r.g_rating_count})</span> : null}
+                  {r.g_rating_count ? <span className="faint"> ({Number(r.g_rating_count).toLocaleString()} on Google)</span> : null}
                 </span>
               )}
               {gPrice(r.g_price_level) ? <span className="small faint">{gPrice(r.g_price_level)}</span> : null}
@@ -11171,7 +11186,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
         "Cancel = open the one you already have.");
       if (!addAnyway){ onOpenRestaurant(soft.id); return; }
     }
-    const prefill = {
+    const prefill = Object.assign({
       name: p.name || "",
       cuisine: cuisineFromType(p.primary_type, p.types),
       location: p.city || "",
@@ -11181,7 +11196,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
       notes: (p.hours && p.hours.length) ? ("Hours: " + p.hours.join("; ")) : "",
       lat: p.lat, lng: p.lng,
       google_place_id: p.place_id,
-    };
+    }, googleMetaFrom(p));   // carry Google rating/count/price into the add form
     logMsg("PLACES", "Add to my places from discovery: " + (p.name || "") + " place_id=" + p.place_id);
     onAddPlace(prefill);
   }
@@ -12277,7 +12292,16 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
     } else {
       finalPhotoPath = existingPhotoPath || null;
     }
-    const rec = Object.assign({}, existing || {}, {   // preserve unknown fields (e.g. g_* Google meta)
+    // Carry Google rating/count/price from the seed (Near-me prefill or enrich)
+    // so a discovered place shows its Google rating without a separate update.
+    const gMeta = {};
+    if (seed){
+      if (typeof seed.g_rating === "number")       gMeta.g_rating = seed.g_rating;
+      if (typeof seed.g_rating_count === "number") gMeta.g_rating_count = seed.g_rating_count;
+      if (seed.g_price_level != null && seed.g_price_level !== "") gMeta.g_price_level = seed.g_price_level;
+      if (seed.g_enriched_at)                      gMeta.g_enriched_at = seed.g_enriched_at;
+    }
+    const rec = Object.assign({}, existing || {}, gMeta, {   // preserve unknown fields (e.g. g_* Google meta)
       id: rid,
       name:name.trim(), cuisine:cuisine.trim(),
       location: finalLoc,
@@ -12610,7 +12634,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   }
   function pickGoogle(c){
     if (!onCreateRestaurant){ setGErr("Can't add a place here."); return; }
-    const newRest = {
+    const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || restQuery.trim() || "New place"),
       cuisine: "", location: c.city || "",
@@ -12619,7 +12643,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       google_place_id: c.place_id || undefined,
       lat: (c.lat != null ? c.lat : undefined),
       lng: (c.lng != null ? c.lng : undefined),
-    };
+    }, googleMetaFrom(c));   // carry Google rating/count/price so it shows right away
     onCreateRestaurant(newRest);
     setRestId(newRest.id);
     setRestOpen(false); setRestQuery(""); setGResults([]); setGErr("");
