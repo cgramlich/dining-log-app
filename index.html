@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.245.0";
+const APP_VERSION   = "1.246.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5949,6 +5949,7 @@ function App(){
             lists={lists} meta={meta} splits={splits}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             onOpenPassport={()=> setOverlay({ type:"passport" })}
+            onOpenPeople={()=> setOverlay({ type:"people" })}
             onOpenLeaderboard={()=> setOverlay({ type:"leaderboard" })}
             onOpenShares={()=> setOverlay({ type:"shares" })} sharesCount={sharesCount}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
@@ -6530,6 +6531,12 @@ function App(){
           onClose={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
       )}
 
+      {overlay && overlay.type === "people" && (
+        <PeopleView visits={visits} restaurants={restaurants}
+          onOpenVisit={(v)=> setOverlay({ type:"editVisit", visit:v, returnTo:{ type:"people" } })}
+          onClose={()=> setOverlay(null)} />
+      )}
+
       {overlay && overlay.type === "publish" && (
         <PublishBuilder restaurants={restaurants} visits={visits} menus={menus} cfg={config}
           onPublished={handleListPublished}
@@ -6647,12 +6654,107 @@ function SearchBar({value, onChange, placeholder}){
   );
 }
 
+/* Dining companions: who you've eaten with, ranked by how often, derived from
+   the people tagged on visits. Tap a person to see your visits together. Pure
+   read-only analytics over visit.companions - no new data model. */
+function PeopleView({ visits, restaurants, onClose, onOpenVisit }){
+  const [sel, setSel] = useState(null);   // selected person key | null
+  const byId = {}; (restaurants || []).forEach(r => { byId[r.id] = r; });
+  const restName = (v)=> { const r = byId[v.restaurant_id]; return r ? r.name : (v.restaurant_name || "Unknown"); };
+
+  const map = new Map();   // lower name -> { key, name, count, last, username, user_id, visits[] }
+  (visits || []).forEach(v => (v.companions || []).forEach(p => {
+    const nm = ((p && p.name) || "").trim(); if (!nm) return;
+    const k = nm.toLowerCase();
+    const cur = map.get(k) || { key:k, name:nm, count:0, last:"", username:undefined, user_id:undefined, visits:[] };
+    cur.count += 1;
+    if ((v.date || "") > cur.last) cur.last = v.date || "";
+    if (p.username && !cur.username) cur.username = p.username;
+    if (p.user_id && !cur.user_id) cur.user_id = p.user_id;
+    cur.visits.push(v);
+    map.set(k, cur);
+  }));
+  const people = Array.from(map.values()).sort((a,b)=>
+    b.count - a.count || (b.last || "").localeCompare(a.last || "") || a.name.localeCompare(b.name));
+  const selPerson = sel ? map.get(sel) : null;
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={selPerson ? ()=> setSel(null) : onClose}>
+          <Icon name="back" size={20} />
+        </button>
+        <h2>{selPerson ? selPerson.name : "Dining companions"}</h2>
+        <span style={{width:40}} />
+      </div>
+      <div className="ovbody">
+        {!people.length ? (
+          <div className="empty" style={{padding:"30px 20px"}}>
+            <div className="big">No companions yet</div>
+            <div>Tag who you're with when you log a visit, and they'll show up here over time.</div>
+          </div>
+        ) : selPerson ? (
+          <div>
+            <div className="small muted" style={{margin:"2px 2px 12px"}}>
+              {selPerson.count} visit{selPerson.count === 1 ? "" : "s"} together
+              {selPerson.username ? "  ·  @" + selPerson.username : ""}
+            </div>
+            {selPerson.visits.slice().sort((a,b)=> (b.date || "").localeCompare(a.date || "")).map(v => (
+              <div key={v.id} className="card tap" onClick={()=> onOpenVisit && onOpenVisit(v)}>
+                <div className="place-name">{restName(v)}</div>
+                <div className="meta-line" style={{marginTop:4}}>
+                  {fmtDate(v.date)} &nbsp;&middot;&nbsp; {relDays(v.date)}
+                </div>
+                {v.dishes && v.dishes.length > 0 && (
+                  <div className="chips" style={{marginTop:8}}>
+                    {v.dishes.slice(0,6).map((d,i)=> (
+                      <span key={i} className={"chip dish" + dishChipClass(d.verdict)}>{d.name}</span>
+                    ))}
+                  </div>
+                )}
+                {(v.companions || []).length > 1 ? (
+                  <div className="tiny faint" style={{marginTop:8}}>
+                    With {v.companions.map(p=> p.name).filter(n => (n||"").toLowerCase() !== selPerson.key).join(", ")}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div>
+            <div className="tiny faint" style={{margin:"2px 2px 12px"}}>
+              {people.length} {people.length === 1 ? "person" : "people"} you've dined with. Tap to see your visits together.
+            </div>
+            {people.map(p => (
+              <div key={p.key} className="card tap" onClick={()=> setSel(p.key)}
+                style={{display:"flex", alignItems:"center", gap:10}}>
+                <div style={{flex:1, minWidth:0}}>
+                  <div className="place-name">
+                    {p.name}{p.username ? <span className="tiny faint" style={{marginLeft:6}}>@{p.username}</span> : null}
+                  </div>
+                  <div className="meta-line" style={{marginTop:4}}>
+                    {p.count} visit{p.count === 1 ? "" : "s"}
+                    {p.last ? "  ·  last " + fmtDate(p.last) : ""}
+                  </div>
+                </div>
+                <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+                  <Icon name="back" size={15} color="var(--text-faint)" />
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Discover tab: the calm home for the recap surfaces (Year in Food, Food
 // passport) and the badges. Each badge is paired with a quiet "doorway" action
 // that opens the thing it is about - an inviting button, never a "go earn this"
 // nag. Earned state is derived the same pure way Settings used to compute it.
 function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
-                        onOpenYearInFood, onOpenPassport, onOpenLeaderboard,
+                        onOpenYearInFood, onOpenPassport, onOpenLeaderboard, onOpenPeople,
                         onOpenShares, sharesCount,
                         onScanMenu, onLogVisit, onAddPlace, onPublishList, onShareApp,
                         onOpenSplit, onNewSplit, onDeleteSplit }){
@@ -6689,6 +6791,18 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits,
           <Icon name="back" size={15} color="var(--text-faint)" />
         </span>
       </div>
+      {onOpenPeople ? (
+        <div className="yif-entry tap" onClick={onOpenPeople}>
+          <span className="yif-entry-ic"><Icon name="nodes" size={16} color="var(--accent)" /></span>
+          <span className="yif-entry-tx">
+            <span className="yif-entry-t">Dining companions</span>
+            <span className="yif-entry-s">Who you dine with most, and your visits together</span>
+          </span>
+          <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+            <Icon name="back" size={15} color="var(--text-faint)" />
+          </span>
+        </div>
+      ) : null}
       {onOpenLeaderboard ? (
         <div className="yif-entry tap" onClick={onOpenLeaderboard}>
           <span className="yif-entry-ic"><Icon name="nodes" size={16} color="var(--accent)" /></span>
