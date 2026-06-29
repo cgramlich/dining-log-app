@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.257.0";
+const APP_VERSION   = "1.258.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2518,11 +2518,14 @@ async function signVisitPhotos(cfg, paths){
   }
 }
 
-/* One-tap: sign the meal photos, build the visit payload, publish a short page
-   (fall back to the long ?visit= link), then hand it to the native share sheet.
+/* One-tap: sign the meal photos, build the visit payload, then share a link that
+   WORKS IMMEDIATELY - the `?visit=` link loads the already-deployed app and
+   decodes the visit client-side (no GitHub Pages build delay), optionally
+   shortened via the keyless shorteners we already use. We deliberately do NOT
+   use the committed /v/<slug>.html page here: it 404s for ~30-60s until Pages
+   builds, which is unacceptable for a link you just handed someone.
    NO private notes and NO dishes travel in the link (see buildVisitPayload).
-   setBusy/setErr are optional setters for a spinner / a small note. Any failure
-   still ends with SOME shareable link - the long link never fails. */
+   setBusy/setErr are optional setters for a spinner / a small note. */
 async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr){
   if (!visit){ return; }
   if (setBusy) setBusy(true);
@@ -2531,20 +2534,22 @@ async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr){
     const photoUrls = await signVisitPhotos(cfg, (visit.photos || []).filter(Boolean));
     const payload = buildVisitPayload(visit, restaurant, menuList, photoUrls);
     let enc     = encodeListPayload(payload);   // same transport as lists/menus
-    // Guard the backend's 80k blob cap: if menus push it over, drop the menu
-    // (photos + place + people are the heart of a shared visit) and re-encode.
-    if (enc.length > 80000 && payload.s){
+    // Keep the URL sane: if menus push it large, drop the menu (photos + place +
+    // people are the heart of a shared visit) and re-encode.
+    if (enc.length > 12000 && payload.s){
       delete payload.s;
       enc = encodeListPayload(payload);
       if (setErr) setErr("Menu was too large to include - sharing the visit without it.");
     }
     const longUrl = location.origin + location.pathname + "?visit=" + enc;
+    // The long link works instantly; shorten it for a tidy share when we can,
+    // but never block on it - any failure just shares the working long link.
     let url = longUrl;
     try {
-      const short = await publishVisitPage(cfg, payload, enc);
+      const short = await shortenUrl(longUrl);
       if (short) url = short;
     } catch(e){
-      logMsg("PUBLISH","publish-visit threw, using long link: " + (e && e.message));
+      logMsg("PUBLISH","shorten failed, using long ?visit= link: " + (e && e.message));
     }
     const place = (restaurant && restaurant.name) || visit.restaurant_name || "a visit";
     if (navigator.share){
