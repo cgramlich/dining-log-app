@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.249.0";
+const APP_VERSION   = "1.250.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6090,6 +6090,10 @@ function App(){
           onClose={()=> setOverlay(null)}
           onLogVisit={()=> setOverlay({ type:"logVisit", restaurantId:overlay.id,
             returnTo:{ type:"restaurant", id:overlay.id } })}
+          onToggleVisitLoved={(v)=>{
+            const next = visits.map(x => x.id === v.id ? Object.assign({}, x, { loved: !x.loved }) : x);
+            commit({ visits: next }, ["visits"]);
+          }}
           onEdit={()=> setOverlay({ type:"editRestaurant", id:overlay.id })}
           onEnrich={(enrich)=> setOverlay({ type:"editRestaurant", id:overlay.id, enrich:enrich })}
           onLinkGoogle={(placeId, cand)=>{
@@ -7795,7 +7799,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onOpenVisit,
-                           onToggleFav, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onUpgrade, onHome}){
+                           onToggleFav, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onToggleVisitLoved, onUpgrade, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [lightbox, setLightbox]     = useState(null);   // {paths, index} | null
   const [addPhotoFor, setAddPhotoFor] = useState(null); // visit awaiting a card-level photo add
@@ -8449,7 +8453,18 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               )}
               <div className="between">
                 <div className="small muted">{fmtDate(v.date)}</div>
-                {null}
+                {onToggleVisitLoved ? (
+                  <button className={"fav" + (v.loved ? " on" : "")}
+                    title={v.loved ? "Loved - tap to remove" : "Mark this visit loved"}
+                    style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
+                    onClick={(e)=>{ e.stopPropagation(); onToggleVisitLoved(v); }}>
+                    <Icon name="heart" size={18} color={v.loved ? "#d9604e" : "#80715f"} />
+                  </button>
+                ) : (v.loved ? (
+                  <span className="fav on" title="Loved" style={{flex:"none"}}>
+                    <Icon name="heart" size={18} color="#d9604e" />
+                  </span>
+                ) : null)}
               </div>
               {v.dishes && v.dishes.length > 0 && (
                 <div className="chips">
@@ -14069,7 +14084,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       const fetched = await fetchMenuText(config, u);
       const parsed  = await digitizeMenuFromText(config, fetched.text);
       if (!parsed.sections.length){
-        throw new Error("Couldn't find a menu on that page. Try a direct link to the menu, or scan it.");
+        throw new Error("No menu on that page - homepages and contact pages usually don't have one. Try the restaurant's menu/order page, or scan the menu (most reliable).");
       }
       parsed.captured_date = todayISO();
       parsed.last_updated  = todayISO();
