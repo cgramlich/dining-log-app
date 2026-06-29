@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.260.0";
+const APP_VERSION   = "1.261.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -14987,6 +14987,35 @@ function PublishedVisit({data}){
       location.href = home;   // into the app; it reads the seed and opens the logger
     } catch(e){ setSaveState("err"); setSaveMsg((e && e.message) || "Could not start your visit."); }
   }
+  // "Want to try": the recipient WASN'T there - this is a recommendation. Save
+  // the place (+ menu) flagged wishlist so it lands in their Want-to-try list.
+  async function addWantToTry(){
+    if (!canSave) return;
+    setSaveState("saving"); setSaveMsg("");
+    try {
+      const rGot = await ghGetFile(myCfg, "data/restaurants.json");
+      let restaurants = Array.isArray(rGot.data) ? rGot.data : [];
+      const match = restaurants.find(r => r && norm(r.name) === norm(data.r || ""));
+      if (match){
+        restaurants = restaurants.map(r => r.id === match.id ? Object.assign({}, r, { wishlist: true }) : r);
+        await ghPutFile(myCfg, "data/restaurants.json", restaurants, null);
+      } else {
+        const rid = uid("rest");
+        const rec = buildSavedRestaurant(rid); rec.wishlist = true;
+        restaurants = restaurants.concat([rec]);
+        await ghPutFile(myCfg, "data/restaurants.json", restaurants, null);
+        if (sections.length){
+          const mGot = await ghGetFile(myCfg, "data/menus.json");
+          const menus = (mGot.data && typeof mGot.data === "object" && !Array.isArray(mGot.data)) ? mGot.data : {};
+          menus[rid] = [buildSavedMenu(rid)];
+          await ghPutFile(myCfg, "data/menus.json", menus, null);
+        }
+      }
+      setSaveState("saved");
+      setSaveMsg("Added " + (data.r || "it") + " to your Want to try list.");
+      logMsg("SHARE","added shared visit place to want-to-try");
+    } catch(e){ setSaveState("err"); setSaveMsg((e && e.message) || "Could not save."); }
+  }
 
   const sub = [data.cu, data.c].filter(Boolean).join("  ·  ");
 
@@ -15034,9 +15063,14 @@ function PublishedVisit({data}){
               <div className="tiny faint" style={{maxWidth:300}}>
                 You were there? Log your own meal — your dishes start blank, the place &amp; date are filled in.
               </div>
-              <button className="btn ghost sm" disabled={saveState === "saving"} onClick={startSave}>
-                Just add the place{sections.length ? " + menu" : ""}
-              </button>
+              <div className="row" style={{gap:8, flexWrap:"wrap", justifyContent:"center"}}>
+                <button className="btn ghost sm" style={{flex:"none"}} disabled={saveState === "saving"} onClick={addWantToTry}>
+                  <span className="row" style={{gap:5}}><Icon name="book" size={14} color="var(--accent)" />Want to try</span>
+                </button>
+                <button className="btn ghost sm" style={{flex:"none"}} disabled={saveState === "saving"} onClick={startSave}>
+                  Just add the place{sections.length ? " + menu" : ""}
+                </button>
+              </div>
               {saveState === "err" ? <div className="tiny" style={{color:"var(--danger)", marginTop:6}}>{saveMsg}</div> : null}
             </div>
           )}
