@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.254.0";
+const APP_VERSION   = "1.255.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1012,6 +1012,22 @@ async function placesNearby(cfg, body){
 // search or nearby result, so a place added from discovery shows its Google
 // rating immediately - no "Update from Google" tap needed. Same g_* keys the
 // detail page already reads.
+// Best-effort city from a formatted address, for quick-adds where Google's
+// search result has no parsed city (only the full details call returns one).
+// Confidence-gated: only returns a city when a US "ST 12345" segment anchors it,
+// so we never plant a wrong city (accuracy over coverage). "" = unknown.
+function cityFromAddress(addr){
+  if (!addr) return "";
+  let parts = String(addr).split(",").map(s => s.trim()).filter(Boolean);
+  if (parts.length && /^(usa|united states)$/i.test(parts[parts.length - 1])) parts.pop();
+  for (let i = parts.length - 1; i >= 1; i--){
+    if (/^[A-Za-z]{2}\s+\d{5}(-\d{4})?$/.test(parts[i]) || /^\d{5}(-\d{4})?$/.test(parts[i])){
+      return parts[i - 1] || "";
+    }
+  }
+  return "";
+}
+
 function googleMetaFrom(c){
   const m = {};
   if (c && typeof c.rating === "number")        m.g_rating = c.rating;
@@ -7411,7 +7427,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || query.trim() || "New place"),
-      cuisine: cuisineFromType(c.primary_type, c.types) || "", location: c.city || "",
+      cuisine: cuisineFromType(c.primary_type, c.types) || "", location: c.city || cityFromAddress(c.address),
       address: c.address || "", phone: c.phone || "", website: c.website || "", notes: "",
       favorite: false, added_date: todayISO(),
       google_place_id: c.place_id || undefined,
@@ -12644,7 +12660,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || restQuery.trim() || "New place"),
-      cuisine: cuisineFromType(c.primary_type, c.types) || "", location: c.city || "",
+      cuisine: cuisineFromType(c.primary_type, c.types) || "", location: c.city || cityFromAddress(c.address),
       address: c.address || "", phone: c.phone || "", website: c.website || "", notes: "",
       favorite: false, added_date: todayISO(),
       google_place_id: c.place_id || undefined,
