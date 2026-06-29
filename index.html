@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.243.0";
+const APP_VERSION   = "1.244.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5836,6 +5836,20 @@ function App(){
               flash("Added " + (rec.name || "place"));
               setOverlay({ type:"restaurant", id: rec.id });
             }}
+            onDeleteRestaurant={(r)=>{
+              // Swipe-delete a place card (e.g. a duplicate). If it has visits,
+              // confirm first since those would be left without their place.
+              const vCount = visits.filter(v => v.restaurant_id === r.id).length;
+              if (vCount > 0 && !window.confirm(
+                    "Delete \"" + (r.name || "this place") + "\"? It has " + vCount +
+                    " visit(s) - those stay in your history but lose their place link.")){
+                return;
+              }
+              const nextR = restaurants.filter(x => x.id !== r.id);
+              const nextM = Object.assign({}, menus); delete nextM[r.id];
+              commit({ restaurants:nextR, menus:nextM }, ["restaurants","menus"]);
+              flash("Removed " + (r.name || "place"));
+            }}
             onOpen={(r)=> setOverlay({ type:"restaurant", id:r.id })} />
         )}
         {tab === "settings" && (
@@ -7156,7 +7170,7 @@ function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, 
 }
 
 
-function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin, onCreateRestaurant}){
+function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin, onCreateRestaurant, onDeleteRestaurant}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("alpha");
   const [cuisineFilter, setCuisineFilter] = useState("All");
@@ -7278,37 +7292,42 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
     sortBy === "rating" ? [...searched].sort((a,b)=> (avgRating(b.id) - avgRating(a.id)) || byName(a,b)) :
                           [...searched].sort(byName);  // "alpha"
 
-  const Card = (r)=> (
-    <div key={r.id} className="card tap" onClick={()=> onOpen(r)}
-      style={{display:"flex",alignItems:"center",gap:0}}>
-      {r.photo ? (
-        <div className="rest-thumb">
-          <PhotoImg cfg={cfg} path={r.photo} />
-        </div>
-      ) : (r.google_photo_name && cfg) ? (
-        <div className="rest-thumb">
-          <GooglePhoto cfg={cfg} name={r.google_photo_name} attribution={r.google_photo_attr} thumb={true} />
-        </div>
-      ) : (
-        <div className="rest-thumb photo-shell">
-          <Icon name="image" size={18} color="#5a5045" />
-        </div>
-      )}
-      <div className="between" style={{flex:1,minWidth:0}}>
-        <div style={{minWidth:0}}>
-          <div className="place-name">{r.name}</div>
-          <div className="meta-line" style={{marginTop:4}}>
-            {r.cuisine || "Restaurant"}
-            {r.location ? "  \u00b7  " + r.location : ""}
-            {countVisits(r.id) > 0 ? "  \u00b7  " + countVisits(r.id) + " visit(s)" : ""}
+  const Card = (r)=> {
+    const inner = (
+      <div className="card tap" onClick={()=> onOpen(r)}
+        style={{display:"flex",alignItems:"center",gap:0}}>
+        {r.photo ? (
+          <div className="rest-thumb">
+            <PhotoImg cfg={cfg} path={r.photo} />
           </div>
+        ) : (r.google_photo_name && cfg) ? (
+          <div className="rest-thumb">
+            <GooglePhoto cfg={cfg} name={r.google_photo_name} attribution={r.google_photo_attr} thumb={true} />
+          </div>
+        ) : (
+          <div className="rest-thumb photo-shell">
+            <Icon name="image" size={18} color="#5a5045" />
+          </div>
+        )}
+        <div className="between" style={{flex:1,minWidth:0}}>
+          <div style={{minWidth:0}}>
+            <div className="place-name">{r.name}</div>
+            <div className="meta-line" style={{marginTop:4}}>
+              {r.cuisine || "Restaurant"}
+              {r.location ? "  \u00b7  " + r.location : ""}
+              {countVisits(r.id) > 0 ? "  \u00b7  " + countVisits(r.id) + " visit(s)" : ""}
+            </div>
+          </div>
+          <span className={"fav" + (r.favorite ? " on" : "")}>
+            <Icon name="star" size={20} color={r.favorite ? "#e0764a" : "#80715f"} />
+          </span>
         </div>
-        <span className={"fav" + (r.favorite ? " on" : "")}>
-          <Icon name="star" size={20} color={r.favorite ? "#e0764a" : "#80715f"} />
-        </span>
       </div>
-    </div>
-  );
+    );
+    return onDeleteRestaurant
+      ? <SwipeToDelete key={r.id} onDelete={()=> onDeleteRestaurant(r)}>{inner}</SwipeToDelete>
+      : <div key={r.id}>{inner}</div>;
+  };
 
   // only show chips if there is something worth filtering by
   const showChips = cityChips.length > 0;
