@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.262.0";
+const APP_VERSION   = "1.263.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -15106,8 +15106,9 @@ function PublishedVisit({data}){
                   ? <span className="spin" />
                   : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="plus" size={15} color="#1b1714" />Log my visit here</span>}
               </button>
-              <div className="tiny faint" style={{maxWidth:300}}>
-                You were there? Log your own meal — your dishes start blank, the place &amp; date are filled in.
+              <div className="tiny faint" style={{maxWidth:320}}>
+                <strong>Were you there?</strong> Log your visit (place &amp; date filled in, dishes blank for your own meal).
+                {" "}<strong>Not yet?</strong> Add it to Want to try.
               </div>
               <div className="row" style={{gap:8, flexWrap:"wrap", justifyContent:"center"}}>
                 <button className="btn ghost sm" style={{flex:"none"}} disabled={saveState === "saving"} onClick={addWantToTry}>
