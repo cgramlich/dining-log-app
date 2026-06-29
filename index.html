@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.265.0";
+const APP_VERSION   = "1.266.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1940,6 +1940,13 @@ function logMsg(tag, msg){
   LOG_BUFFER.push(line);
   if (LOG_BUFFER.length > 240) LOG_BUFFER.shift();
   try { console.log(line); } catch(e){ /* ignore */ }
+}
+
+/* Global toast bus: lets any code show the app's in-app toast without threading
+   a flash() prop everywhere - used to replace jarring native alert()s. The App
+   listens for "mc-toast" and renders it. Outside the app shell it no-ops. */
+function toast(msg){
+  try { window.dispatchEvent(new CustomEvent("mc-toast", { detail: String(msg || "") })); } catch(e){}
 }
 
 /* ---- small utilities ----------------------------------------- */
@@ -5414,6 +5421,14 @@ function App(){
         photos: Array.isArray(seed.photos) ? seed.photos : [] } });
   }, [ready, restaurants]);
 
+  /* ---- global toast bus: show toast() calls from anywhere ------------- */
+  useEffect(()=>{
+    function onToast(e){ const m = e && e.detail; if (m) flash(m); }
+    window.addEventListener("mc-toast", onToast);
+    return ()=> window.removeEventListener("mc-toast", onToast);
+    // eslint-disable-next-line
+  }, []);
+
   /* ---- push deep-links: route a tapped notification to its screen ------ */
   useEffect(()=>{
     function onNav(e){
@@ -7703,7 +7718,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         try { await navigator.share({ title, text:"A few places I love:", url }); }
         catch(e){ /* user cancelled or unsupported */ }
       } else {
-        try { await navigator.clipboard.writeText(url); alert("Link copied to clipboard."); }
+        try { await navigator.clipboard.writeText(url); toast("Link copied to clipboard."); }
         catch(e){ logMsg("WARN","City share clipboard failed: " + e.message); }
       }
     } finally {
@@ -8267,7 +8282,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
       }
     } catch(e){
       logMsg("ERROR","Share card failed: " + e.message);
-      alert("Could not build the share card: " + e.message);
+      toast("Could not build the share card: " + e.message);
     } finally {
       setShareBusy(false);
     }
@@ -12324,7 +12339,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
       setRemoveExisting(false);   // picking a new one overrides any prior remove
     } catch(err){
       logMsg("ERROR","Restaurant photo resize failed: " + err.message);
-      alert("Could not load that photo: " + err.message);
+      toast("Could not load that photo: " + err.message);
     } finally {
       setPhotoBusy(false);
       if (photoFileRef.current) photoFileRef.current.value = "";
@@ -13230,7 +13245,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       logMsg("VISIT","Prepared " + newSlots.length + " visit photo(s) for upload");
     } catch(err){
       logMsg("ERROR","Visit photo resize failed: " + err.message);
-      alert("Could not load that photo: " + err.message);
+      toast("Could not load that photo: " + err.message);
     } finally {
       setPhotoBusy(false);
       if (e.target) e.target.value = "";
@@ -17450,7 +17465,7 @@ function YearInFood({visits, restaurants, onClose, onHome}){
       }
     } catch(e){
       logMsg("ERROR","Year card failed: " + e.message);
-      alert("Could not build the recap image: " + e.message);
+      toast("Could not build the recap image: " + e.message);
     } finally {
       setShareBusy(false);
     }
