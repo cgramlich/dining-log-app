@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.250.0";
+const APP_VERSION   = "1.251.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6134,6 +6134,12 @@ function App(){
               r.id===overlay.id ? Object.assign({},r,{favorite:!r.favorite}) : r);
             commit({ restaurants:next }, ["restaurants"]);
           }}
+          onToggleWishlist={(rr)=>{
+            const next = restaurants.map(r =>
+              r.id===overlay.id ? Object.assign({},r,{wishlist:!r.wishlist}) : r);
+            commit({ restaurants:next }, ["restaurants"]);
+            flash(rr && rr.wishlist ? "Removed from Want to try" : "Added to Want to try");
+          }}
           onSetMyRating={(val)=>{
             const next = restaurants.map(r =>
               r.id===overlay.id ? Object.assign({},r,{my_rating:val}) : r);
@@ -6397,10 +6403,21 @@ function App(){
               next = [rec].concat(visits);
               flash("Visit logged");
             }
-            // Rating now lives on the PLACE (latest-wins): stamp my_rating from this save.
-            if (rec && typeof rec.rating === "number"){
-              const nr = restaurants.map(r => r.id === rec.restaurant_id
-                ? Object.assign({}, r, { my_rating: rec.rating }) : r);
+            // Rating now lives on the PLACE (latest-wins): stamp my_rating from
+            // this save. Also graduate the place off "Want to try" - it has a
+            // visit now, so it's a place you've been.
+            const rid = rec && rec.restaurant_id;
+            const target = restaurants.find(r => r.id === rid);
+            const needRating = rec && typeof rec.rating === "number";
+            const needGraduate = !!(target && target.wishlist);
+            if (rid && (needRating || needGraduate)){
+              const nr = restaurants.map(r => {
+                if (r.id !== rid) return r;
+                const patch = {};
+                if (needRating) patch.my_rating = rec.rating;
+                if (needGraduate) patch.wishlist = false;
+                return Object.assign({}, r, patch);
+              });
               commit({ visits:next, restaurants:nr }, ["visits","restaurants"]);
             } else {
               commit({ visits:next }, ["visits"]);
@@ -7343,6 +7360,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("alpha");
   const [cuisineFilter, setCuisineFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("all");   // all | try | been
   // Google search from the box (only offered when nothing saved matches).
   const [gBusy, setGBusy] = useState(false);
   const [gErr, setGErr]   = useState("");
@@ -7440,10 +7458,17 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
     : byCity.filter(r => normalizeCuisine(r.cuisine).toLowerCase() === cuisineFilter.toLowerCase());
 
   const q = query.trim().toLowerCase();
-  const searched = q ? visible.filter(r =>
+  const searchedRaw = q ? visible.filter(r =>
     ((r.name || "") + " " + (r.cuisine || "") + " " + (r.location || ""))
       .toLowerCase().includes(q)
   ) : visible;
+  // "Want to try" = flagged wishlist & not yet visited. "Been" = has a visit.
+  const wantCount = restaurants.filter(r => r.wishlist && countVisits(r.id) === 0).length;
+  const searched = statusFilter === "try"
+      ? searchedRaw.filter(r => r.wishlist && countVisits(r.id) === 0)
+    : statusFilter === "been"
+      ? searchedRaw.filter(r => countVisits(r.id) > 0)
+    : searchedRaw;
 
   const byName = (a,b)=> (a.name || "").localeCompare(b.name || "");
   // Average of a place's own visit ratings (for the "Highest rated" sort, to
@@ -7480,7 +7505,13 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         )}
         <div className="between" style={{flex:1,minWidth:0}}>
           <div style={{minWidth:0}}>
-            <div className="place-name">{r.name}</div>
+            <div className="place-name">
+              {r.name}
+              {r.wishlist && countVisits(r.id) === 0 ? (
+                <span className="chip" style={{marginLeft:8, fontSize:11, padding:"1px 7px",
+                      verticalAlign:"middle", color:"var(--accent)", borderColor:"var(--accent)"}}>Want to try</span>
+              ) : null}
+            </div>
             <div className="meta-line" style={{marginTop:4}}>
               {r.cuisine || "Restaurant"}
               {r.location ? "  \u00b7  " + r.location : ""}
@@ -7573,6 +7604,15 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
           </button>
         </div>
       )}
+      <div className="chips" style={{margin:"2px 0 14px"}}>
+        <span className={"chip pick" + (statusFilter === "all" ? " on" : "")}
+          onClick={()=> setStatusFilter("all")}>All</span>
+        <span className={"chip pick" + (statusFilter === "try" ? " on" : "")}
+          onClick={()=> setStatusFilter("try")}>Want to try{wantCount ? " (" + wantCount + ")" : ""}</span>
+        <span className={"chip pick" + (statusFilter === "been" ? " on" : "")}
+          onClick={()=> setStatusFilter("been")}>Been</span>
+      </div>
+
       {showChips && (
         <div className="chips" style={{margin:"2px 0 14px"}}>
           <span
@@ -7621,9 +7661,14 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
 
       {searched.length === 0 && (
         <div className="empty" style={{padding:"30px 20px"}}>
-          <div className="big">{q ? "No matches" : "Nothing in " + filter}</div>
+          <div className="big">{q ? "No matches"
+            : statusFilter === "try" ? "Nothing to try yet"
+            : statusFilter === "been" ? "No visits yet"
+            : "Nothing in " + filter}</div>
           <div>{q
             ? "Not in your places yet."
+            : statusFilter === "try" ? "Add a place and mark it “Want to try,” or tap the book icon on any place."
+            : statusFilter === "been" ? "Log a visit to a place and it shows up here."
             : "Add a restaurant in this location, or pick a different filter."}</div>
           {q && onCreateRestaurant ? (
             <div style={{marginTop:14}}>
@@ -7799,7 +7844,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onOpenVisit,
-                           onToggleFav, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onToggleVisitLoved, onUpgrade, onHome}){
+                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onToggleVisitLoved, onUpgrade, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [lightbox, setLightbox]     = useState(null);   // {paths, index} | null
   const [addPhotoFor, setAddPhotoFor] = useState(null); // visit awaiting a card-level photo add
@@ -8088,6 +8133,13 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         <button className="x" onClick={share} disabled={shareBusy} aria-label="Share">
           {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
         </button>
+        {onToggleWishlist ? (
+          <button className="x" onClick={()=> onToggleWishlist(r)}
+            aria-label={r.wishlist ? "On your Want to try list" : "Add to Want to try"}
+            title={r.wishlist ? "On your Want to try list" : "Want to try"}>
+            <Icon name="book" size={19} color={r.wishlist ? "#e0764a" : "#80715f"} />
+          </button>
+        ) : null}
         <button className="x" onClick={onToggleFav} aria-label={r.favorite ? "Loved" : "Mark as loved"}>
           <span style={{fontSize:23, lineHeight:1, color: r.favorite ? "#d64961" : "#80715f"}}>
             {r.favorite ? "♥" : "♡"}
@@ -12049,6 +12101,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
   const [website,setWebsite]   = useState(seed ? (seed.website || "") : "");
   const [notes,setNotes]       = useState(seed ? (seed.notes || "") : "");
   const [fav,setFav]           = useState(existing ? !!existing.favorite : false);
+  const [wishlist,setWishlist] = useState(existing ? !!existing.wishlist : false);   // "want to try" (haven't been)
 
   // The google_place_id rides inside the restaurant JSONB (migration-free). It is
   // stamped by a discovery prefill on a new place, and preserved across edits.
@@ -12214,7 +12267,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
       name:name.trim(), cuisine:cuisine.trim(),
       location: finalLoc,
       address:address.trim(), phone:phone.trim(), website:website.trim(),
-      notes:notes.trim(), favorite:fav,
+      notes:notes.trim(), favorite:fav, wishlist:wishlist,
       photo: finalPhotoPath,
       added_date: existing ? existing.added_date : todayISO(),
       // map coordinates (geo is pre-seeded from existing, so edits keep the pin)
@@ -12357,6 +12410,12 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
         <label className="fld"><span className="lbl">Notes</span>
           <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
             placeholder="Hours, reservation policy, anything worth remembering" /></label>
+        <div className="card between" onClick={()=> setWishlist(w=>!w)} style={{cursor:"pointer"}}>
+          <span>Want to try (haven't been yet)</span>
+          <span className={"fav" + (wishlist?" on":"")}>
+            <Icon name="book" size={22} color={wishlist?"#e0764a":"#80715f"} />
+          </span>
+        </div>
         <div className="card between" onClick={()=> setFav(f=>!f)} style={{cursor:"pointer"}}>
           <span>Mark as favorite</span>
           <span className={"fav" + (fav?" on":"")}>
