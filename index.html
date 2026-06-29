@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.264.0";
+const APP_VERSION   = "1.265.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -19566,6 +19566,42 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   );
 }
 
+/* Top-level crash guard: a render error anywhere otherwise blanks the whole
+   app (white screen, no recovery). This catches it and shows a friendly reload
+   screen instead - and logs the stack to the in-app log for diagnosis. */
+class ErrorBoundary extends React.Component {
+  constructor(props){ super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error){ return { error: error }; }
+  componentDidCatch(error, info){
+    try { logMsg("CRASH", ((error && error.message) || "render error") + " | " +
+      (((info && info.componentStack) || "").replace(/\s+/g, " ").slice(0, 400))); } catch(e){}
+  }
+  render(){
+    if (this.state.error){
+      return (
+        <div style={{minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center",
+             padding:24, background:"#1b1714", color:"#efe6da",
+             fontFamily:"system-ui, sans-serif", textAlign:"center"}}>
+          <div style={{maxWidth:340}}>
+            <div style={{fontSize:40, marginBottom:10}}>{"⚠️"}</div>
+            <div style={{fontFamily:"'Fraunces', serif", fontSize:22, marginBottom:8}}>Something went wrong</div>
+            <div style={{fontSize:14, color:"#b3a591", lineHeight:1.5, marginBottom:18}}>
+              The app hit an unexpected error. Reloading usually fixes it - your data is safe in your account.
+            </div>
+            <button onClick={()=> location.reload()}
+              style={{background:"#e0764a", color:"#1b1714", border:"none", borderRadius:10,
+                      padding:"12px 22px", fontSize:15, fontWeight:600, cursor:"pointer"}}>Reload</button>
+            <div style={{fontSize:12, color:"#80715f", marginTop:16}}>
+              If it keeps happening, email support@menucaptain.com
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /* ---- mount --------------------------------------------------- */
 (function bootDiningCaptain(){
   let published = null;
@@ -19626,15 +19662,18 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     }
   } catch(e){ recovery = null; }
   const root = ReactDOM.createRoot(document.getElementById("root"));
-  root.render(recovery ? <ResetPasswordScreen accessToken={recovery.accessToken}
-                            refreshToken={recovery.refreshToken}
-                            expiresIn={recovery.expiresIn} />
-            : published ? <PublishedList data={published} />
-            : publishedMenu ? <PublishedMenu data={publishedMenu} />
-            : visitSlug ? <PublishedVisitLoader slug={visitSlug} />
-            : publishedVisit ? <PublishedVisit data={publishedVisit} />
-            : groupCode ? <GroupOrderGuest code={groupCode} />
-            : <App />);
+  root.render(
+    <ErrorBoundary>
+      {recovery ? <ResetPasswordScreen accessToken={recovery.accessToken}
+                    refreshToken={recovery.refreshToken}
+                    expiresIn={recovery.expiresIn} />
+       : published ? <PublishedList data={published} />
+       : publishedMenu ? <PublishedMenu data={publishedMenu} />
+       : visitSlug ? <PublishedVisitLoader slug={visitSlug} />
+       : publishedVisit ? <PublishedVisit data={publishedVisit} />
+       : groupCode ? <GroupOrderGuest code={groupCode} />
+       : <App />}
+    </ErrorBoundary>);
 })();
 logMsg("INIT","React mounted");
   </script>
