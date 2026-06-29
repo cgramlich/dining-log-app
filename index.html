@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.253.0";
+const APP_VERSION   = "1.254.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7411,7 +7411,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || query.trim() || "New place"),
-      cuisine: "", location: c.city || "",
+      cuisine: cuisineFromType(c.primary_type, c.types) || "", location: c.city || "",
       address: c.address || "", phone: c.phone || "", website: c.website || "", notes: "",
       favorite: false, added_date: todayISO(),
       google_place_id: c.place_id || undefined,
@@ -7908,6 +7908,13 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
       if (p.website) enrich.website = p.website;
       if (p.lat != null) enrich.lat = p.lat;
       if (p.lng != null) enrich.lng = p.lng;
+      // Cuisine + city from Google - only fill when the place doesn't have them
+      // yet, so we never clobber a value you set by hand.
+      if (!((r.cuisine || "").trim())){
+        const cz = cuisineFromType(p.primary_type, p.types);
+        if (cz) enrich.cuisine = cz;
+      }
+      if (!((r.location || "").trim()) && p.city) enrich.location = p.city;
       // Google place photo: store the resource name + required attribution (not the
       // image itself - it's fetched on demand via /api/places/photo and shown with credit).
       if (p.photo_name){ enrich.google_photo_name = p.photo_name; enrich.google_photo_attr = p.photo_attribution || ""; }
@@ -12637,7 +12644,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || restQuery.trim() || "New place"),
-      cuisine: "", location: c.city || "",
+      cuisine: cuisineFromType(c.primary_type, c.types) || "", location: c.city || "",
       address: c.address || "", phone: c.phone || "", website: c.website || "", notes: "",
       favorite: false, added_date: todayISO(),
       google_place_id: c.place_id || undefined,
