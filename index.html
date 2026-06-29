@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.258.0";
+const APP_VERSION   = "1.259.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2479,6 +2479,7 @@ async function publishVisitPage(cfg, payload, encoded){
         restaurant: (payload && payload.r) || "A visit",
         place: (payload && payload.c) || "",
         people: people,
+        photo: (payload && payload.ph && payload.ph[0]) || "",   // meal photo for the preview card
         encoded: encoded,
       }),
     });
@@ -2534,22 +2535,23 @@ async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr){
     const photoUrls = await signVisitPhotos(cfg, (visit.photos || []).filter(Boolean));
     const payload = buildVisitPayload(visit, restaurant, menuList, photoUrls);
     let enc     = encodeListPayload(payload);   // same transport as lists/menus
-    // Keep the URL sane: if menus push it large, drop the menu (photos + place +
-    // people are the heart of a shared visit) and re-encode.
-    if (enc.length > 12000 && payload.s){
+    // The backend page stores the blob (cap 80k), so keep the menu in normal
+    // cases; only drop it if we'd blow the backend's limit.
+    if (enc.length > 70000 && payload.s){
       delete payload.s;
       enc = encodeListPayload(payload);
       if (setErr) setErr("Menu was too large to include - sharing the visit without it.");
     }
     const longUrl = location.origin + location.pathname + "?visit=" + enc;
-    // The long link works instantly; shorten it for a tidy share when we can,
-    // but never block on it - any failure just shares the working long link.
+    // Prefer the backend-served /v/<slug> page: it's INSTANT (no GitHub Pages
+    // build delay) and carries a real preview card (meal photo + place). Fall
+    // back to the always-works long ?visit= link if the backend is unreachable.
     let url = longUrl;
     try {
-      const short = await shortenUrl(longUrl);
+      const short = await publishVisitPage(cfg, payload, enc);
       if (short) url = short;
     } catch(e){
-      logMsg("PUBLISH","shorten failed, using long ?visit= link: " + (e && e.message));
+      logMsg("PUBLISH","publish-visit failed, using long ?visit= link: " + (e && e.message));
     }
     const place = (restaurant && restaurant.name) || visit.restaurant_name || "a visit";
     if (navigator.share){
