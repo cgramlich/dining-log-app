@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.244.0";
+const APP_VERSION   = "1.245.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4054,15 +4054,17 @@ async function askMenu(cfg, restaurant, menu, visits, question){
   return text;
 }
 
-/* Explain a menu (or just the dishes the diner picked). Reuses the Pro-gated,
-   metered /api/ai/relay. When `selectedNames` is non-empty, explain ONLY those;
-   otherwise walk the menu and explain the items a typical diner might not
-   recognize (foreign names, regional specialties, unusual ingredients). Honest
-   over confident: the model is told to say so rather than guess. */
+/* Explain a menu. Two modes:
+   - FOCUSED (selectedNames non-empty): explain just those dishes, item by item.
+   - WHOLE MENU (no selection): explain how the menu is ORGANIZED and HOW TO
+     ORDER from it - section/course level (e.g. what Antipasti/Primi/Secondi
+     mean + the meal flow), NOT dish-by-dish. Adapts to the menu's real layout.
+   Reuses the Pro-gated, metered /api/ai/relay. Honest over confident. */
 async function explainMenu(cfg, restaurant, menu, selectedNames){
   const rName    = (restaurant && restaurant.name) ? restaurant.name : "this restaurant";
   const menuText = menuToText(menu);
   const focused  = Array.isArray(selectedNames) && selectedNames.length > 0;
+  const sectionNames = (menu.sections || []).map(s => (s.name || "").trim()).filter(Boolean);
 
   let prompt =
     "You are a warm, knowledgeable dining companion helping someone understand a "+
@@ -4070,25 +4072,43 @@ async function explainMenu(cfg, restaurant, menu, selectedNames){
   if (focused){
     prompt +=
       "Explain ONLY these dishes the diner picked, in the order given:\n  " +
-      selectedNames.join("\n  ") + "\n\n";
+      selectedNames.join("\n  ") + "\n\n" +
+      "For each dish give a short, plain-English description: what it is, the key "+
+      "ingredients, and how it's typically prepared or served. One or two "+
+      "sentences each. Lead each with the dish name.\n"+
+      "Rules:\n"+
+      "- Only discuss items that actually appear on THE MENU BELOW. Never invent dishes.\n"+
+      "- If you are not confident what a specific dish is, say so honestly rather "+
+      "than guessing - accuracy matters more than sounding sure.\n"+
+      "- Be concise and friendly. No long preamble, no headings, no markdown.\n";
   } else {
     prompt +=
-      "Walk through the menu below and explain the dishes a typical diner might "+
-      "not immediately recognize - especially foreign-language names, regional "+
-      "specialties, unusual ingredients, or preparations. Skip the obvious ones "+
-      "(a plain 'cheeseburger' or 'side salad' needs no explanation).\n\n";
+      "Give a short guide to HOW THIS MENU IS ORGANIZED and HOW TO ORDER A MEAL "+
+      "FROM IT, at the section / course level. Do NOT explain dishes one by one.\n\n" +
+      (sectionNames.length
+        ? ("The menu's sections, in order, are:\n  " + sectionNames.join("\n  ") + "\n\n")
+        : "") +
+      "Do this:\n"+
+      "1. Walk the sections in order and say what each one is - especially "+
+      "foreign-language or fancy dining terms. Translate/clarify the term in plain "+
+      "English (e.g. on an Italian menu: Antipasti = starters, Primi = first / "+
+      "pasta or risotto course, Secondi = mains, Contorni = sides, Dolci = desserts).\n"+
+      "2. Explain how a meal here is typically ordered - the flow / coursing - "+
+      "based on THIS menu's actual structure. Adapt to what it really is: classic "+
+      "courses, small-plates vs large-plates, tapas, izakaya, dim sum, prix-fixe, "+
+      "raw bar, family-style, etc. Do NOT force an Italian (or any) template onto a "+
+      "menu that isn't built that way.\n"+
+      "3. Finish with one practical 'how to order' suggestion (e.g. \"a typical "+
+      "order is an antipasto to share, a pasta, and a main, plus a side\").\n"+
+      "Rules:\n"+
+      "- Talk about the SECTIONS and the ordering flow, not individual dishes (you "+
+      "may name a dish only as a quick example of what a section holds).\n"+
+      "- Only reference sections that actually appear below. Never invent sections.\n"+
+      "- If a section heading is ambiguous, say what it most likely means and note "+
+      "the uncertainty rather than sounding sure.\n"+
+      "- Be concise and friendly. Short paragraphs or a tight list, no markdown headers.\n";
   }
-  prompt +=
-    "For each dish give a short, plain-English description: what it is, the key "+
-    "ingredients, and how it's typically prepared or served. One or two sentences "+
-    "each. Lead each with the dish name.\n"+
-    "Rules:\n"+
-    "- Only discuss items that actually appear on THE MENU BELOW. Never invent "+
-    "dishes.\n"+
-    "- If you are not confident what a specific dish is, say so honestly rather "+
-    "than guessing - accuracy matters more than sounding sure.\n"+
-    "- Be concise and friendly. No long preamble, no headings, no markdown.\n"+
-    "\nMENU:\n" + menuText;
+  prompt += "\nMENU:\n" + menuText;
 
   logMsg("EXPLAIN","Explaining menu (" + menuText.length + " chars, focused=" +
          (focused ? selectedNames.length : "all") + ")");
@@ -8629,7 +8649,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
           <div className="tiny faint" style={{margin:"0 0 8px"}}>
             {explainOpen
               ? "Tap the dishes you're curious about, then explain just those."
-              : "Plain-English descriptions of the dishes that aren't obvious - foreign names, regional specialties, unusual ingredients."}
+              : "A quick guide to the menu's sections and courses (what terms like Antipasti or Primi mean) and how a meal here is usually ordered."}
           </div>
 
           {explainOpen && (
@@ -8650,7 +8670,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
               {explaining ? <span className="spin" /> : <Icon name="sparkle" size={16} color="#1b1714" />}
               {explaining ? "Reading the menu..."
                 : explainOpen ? ("Explain selected" + (pickedNames.length ? " (" + pickedNames.length + ")" : ""))
-                : "Explain this menu"}
+                : "How to order from this menu"}
             </button>
             <button className="btn ghost sm" style={{flex:"none"}}
               onClick={()=>{ setExplainOpen(o=> !o); setExplainErr(null); }}>
