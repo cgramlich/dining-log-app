@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.261.0";
+const APP_VERSION   = "1.262.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2467,6 +2467,20 @@ async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr){
    no-account visit viewer (?visit=...), so a texted link shows a real preview
    card. Returns the short URL, or null so callers fall back to the long
    ?visit= link (which always works). */
+// Fetch a shared visit's encoded blob by slug (public). The blob rides in the
+// response BODY, not the URL, so a big visit (menu + photos) can't trip the
+// server's URL-length limit (414). Returns the encoded string.
+async function fetchSharedVisit(slug){
+  const res = await fetch(apiBase(null) + "/api/share/v/" + encodeURIComponent(slug));
+  if (!res.ok){
+    throw new Error(res.status === 404
+      ? "This shared visit is no longer available."
+      : ("Couldn't load this visit (" + res.status + ")."));
+  }
+  const data = await res.json().catch(()=> ({}));
+  return (data && data.encoded) || "";
+}
+
 async function publishVisitPage(cfg, payload, encoded){
   try {
     const people = ((payload && payload.ppl) || []).length;
@@ -14866,6 +14880,38 @@ function PublishedList({data}){
    visit invites the recipient to log their OWN meal, never exposing the sharer's
    order. A signed-in viewer can "Add to my places" (place + menu), asking before
    overwriting; a no-account viewer gets a "Create your free account" bridge. */
+/* Fetch-by-slug wrapper for shared visits (?vs=<slug>). Pulls the blob from the
+   backend (body, no URL-length limit), decodes it, then renders PublishedVisit. */
+function PublishedVisitLoader({slug}){
+  const home = location.origin + location.pathname;
+  const [state, setState] = useState("loading");   // loading | ready | error
+  const [data, setData]   = useState(null);
+  const [err, setErr]     = useState("");
+  useEffect(()=>{
+    let alive = true;
+    fetchSharedVisit(slug).then(enc => {
+      if (!alive) return;
+      const d = decodeVisitPayload(enc);
+      if (d){ setData(d); setState("ready"); }
+      else { setErr("This link looks broken."); setState("error"); }
+    }).catch(e => { if (alive){ setErr((e && e.message) || "Couldn't load this visit."); setState("error"); } });
+    return ()=> { alive = false; };
+  }, [slug]);
+  if (state === "loading"){
+    return <div className="pub-wrap"><div style={{textAlign:"center", padding:40}}><span className="spin" /></div></div>;
+  }
+  if (state === "error"){
+    return (
+      <div className="pub-wrap">
+        <div className="pub-title">Couldn't open this visit</div>
+        <div className="muted" style={{textAlign:"center", marginBottom:20}}>{err}</div>
+        <div style={{textAlign:"center"}}><a className="btn primary" href={home}>Open MenuCaptain</a></div>
+      </div>
+    );
+  }
+  return <PublishedVisit data={data} />;
+}
+
 function PublishedVisit({data}){
   const home = location.origin + location.pathname;
   const [openMenu, setOpenMenu] = useState(false);
@@ -19490,7 +19536,13 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     const mm = (location.search || "").match(/[?&]menu=([^&]+)/);
     if (mm) publishedMenu = decodeMenuPayload(mm[1]);
   } catch(e){ publishedMenu = null; }
-  // Shared-visit links (?visit=...) render the no-account PublishedVisit viewer.
+  // Shared-visit links. Primary path: ?vs=<slug> -> fetch the blob from the
+  // backend (no URL-length limit). Legacy/inline: ?visit=<encoded> decodes directly.
+  let visitSlug = null;
+  try {
+    const vs = (location.search || "").match(/[?&]vs=([A-Za-z0-9]+)/);
+    if (vs) visitSlug = vs[1];
+  } catch(e){ visitSlug = null; }
   let publishedVisit = null;
   try {
     const vm = (location.search || "").match(/[?&]visit=([^&]+)/);
@@ -19524,6 +19576,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
                             expiresIn={recovery.expiresIn} />
             : published ? <PublishedList data={published} />
             : publishedMenu ? <PublishedMenu data={publishedMenu} />
+            : visitSlug ? <PublishedVisitLoader slug={visitSlug} />
             : publishedVisit ? <PublishedVisit data={publishedVisit} />
             : groupCode ? <GroupOrderGuest code={groupCode} />
             : <App />);
