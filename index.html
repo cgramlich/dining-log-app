@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.259.0";
+const APP_VERSION   = "1.260.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5353,6 +5353,22 @@ function App(){
     // eslint-disable-next-line
   },[]);
 
+  /* ---- "Log my visit here" from a shared visit ------------------------- */
+  // The shared-visit viewer saves the place and drops a seed in localStorage,
+  // then loads the app. Once that place has synced in, open the visit logger
+  // prefilled with its date + the people who were there. Runs until consumed.
+  useEffect(()=>{
+    if (!ready) return;
+    let seed = null;
+    try { const s = localStorage.getItem("mc_logvisit_seed"); if (s) seed = JSON.parse(s); }
+    catch(e){ seed = null; }
+    if (!seed || !seed.rid) return;
+    if (!(restaurants || []).some(r => r && r.id === seed.rid)) return;  // wait for sync
+    try { localStorage.removeItem("mc_logvisit_seed"); } catch(e){}
+    setOverlay({ type:"logVisit", restaurantId: seed.rid,
+      visitSeed: { date: seed.date || "", people: Array.isArray(seed.people) ? seed.people : [] } });
+  }, [ready, restaurants]);
+
   /* ---- push deep-links: route a tapped notification to its screen ------ */
   useEffect(()=>{
     function onNav(e){
@@ -5882,7 +5898,7 @@ function App(){
             </button>
           </div>
         )}
-        {!a2hsDismissed && !isStandalone() && (
+        {!a2hsDismissed && !isStandalone() && !configComplete(config) && (
           <div style={{marginBottom:13}}>
             <InstallHint onClose={()=>{ try { localStorage.setItem("mc_a2hs_dismissed", "1"); } catch(e){} setA2hsDismissed(true); }} />
           </div>
@@ -6435,6 +6451,7 @@ function App(){
           presetRestaurantId={overlay.restaurantId}
           existing={overlay.type==="editVisit" ? overlay.visit : null}
           seedFromSplit={overlay.seedFromSplit || null}
+          seedVisit={overlay.visitSeed || null}
           cfg={config}
           onClose={()=> setOverlay(overlay.returnTo || null)}
           onSave={async (rec, extras)=>{
@@ -12607,13 +12624,17 @@ function PeopleTag({ value, onChange, roster }){
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
+function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [companions, setCompanions] = useState(()=> {
     if (existing && Array.isArray(existing.companions)) return existing.companions;
     // New visit logged from a check split: pre-fill who was at the table.
     if (!existing && seedFromSplit && Array.isArray(seedFromSplit.people)){
       return seedFromSplit.people.map(n => ({ name: String(n).trim() })).filter(p => p.name);
+    }
+    // New visit logged from a shared visit: pre-fill the people who were there.
+    if (!existing && seedVisit && Array.isArray(seedVisit.people)){
+      return seedVisit.people.map(n => ({ name: String(n).trim() })).filter(p => p.name);
     }
     return [];
   });
@@ -12724,7 +12745,8 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     setRestId(newRest.id);
     setRestOpen(false); setRestQuery(""); setGResults([]); setGErr("");
   }
-  const [date,setDate]     = useState(existing ? existing.date : todayISO());
+  const [date,setDate]     = useState(existing ? existing.date
+    : ((seedVisit && seedVisit.date) || todayISO()));
   const [rating,setRating] = useState(()=> placeRating(
     (restaurants||[]).find(x=>x.id===restId),
     (visits||[]).filter(v=>v && v.restaurant_id===restId)));
@@ -14933,6 +14955,38 @@ function PublishedVisit({data}){
       logMsg("SHARE","saved shared visit place mode=" + mode);
     } catch(e){ setDupAsk(null); setSaveState("err"); setSaveMsg((e && e.message) || "Could not save."); }
   }
+  // "Log my visit here": the recipient was usually THERE, so the natural action
+  // is to log their OWN visit (the shared visit's dishes are blank on purpose).
+  // Ensure the place (+ menu) is saved, then hand off to the app's visit logger
+  // prefilled with the date and the people, via a localStorage seed the app reads.
+  async function logMyVisit(){
+    if (!canSave) return;
+    setSaveState("saving"); setSaveMsg("");
+    try {
+      const rGot = await ghGetFile(myCfg, "data/restaurants.json");
+      let restaurants = Array.isArray(rGot.data) ? rGot.data : [];
+      const match = restaurants.find(r => r && norm(r.name) === norm(data.r || ""));
+      let rid;
+      if (match){
+        rid = match.id;
+      } else {
+        rid = uid("rest");
+        restaurants = restaurants.concat([buildSavedRestaurant(rid)]);
+        await ghPutFile(myCfg, "data/restaurants.json", restaurants, null);
+        if (sections.length){
+          const mGot = await ghGetFile(myCfg, "data/menus.json");
+          const menus = (mGot.data && typeof mGot.data === "object" && !Array.isArray(mGot.data)) ? mGot.data : {};
+          menus[rid] = [buildSavedMenu(rid)];
+          await ghPutFile(myCfg, "data/menus.json", menus, null);
+        }
+      }
+      try {
+        localStorage.setItem("mc_logvisit_seed", JSON.stringify({
+          rid: rid, name: data.r || "", date: data.dt || "", people: people }));
+      } catch(e){}
+      location.href = home;   // into the app; it reads the seed and opens the logger
+    } catch(e){ setSaveState("err"); setSaveMsg((e && e.message) || "Could not start your visit."); }
+  }
 
   const sub = [data.cu, data.c].filter(Boolean).join("  ·  ");
 
@@ -14970,14 +15024,21 @@ function PublishedVisit({data}){
           {saveState === "saved" ? (
             <div className="tiny" style={{color:"var(--ok)", fontWeight:600}}>&#10003; {saveMsg}</div>
           ) : (
-            <>
-              <button className="btn ghost sm" disabled={saveState === "saving"} onClick={startSave}>
+            <div style={{display:"flex", flexDirection:"column", gap:8, alignItems:"center"}}>
+              <button className="btn primary" style={{width:"100%", maxWidth:320}}
+                disabled={saveState === "saving"} onClick={logMyVisit}>
                 {saveState === "saving"
                   ? <span className="spin" />
-                  : <span className="row" style={{gap:5, justifyContent:"center"}}><Icon name="plus" size={14} />Add to my places{sections.length ? " + menu" : ""}</span>}
+                  : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="plus" size={15} color="#1b1714" />Log my visit here</span>}
+              </button>
+              <div className="tiny faint" style={{maxWidth:300}}>
+                You were there? Log your own meal — your dishes start blank, the place &amp; date are filled in.
+              </div>
+              <button className="btn ghost sm" disabled={saveState === "saving"} onClick={startSave}>
+                Just add the place{sections.length ? " + menu" : ""}
               </button>
               {saveState === "err" ? <div className="tiny" style={{color:"var(--danger)", marginTop:6}}>{saveMsg}</div> : null}
-            </>
+            </div>
           )}
         </div>
       ) : (

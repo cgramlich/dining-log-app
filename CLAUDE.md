@@ -2,6 +2,11 @@
 
 Auto-read by Claude Code at session start. Keep it current.
 
+**Doc currency (see starter spec §5):** keep this file + the architecture doc in step
+with the code in the SAME session you change code. Don't hardcode the version here
+(point to `APP_VERSION` + `/health`); update the doc body when the architecture changes;
+log dated changes in the app's Log folder. Rule: `CG Apps\Forever Apps\forever-apps-starter-spec.md`.
+
 ## What this is
 MenuCaptain frontend: a SINGLE-FILE HTML PWA (React via CDN + Babel
 standalone), hosted on GitHub Pages at the custom domain menucaptain.com.
@@ -15,10 +20,16 @@ repo (`dining-captain-backend`, FastAPI on Railway).
 - Deploy: push to `main` -> GitHub Pages redeploys.
 - The ENTIRE app is one file: `index.html` (~597 KB). Deliverable file name
   is exactly `index.html`.
-- Version constant: `APP_VERSION` in `index.html` (~line 834). Currently
-  `1.83.2`.
+- Version: the source of truth is the `APP_VERSION` constant in `index.html` (the
+  in-app self-update banner reads it live). Do NOT hardcode the current number in
+  this doc — it drifts. Bump `APP_VERSION` on every user-facing change.
 - Backend base URL: `API_BASE_DEFAULT` in `index.html` (~line 840) =
   https://web-production-cbd3b.up.railway.app
+- Sharing: lists/menus publish a static page to the Pages repo (`/l/`,`/m/`).
+  VISITS are different - `shareVisit()` posts to the backend, which serves the
+  preview page INSTANTLY at `SHARE_BASE_URL/v/<slug>` (no Pages build delay);
+  it bounces to the app's `?visit=` viewer. Falls back to the long `?visit=`
+  link if the backend is unreachable. (Moving lists/menus here too is a TODO.)
 
 ## PWA self-update mechanism (why version bumps matter)
 Installed PWAs cache hard. On load + on a manual "check for updates", the
