@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.263.0";
+const APP_VERSION   = "1.264.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4787,8 +4787,33 @@ function PhotoLightbox({ cfg, paths, index, onClose }){
   const list = (paths || []).filter(Boolean);
   const [i, setI] = useState(() =>
     Math.min(Math.max(0, index || 0), Math.max(0, list.length - 1)));
+  const [saving, setSaving] = useState(false);
   const touchX = useRef(null);
   const go = (d) => setI(x => Math.min(list.length - 1, Math.max(0, x + d)));
+  // Save the current photo to the phone: hand the image file to the native share
+  // sheet (iOS shows "Save Image"); fall back to a direct download elsewhere.
+  async function savePhoto(){
+    if (saving) return;
+    setSaving(true);
+    try {
+      let url = list[i];
+      if (!/^(blob:|data:|https?:)/.test(url)) url = await getPhotoBlobUrl(cfg, url);
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const type = blob.type || "image/jpeg";
+      const ext  = type.indexOf("png") !== -1 ? "png" : "jpg";
+      const file = new File([blob], "menucaptain-" + Date.now() + "." + ext, { type });
+      if (navigator.canShare && navigator.canShare({ files:[file] })){
+        await navigator.share({ files:[file] });
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = file.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=> URL.revokeObjectURL(a.href), 4000);
+      }
+    } catch(e){ logMsg("PHOTO","save failed: " + (e && e.message)); }
+    finally { setSaving(false); }
+  }
   useEffect(()=>{
     function onKey(e){
       if (e.key === "Escape") onClose();
@@ -4804,6 +4829,11 @@ function PhotoLightbox({ cfg, paths, index, onClose }){
     <div className="lightbox" onClick={onClose}>
       <button className="lb-close" onClick={onClose} aria-label="Close">
         <Icon name="close" size={22} color="#f0e6d6" />
+      </button>
+      <button className="lb-close" style={{right:"auto", left:14}} aria-label="Save to phone"
+        title="Save to phone"
+        onClick={(e)=>{ e.stopPropagation(); savePhoto(); }}>
+        {saving ? <span className="spin" /> : <Icon name="share" size={20} color="#f0e6d6" />}
       </button>
       {list.length > 1 && <div className="lb-count">{i + 1} / {list.length}</div>}
       <div className="lb-stage" onClick={e=> e.stopPropagation()}
@@ -5380,7 +5410,8 @@ function App(){
     if (!(restaurants || []).some(r => r && r.id === seed.rid)) return;  // wait for sync
     try { localStorage.removeItem("mc_logvisit_seed"); } catch(e){}
     setOverlay({ type:"logVisit", restaurantId: seed.rid,
-      visitSeed: { date: seed.date || "", people: Array.isArray(seed.people) ? seed.people : [] } });
+      visitSeed: { date: seed.date || "", people: Array.isArray(seed.people) ? seed.people : [],
+        photos: Array.isArray(seed.photos) ? seed.photos : [] } });
   }, [ready, restaurants]);
 
   /* ---- push deep-links: route a tapped notification to its screen ------ */
@@ -12986,6 +13017,11 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         kind:"existing", path:p,
       }));
     }
+    // New visit logged from a shared visit: the photos were already copied into
+    // this account's storage, so they ride in as existing slots.
+    if (!existing && seedVisit && Array.isArray(seedVisit.photos) && seedVisit.photos.length){
+      return seedVisit.photos.filter(Boolean).slice(0,MAX_PHOTOS).map(p => ({ kind:"existing", path:p }));
+    }
     return [];
   });
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -15026,9 +15062,27 @@ function PublishedVisit({data}){
           await ghPutFile(myCfg, "data/menus.json", menus, null);
         }
       }
+      // Copy the meal photos into the recipient's OWN storage so they keep them
+      // permanently (the shared URLs are the sharer's, 30-day). Best-effort: any
+      // that fail are just skipped - the visit still logs.
+      const importedPhotos = [];
+      const srcPhotos = (Array.isArray(data.ph) ? data.ph : []).filter(Boolean).slice(0, MAX_VISIT_PHOTOS);
+      if (srcPhotos.length){
+        const pid = uid("shv");
+        for (let i = 0; i < srcPhotos.length; i++){
+          try {
+            const res = await fetch(apiBase(myCfg) + "/api/photos/import", {
+              method:"POST",
+              headers:{ "Content-Type":"application/json", ...(await authHeaders(myCfg)) },
+              body: JSON.stringify({ url: srcPhotos[i], path: "photos/shared/" + pid + "/" + i + ".jpg" }),
+            });
+            if (res.ok){ const d = await res.json().catch(()=> ({})); if (d && d.path) importedPhotos.push(d.path); }
+          } catch(e){ /* skip this photo */ }
+        }
+      }
       try {
         localStorage.setItem("mc_logvisit_seed", JSON.stringify({
-          rid: rid, name: data.r || "", date: data.dt || "", people: people }));
+          rid: rid, name: data.r || "", date: data.dt || "", people: people, photos: importedPhotos }));
       } catch(e){}
       location.href = home;   // into the app; it reads the seed and opens the logger
     } catch(e){ setSaveState("err"); setSaveMsg((e && e.message) || "Could not start your visit."); }
