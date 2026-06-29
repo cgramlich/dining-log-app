@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.266.0";
+const APP_VERSION   = "1.267.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6004,6 +6004,8 @@ function App(){
             savedListCount={(lists || []).length}
             onNearMe={()=> setOverlay({ type:"nearMe" })}
             onSpin={()=> setOverlay({ type:"spinPick" })}
+            onAddPlace={()=> setOverlay({ type:"addRestaurant" })}
+            onScanMenu={()=> setOverlay({ type:"scanMenu" })}
             onCreateRestaurant={(rec)=>{
               const next = [rec].concat(restaurants);
               commit({ restaurants: next }, ["restaurants"]);
@@ -7515,7 +7517,7 @@ function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, 
 }
 
 
-function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin, onCreateRestaurant, onDeleteRestaurant}){
+function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin, onCreateRestaurant, onDeleteRestaurant, onAddPlace, onScanMenu}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("alpha");
   const [cuisineFilter, setCuisineFilter] = useState("All");
@@ -7575,9 +7577,35 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
     return (
       <div>
         <ActiveGroupOrders cfg={cfg} />
-        <div className="empty">
-          <div className="big">No places yet</div>
-          <div>Add a restaurant or scan a menu from the + button.</div>
+        <div className="empty" style={{paddingTop:30}}>
+          <div className="big">Welcome to MenuCaptain</div>
+          <div style={{maxWidth:320, margin:"0 auto 18px"}}>
+            Your private log for eating out &mdash; the places you go, the dishes
+            you love, the menus you scan. Start by adding a place:
+          </div>
+          <div style={{display:"flex", flexDirection:"column", gap:10, maxWidth:280, margin:"0 auto"}}>
+            {onNearMe && (
+              <button className="btn primary" onClick={onNearMe}>
+                <span className="row" style={{gap:6, justifyContent:"center"}}>
+                  <Icon name="locate" size={16} color="#1b1714" />Find places near me</span>
+              </button>
+            )}
+            {onScanMenu && (
+              <button className="btn ghost" onClick={onScanMenu}>
+                <span className="row" style={{gap:6, justifyContent:"center"}}>
+                  <Icon name="camera" size={16} color="var(--accent)" />Scan a menu</span>
+              </button>
+            )}
+            {onAddPlace && (
+              <button className="btn ghost" onClick={onAddPlace}>
+                <span className="row" style={{gap:6, justifyContent:"center"}}>
+                  <Icon name="plus" size={16} color="var(--accent)" />Add a place</span>
+              </button>
+            )}
+          </div>
+          <div className="tiny faint" style={{marginTop:16, maxWidth:300, marginLeft:"auto", marginRight:"auto"}}>
+            You can also tap the &#43; button any time to add a place, scan a menu, or log a meal.
+          </div>
         </div>
       </div>
     );
