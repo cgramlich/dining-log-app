@@ -59,7 +59,7 @@
   <a class="brand" href="/"><span class="b1">Menu</span><span class="b2">Captain</span></a>
 
   <h1>Privacy Policy</h1>
-  <div class="meta">Effective June 9, 2026</div>
+  <div class="meta">Effective June 29, 2026</div>
 
   <p>MenuCaptain is a private notebook for eating out: you log restaurants and
   visits, scan menus, remember the dishes you loved, and (if you want) get
@@ -112,19 +112,40 @@
     <li><b>Anthropic</b> &mdash; AI processing for the features above.</li>
     <li><b>GitHub Pages</b> &mdash; serves the app itself and any list pages
     you choose to publish.</li>
+    <li><b>Google</b> &mdash; Google Places, for &ldquo;Near me&rdquo; discovery,
+    looking a place up on Google, and showing a place&rsquo;s rating and photos.
+    The location, search terms, or place you request are sent to Google.</li>
     <li><b>OpenStreetMap (Nominatim)</b> &mdash; when you tap &ldquo;Find
     address,&rdquo; the restaurant name and city you typed are sent to look up
     its address and map location.</li>
+    <li><b>Serper</b> &mdash; when you tap &ldquo;See photos&rdquo; on a dish, the
+    dish name (and cuisine) is sent to find matching photos from the web.</li>
+    <li><b>Firecrawl</b> &mdash; when you import a menu from a link, the page at
+    that URL is fetched and rendered so the menu can be read.</li>
+    <li><b>Resend</b> &mdash; sends account and notification emails (for example
+    sign-in, password reset, and connection or share notifications) to your
+    email address.</li>
     <li><b>Stripe</b> &mdash; payment processing for paid plans. Stripe
     handles your card details directly; we never see your full card number.</li>
   </ul>
 
   <h2>Sharing and published lists</h2>
   <p>Nothing in your log is shared unless you share it. If you use the share
-  or publish features, the specific content you choose (for example a
-  restaurant card or a list of places, including their addresses) becomes
-  visible to anyone who has the link or image. Treat published lists as
-  public.</p>
+  or publish features, the specific content you choose becomes visible to
+  anyone who has the link or image &mdash; treat any shared link as public.
+  What travels depends on what you share:</p>
+  <ul>
+    <li><b>A place or list</b> &mdash; the restaurant name, address, cuisine,
+    and (if you include it) its menu.</li>
+    <li><b>A visit</b> &mdash; the place, the date, the meal <b>photos</b>, the
+    menu, and the <b>names</b> of the people you tagged as being there. It does
+    <b>not</b> include your private notes, what you ate, your ratings, or any
+    amount you spent.</li>
+  </ul>
+  <p class="soft">Shared pages are hosted on our server (and shared list/menu
+  pages on GitHub Pages) so the link works for whoever you send it to. Anyone
+  the link is forwarded to can also open it, so only share what you&rsquo;re
+  comfortable being seen.</p>
 
   <h2>Data storage and security</h2>
   <p>Your data is stored in our hosted database and photo storage, isolated
