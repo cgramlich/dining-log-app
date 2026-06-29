@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.246.0";
+const APP_VERSION   = "1.247.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7025,7 +7025,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
       (v.notes || "")).toLowerCase();
     return hay.includes(q);
   }) : sorted;
-  if (lovedOnly) filtered = filtered.filter(v => (v.dishes || []).some(d => d && d.verdict === "loved"));
+  if (lovedOnly) filtered = filtered.filter(v => v.loved || (v.dishes || []).some(d => d && d.verdict === "loved"));
   return (
     <div>
       <SearchBar value={query} onChange={setQuery}
@@ -7041,7 +7041,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
         <span className="sortbar-lbl">Show</span>
         <span className={"chip pick" + (!lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(false)}>All visits</span>
         <span className={"chip pick" + (lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(true)}
-          title="Only visits where you marked a dish Loved">{"♥ Visits I loved"}</span>
+          title="Visits you marked loved, or where you loved a dish">{"♥ Visits I loved"}</span>
       </div>
       <div className="hist-legend">
         <InfoDot title="Calorie labels" label="Calorie labels">
@@ -7102,7 +7102,11 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
               ) : (
                 <div className="place-name">{r ? r.name : (v.restaurant_name || "Unknown")}</div>
               )}
-              {null}
+              {v.loved ? (
+                <span className="fav on" title="Loved" style={{flex:"none"}}>
+                  <Icon name="heart" size={18} color="#d9604e" />
+                </span>
+              ) : null}
             </div>
             <div className="meta-line" style={{marginTop:4}}>
               {fmtDate(v.date)} &nbsp;&middot;&nbsp; {relDays(v.date)}
@@ -12389,6 +12393,7 @@ function PeopleTag({ value, onChange, roster }){
 function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [companions, setCompanions] = useState(()=> (existing && Array.isArray(existing.companions)) ? existing.companions : []);
+  const [loved, setLoved] = useState(()=> !!(existing && existing.loved));   // visit-level "loved"
   const [shareBusy, setShareBusy] = useState(false);   // sharing this visit
   const [shareErr, setShareErr]   = useState(null);
   const [conns, setConns] = useState([]);   // accepted connections (for tag autocomplete)
@@ -13079,6 +13084,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       logged_at: existing ? existing.logged_at : Date.now(),
       split: splitDraft || null,                 // who-pays-what split, saved with the visit
       companions: companions,                    // people you were with [{name, username?, user_id?, handle?}]
+      loved: loved,                              // visit-level "loved" (feeds "Visits I loved")
     };
     onSave(rec, { pendingUploads: pendingUploads });
   }
@@ -13787,6 +13793,14 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
             placeholder="How was it? Worth returning?" />
         </label>
+
+        <button type="button" className={"btn" + (loved ? " primary" : " ghost")}
+          style={{marginBottom:14}} onClick={()=> setLoved(l => !l)}>
+          <span className="row" style={{gap:7, justifyContent:"center"}}>
+            <Icon name="heart" size={17} color={loved ? "#1b1714" : "#d9604e"} />
+            {loved ? "Loved this visit" : "Mark this visit loved"}
+          </span>
+        </button>
 
         {existing && (
           <div style={{margin:"4px 0 14px"}}>
