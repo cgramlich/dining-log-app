@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.247.0";
+const APP_VERSION   = "1.248.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4664,27 +4664,43 @@ function PhotoImg({cfg, path, alt, className, style, onClick}){
 // a loadable URL on demand (never stored) and renders it WITH attribution, per
 // Google's terms. Shown only when there's no user-uploaded photo.
 function GooglePhoto({cfg, name, attribution, thumb}){
+  const ref = useRef(null);
+  // Thumbs (Places-list cards) load lazily: only fetch the photo when the card
+  // scrolls near the viewport, so a long list doesn't fire a burst of photo
+  // requests at once (cost + perf). The single hero on a detail page loads eagerly.
+  const [inView, setInView] = useState(!thumb);
   const [url, setUrl] = useState(null);
   const [failed, setFailed] = useState(false);
   useEffect(()=>{
+    if (inView) return;
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined"){ setInView(true); return; }
+    const obs = new IntersectionObserver((entries)=>{
+      if (entries.some(e => e.isIntersecting)){ setInView(true); obs.disconnect(); }
+    }, { rootMargin: "300px" });
+    obs.observe(el);
+    return ()=> obs.disconnect();
+  }, [inView]);
+  useEffect(()=>{
     let alive = true;
-    if (!name || !cfg){ return; }
+    if (!inView || !name || !cfg){ return; }
     placesPhoto(cfg, name, thumb ? 200 : 1000)
       .then(d => { if (alive) setUrl(d && d.url); })
       .catch(()=> { if (alive) setFailed(true); });
     return ()=> { alive = false; };
-  }, [name, cfg && cfg.userId]);
-  if (failed || !url){
-    return thumb ? (
-      <div className="photo-shell" style={{width:"100%",height:"100%"}}>
-        <Icon name="image" size={20} color="#5a5045" />
-      </div>
-    ) : null;
-  }
+  }, [inView, name, cfg && cfg.userId]);
   if (thumb){
-    return <img className="photo-img" src={url} alt=""
-      style={{width:"100%",height:"100%",objectFit:"cover"}} />;
+    // The shell is the observed element AND the placeholder until the photo loads.
+    return (
+      <div ref={ref} className="photo-shell" style={{width:"100%",height:"100%"}}>
+        {url ? <img className="photo-img" src={url} alt=""
+                 style={{width:"100%",height:"100%",objectFit:"cover"}} />
+          : (failed ? <Icon name="image" size={20} color="#5a5045" /> : null)}
+      </div>
+    );
   }
+  if (failed || !url) return null;
   return (
     <div className="rest-hero">
       <img className="photo-img" src={url} alt="" style={{width:"100%"}} />
