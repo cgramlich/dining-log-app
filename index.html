@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.251.0";
+const APP_VERSION   = "1.252.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -11662,6 +11662,14 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
       return m; });
   }
   function clearAll(){ setPicked({}); }
+  // Fill the wheel from your "Want to try" list - the "let's finally go somewhere
+  // new" spin. Replaces the current selection with up to 8 want-to-try places.
+  const wantToTry = places.filter(r => r.wishlist);
+  function pickWantToTry(){
+    const m = {}; wantToTry.slice(0, 8).forEach(r => { m[r.id] = true; });
+    setPicked(m);
+    setQ("");
+  }
 
   function startWheel(list){
     setWheelList(list);
@@ -11886,8 +11894,14 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
               <input className="input" value={q} onChange={e=> setQ(e.target.value)}
                 placeholder="Search your places" />
             </label>
-            <div className="row" style={{gap:8, alignItems:"center", marginBottom:6}}>
+            <div className="row" style={{gap:8, alignItems:"center", marginBottom:6, flexWrap:"wrap"}}>
               <button className="btn ghost sm" onClick={selectAllShown}>Select all</button>
+              {wantToTry.length ? (
+                <button className="btn ghost sm" onClick={pickWantToTry}
+                  title="Fill the wheel with places you want to try">
+                  Want to try ({wantToTry.length})
+                </button>
+              ) : null}
               <button className="btn ghost sm" onClick={clearAll}>Clear</button>
               <span className="spin-count">{count}/8 on the wheel</span>
             </div>
@@ -11906,6 +11920,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
                       <div className="small" style={{fontWeight:600}}>
                         {r.name}
                         {r.favorite ? <span style={{color:"var(--accent)"}}>{" \u2605"}</span> : null}
+                        {r.wishlist ? <span className="tiny" style={{color:"var(--accent)", marginLeft:6, fontWeight:600}}>\u00b7 to try</span> : null}
                       </div>
                       {(r.cuisine || r.location) ? (
                         <div className="tiny faint">
