@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.256.0";
+const APP_VERSION   = "1.257.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2072,6 +2072,21 @@ function fmtDate(iso){
   const d = new Date(iso + "T12:00:00");
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
+}
+// Searchable text for a visit's date so the History search box matches natural
+// date queries (Apple Photos style): "december", "dec", "2024", "dec 2024",
+// "12/14", the ISO date, and the friendly label.
+const _MONTHS_FULL = ["january","february","march","april","may","june",
+  "july","august","september","october","november","december"];
+function dateHaystack(iso){
+  if (!iso || iso.length < 7) return "";
+  const y = iso.slice(0,4);
+  const mo = parseInt(iso.slice(5,7),10);
+  const day = parseInt(iso.slice(8,10),10) || "";
+  const full = _MONTHS_FULL[mo-1] || "";
+  return (iso + " " + full + " " + full.slice(0,3) + " " + y + " " +
+          (full ? full + " " + y : "") + " " + mo + "/" + day + " " +
+          (fmtDate(iso) || "")).toLowerCase();
 }
 function relDays(iso){
   if (!iso) return "";
@@ -5884,6 +5899,13 @@ function App(){
                 const next = visits.map(x => x.id === v.id ? Object.assign({}, x, { loved: !x.loved }) : x);
                 commit({ visits: next }, ["visits"]);
               }}
+              onShareVisit={(v)=>{
+                const rest = restaurantById(v.restaurant_id);
+                const menuList = menus[v.restaurant_id] || [];
+                shareVisit(config, v, rest, menuList,
+                  (b)=>{ if (b) flash("Preparing share link…"); },
+                  (m)=>{ if (m) flash(m); });
+              }}
               onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
           </>
         )}
@@ -7037,7 +7059,7 @@ function VisitSplit({split, cfg, receipt, onSeeItemized, merchant, date}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace, onToggleLoved}){
+function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace, onToggleLoved, onShareVisit}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [lovedOnly, setLovedOnly] = useState(false);   // show only visits with an "Again" dish
@@ -7093,7 +7115,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
     const rr = restaurantById(v.restaurant_id);
     const hay = ((rr ? rr.name : (v.restaurant_name || "")) + " " +
       (v.dishes || []).map(d => d.name || "").join(" ") + " " +
-      (v.notes || "")).toLowerCase();
+      (v.notes || "")).toLowerCase() + " " + dateHaystack(v.date);
     return hay.includes(q);
   }) : sorted;
   if (lovedOnly) filtered = filtered.filter(v => v.loved || (v.dishes || []).some(d => d && d.verdict === "loved"));
@@ -7105,7 +7127,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
   return (
     <div>
       <SearchBar value={query} onChange={setQuery}
-        placeholder="Search visits, dishes, notes" />
+        placeholder="Search visits, dishes, notes, dates" />
       <div className="sortbar">
         <span className="sortbar-lbl">Sort</span>
         <span className={"chip pick" + (sortBy === "newest" ? " on" : "")} onClick={()=> setSortBy("newest")}>Newest</span>
@@ -7187,18 +7209,27 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
               ) : (
                 <div className="place-name">{r ? r.name : (v.restaurant_name || "Unknown")}</div>
               )}
-              {onToggleLoved ? (
-                <button className={"fav" + (v.loved ? " on" : "")}
-                  title={v.loved ? "Loved - tap to remove" : "Mark this visit loved"}
-                  style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
-                  onClick={(e)=>{ e.stopPropagation(); onToggleLoved(v); }}>
-                  <Icon name="heart" size={18} color={v.loved ? "#d9604e" : "#80715f"} />
-                </button>
-              ) : (v.loved ? (
-                <span className="fav on" title="Loved" style={{flex:"none"}}>
-                  <Icon name="heart" size={18} color="#d9604e" />
-                </span>
-              ) : null)}
+              <span className="row" style={{gap:2, flex:"none", alignItems:"center"}}>
+                {onShareVisit ? (
+                  <button title="Share this visit"
+                    style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
+                    onClick={(e)=>{ e.stopPropagation(); onShareVisit(v); }}>
+                    <Icon name="share" size={17} color="#80715f" />
+                  </button>
+                ) : null}
+                {onToggleLoved ? (
+                  <button className={"fav" + (v.loved ? " on" : "")}
+                    title={v.loved ? "Loved - tap to remove" : "Mark this visit loved"}
+                    style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
+                    onClick={(e)=>{ e.stopPropagation(); onToggleLoved(v); }}>
+                    <Icon name="heart" size={18} color={v.loved ? "#d9604e" : "#80715f"} />
+                  </button>
+                ) : (v.loved ? (
+                  <span className="fav on" title="Loved" style={{flex:"none"}}>
+                    <Icon name="heart" size={18} color="#d9604e" />
+                  </span>
+                ) : null)}
+              </span>
             </div>
             <div className="meta-line" style={{marginTop:4}}>
               {fmtDate(v.date)} &nbsp;&middot;&nbsp; {relDays(v.date)}
