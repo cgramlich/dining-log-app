@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.255.0";
+const APP_VERSION   = "1.256.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7041,6 +7041,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [lovedOnly, setLovedOnly] = useState(false);   // show only visits with an "Again" dish
+  const [cityFilter, setCityFilter] = useState("All"); // filter visits by the place's city
   const [lightbox, setLightbox] = useState(null);      // {paths, index} | null
   if (!visits.length){
     // WHY: visits starts empty before the first data load completes. Show a
@@ -7096,6 +7097,11 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
     return hay.includes(q);
   }) : sorted;
   if (lovedOnly) filtered = filtered.filter(v => v.loved || (v.dishes || []).some(d => d && d.verdict === "loved"));
+  // Cities present in the visit history (from each visit's place), for the filter.
+  const cityOf = (v)=> { const r = restaurantById(v.restaurant_id); return (r && r.location) ? r.location : ""; };
+  const cities = Array.from(new Set(visits.map(cityOf).filter(Boolean))).sort((a,b)=> a.localeCompare(b));
+  const cityActive = cities.indexOf(cityFilter) !== -1 ? cityFilter : "All";
+  if (cityActive !== "All") filtered = filtered.filter(v => cityOf(v) === cityActive);
   return (
     <div>
       <SearchBar value={query} onChange={setQuery}
@@ -7113,6 +7119,15 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
         <span className={"chip pick" + (lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(true)}
           title="Visits you marked loved, or where you loved a dish">{"♥ Visits I loved"}</span>
       </div>
+      {cities.length >= 2 && (
+        <div className="sortbar">
+          <span className="sortbar-lbl">City</span>
+          <span className={"chip pick" + (cityActive === "All" ? " on" : "")} onClick={()=> setCityFilter("All")}>All</span>
+          {cities.map(c => (
+            <span key={c} className={"chip pick" + (cityActive === c ? " on" : "")} onClick={()=> setCityFilter(c)}>{c}</span>
+          ))}
+        </div>
+      )}
       <div className="hist-legend">
         <InfoDot title="Calorie labels" label="Calorie labels">
           <span className="idl"><strong>~320 cal</strong> &mdash; an estimate (the ~ means estimated).</span>
