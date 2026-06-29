@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.248.0";
+const APP_VERSION   = "1.249.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5851,6 +5851,10 @@ function App(){
               onScanMenu={()=> setOverlay({ type:"scanMenu" })}
               onLogVisit={()=> setOverlay({ type:"logVisit" })}
               onAddPlace={()=> setOverlay({ type:"addRestaurant" })}
+              onToggleLoved={(v)=>{
+                const next = visits.map(x => x.id === v.id ? Object.assign({}, x, { loved: !x.loved }) : x);
+                commit({ visits: next }, ["visits"]);
+              }}
               onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
           </>
         )}
@@ -6983,7 +6987,7 @@ function VisitSplit({split, cfg, receipt, onSeeItemized, merchant, date}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace}){
+function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace, onToggleLoved}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [lovedOnly, setLovedOnly] = useState(false);   // show only visits with an "Again" dish
@@ -7118,11 +7122,18 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
               ) : (
                 <div className="place-name">{r ? r.name : (v.restaurant_name || "Unknown")}</div>
               )}
-              {v.loved ? (
+              {onToggleLoved ? (
+                <button className={"fav" + (v.loved ? " on" : "")}
+                  title={v.loved ? "Loved - tap to remove" : "Mark this visit loved"}
+                  style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
+                  onClick={(e)=>{ e.stopPropagation(); onToggleLoved(v); }}>
+                  <Icon name="heart" size={18} color={v.loved ? "#d9604e" : "#80715f"} />
+                </button>
+              ) : (v.loved ? (
                 <span className="fav on" title="Loved" style={{flex:"none"}}>
                   <Icon name="heart" size={18} color="#d9604e" />
                 </span>
-              ) : null}
+              ) : null)}
             </div>
             <div className="meta-line" style={{marginTop:4}}>
               {fmtDate(v.date)} &nbsp;&middot;&nbsp; {relDays(v.date)}
@@ -10076,6 +10087,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       total: toDollars(split.grandCents),
       splitDraft: splitObj,
       receiptDataUrl: (shots && shots[0]) || null,
+      people: people.slice(),   // seed the visit's companions from who was at the table
     });
     // NB: do NOT call onClose() - the onLogVisit handler swaps the overlay itself.
   }
@@ -12408,7 +12420,14 @@ function PeopleTag({ value, onChange, roster }){
    ============================================================ */
 function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
-  const [companions, setCompanions] = useState(()=> (existing && Array.isArray(existing.companions)) ? existing.companions : []);
+  const [companions, setCompanions] = useState(()=> {
+    if (existing && Array.isArray(existing.companions)) return existing.companions;
+    // New visit logged from a check split: pre-fill who was at the table.
+    if (!existing && seedFromSplit && Array.isArray(seedFromSplit.people)){
+      return seedFromSplit.people.map(n => ({ name: String(n).trim() })).filter(p => p.name);
+    }
+    return [];
+  });
   const [loved, setLoved] = useState(()=> !!(existing && existing.loved));   // visit-level "loved"
   const [shareBusy, setShareBusy] = useState(false);   // sharing this visit
   const [shareErr, setShareErr]   = useState(null);
