@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.267.0";
+const APP_VERSION   = "1.268.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6514,6 +6514,7 @@ function App(){
           existing={overlay.type==="editVisit" ? overlay.visit : null}
           seedFromSplit={overlay.seedFromSplit || null}
           seedVisit={overlay.visitSeed || null}
+          onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
           cfg={config}
           onClose={()=> setOverlay(overlay.returnTo || null)}
           onSave={async (rec, extras)=>{
@@ -12712,7 +12713,7 @@ function PeopleTag({ value, onChange, roster }){
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit}){
+function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [companions, setCompanions] = useState(()=> {
     if (existing && Array.isArray(existing.companions)) return existing.companions;
@@ -13487,6 +13488,14 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   <Icon name="edit" size={17} color="var(--accent)" />
                 </button>
               ) : null}
+              {onOpenRestaurant ? (
+                <button aria-label="Open this place's page" title="Open this place's page"
+                  style={{flex:"none", background:"none", border:"none", padding:2, cursor:"pointer", display:"flex"}}
+                  onClick={(e)=>{ e.stopPropagation(); onOpenRestaurant(chosenRest.id); }}>
+                  <span style={{display:"inline-flex", transform:"rotate(180deg)"}}>
+                    <Icon name="back" size={16} color="var(--accent)" /></span>
+                </button>
+              ) : null}
               <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>Change</span>
             </div>
           ) : (
@@ -14141,25 +14150,29 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           </span>
         </button>
 
-        {existing && (
-          <div style={{margin:"4px 0 14px"}}>
-            <button className="btn ghost" disabled={shareBusy} onClick={()=>{
-              const shareVisitObj = Object.assign({}, existing, {
-                date: date,
-                companions: companions,
-                photos: photoSlots.filter(s => s && s.kind === "existing").map(s => s.path),
-              });
-              shareVisit(cfg, shareVisitObj, chosenRest, (menus && menus[restId]) || [], setShareBusy, setShareErr);
-            }}>
-              {shareBusy ? <span className="spin" />
-                : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="share" size={16} />Share this visit</span>}
-            </button>
-            <div className="tiny faint" style={{marginTop:6}}>
-              Shares the place, the photos, who you were with, and the menu - never your notes or what you ate.
+        {existing && (() => {
+          const shareVisitObj = Object.assign({}, existing, {
+            date: date,
+            companions: companions,
+            photos: photoSlots.filter(s => s && s.kind === "existing").map(s => s.path),
+          });
+          const menuListForVisit = (menus && menus[restId]) || [];
+          return (
+            <div style={{margin:"4px 0 14px", display:"flex", flexDirection:"column", gap:8}}>
+              <SendVisitToConnection cfg={cfg} visit={shareVisitObj} restaurant={chosenRest}
+                menuList={menuListForVisit} label="Send to a connection" />
+              <button className="btn ghost" disabled={shareBusy}
+                onClick={()=> shareVisit(cfg, shareVisitObj, chosenRest, menuListForVisit, setShareBusy, setShareErr)}>
+                {shareBusy ? <span className="spin" />
+                  : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="share" size={16} />Share a link</span>}
+              </button>
+              <div className="tiny faint">
+                Sends the place, the photos, who you were with, and the menu &mdash; never your notes or what you ate.
+              </div>
+              {shareErr ? <div className="tiny" style={{color:"var(--accent)"}}>{shareErr}</div> : null}
             </div>
-            {shareErr ? <div className="tiny" style={{color:"var(--accent)", marginTop:5}}>{shareErr}</div> : null}
-          </div>
-        )}
+          );
+        })()}
 
         {onDelete && (
           !confirmDel ? (
@@ -17504,9 +17517,12 @@ function YearInFood({visits, restaurants, onClose, onHome}){
       <div className="ovhead">
         <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
         <h2>Year in Food</h2>
-        <button className="x" onClick={share} disabled={shareBusy || s.empty} aria-label="Share recap">
-          {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
-        </button>
+        <span className="row" style={{gap:2, flex:"none"}}>
+          <button className="x" onClick={share} disabled={shareBusy || s.empty} aria-label="Share recap">
+            {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
+          </button>
+          <HomeBtn onHome={onHome} />
+        </span>
       </div>
       <div className="ovbody">
         {years.length > 0 && (
@@ -18812,6 +18828,86 @@ function ShareToConnectionButton({cfg, restaurant, menuList}){
   );
 }
 
+// Send a VISIT straight to accepted connections (in-app, not a public link).
+// Signs the meal photos, builds the same shareable visit blob, and drops it in
+// each connection's "Shared with you" inbox (kind "visit").
+function SendVisitToConnection({cfg, visit, restaurant, menuList, label}){
+  const [open, setOpen]   = useState(false);
+  const [conns, setConns] = useState(null);
+  const [pick, setPick]   = useState({});
+  const [busy, setBusy]   = useState(false);
+  const [msg, setMsg]     = useState("");
+  const favSet = loadConnFavs();
+  const place = (restaurant && restaurant.name) || (visit && visit.restaurant_name) || "this visit";
+  async function openPicker(){
+    setOpen(true); setMsg("");
+    if (conns === null){ try { const d = await getConnections(cfg); setConns(d.connections || []); } catch(e){ setConns([]); } }
+  }
+  async function send(){
+    const ids = Object.keys(pick).filter(k => pick[k]);
+    if (!ids.length) return;
+    setBusy(true); setMsg("");
+    try {
+      const photoUrls = await signVisitPhotos(cfg, (visit.photos || []).filter(Boolean));
+      const payload = buildVisitPayload(visit, restaurant, menuList || [], photoUrls);
+      const r = await sendShare(cfg, ids, "visit", place, payload);
+      setMsg("Sent to " + (r.sent || 0));
+      setPick({});
+      setTimeout(()=> setOpen(false), 800);
+    } catch(e){ setMsg(e.message || "Could not send."); }
+    finally { setBusy(false); }
+  }
+  return (
+    <>
+      <button className={"btn ghost" + (label ? "" : " sm")} disabled={busy} onClick={openPicker}>
+        <span className="row" style={{gap:6, justifyContent:"center"}}>
+          <Icon name="nodes" size={16} color="var(--accent)" />{label || "Send to a connection"}</span>
+      </button>
+      {open && (
+        <div style={{position:"fixed", inset:0, zIndex:80, background:"rgba(0,0,0,0.55)",
+             display:"flex", alignItems:"flex-end", justifyContent:"center"}}
+             onClick={()=> setOpen(false)}>
+          <div className="card" style={{width:"100%", maxWidth:520, margin:0,
+               borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:"85vh", overflowY:"auto"}}
+               onClick={(e)=> e.stopPropagation()}>
+            <div style={{fontWeight:600, marginBottom:4}}>Send your visit to&hellip;</div>
+            <div className="small muted" style={{marginBottom:10}}>
+              They'll get it in their &ldquo;Shared with you&rdquo; inbox &mdash; with the photos,
+              the place, and the menu. No notes, ratings, or what you spent.
+            </div>
+            {conns === null ? (
+              <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
+            ) : conns.length === 0 ? (
+              <div className="small faint" style={{padding:"4px 0 12px"}}>
+                No connections yet. Add some in Settings &rarr; Connections.
+              </div>
+            ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
+              const l = connLabel(c); const on = !!pick[c.user_id];
+              const isFav = favSet.has(c.user_id);
+              return (
+                <div key={c.user_id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+                  onClick={()=> setPick(p => Object.assign({}, p, { [c.user_id]: !p[c.user_id] }))}>
+                  <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
+                  <span style={{flex:1, minWidth:0}}>
+                    {isFav ? <span style={{color:"var(--accent)"}}>★ </span> : null}
+                    {l.primary}{l.secondary ? <span className="tiny faint"> {l.secondary}</span> : null}</span>
+                </div>
+              );
+            })}
+            <div className="row" style={{gap:9, marginTop:14}}>
+              <button className="btn ghost" onClick={()=> setOpen(false)}>Close</button>
+              <button className="btn primary" disabled={busy || !Object.keys(pick).some(k=>pick[k])} onClick={send}>
+                {busy ? <span className="spin" /> : "Send"}
+              </button>
+            </div>
+            {msg ? <div className="tiny" style={{marginTop:8, color:"var(--ok)"}}>{msg}</div> : null}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // "Shared with you" inbox overlay: received places/lists; tap to view (reuses
 // the public viewers, which include "Save to my places"), or dismiss.
 function ShareInbox({config, onClose, onHome}){
@@ -18829,7 +18925,9 @@ function ShareInbox({config, onClose, onHome}){
           <button className="btn ghost sm" style={{margin:"12px 16px 0"}} onClick={()=> setOpen(null)}>
             <Icon name="back" size={14} /> Back
           </button>
-          {open.kind === "list" ? <PublishedList data={open.payload} /> : <PublishedMenu data={open.payload} />}
+          {open.kind === "list" ? <PublishedList data={open.payload} />
+            : open.kind === "visit" ? <PublishedVisit data={open.payload} />
+            : <PublishedMenu data={open.payload} />}
         </div>
       </div>
     );
@@ -18848,13 +18946,14 @@ function ShareInbox({config, onClose, onHome}){
             Nothing shared with you yet. When a connection sends you a place or list, it shows up here.
           </div>
         ) : shares.map(s => {
-          const name = s.title || (s.kind === "list" ? "A list" : "A place");
+          const name = s.title || (s.kind === "list" ? "A list" : s.kind === "visit" ? "A visit" : "A place");
+          const kindLabel = s.kind === "list" ? "list" : s.kind === "visit" ? "visit" : "place + menu";
           return (
             <SwipeToDelete key={s.id} onDelete={()=> remove(s.id)}>
               <div className="card" style={{display:"flex", alignItems:"center", gap:10}}>
                 <div style={{flex:1, minWidth:0, cursor:"pointer"}} onClick={()=> setOpen(s)}>
                   <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{name}</div>
-                  <div className="tiny faint">from {s.from} &middot; {s.kind === "list" ? "list" : "place + menu"}</div>
+                  <div className="tiny faint">from {s.from} &middot; {kindLabel}</div>
                 </div>
                 <button className="btn primary sm" style={{flex:"none"}} onClick={()=> setOpen(s)}>View</button>
                 <button className="btn ghost sm" style={{flex:"none"}} disabled={busyId===s.id} onClick={()=> remove(s.id)}>Dismiss</button>
