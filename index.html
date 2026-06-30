@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.288.0";
+const APP_VERSION   = "1.289.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8943,7 +8943,8 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <>
             {/* No menu yet -> the loud next step is getting the menu, not logging. */}
             <button className="btn primary" onClick={onAddMenu} style={{marginTop:4}}>
-              <Icon name="camera" size={18} color="#1b1714" />Scan or link a menu
+              <Icon name="camera" size={18} color="#1b1714" /><span>Scan or</span>
+              <Icon name="link" size={18} color="#1b1714" /><span>Link a menu</span>
             </button>
             <button className="btn ghost" onClick={onLogVisit} style={{marginTop:8}}>
               <Icon name="plus" size={16} color="var(--accent)" />Log a visit here
