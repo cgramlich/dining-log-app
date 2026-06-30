@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.287.0";
+const APP_VERSION   = "1.288.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -15026,6 +15026,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [errMsg,setErrMsg]     = useState("");
   const [result,setResult]     = useState(null);        // parsed menu
   const [urlInput,setUrlInput] = useState("");          // "pull from a link" field
+  const [showUrl,setShowUrl]   = useState(false);       // link option starts as a twin button; reveals the field on tap
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
   const [label,setLabel]       = useState(presetMenu ? (presetMenu.label || "") : "");
@@ -15345,11 +15346,41 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               <Icon name="camera" size={18} />
               {previews.length ? "Add more photos" : "Choose / take photos"}
             </button>
-            <div className="tiny faint" style={{marginTop:6,padding:"0 2px"}}>
-              On iPhone, picking many photos at once can pause for several
-              seconds while iOS converts them. That is normal. If it
-              hangs, cancel and pick one or two at a time.
-            </div>
+            {/* Twin of the photo button: same shape, so the two ways to add a
+                menu read as equal. Tapping it reveals the link field in place. */}
+            {!presetMenu && !showUrl && (
+              <button className="btn ghost" style={{marginTop:8}} onClick={()=> setShowUrl(true)}
+                disabled={!!processing}>
+                <Icon name="link" size={18} />Link to a menu online
+              </button>
+            )}
+            {!presetMenu && showUrl && (
+              <div style={{marginTop:8}}>
+                <input className="input" value={urlInput} onChange={e=> setUrlInput(e.target.value)}
+                  placeholder="Paste a menu web address" inputMode="url"
+                  autoCapitalize="off" autoCorrect="off" spellCheck={false} autoFocus
+                  onKeyDown={e=>{ if (e.key === "Enter" && urlInput.trim()){ e.preventDefault(); runUrl(); } }}
+                  style={{marginBottom:10}} />
+                <button className="btn ghost" style={{width:"100%"}} onClick={runUrl}
+                  disabled={!urlInput.trim() || !!processing}>
+                  <Icon name="link" size={18} />Get the menu from this link
+                </button>
+                <div className="tiny faint" style={{marginTop:6}}>
+                  Works best on a restaurant's own menu page. You review it before saving; it comes from the web, so it is not verified.
+                </div>
+                <button className="btn ghost sm" style={{marginTop:8}}
+                  onClick={()=>{ setShowUrl(false); setUrlInput(""); }}>
+                  Use photos instead
+                </button>
+              </div>
+            )}
+            {!showUrl && (
+              <div className="tiny faint" style={{marginTop:8,padding:"0 2px"}}>
+                On iPhone, picking many photos at once can pause for several
+                seconds while iOS converts them. That is normal. If it
+                hangs, cancel and pick one or two at a time.
+              </div>
+            )}
             {processing && (
               <div className="photo-progress">
                 Processing photo {processing.done} of {processing.total}&hellip;
@@ -15376,23 +15407,6 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 disabled={!!processing}>
                 Digitize {previews.length} photo(s)
               </button>
-            )}
-            {!presetMenu && (
-              <div style={{marginTop:18, borderTop:"1px solid var(--line-soft)", paddingTop:16}}>
-                <div className="small muted" style={{marginBottom:10}}>Or link to a menu online</div>
-                <input className="input" value={urlInput} onChange={e=> setUrlInput(e.target.value)}
-                  placeholder="Paste a menu web address" inputMode="url"
-                  autoCapitalize="off" autoCorrect="off" spellCheck={false}
-                  onKeyDown={e=>{ if (e.key === "Enter" && urlInput.trim()){ e.preventDefault(); runUrl(); } }}
-                  style={{marginBottom:10}} />
-                <button className="btn ghost" style={{width:"100%"}} onClick={runUrl}
-                  disabled={!urlInput.trim() || !!processing}>
-                  <Icon name="link" size={18} />Get the menu from this link
-                </button>
-                <div className="tiny faint" style={{marginTop:6}}>
-                  Works best on a restaurant's own menu page. You review it before saving; it comes from the web, so it is not verified.
-                </div>
-              </div>
             )}
           </div>
         )}
