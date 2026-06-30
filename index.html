@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.285.0";
+const APP_VERSION   = "1.286.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8955,13 +8955,13 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <>
             {/* No menu yet -> the loud next step is getting the menu, not logging. */}
             <button className="btn primary" onClick={onAddMenu} style={{marginTop:4}}>
-              <Icon name="camera" size={18} color="#1b1714" />Scan a menu
+              <Icon name="camera" size={18} color="#1b1714" />Scan or link a menu
             </button>
             <button className="btn ghost" onClick={onLogVisit} style={{marginTop:8}}>
               <Icon name="plus" size={16} color="var(--accent)" />Log a visit here
             </button>
             <div className="tiny faint" style={{marginTop:8, textAlign:"center", lineHeight:1.6}}>
-              All you need is a menu &mdash; snap or upload a photo, or paste a link to an online menu.
+              All you need is a menu. Snap or upload a photo, or paste a link to an online menu.
             </div>
           </>
         ) : (
@@ -15345,10 +15345,10 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           <div>
             <div className="card small muted">
               {presetMenu
-                ? "Photograph the menu - the new scan will replace the current " +
+                ? "Photograph the menu. The new scan replaces the current " +
                   presetMenu.label + " menu for this restaurant."
-                : "Take clear, straight-on photos of the menu. Multiple pages of " +
-                  "the same menu are fine - add them all and they merge."}
+                : "Take clear photos of the menu, straight on. Multiple pages of " +
+                  "the same menu are fine; add them all and they merge."}
             </div>
             <input ref={fileRef} type="file" accept="image/*" multiple
               style={{display:"none"}} onChange={onFiles} />
@@ -15359,8 +15359,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             </button>
             <div className="tiny faint" style={{marginTop:6,padding:"0 2px"}}>
               On iPhone, picking many photos at once can pause for several
-              seconds while iOS converts them &mdash; this is normal. If it
-              hangs, cancel and pick 1&ndash;2 at a time.
+              seconds while iOS converts them. That is normal. If it
+              hangs, cancel and pick one or two at a time.
             </div>
             {processing && (
               <div className="photo-progress">
@@ -15390,19 +15390,19 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               </button>
             )}
             {!presetMenu && (
-              <div style={{marginTop:18, borderTop:"1px solid var(--line-soft)", paddingTop:14}}>
-                <div className="small muted" style={{marginBottom:8}}>Or pull the menu from a link</div>
+              <div style={{marginTop:18, borderTop:"1px solid var(--line-soft)", paddingTop:16}}>
+                <div className="small muted" style={{marginBottom:10}}>Or link to a menu online</div>
                 <input className="input" value={urlInput} onChange={e=> setUrlInput(e.target.value)}
                   placeholder="Paste a menu web address" inputMode="url"
                   autoCapitalize="off" autoCorrect="off" spellCheck={false}
                   onKeyDown={e=>{ if (e.key === "Enter" && urlInput.trim()){ e.preventDefault(); runUrl(); } }}
-                  style={{marginBottom:8}} />
+                  style={{marginBottom:10}} />
                 <button className="btn ghost" style={{width:"100%"}} onClick={runUrl}
                   disabled={!urlInput.trim() || !!processing}>
-                  Get menu from link
+                  <Icon name="link" size={18} />Get the menu from this link
                 </button>
                 <div className="tiny faint" style={{marginTop:6}}>
-                  Works best on a restaurant's own menu page. You'll review it before saving &mdash; from the web, not verified.
+                  Works best on a restaurant's own menu page. You review it before saving; it comes from the web, so it is not verified.
                 </div>
               </div>
             )}
@@ -15413,7 +15413,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           <div className="empty" style={{paddingTop:"22vh"}}>
             <div className="spin" style={{margin:"0 auto 16px"}} />
             <div className="big">Reading the menu</div>
-            <div>Scanning your menu - this usually takes 10-30 seconds.</div>
+            <div>Scanning your menu. This usually takes 10 to 30 seconds.</div>
           </div>
         )}
 
@@ -15458,7 +15458,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                   How to save
                   <InfoDot title="How to save">
                     <span className="idl"><strong>One menu</strong> keeps every detected section together in a single menu.</span>
-                    <span className="idl"><strong>Customize each section</strong> lets you split the sections into separate menus &mdash; give two sections the same name and they merge into one.</span>
+                    <span className="idl"><strong>Customize each section</strong> lets you split the sections into separate menus. Give two sections the same name and they merge into one.</span>
                     <span className="idl">Use Customize to turn one long scan into tidy menus (Food, Cocktails, ...).</span>
                   </InfoDot>
                 </div>
@@ -15467,7 +15467,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                     onChange={()=> setSaveMode("one")}
                     style={{marginTop:3}} />
                   <span className="small">
-                    <strong>One menu</strong> &mdash; save all {sectionCount} detected
+                    <strong>One menu</strong>: save all {sectionCount} detected
                     sections as subsections of a single menu.
                   </span>
                 </label>
@@ -15476,7 +15476,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                     onChange={()=> setSaveMode("custom")}
                     style={{marginTop:3}} />
                   <span className="small">
-                    <strong>Customize each section</strong> &mdash; assign each section
+                    <strong>Customize each section</strong>: assign each section
                     its own destination. Sections sharing the same name merge into
                     one menu with multiple subsections.
                   </span>
