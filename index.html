@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.290.0";
+const APP_VERSION   = "1.291.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -907,6 +907,27 @@ async function communityGetMenu(cfg, id){
   const res = await fetch(apiBase(cfg) + "/api/community/menu/" + encodeURIComponent(id), { headers });
   if (!res.ok) throw new Error("community get " + res.status);
   return res.json();
+}
+// Flag a community menu as wrong/spam/outdated (trust mechanism).
+async function communityReportMenu(cfg, id){
+  const headers = await authHeaders(cfg);
+  const res = await fetch(apiBase(cfg) + "/api/community/menu/" + encodeURIComponent(id) + "/report",
+    { method:"POST", headers });
+  if (!res.ok) throw new Error("report " + res.status);
+  return res.json();
+}
+// Relative age of a community menu + whether it's stale enough to flag (~9 mo).
+function communityAgeNote(iso){
+  try {
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    if (isNaN(days)) return { label:"", stale:false };
+    let label;
+    if (days <= 0) label = "today";
+    else if (days < 30) label = days + " day" + (days===1?"":"s") + " ago";
+    else if (days < 365){ const m = Math.max(1, Math.round(days/30)); label = m + " month" + (m===1?"":"s") + " ago"; }
+    else { const y = Math.floor(days/365); label = y + " year" + (y===1?"":"s") + " ago"; }
+    return { label, stale: days > 270 };
+  } catch(e){ return { label:"", stale:false }; }
 }
 // Strip a menu to PUBLIC fields before sharing: keep name/description/price/tags/
 // calories; drop anything derived from the user (paid prices, the user's nutrition
@@ -8421,7 +8442,16 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
   const [picked, setPicked]   = useState({});     // community id -> bool
   const [pulling, setPulling] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
+  const [reported, setReported]   = useState({});   // community id -> reported
   if (!placeId) return null;
+
+  async function reportMenu(id){
+    setReported(r => Object.assign({}, r, { [id]: true }));   // optimistic
+    try {
+      const res = await communityReportMenu(cfg, id);
+      if (res && res.hidden){ setMsg("Thanks - that menu was flagged and hidden."); load(); }
+    } catch(e){ /* fail-quiet: the optimistic 'Reported' note stays */ }
+  }
 
   async function load(){
     setBusy(true); setErr("");
@@ -8494,18 +8524,32 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
           {list && list.length > 0 ? (
             <div style={{marginTop:4}}>
               <div className="tiny faint" style={{marginBottom:6}}>
-                Community-contributed &middot; not verified. Tap to choose, then pull in.
+                Tap to choose, then pull in.
               </div>
               {list.map(cm => {
                 const on = !!picked[cm.id];
+                const age = communityAgeNote(cm.updated_at);
+                const isReported = !!reported[cm.id];
                 return (
-                  <div key={cm.id} className="pick-row" style={{display:"flex",alignItems:"center",gap:10}}
-                    onClick={()=> setPicked(p => Object.assign({}, p, { [cm.id]: !p[cm.id] }))}>
-                    <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
-                    <span style={{flex:1, minWidth:0}}>
-                      <span className="small" style={{fontWeight:600}}>{cm.label}</span>
-                      <span className="tiny faint">{" · " + cm.item_count + " item" + (cm.item_count===1?"":"s") + (cm.contributor_count > 1 ? " · " + cm.contributor_count + " people" : "") + (cm.updated_at ? " · " + fmtCommunityDate(cm.updated_at) : "")}</span>
-                    </span>
+                  <div key={cm.id} style={{padding:"3px 0"}}>
+                    <div className="pick-row" style={{display:"flex",alignItems:"center",gap:10}}
+                      onClick={()=> setPicked(p => Object.assign({}, p, { [cm.id]: !p[cm.id] }))}>
+                      <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
+                      <span style={{flex:1, minWidth:0}}>
+                        <span className="small" style={{fontWeight:600}}>{cm.label}</span>
+                        <span className="tiny faint">{" · " + cm.item_count + " item" + (cm.item_count===1?"":"s") + (cm.contributor_count > 1 ? " · " + cm.contributor_count + " people" : "") + (age.label ? " · " + age.label : "")}</span>
+                      </span>
+                    </div>
+                    <div className="tiny" style={{display:"flex", gap:10, alignItems:"center", paddingLeft:26, marginTop:1}}>
+                      {age.stale
+                        ? <span style={{color:"var(--amber)"}}>May be outdated &mdash; double-check</span>
+                        : <span className="faint">Community, not verified</span>}
+                      <span style={{flex:1}} />
+                      {isReported
+                        ? <span className="faint">Reported, thanks</span>
+                        : <button className="tiny" style={{color:"var(--text-faint)", background:"none", border:"none", padding:0, cursor:"pointer"}}
+                            onClick={(e)=>{ e.stopPropagation(); reportMenu(cm.id); }}>Report</button>}
+                    </div>
                   </div>
                 );
               })}
