@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.268.0";
+const APP_VERSION   = "1.269.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6515,6 +6515,8 @@ function App(){
           seedFromSplit={overlay.seedFromSplit || null}
           seedVisit={overlay.visitSeed || null}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+          onScanMenu={(restId)=> setOverlay({ type:"scanMenu", restaurantId: restId,
+            returnTo: Object.assign({}, overlay, { restaurantId: restId }) })}
           cfg={config}
           onClose={()=> setOverlay(overlay.returnTo || null)}
           onSave={async (rec, extras)=>{
@@ -6632,7 +6634,7 @@ function App(){
           menus={menus}
           presetRestaurantId={overlay.restaurantId}
           presetMenuId={overlay.menuId}
-          onClose={()=> setOverlay(null)}
+          onClose={()=> setOverlay(overlay.returnTo || null)}
           onSave={(restId, menusToSave, newRestaurant, isReplace)=>{
             let nextR = restaurants;
             if (newRestaurant) nextR = [newRestaurant].concat(restaurants);
@@ -6650,13 +6652,14 @@ function App(){
             const nextM = Object.assign({}, menus, { [restId]:newRestMenus });
             commit({ restaurants:nextR, menus:nextM },
                    newRestaurant ? ["restaurants","menus"] : ["menus"]);
-            // re-scan returns to the menu detail (where the user came from);
-            // a fresh scan returns to the restaurant page so they can see the
-            // new menu in the list
-            setOverlay(isReplace
-              ? { type:"menuDetail", restaurantId:restId,
-                  menuId:menusToSave[0].menu_id }
-              : { type:"restaurant", id:restId });
+            // If we were launched from somewhere (e.g. the log-visit page),
+            // return there so the menu is now available to tap from. Otherwise:
+            // re-scan -> the menu detail; a fresh scan -> the restaurant page.
+            setOverlay(overlay.returnTo
+              ? overlay.returnTo
+              : isReplace
+                ? { type:"menuDetail", restaurantId:restId, menuId:menusToSave[0].menu_id }
+                : { type:"restaurant", id:restId });
             const savedPlace = newRestaurant || restaurantById(restId);
             const baseMsg = isReplace ? "Menu replaced"
               : (menusToSave.length > 1 ? menusToSave.length + " menus saved" : "Menu saved");
@@ -7759,7 +7762,34 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
     <div>
       <ActiveGroupOrders cfg={cfg} />
       <SearchBar value={query} onChange={setQuery}
-        placeholder="Search places, cuisine, city" />
+        placeholder="Search your places" />
+      {/* The box searches YOUR saved places; the moment you type, offer Google
+          too so a place you don't have yet is one tap away (new-user instinct). */}
+      {q && onCreateRestaurant && (
+        <div style={{margin:"0 0 12px"}}>
+          <button className="btn ghost sm" style={{width:"100%"}} disabled={gBusy}
+            onClick={()=> runGooglePlaceSearch(query)}>
+            {gBusy ? <span className="spin" />
+              : <span className="row" style={{gap:6, justifyContent:"center"}}>
+                  <Icon name="locate" size={15} color="var(--accent)" />
+                  Search Google for &ldquo;{query.trim()}&rdquo;</span>}
+          </button>
+          {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
+          {Array.isArray(gResults) && gResults.length > 0 ? (
+            <div style={{marginTop:10}}>
+              {gResults.map((c,i)=>(
+                <div key={i} className="pick-row"
+                  style={{padding:"10px 12px", borderBottom:"1px solid var(--line-soft)", cursor:"pointer"}}
+                  onClick={()=> pickGooglePlace(c)}>
+                  <div className="small" style={{fontWeight:600}}>{c.name}</div>
+                  {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+                </div>
+              ))}
+              <div className="tiny faint" style={{marginTop:8, textAlign:"center"}}>Tap a result to add it to your places.</div>
+            </div>
+          ) : null}
+        </div>
+      )}
       {onOpenMap && (
         <div className="row" style={{margin:"0 0 10px", flexWrap:"wrap", gap:8}}>
           <React.Fragment>
@@ -7856,36 +7886,10 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
             : statusFilter === "been" ? "No visits yet"
             : "Nothing in " + filter}</div>
           <div>{q
-            ? "Not in your places yet."
+            ? "Not in your places yet — use “Search Google” above to add it."
             : statusFilter === "try" ? "Add a place and mark it “Want to try,” or tap the book icon on any place."
             : statusFilter === "been" ? "Log a visit to a place and it shows up here."
             : "Add a restaurant in this location, or pick a different filter."}</div>
-          {q && onCreateRestaurant ? (
-            <div style={{marginTop:14}}>
-              <button className="btn ghost sm" disabled={gBusy}
-                onClick={()=> runGooglePlaceSearch(query)}>
-                {gBusy ? <span className="spin" />
-                  : <span className="row" style={{gap:6, justifyContent:"center"}}>
-                      <Icon name="locate" size={15} color="var(--accent)" />
-                      Search Google for "{query.trim()}"
-                    </span>}
-              </button>
-              {gErr ? <div className="tiny faint" style={{marginTop:8}}>{gErr}</div> : null}
-              {Array.isArray(gResults) && gResults.length > 0 ? (
-                <div style={{marginTop:12, textAlign:"left"}}>
-                  {gResults.map((c,i)=>(
-                    <div key={i} className="pick-row"
-                      style={{padding:"10px 12px", borderBottom:"1px solid var(--line-soft)", cursor:"pointer"}}
-                      onClick={()=> pickGooglePlace(c)}>
-                      <div className="small" style={{fontWeight:600}}>{c.name}</div>
-                      {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
-                    </div>
-                  ))}
-                  <div className="tiny faint" style={{marginTop:8, textAlign:"center"}}>Tap a result to add it to your places.</div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       )}
 
@@ -12713,7 +12717,7 @@ function PeopleTag({ value, onChange, roster }){
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit}){
+function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, onScanMenu, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [companions, setCompanions] = useState(()=> {
     if (existing && Array.isArray(existing.companions)) return existing.companions;
@@ -14039,6 +14043,17 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   ))}
                 </div>
               ))}
+            </div>
+          )}
+          {menuGroups.length === 0 && restId && onScanMenu && (
+            <div style={{marginTop:12, textAlign:"center"}}>
+              <div className="tiny faint" style={{marginBottom:8}}>
+                No saved menu for this place yet &mdash; scan one to tap dishes straight from it.
+              </div>
+              <button className="btn ghost sm" onClick={()=> onScanMenu(restId)}>
+                <span className="row" style={{gap:6, justifyContent:"center"}}>
+                  <Icon name="camera" size={15} color="var(--accent)" />Scan a menu for this place</span>
+              </button>
             </div>
           )}
         </div>
