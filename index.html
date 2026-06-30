@@ -225,6 +225,20 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .ask-answer{margin-top:12px; padding:12px 13px; border-radius:10px;
       background:rgba(224,118,74,0.08); border:1px solid rgba(224,118,74,0.22);
       color:var(--text); font-size:14px; line-height:1.5;}
+    /* Rendered AI text (light markdown -> real formatting, no raw ** or ##) */
+    .aimd > :first-child{margin-top:0;}
+    .aimd p{margin:8px 0 0;}
+    .aimd h4{font-family:'Fraunces',serif; font-size:15px; font-weight:600;
+      color:var(--text); margin:14px 0 4px; line-height:1.3;}
+    .aimd ul{margin:6px 0 0; padding:0; list-style:none;}
+    .aimd li{position:relative; padding-left:16px; margin:5px 0;}
+    .aimd li::before{content:"\2022"; position:absolute; left:2px; top:-1px;
+      color:var(--accent); font-weight:700;}
+    .aimd li.num{padding-left:22px;}
+    .aimd li.num::before{content:attr(data-n); left:0; top:0; font-weight:600;
+      color:var(--accent); font-size:13px;}
+    .aimd strong{font-weight:600; color:var(--text);}
+    .aimd em{font-style:italic;}
     /* ---- meal-photo nutrition (informative, never alarming) ---- */
     .card.nutri{border:1px solid rgba(224,118,74,0.22); margin-top:4px;}
     .nutri-kcal{font-family:'Fraunces',serif; font-size:30px; font-weight:600; color:var(--text); line-height:1;}
@@ -871,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.271.0";
+const APP_VERSION   = "1.272.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8843,6 +8857,65 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   );
 }
 
+/* Renders an AI answer as light formatting instead of raw markdown. The models
+   still leak **bold**, ## headings, and - bullets despite the prompts, so we
+   turn the common tokens into real elements and strip the rest. Deliberately
+   tiny: headings, bullet/numbered lists, paragraphs, bold + italic inline. */
+function aiInline(text){
+  // Split on **bold** and *italic*/_italic_ while keeping the delimiters.
+  const out = [];
+  const re = /(\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|_[^_\n]+_)/g;
+  let last = 0, m, k = 0;
+  while ((m = re.exec(text)) !== null){
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const t = m[0];
+    if (t.startsWith("**") || t.startsWith("__"))
+      out.push(<strong key={"b"+(k++)}>{t.slice(2, -2)}</strong>);
+    else
+      out.push(<em key={"i"+(k++)}>{t.slice(1, -1)}</em>);
+    last = m.index + t.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+function AiText({ text }){
+  const lines = String(text || "").replace(/\r/g, "").split("\n");
+  const blocks = [];
+  let list = null;   // { ordered, items:[] }
+  const flush = ()=> { if (list){ blocks.push(list); list = null; } };
+  lines.forEach(raw => {
+    const line = raw.trim();
+    if (!line){ flush(); return; }
+    const h = line.match(/^#{1,6}\s+(.*)$/);
+    if (h){ flush(); blocks.push({ h: h[1].replace(/[*_]/g, "") }); return; }
+    const num = line.match(/^(\d+)[.)]\s+(.*)$/);
+    const bul = line.match(/^[-*•]\s+(.*)$/);
+    if (num || bul){
+      if (!list) list = { items: [] };
+      list.items.push({ num: num ? num[1] : null, text: (num ? num[2] : bul[1]) });
+      return;
+    }
+    flush();
+    blocks.push({ p: line });
+  });
+  flush();
+  return (
+    <div className="aimd">
+      {blocks.map((b, i)=>{
+        if (b.h) return <h4 key={i}>{aiInline(b.h)}</h4>;
+        if (b.items) return (
+          <ul key={i}>
+            {b.items.map((it, j)=> it.num
+              ? <li key={j} className="num" data-n={it.num + "."}>{aiInline(it.text)}</li>
+              : <li key={j}>{aiInline(it.text)}</li>)}
+          </ul>
+        );
+        return <p key={i}>{aiInline(b.p)}</p>;
+      })}
+    </div>
+  );
+}
+
 /* ============================================================
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
@@ -9046,9 +9119,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
           {askErr && <div className="ask-err">{askErr}</div>}
           {answer && (
             <div className="ask-answer">
-              {answer.split("\n").filter(Boolean).map((line,i)=>(
-                <p key={i} style={{margin:i ? "8px 0 0" : 0}}>{line}</p>
-              ))}
+              <AiText text={answer} />
             </div>
           )}
         </div>
@@ -9103,9 +9174,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
           {explainErr && <div className="ask-err">{explainErr}</div>}
           {explanation && (
             <div className="ask-answer">
-              {explanation.split("\n").filter(Boolean).map((line,i)=>(
-                <p key={i} style={{margin:i ? "8px 0 0" : 0}}>{line}</p>
-              ))}
+              <AiText text={explanation} />
             </div>
           )}
         </div>
