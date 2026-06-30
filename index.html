@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.279.0";
+const APP_VERSION   = "1.280.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1269,18 +1269,25 @@ just your email and password - your data follows your account.
 
 ## Getting around
 
-There is a bar across the bottom of the screen with five spots:
+The app opens to **Home**, and there is a bar across the bottom with five spots:
 
-- **History** - everything you have logged, newest first.
+- **Home** - your start screen. Find a place (one of yours, or a new one on
+  Google), jump to Near me / Scan a menu / Can't decide, pick up an active group
+  order, and reopen recent places. The flow runs find a place &rarr; open it and
+  scan the menu / ask Help me order &rarr; log the visit after the meal.
+  **Settings** lives behind the gear in the top-right of Home.
 - **Places** - your list of restaurants.
 - **The plus (+) button** - the quick-action button. Tap it to log a visit,
   pull up a menu (open a place to browse and order), start a group order, add a
   restaurant, scan a menu, or spin a wheel to pick a place when you can't decide.
+- **History** - everything you have logged, newest first.
 - **Discover** (the **You** tab) - the home for Your Year in Food, your Food
   passport, dining companions, your published lists, your saved splits, and any
   active group orders.
-- **Settings** - your account and plan, the look of the app (five color
-  themes under Appearance), the update check, this user guide, and app info.
+
+**Settings** (the gear on Home) holds your account and plan, the look of the app
+(five color themes under Appearance), the update check, this user guide, app
+info, and which screen the app opens to (Startup).
 
 -----
 
@@ -5117,6 +5124,195 @@ function earnedBadgeIds({restaurants, visits, menus, lists, meta}){
   return ids;
 }
 
+/* ============================================================
+   HOME - the calm start screen and default landing. Owns step 1 of the flow
+   (find a place: one of yours, or a new one on Google); the place page carries
+   steps 2-3 (menu / Help me order / log the visit). A clean launcher, not a
+   wizard: search + quick actions + continue + recents + a dismissible cue.
+   ============================================================ */
+function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreateRestaurant,
+                    onNearMe, onScanMenu, onSpin, onOpenSettings, onBrowseAll, pendingReqs }){
+  const [q, setQ]             = useState("");
+  const [gBusy, setGBusy]     = useState(false);
+  const [gErr, setGErr]       = useState("");
+  const [gResults, setGResults] = useState(null);   // null = not searched yet
+  const [cueOff, setCueOff]   = useState(()=> { try { return localStorage.getItem("mc_home_cue_dismissed") === "1"; } catch(e){ return false; } });
+
+  function getGeoOnce(){
+    return new Promise((resolve)=>{
+      if (!navigator.geolocation){ resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat:p.coords.latitude, lng:p.coords.longitude }),
+        ()=> resolve(null),
+        { enableHighAccuracy:false, timeout:8000, maximumAge:300000 });
+    });
+  }
+  function gMapErr(err){
+    if (err && err.status === 402) return "Finding places on Google is a Pro feature.";
+    return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
+  }
+  async function runGoogleSearch(){
+    const term = q.trim(); if (!term){ setGErr("Type a place name first."); return; }
+    setGBusy(true); setGErr("");
+    try {
+      let loc=null; try { loc = await getGeoOnce(); } catch(_e){}
+      const body = { query:term, max_results:12 };
+      if (loc){ body.lat=loc.lat; body.lng=loc.lng; }
+      const data = await placesSearchText(cfg, body);
+      const list = ((data && data.places) || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      setGResults(list);
+      if (!list.length) setGErr("No matches. Add the city or street and try again.");
+    } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
+    finally { setGBusy(false); }
+  }
+  function pickGoogle(c){
+    const newRest = Object.assign({
+      id: uid("rest"),
+      name: (c.name || q.trim() || "New place"),
+      cuisine: cuisineFromType(c.primary_type, c.types) || "",
+      location: c.city || cityFromAddress(c.address),
+      address: c.address || "", phone: c.phone || "", website: c.website || "", notes: "",
+      favorite: false, added_date: todayISO(),
+      google_place_id: c.place_id || undefined,
+      lat: (c.lat != null ? c.lat : undefined),
+      lng: (c.lng != null ? c.lng : undefined),
+    }, googleMetaFrom(c));
+    onCreateRestaurant(newRest);   // parent commits + opens the new place
+  }
+  useEffect(()=>{ setGResults(null); setGErr(""); }, [q]);
+
+  const ql = q.trim().toLowerCase();
+  const savedMatches = ql
+    ? (restaurants || []).filter(r => ((r.name||"")+" "+(r.cuisine||"")+" "+(r.location||"")).toLowerCase().indexOf(ql) !== -1).slice(0, 8)
+    : [];
+  // Recent places: most-recent visit date, then most-recently added.
+  const lastVisit = {};
+  (visits || []).forEach(v => { const d = v.date || ""; if (v.restaurant_id && d > (lastVisit[v.restaurant_id] || "")) lastVisit[v.restaurant_id] = d; });
+  const recents = (restaurants || []).slice().sort((a,b)=>
+    (lastVisit[b.id] || b.added_date || "").localeCompare(lastVisit[a.id] || a.added_date || "")
+  ).slice(0, 5);
+  const greeting = (function(){ const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
+  const who = profileName(profile) || "";
+  const placeRow = (r, key)=> (
+    <div key={key} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor:"pointer"}}
+      onClick={()=> onOpenRestaurant(r.id)}>
+      <div style={{flex:1, minWidth:0}}>
+        <div className="small" style={{fontWeight:600}}>{r.name}</div>
+        {(r.cuisine || r.location) ? <div className="tiny faint">{[r.cuisine, r.location].filter(Boolean).join("  ·  ")}</div> : null}
+      </div>
+      <Icon name="chev" size={15} color="var(--text-faint)" />
+    </div>
+  );
+
+  return (
+    <div>
+      {/* header: wordmark + greeting + settings gear (Settings lives here now) */}
+      <div className="between" style={{margin:"2px 2px 14px", alignItems:"center"}}>
+        <div style={{minWidth:0}}>
+          <div style={{fontFamily:"'Fraunces',serif", fontSize:24, fontWeight:600, color:"var(--text)", lineHeight:1.1}}>MenuCaptain</div>
+          <div className="tiny faint" style={{marginTop:2}}>{greeting}{who ? ", " + who : ""}</div>
+        </div>
+        <button className="x" aria-label="Settings" title="Settings" onClick={onOpenSettings}
+          style={{position:"relative", flex:"none"}}>
+          <Icon name="gear" size={22} />
+          {pendingReqs > 0 ? (
+            <span style={{position:"absolute", top:-4, right:-6, minWidth:16, height:16, padding:"0 4px",
+              borderRadius:8, background:"var(--danger)", color:"#fff", fontSize:10, fontWeight:700,
+              display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1}}>{pendingReqs}</span>
+          ) : null}
+        </button>
+      </div>
+
+      {/* (1) Find a place - yours or new */}
+      <SearchBar value={q} onChange={setQ} placeholder="Find a place — yours, or somewhere new" />
+
+      {savedMatches.length > 0 ? (
+        <div className="card" style={{marginTop:4, marginBottom:8, padding:"4px 0"}}>
+          <div className="small muted" style={{padding:"6px 14px"}}>Your places</div>
+          {savedMatches.map(r => placeRow(r, r.id))}
+        </div>
+      ) : null}
+
+      {ql ? (
+        <div style={{margin:"0 0 12px"}}>
+          <button className="btn ghost sm" style={{width:"100%"}} disabled={gBusy} onClick={runGoogleSearch}>
+            {gBusy ? <span className="spin" />
+              : <span className="row" style={{gap:6, justifyContent:"center"}}>
+                  <Icon name="locate" size={15} color="var(--accent)" />
+                  Find &ldquo;{q.trim()}&rdquo; on Google</span>}
+          </button>
+          {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
+          {Array.isArray(gResults) && gResults.length > 0 ? (
+            <div className="card" style={{marginTop:8, padding:"4px 0"}}>
+              <div className="small muted" style={{padding:"6px 14px"}}>From Google</div>
+              {gResults.map((c,i)=>{
+                const saved = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
+                return (
+                  <div key={i} className="pick-row"
+                    style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8, cursor:"pointer"}}
+                    onClick={()=> saved ? onOpenRestaurant(saved.id) : pickGoogle(c)}>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div className="small" style={{fontWeight:600}}>{c.name}</div>
+                      {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+                    </div>
+                    <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
+                      color: saved ? "var(--text-faint)" : "var(--accent)"}}>
+                      {saved ? "Saved · Open" : "+ Add to places"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* quick discovery actions */}
+      <div className="row" style={{gap:8, flexWrap:"wrap", margin:"2px 0 16px"}}>
+        {onNearMe ? <button className="btn ghost sm" onClick={onNearMe}><Icon name="locate" size={15} color="var(--accent)" />Near me</button> : null}
+        {onScanMenu ? <button className="btn ghost sm" onClick={onScanMenu}><Icon name="camera" size={15} color="var(--accent)" />Scan a menu</button> : null}
+        {onSpin ? <button className="btn ghost sm" onClick={onSpin}><Icon name="compass" size={15} color="var(--accent)" />Can't decide?</button> : null}
+      </div>
+
+      {/* pick up where you left off - any active/open group orders */}
+      <ActiveGroupOrders cfg={cfg} />
+
+      {recents.length > 0 ? (
+        <>
+          <div className="between" style={{margin:"6px 2px 6px", alignItems:"baseline"}}>
+            <span className="set-group" style={{margin:0}}>Recent places</span>
+            {onBrowseAll ? (
+              <button className="tiny" style={{color:"var(--accent)", background:"none", border:"none", cursor:"pointer"}}
+                onClick={onBrowseAll}>Browse all ›</button>
+            ) : null}
+          </div>
+          <div className="card" style={{padding:"4px 0"}}>
+            {recents.map(r => placeRow(r, "recent-" + r.id))}
+          </div>
+        </>
+      ) : null}
+
+      {!cueOff ? (
+        <div className="card" style={{marginTop:14, position:"relative"}}>
+          <button className="x" aria-label="Dismiss"
+            onClick={()=>{ try { localStorage.setItem("mc_home_cue_dismissed","1"); } catch(e){} setCueOff(true); }}
+            style={{position:"absolute", top:6, right:6}}>
+            <Icon name="close" size={16} color="var(--text-faint)" />
+          </button>
+          <div style={{fontWeight:600, marginBottom:8}}>How MenuCaptain flows</div>
+          <div className="tiny" style={{lineHeight:1.8}}>
+            <div><strong style={{color:"var(--accent)"}}>1.</strong>&nbsp; Find a place &mdash; one of yours, or a new one above.</div>
+            <div><strong style={{color:"var(--accent)"}}>2.</strong>&nbsp; Open it, scan the menu, and ask <em>Help me order</em>.</div>
+            <div><strong style={{color:"var(--accent)"}}>3.</strong>&nbsp; After the meal, log the visit and split the check.</div>
+          </div>
+        </div>
+      ) : null}
+
+      <div style={{height:20}} />
+    </div>
+  );
+}
+
 function App(){
   const [config, setConfig]     = useState(() => loadConfig());
   const [ready, setReady]       = useState(false);
@@ -5997,6 +6193,24 @@ function App(){
             <InstallHint onClose={()=>{ try { localStorage.setItem("mc_a2hs_dismissed", "1"); } catch(e){} setA2hsDismissed(true); }} />
           </div>
         )}
+        {tab === "home" && (
+          <HomeView
+            profile={profile}
+            restaurants={restaurants} visits={visits} cfg={config}
+            pendingReqs={pendingReqs}
+            onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+            onCreateRestaurant={(rec)=>{
+              const next = [rec].concat(restaurants);
+              commit({ restaurants: next }, ["restaurants"]);
+              flash("Added " + (rec.name || "place"));
+              setOverlay({ type:"restaurant", id: rec.id });
+            }}
+            onNearMe={()=> setOverlay({ type:"nearMe" })}
+            onScanMenu={()=> setOverlay({ type:"scanMenu" })}
+            onSpin={()=> setOverlay({ type:"spinPick" })}
+            onOpenSettings={()=> setTab("settings")}
+            onBrowseAll={()=> setTab("restaurants")} />
+        )}
         {tab === "history" && (
           <>
             {profileName(profile) ? (
@@ -6155,30 +6369,22 @@ function App(){
         )}
       </div>
 
-      {/* bottom navigation */}
+      {/* bottom navigation. Settings moved to the gear in the Home header. */}
       <nav className="nav">
+        <button className={tab==="home" ? "on" : ""} onClick={()=> setTab("home")}>
+          <span className="navicon"><Icon name="home" size={23} /></span>Home
+        </button>
         <button className={tab==="restaurants" ? "on" : ""} onClick={()=> setTab("restaurants")}>
           <span className="navicon"><Icon name="plate" size={23} /></span>Places
-        </button>
-        <button className={tab==="history" ? "on" : ""} onClick={()=> setTab("history")}>
-          <span className="navicon"><Icon name="clock" size={23} /></span>History
         </button>
         <button onClick={()=> setSheet(true)}>
           <span className="add"><Icon name="plus" size={24} color="#1b1714" /></span>
         </button>
+        <button className={tab==="history" ? "on" : ""} onClick={()=> setTab("history")}>
+          <span className="navicon"><Icon name="clock" size={23} /></span>History
+        </button>
         <button className={tab==="discover" ? "on" : ""} onClick={()=> setTab("discover")}>
           <span className="navicon"><Icon name="compass" size={23} /></span>You
-        </button>
-        <button className={tab==="settings" ? "on" : ""} onClick={()=> setTab("settings")}>
-          <span className="navicon" style={{position:"relative"}}>
-            <Icon name="gear" size={23} />
-            {pendingReqs > 0 ? (
-              <span style={{position:"absolute", top:-4, right:-8, minWidth:16, height:16,
-                padding:"0 4px", borderRadius:8, background:"var(--danger)", color:"#fff",
-                fontSize:10, fontWeight:700, display:"flex", alignItems:"center",
-                justifyContent:"center", lineHeight:1}}>{pendingReqs}</span>
-            ) : null}
-          </span>Settings
         </button>
       </nav>
 
@@ -18447,6 +18653,7 @@ function applyTheme(key, setTheme){
 // Which tab the app opens to. User-configurable in Settings; defaults to
 // Places. Stored locally (a per-device UI preference, not synced data).
 const DEFAULT_TABS = [
+  { key:"home",        name:"Home",    icon:"home" },
   { key:"restaurants", name:"Places",  icon:"plate" },
   { key:"history",     name:"History", icon:"clock" },
   { key:"discover",    name:"You",     icon:"compass" },
@@ -18456,7 +18663,7 @@ function getDefaultTab(){
     const v = localStorage.getItem("mc_default_tab");
     if (DEFAULT_TABS.some(t => t.key === v)) return v;
   } catch(e){}
-  return "restaurants";
+  return "home";
 }
 function setDefaultTab(key){
   try { localStorage.setItem("mc_default_tab", key); } catch(e){}
