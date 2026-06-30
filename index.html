@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.289.0";
+const APP_VERSION   = "1.290.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -955,6 +955,13 @@ async function fetchMenuText(cfg, url){
 function getForcedTier(){ try { return localStorage.getItem("mc_force_tier") || ""; } catch(e){ return ""; } }
 function setForcedTier(v){ try { if (v) localStorage.setItem("mc_force_tier", v); else localStorage.removeItem("mc_force_tier"); } catch(e){} }
 
+async function fetchUsage(cfg){
+  // Per-user usage vs caps (AI + discovery), for the meter + timely upsell.
+  const headers = await authHeaders(cfg);
+  const res = await fetch(apiBase(cfg) + "/api/usage", { headers });
+  if (!res.ok) throw new Error("usage " + res.status);
+  return res.json();   // { tier, ai:{used,cap,remaining,window}, places:{...} }
+}
 async function fetchBillingStatus(cfg){
   const headers = await authHeaders(cfg);
   const res = await fetch(apiBase(cfg) + "/api/billing/status", { headers });
@@ -4308,7 +4315,7 @@ async function dishImages(cfg, name, cuisine){
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
     let _detail = ""; try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
-    if (res.status === 402) throw new Error(_detail || "Dish photos are a MenuCaptain Pro feature.");
+    if (res.status === 402) throw new Error(_detail || "Couldn't load photos right now. Try again.");
     if (res.status === 503) throw new Error(_detail || "Dish photo search isn’t set up yet.");
     if (res.status === 429) throw new Error(_detail || "Photo search is busy. Try again in a bit.");
     throw new Error(_detail || ("Photo search failed (" + res.status + ")"));
@@ -5198,7 +5205,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
     });
   }
   function gMapErr(err){
-    if (err && err.status === 402) return "Finding places on Google is a Pro feature.";
+    if (err && err.status === 402) return (err.detail || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
     return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
   }
   async function runGoogleSearch(){
@@ -7993,7 +8000,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   const [gErr, setGErr]   = useState("");
   const [gResults, setGResults] = useState(null);   // null=not searched | array
   function gMapErr(err){
-    if (err && err.status === 402) return "Finding places on Google is a Pro feature.";
+    if (err && err.status === 402) return (err.detail || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
     return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
   }
   function geoOnce(){
@@ -8594,9 +8601,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
       onStampMeta && onStampMeta(meta);
       onEnrich && onEnrich(enrich);
     } catch(e){
-      setEnrichErr(e && e.status === 402 ? "Updating from Google is a Pro feature."
-        : (e && e.detail) ? e.detail
-        : "Couldn't reach Google - try again.");
+      setEnrichErr((e && e.detail) ? e.detail
+        : (e && e.status === 402) ? "You've used your free Google lookups. Upgrade to Pro for unlimited."
+        : "Couldn't reach Google. Try again.");
     } finally { setEnrichBusy(false); }
   }
   // "Find on Google": for a place with NO google_place_id, text-search by name
@@ -8615,9 +8622,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
       const data = await placesSearchText(cfg, body);
       setCandidates((data && data.places) || []);
     } catch(e){
-      setLinkErr(e && e.status === 402 ? "Linking to Google is a Pro feature."
-        : (e && e.detail) ? e.detail
-        : "Couldn't search Google - try again.");
+      setLinkErr((e && e.detail) ? e.detail
+        : (e && e.status === 402) ? "You've used your free Google lookups. Upgrade to Pro for unlimited."
+        : "Couldn't search Google. Try again.");
     } finally { setLinkBusy(false); }
   }
   // A menu labeled "Main" pins to the top; everything else keeps its order
@@ -11649,9 +11656,9 @@ function mapPlacesError(err){
   const d = (err && err.detail) || "";
   if (s === 401) return { kind:"auth",     msg:"Your session expired - sign in again." };
   if (s === 402){
-    // Two distinct 402s, told apart by the backend's detail string.
-    if (/limit/i.test(d)) return { kind:"limit", msg:d || "You have reached this month's discovery limit." };
-    return { kind:"upsell" };
+    // Free taste used up (or Pro monthly cap). Either way, show the server's
+    // upsell text and route to the upgrade screen.
+    return { kind:"upsell", msg: d || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited." };
   }
   if (s === 503) return { kind:"down",     msg:"Discovery is taking a short break. Try again in a bit." };
   if (s === 502) return { kind:"upstream", msg:"Couldn't search just now. Try again." };
@@ -11764,10 +11771,12 @@ function NearbyMap({ user, results, onOpen, searchCenter, onSearchArea }){
 function loadNearMePrefs(){ try { return JSON.parse(localStorage.getItem("dininglog_nearme_prefs") || "{}") || {}; } catch(e){ return {}; } }
 function saveNearMePrefs(p){ try { localStorage.setItem("dininglog_nearme_prefs", JSON.stringify(p)); } catch(e){} }
 function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade, onClose }){
-  // Tier gate. null = loading; "pro" shows search; anything else shows upsell.
-  // We fetch it once so a free user never wastes a search round-trip; any stray
-  // 402 mid-flow also flips us to the upsell.
+  // Discovery is now metered, not hard-gated: free users get a taste, so we
+  // show the search UI to everyone and only flip to the upsell after a real
+  // limit (402). tier still loads (for copy/labels); null = still loading.
   const [tier, setTier] = useState(null);
+  const [limitHit, setLimitHit] = useState(false);   // a 402 (free taste used, or Pro monthly cap)
+  const [limitMsg, setLimitMsg] = useState("");
 
   // Location.
   const [userLoc, setUserLoc]   = useState(null);
@@ -11827,9 +11836,9 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
     return function(){ alive = false; };
   }, []);  // eslint-disable-line
 
-  // Once we know the user can search, ask for location straight away.
+  // Everyone can search (metered), so ask for location as soon as tier resolves.
   useEffect(function(){
-    if (tier === "pro" || tier === "unknown"){ if (geoState === "idle") requestLocation(); }
+    if (tier !== null){ if (geoState === "idle") requestLocation(); }
   }, [tier]);  // eslint-disable-line
 
   function requestLocation(){
@@ -11884,7 +11893,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
     } catch(err){
       const e = mapPlacesError(err);
       setError(e);
-      if (e.kind === "upsell") setTier("free");   // surface the upsell panel
+      if (e.kind === "upsell"){ setLimitMsg(e.msg || ""); setLimitHit(true); }   // free taste used / Pro cap
     } finally {
       setLoading(false);
     }
@@ -11913,7 +11922,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
     } catch(err){
       const e = mapPlacesError(err);
       setError(e);
-      if (e.kind === "upsell") setTier("free");
+      if (e.kind === "upsell"){ setLimitMsg(e.msg || ""); setLimitHit(true); }
     } finally {
       setLoading(false);
     }
@@ -11928,7 +11937,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
       setDetail(data.place);
     } catch(err){
       const e = mapPlacesError(err);
-      if (e.kind === "upsell"){ setDetail(null); setError(e); setTier("free"); }
+      if (e.kind === "upsell"){ setDetail(null); setLimitMsg(e.msg || ""); setLimitHit(true); }
       else setDetailErr(e);
     } finally {
       setDetailLoading(false);
@@ -12025,9 +12034,9 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
     );
   }
 
-  if (tier !== "pro" && tier !== "unknown"){
-    // Free (or comped-but-not-pro should not occur): the upsell panel. No Google
-    // call has been made, so this costs nothing.
+  if (limitHit){
+    // Shown only after a real 402 (free taste used, or Pro monthly cap) - the
+    // user has already experienced discovery, so this is a warm upsell.
     return (
       <div className="overlay">
         <Header />
@@ -12036,10 +12045,9 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
             <div style={{display:"flex", justifyContent:"center", marginBottom:10}}>
               <Icon name="locate" size={34} color="var(--accent)" />
             </div>
-            <div className="big" style={{marginBottom:6}}>Near me is a Pro feature</div>
+            <div className="big" style={{marginBottom:6}}>You've used your free Near me searches</div>
             <div style={{color:"var(--text-dim)", lineHeight:1.5, marginBottom:18}}>
-              Discover restaurants, cafes, and bars around you - then add the good
-              ones to your places with one tap, address and all.
+              {limitMsg || "Upgrade to MenuCaptain Pro for unlimited discovery - find restaurants, cafes, and bars around you and add them with one tap."}
             </div>
             <button className="btn primary" style={{width:"100%"}} onClick={onUpgrade}>
               See Pro
@@ -12544,9 +12552,8 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
       startWheel(sh.slice(0, 8));
     } catch(err){
       const e = mapPlacesError(err);
-      if (e.kind === "upsell"){ setDErr("Discovery is a Pro feature."); setDUpsell(true); }
-      else if (e.kind === "limit"){ setDErr(e.msg || "You've hit this month's discovery limit."); }
-      else setDErr(e.msg || "Search failed - try again.");
+      if (e.kind === "upsell"){ setDErr(e.msg || "You've used your free discovery. Upgrade to Pro for unlimited."); setDUpsell(true); }
+      else setDErr(e.msg || "Search failed. Try again.");
     } finally {
       setDBusy(false);
     }
@@ -12795,7 +12802,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
               {dBusy ? "Finding places…" : "Build my wheel"}
             </button>
             <div className="tiny faint" style={{margin:"8px 2px 0", textAlign:"center"}}>
-              Uses your location. Discovery is a Pro feature.
+              Uses your location. Free to try; Pro for unlimited.
             </div>
             </React.Fragment>
             )}
@@ -12954,7 +12961,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
     });
   }
   function gMapErr(err){
-    if (err && err.status === 402) return "Finding places on Google is a Pro feature.";
+    if (err && err.status === 402) return (err.detail || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
     return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
   }
   async function runGoogleSearch(){
@@ -13527,7 +13534,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     });
   }
   function gMapErr(err){
-    if (err && err.status === 402) return "Finding places on Google is a Pro feature.";
+    if (err && err.status === 402) return (err.detail || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
     return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
   }
   async function runGoogleSearch(){
@@ -19794,6 +19801,8 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
   const [defTab,setDefTab]   = useState(getDefaultTab);   // which tab the app opens to
   const [showPrint,setShowPrint] = useState(false);   // printable-history overlay
   const [expMsg,setExpMsg]       = useState("");      // export error message, if any
+  const [usage,setUsage]         = useState(null);    // {tier, ai, places} from /api/usage
+  useEffect(()=>{ let alive=true; fetchUsage(config).then(u=>{ if(alive) setUsage(u); }).catch(()=>{}); return ()=>{ alive=false; }; }, []);  // eslint-disable-line
 
   // Build and hand off the dish-level CSV. restById resolves restaurant detail
   // (name/city/cuisine) from the visit's restaurant_id.
@@ -19842,9 +19851,51 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
   const [newLoc,setNewLoc] = useState("");
   const [editing,setEditing] = useState(null);    // {name, draft}
   const usageCount = (name)=> (restaurants || []).filter(r => r.location === name).length;
+  // One usage row: a label, used/cap, and a slim progress bar.
+  const usageRow = (label, u)=> {
+    const pct = u.cap > 0 ? Math.min(100, Math.round((u.used / u.cap) * 100)) : 0;
+    return (
+      <div style={{margin:"0 0 10px"}}>
+        <div className="between" style={{marginBottom:4}}>
+          <span className="small">{label}</span>
+          <span className="tiny faint">{u.used} of {u.cap}{u.window === "month" ? " this month" : ""}</span>
+        </div>
+        <div style={{height:6, borderRadius:4, background:"var(--line)", overflow:"hidden"}}>
+          <div style={{height:"100%", width:pct + "%",
+            background: pct >= 100 ? "var(--danger)" : "var(--accent)"}} />
+        </div>
+      </div>
+    );
+  };
   return (
     <div>
-      <div className="set-group" style={{marginTop:6}}>Account</div>
+      {usage ? (
+        <>
+          <div className="set-group" style={{marginTop:6}}>Your plan</div>
+          <div className="card">
+            <div className="between" style={{marginBottom:10}}>
+              <span style={{fontWeight:600}}>{usage.tier === "pro" ? "MenuCaptain Pro" : "Free"}</span>
+              {usage.tier !== "pro" && onEdit ? (
+                <button className="btn primary sm" style={{margin:0}} onClick={onEdit}>Go Pro</button>
+              ) : null}
+            </div>
+            {usage.tier === "pro" ? (
+              <div className="tiny faint">Unlimited AI and discovery. Thanks for being Pro.</div>
+            ) : (
+              <>
+                {usageRow("AI actions (scan, help me order, explain)", usage.ai)}
+                {usageRow("Near me / Google discovery", usage.places)}
+                <div className="tiny faint" style={{marginTop:2}}>
+                  Free includes {usage.ai.cap} AI actions and {usage.places.cap} discovery
+                  searches. Dish photos and everything else stay free. Pro is unlimited.
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      ) : null}
+
+      <div className="set-group" style={{marginTop:18}}>Account</div>
       <div className="card">
         <div className="between">
           <div className="small muted" style={{lineHeight:1.8, minWidth:0}}>
