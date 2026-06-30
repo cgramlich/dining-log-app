@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.278.0";
+const APP_VERSION   = "1.279.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7877,16 +7877,30 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
           </button>
           {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
           {Array.isArray(gResults) && gResults.length > 0 ? (
-            <div style={{marginTop:10}}>
-              {gResults.map((c,i)=>(
-                <div key={i} className="pick-row"
-                  style={{padding:"10px 12px", borderBottom:"1px solid var(--line-soft)", cursor:"pointer"}}
-                  onClick={()=> pickGooglePlace(c)}>
-                  <div className="small" style={{fontWeight:600}}>{c.name}</div>
-                  {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
-                </div>
-              ))}
-              <div className="tiny faint" style={{marginTop:8, textAlign:"center"}}>Tap a result to add it to your places.</div>
+            <div className="card" style={{marginTop:10, padding:"4px 0"}}>
+              <div className="small muted" style={{padding:"6px 14px"}}>From Google</div>
+              {gResults.map((c,i)=>{
+                // Already in your places? (matched by Google place_id) Offer Open
+                // instead of silently creating a duplicate.
+                const saved = c.place_id && restaurants.find(r => r.google_place_id === c.place_id);
+                return (
+                  <div key={i} className="pick-row"
+                    style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8, cursor:"pointer"}}
+                    onClick={()=> saved ? onOpen(saved) : pickGooglePlace(c)}>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div className="small" style={{fontWeight:600}}>{c.name}</div>
+                      {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+                    </div>
+                    <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
+                      color: saved ? "var(--text-faint)" : "var(--accent)"}}>
+                      {saved ? "Saved · Open" : "+ Add to places"}
+                    </span>
+                  </div>
+                );
+              })}
+              <div className="tiny faint" style={{padding:"6px 14px 8px"}}>
+                &ldquo;Add to places&rdquo; saves it as a new place you can log visits to.
+              </div>
             </div>
           ) : null}
         </div>
