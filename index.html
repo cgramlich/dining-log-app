@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.274.0";
+const APP_VERSION   = "1.275.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7166,7 +7166,7 @@ function VisitSplit({split, cfg, receipt, onSeeItemized, merchant, date}){
       handle = (entered || "").trim().replace(/^@/, "");
       if (handle) saveVenmoHandle(name, handle);
     }
-    const note = "Your share" + (merchant ? " at " + merchant : "") + (date ? ", " + fmtDate(date) : "");
+    const note = "Your share" + (merchant ? " at " + merchant : "") + (date ? " on " + fmtDate(date) : "");
     const url = venmoChargeUrl(handle, amount, note);
     try { window.open(url, "_blank"); } catch(e){ window.location.href = url; }
   }
@@ -10368,7 +10368,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     const r = (restaurants || []).find(x => x.id === (presetRestId || saveRest));
     const dateStr = fmtDate(initialDate || todayISO());
     const note = "Your share" + (r && r.name ? " at " + r.name : "")
-               + (dateStr ? ", " + dateStr : "");
+               + (dateStr ? " on " + dateStr : "");
     const url = venmoChargeUrl(handle, amountDollars, note);
     try { window.open(url, "_blank"); } catch(e){ window.location.href = url; }
   }
