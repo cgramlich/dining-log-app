@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.275.0";
+const APP_VERSION   = "1.276.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5413,7 +5413,10 @@ function App(){
       } catch(e){ logMsg("WARN","lists load failed: " + e.message); }
       try {
         const mr = await ghGetFile(cfg, "data/meta.json");
-        setMeta((mr.data && typeof mr.data === "object" && !Array.isArray(mr.data)) ? mr.data : {});
+        const m = (mr.data && typeof mr.data === "object" && !Array.isArray(mr.data)) ? mr.data : {};
+        setMeta(m);
+        // Venmo @handles sync via meta - seed the module cache from the saved map.
+        try { hydrateVenmoHandles(m.venmo_handles || {}); } catch(_e){}
       } catch(e){ logMsg("WARN","meta load failed: " + e.message); }
       try {
         const sr = await ghGetFile(cfg, "data/splits.json");
@@ -5511,6 +5514,17 @@ function App(){
     try { await ghPutFile(config, "data/meta.json", next, null); logMsg("META","Saved meta"); }
     catch(e){ logMsg("ERROR","meta save failed: " + e.message); }
   }
+  // Point the module-level venmo-handle store at the latest meta, so saving a
+  // handle (from a split or the Connections screen) persists + syncs via meta.
+  const metaRef = useRef(meta);
+  useEffect(()=> { metaRef.current = meta; }, [meta]);
+  useEffect(()=> {
+    registerVenmoPersist((map)=> {
+      saveMeta(Object.assign({}, metaRef.current, { venmo_handles: map }));
+    });
+    return ()=> registerVenmoPersist(null);
+    // eslint-disable-next-line
+  }, []);
   // Saved standalone check splits. Same direct-persistence pattern as lists:
   // the client owns the whole array and PUTs it on every change (the backend
   // "splits" collection). upsertSplit replaces by id; deleteSplit drops one.
@@ -7068,6 +7082,9 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
       ) : null}
 
       <div className="set-group" style={{marginTop:18}}>Your splits</div>
+      <div className="tiny faint" style={{margin:"-6px 2px 8px"}}>
+        Splits you saved on their own. A check you split while logging a visit lives on that visit.
+      </div>
       <div className="card">
         {(!splits || !splits.length) ? (
           <div className="badge-row">
@@ -9479,15 +9496,40 @@ function RestaurantPicker({restaurants, onClose, onPick, title, onPickOther, oth
 }
 
 // ---- Venmo requests ----------------------------------------------------
-// Remember each person's Venmo @handle (keyed by name, on this device) so a
-// repeat request is one tap and pre-addressed.
-function loadVenmoHandles(){ try { return JSON.parse(localStorage.getItem("mc_venmo_handles") || "{}") || {}; } catch(e){ return {}; } }
-function getVenmoHandle(name){ return loadVenmoHandles()[(name || "").trim().toLowerCase()] || ""; }
+// Remember each person's Venmo @handle (keyed by name) so a repeat request is
+// one tap and pre-addressed. Handles SYNC via the user's meta (so they follow
+// you across devices and can be set per connection in the Connections screen),
+// with a localStorage mirror for offline / pre-meta reads. App seeds the cache
+// from meta on load (hydrateVenmoHandles) and registers a persist callback
+// (registerVenmoPersist) that writes changes back into meta.
+let _venmoCache = null;            // {nameKeyLower: handle}
+let _persistVenmoHandles = null;   // (map) => save into meta; set by App
+function _venmoKey(name){ return (name || "").trim().toLowerCase(); }
+function loadVenmoHandles(){
+  if (_venmoCache) return _venmoCache;
+  try { _venmoCache = JSON.parse(localStorage.getItem("mc_venmo_handles") || "{}") || {}; }
+  catch(e){ _venmoCache = {}; }
+  return _venmoCache;
+}
+function hydrateVenmoHandles(fromMeta){
+  // meta is the source of truth; merge any local-only entries under it, then
+  // mirror the union back to localStorage.
+  let local = {};
+  try { local = JSON.parse(localStorage.getItem("mc_venmo_handles") || "{}") || {}; } catch(e){}
+  _venmoCache = Object.assign({}, local, fromMeta || {});
+  try { localStorage.setItem("mc_venmo_handles", JSON.stringify(_venmoCache)); } catch(e){}
+}
+function registerVenmoPersist(fn){ _persistVenmoHandles = fn; }
+function getVenmoHandle(name){ return loadVenmoHandles()[_venmoKey(name)] || ""; }
 function saveVenmoHandle(name, handle){
-  try { const m = loadVenmoHandles(); const k = (name || "").trim().toLowerCase();
-    if (handle) m[k] = handle; else delete m[k];
-    localStorage.setItem("mc_venmo_handles", JSON.stringify(m));
-  } catch(e){}
+  const k = _venmoKey(name);
+  if (!k) return;
+  const h = (handle || "").trim().replace(/^@/, "");
+  const m = Object.assign({}, loadVenmoHandles());
+  if (h) m[k] = h; else delete m[k];
+  _venmoCache = m;
+  try { localStorage.setItem("mc_venmo_handles", JSON.stringify(m)); } catch(e){}
+  if (_persistVenmoHandles){ try { _persistVenmoHandles(m); } catch(e){} }
 }
 // Build a Venmo "charge" (request money) link. Opens the app if installed, else
 // the web. recipients optional - omitted means "pick the person in Venmo".
@@ -18749,13 +18791,36 @@ function SwipeToDelete({ onDelete, children }){
   );
 }
 
-function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub, fav, onToggleFav}){
+function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub, fav, onToggleFav, venmoName}){
   const l = connLabel(c);
+  // Venmo @handle for this person, saved with the connection (synced via meta).
+  // Auto-fills when they're tagged in a split. Only shown for accepted connections.
+  const [vh, setVh]     = useState(()=> venmoName ? getVenmoHandle(venmoName) : "");
+  const [vEdit, setVEdit] = useState(false);
+  function saveVh(){ saveVenmoHandle(venmoName, vh); setVh((vh||"").trim().replace(/^@/,"")); setVEdit(false); }
   return (
-    <div className="between" style={{padding:"9px 0", borderBottom:"1px solid var(--line-soft)"}}>
+    <div className="between" style={{padding:"9px 0", borderBottom:"1px solid var(--line-soft)", alignItems:"flex-start"}}>
       <div style={{minWidth:0, flex:1}}>
         <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{l.primary}</div>
         {sub ? <div className="tiny faint">{sub}</div> : (l.secondary ? <div className="tiny faint">{l.secondary}</div> : null)}
+        {venmoName ? (
+          vEdit ? (
+            <div className="row" style={{gap:6, marginTop:6, alignItems:"center"}}>
+              <span style={{color:"var(--text-faint)"}}>@</span>
+              <input className="input" value={vh} placeholder="venmo username"
+                autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                style={{flex:1, padding:"5px 8px", fontSize:13, minWidth:0}}
+                onChange={e=> setVh(e.target.value.replace(/[^a-zA-Z0-9_@-]/g,"").replace(/^@/,""))}
+                onKeyDown={e=> { if (e.key === "Enter") saveVh(); }} />
+              <button className="btn primary sm" style={{margin:0}} onClick={saveVh}>Save</button>
+            </div>
+          ) : (
+            <button className="tiny" style={{marginTop:4, color:"var(--accent)", background:"none",
+              border:"none", padding:0, cursor:"pointer"}} onClick={()=> setVEdit(true)}>
+              {vh ? ("Venmo @" + vh + "  ·  edit") : "+ Add Venmo handle"}
+            </button>
+          )
+        ) : null}
       </div>
       <div style={{display:"flex", gap:6, flex:"none", alignItems:"center"}}>
         {onToggleFav ? (
@@ -18876,6 +18941,7 @@ function ConnectionsScreen({config, profile, onClose, onHome}){
                 <div className="small faint">No connections yet. Add someone by their username above.</div>
               ) : sortedConns.map(c => (
                 <ConnRow key={c.id} c={c} busy={busyId===c.id}
+                  venmoName={connLabel(c).primary}
                   fav={favs.has(c.user_id)} onToggleFav={()=> toggleFav(c.user_id)}
                   secondaryBtn="Remove" onSecondary={()=> act(removeConnection, c.id)} />
               ))}
