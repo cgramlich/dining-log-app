@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.283.0";
+const APP_VERSION   = "1.284.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1049,6 +1049,57 @@ function googleMetaFrom(c){
   if (c && c.price_level != null && c.price_level !== "") m.g_price_level = c.price_level;
   if (Object.keys(m).length) m.g_enriched_at = todayISO();
   return m;
+}
+
+// ---- Duplicate-place detection -----------------------------------------
+// Normalize a place name for loose comparison (case/punctuation-insensitive).
+function normPlaceName(s){ return (s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
+// Does the user already have this Google candidate saved? Returns
+// { place, hard } - hard=true is a certain match (same Google place_id); a soft
+// match is same name AND same city (or within ~0.15mi, or neither has a city to
+// disconfirm). Used to stop the add-from-Google paths creating duplicates.
+function findExistingPlace(restaurants, c){
+  if (!c) return null;
+  const rs = restaurants || [];
+  if (c.place_id){
+    const h = rs.find(r => r && r.google_place_id && r.google_place_id === c.place_id);
+    if (h) return { place:h, hard:true };
+  }
+  const cn = normPlaceName(c.name);
+  if (!cn) return null;
+  const ccity = normPlaceName(c.city || cityFromAddress(c.address));
+  const soft = rs.find(r => {
+    if (!r || normPlaceName(r.name) !== cn) return false;
+    const rcity = normPlaceName(r.location);
+    if (ccity && rcity) return ccity === rcity;
+    if (r.lat != null && r.lng != null && c.lat != null && c.lng != null){
+      const d = distanceMiles(r.lat, r.lng, c.lat, c.lng);
+      return d != null && d < 0.15;
+    }
+    return (!ccity && !rcity);   // nothing to disconfirm: same name is enough to flag
+  });
+  return soft ? { place:soft, hard:false } : null;
+}
+function confirmAddAnyway(name){
+  return window.confirm(
+    "You may already have \"" + (name || "this place") + "\" saved.\n\n" +
+    "OK = add it again as a new place.\n" +
+    "Cancel = open the one you already have.");
+}
+// Group saved places that look like duplicates of each other (for the cleanup
+// tool). Key = Google place_id when present, else normalized name + city.
+function duplicatePlaceGroups(restaurants){
+  const byKey = new Map();
+  (restaurants || []).forEach(r => {
+    if (!r) return;
+    const key = r.google_place_id
+      ? ("gid:" + r.google_place_id)
+      : ("nm:" + normPlaceName(r.name) + "|" + normPlaceName(r.location));
+    if (!normPlaceName(r.name)) return;
+    const arr = byKey.get(key) || [];
+    arr.push(r); byKey.set(key, arr);
+  });
+  return Array.from(byKey.values()).filter(g => g.length > 1);
 }
 
 async function placesDetails(cfg, placeId){
@@ -5165,6 +5216,10 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
     finally { setGBusy(false); }
   }
   function pickGoogle(c){
+    // Don't create a duplicate: open the existing place on a certain match, or
+    // confirm before adding when it only looks like one.
+    const m = findExistingPlace(restaurants, c);
+    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ onOpenRestaurant(m.place.id); return; }
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || q.trim() || "New place"),
@@ -5293,6 +5348,85 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
       ) : null}
 
       <div style={{height:20}} />
+    </div>
+  );
+}
+
+/* ============================================================
+   FIND DUPLICATES - cleanup tool. Groups same-looking places and merges the
+   duplicates into a chosen keeper (their visits + menus move over first).
+   ============================================================ */
+function DuplicatesView({ restaurants, visits, menus, onClose, onHome, onMerge }){
+  const groups = duplicatePlaceGroups(restaurants);
+  const visitCount = (id)=> (visits || []).filter(v => v.restaurant_id === id).length;
+  const menuCount  = (id)=> ((menus || {})[id] || []).length;
+  function defaultKeep(g){
+    return g.slice().sort((a,b)=>
+      (visitCount(b.id) - visitCount(a.id)) ||
+      (menuCount(b.id) - menuCount(a.id)) ||
+      ((a.added_date || "").localeCompare(b.added_date || "")))[0].id;
+  }
+  const [keepers, setKeepers] = useState(()=> { const m = {}; groups.forEach((g,i)=> m[i] = defaultKeep(g)); return m; });
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>Find duplicates</h2><HomeBtn onHome={onHome} />
+      </div>
+      <div className="ovbody">
+        {groups.length === 0 ? (
+          <div className="empty" style={{paddingTop:30}}>
+            <div className="big">No duplicates found</div>
+            <div>Your places all look unique &mdash; nice and tidy.</div>
+          </div>
+        ) : (
+          <>
+            <div className="small muted" style={{marginBottom:14, lineHeight:1.6}}>
+              These look like the same place. Pick the one to <strong>keep</strong> &mdash;
+              the others' visits and menus move onto it, then the duplicates are removed.
+            </div>
+            {groups.map((g, gi)=>{
+              const keepId = keepers[gi] || defaultKeep(g);
+              const keepName = (g.find(r => r.id === keepId) || {}).name || "the kept place";
+              return (
+                <div key={gi} className="card" style={{marginBottom:14}}>
+                  <div className="small muted" style={{marginBottom:8}}>{g.length} that look alike</div>
+                  {g.map(r => {
+                    const on = r.id === keepId;
+                    return (
+                      <label key={r.id} className="theme-row" style={{display:"flex", gap:10, alignItems:"flex-start", cursor:"pointer"}}>
+                        <input type="radio" checked={on} style={{marginTop:3, flex:"none"}}
+                          onChange={()=> setKeepers(k => Object.assign({}, k, { [gi]: r.id }))} />
+                        <div style={{flex:1, minWidth:0}}>
+                          <div style={{fontWeight:600}}>{r.name}
+                            {on ? <span className="tiny" style={{color:"var(--accent)", marginLeft:6}}>keep</span> : null}</div>
+                          <div className="tiny faint">
+                            {([r.location, r.cuisine].filter(Boolean).join("  ·  ") || "no city")}
+                            {"  ·  " + visitCount(r.id) + " visit" + (visitCount(r.id)===1?"":"s")}
+                            {"  ·  " + menuCount(r.id) + " menu" + (menuCount(r.id)===1?"":"s")}
+                            {r.google_place_id ? "  ·  Google-linked" : ""}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                  <button className="btn primary sm" style={{marginTop:8}}
+                    onClick={()=>{
+                      const dropIds = g.filter(r => r.id !== keepId).map(r => r.id);
+                      if (!dropIds.length) return;
+                      if (!window.confirm("Merge " + dropIds.length + " into \"" + keepName +
+                        "\"? Their visits and menus move onto the kept place, and the duplicates are removed.")) return;
+                      onMerge(keepId, dropIds);
+                    }}>
+                    Merge into selected
+                  </button>
+                </div>
+              );
+            })}
+          </>
+        )}
+        <div style={{height:20}} />
+      </div>
     </div>
   );
 }
@@ -5720,6 +5854,32 @@ function App(){
   }
   function deleteSplit(id){
     saveSplits((splits || []).filter(s => s.id !== id));
+  }
+  // Merge duplicate places: move every drop's visits + menus onto the keeper,
+  // carry over any identity the keeper is missing (Google link, photo, coords,
+  // rating), then remove the drops. One commit so it syncs atomically.
+  function mergeDuplicatePlaces(keepId, dropIds){
+    const drops = new Set(dropIds || []);
+    if (!keepId || !drops.size) return;
+    const nextVisits = visits.map(v => drops.has(v.restaurant_id)
+      ? Object.assign({}, v, { restaurant_id: keepId }) : v);
+    const nextMenus = Object.assign({}, menus);
+    let keepMenus = (nextMenus[keepId] || []).slice();
+    (dropIds || []).forEach(id => { if (nextMenus[id]){ keepMenus = keepMenus.concat(nextMenus[id]); delete nextMenus[id]; } });
+    nextMenus[keepId] = keepMenus;
+    let keeper = restaurants.find(r => r.id === keepId);
+    const donors = restaurants.filter(r => drops.has(r.id));
+    if (keeper){
+      const patch = {};
+      if (!keeper.google_place_id){ const d = donors.find(x => x.google_place_id); if (d) patch.google_place_id = d.google_place_id; }
+      if (!keeper.photo){ const d = donors.find(x => x.photo); if (d) patch.photo = d.photo; }
+      if (keeper.lat == null){ const d = donors.find(x => x.lat != null); if (d){ patch.lat = d.lat; patch.lng = d.lng; patch.geo_addr = d.geo_addr || null; patch.geo_ok = true; } }
+      if (typeof keeper.g_rating !== "number"){ const d = donors.find(x => typeof x.g_rating === "number"); if (d){ patch.g_rating = d.g_rating; patch.g_rating_count = d.g_rating_count; patch.g_price_level = d.g_price_level; patch.g_enriched_at = d.g_enriched_at; } }
+      if (Object.keys(patch).length) keeper = Object.assign({}, keeper, patch);
+    }
+    const nextR = restaurants.filter(r => !drops.has(r.id)).map(r => r.id === keepId ? keeper : r);
+    commit({ restaurants: nextR, visits: nextVisits, menus: nextMenus }, ["restaurants","visits","menus"]);
+    flash("Merged " + drops.size + " duplicate" + (drops.size > 1 ? "s" : ""));
   }
   // Called by PublishBuilder after a deliberate publish succeeds. Dedup by url
   // so re-publishing the same list updates it instead of adding a duplicate.
@@ -6270,6 +6430,7 @@ function App(){
             onEdit={()=> setOverlay({ type:"settings" })}
             onOpenHelp={()=> setOverlay({ type:"help" })}
             onShowInstall={()=> setOverlay({ type:"installHelp" })}
+            onFindDuplicates={()=> setOverlay({ type:"duplicates" })}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             onOpenPassport={()=> setOverlay({ type:"passport" })}
             counts={{
@@ -6405,6 +6566,13 @@ function App(){
           restaurants={restaurants}
           onClose={()=> setOverlay(null)}
           onPick={(id)=> setOverlay({ type:"restaurant", id:id })} />
+      )}
+      {overlay && overlay.type === "duplicates" && (
+        <DuplicatesView
+          restaurants={restaurants} visits={visits} menus={menus}
+          onClose={()=> setOverlay(null)}
+          onHome={()=> setOverlay(null)}
+          onMerge={(keepId, dropIds)=> mergeDuplicatePlaces(keepId, dropIds)} />
       )}
 
       {overlay && overlay.type === "groupStart" && (
@@ -7844,6 +8012,8 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   }
   function pickGooglePlace(c){
     if (!onCreateRestaurant){ setGErr("Can't add a place here."); return; }
+    const m = findExistingPlace(restaurants, c);
+    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ if (onOpen) onOpen(m.place); return; }
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || query.trim() || "New place"),
@@ -13367,6 +13537,12 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   }
   function pickGoogle(c){
     if (!onCreateRestaurant){ setGErr("Can't add a place here."); return; }
+    // Already have it? Select that place for this visit instead of duplicating.
+    const m = findExistingPlace(restaurants, c);
+    if (m && (m.hard || !confirmAddAnyway(m.place.name))){
+      setRestId(m.place.id); setRestOpen(false); setRestQuery(""); setGResults([]); setGErr("");
+      return;
+    }
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || restQuery.trim() || "New place"),
@@ -19572,7 +19748,7 @@ function ShareInbox({config, onClose, onHome}){
 function SettingsView({config, profile, onProfileChange, onOpenConnections, pendingReqs, onEdit, counts, lastSync, onResync,
                        locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
-                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onOpenYearInFood, onOpenPassport}){
+                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onFindDuplicates, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
   const [theme,setTheme]     = useState(currentTheme());
   const [defTab,setDefTab]   = useState(getDefaultTab);   // which tab the app opens to
@@ -19762,6 +19938,24 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           Sync now
         </button>
       </div>
+
+      {onFindDuplicates ? (()=>{
+        const dupCount = duplicatePlaceGroups(restaurants).length;
+        return (
+          <div className="card">
+            <div style={{fontWeight:600, marginBottom:6}}>Find duplicate places</div>
+            <div className="small muted" style={{lineHeight:1.7, marginBottom:12}}>
+              {dupCount
+                ? "Spotted " + dupCount + " group" + (dupCount>1?"s":"") + " of places that look like the same spot. Merge them so visits and menus end up on one place."
+                : "Spots places that look like the same spot (e.g. added twice) and merges them into one, keeping the visits and menus."}
+            </div>
+            <button className="btn ghost sm" onClick={onFindDuplicates}>
+              <Icon name="search" size={15} color="var(--accent)" />
+              {dupCount ? "Review " + dupCount + " duplicate" + (dupCount>1?"s":"") : "Check for duplicates"}
+            </button>
+          </div>
+        );
+      })() : null}
 
       <div className="card">
         <div style={{fontWeight:600,marginBottom:6}}>Export your history</div>
