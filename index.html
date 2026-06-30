@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.269.0";
+const APP_VERSION   = "1.270.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -15524,7 +15524,7 @@ async function groupSetRoster(cfg, code, names){
 function groupNorm(s){ return (s || "").trim().toLowerCase(); }
 // One-line summary of picks: "2x Toast, 1x Pollo (no onions)".
 function picksLine(picks){
-  return (picks || []).map(p => (p.qty > 1 ? p.qty + "x " : "") + p.item + (p.note ? " (" + p.note + ")" : "")).join(", ");
+  return (picks || []).map(p => (p.qty > 1 ? p.qty + "x " : "") + pickLabel(p) + (p.note ? " (" + p.note + ")" : "")).join(", ");
 }
 // Split engine for a group order's check.
 //   menuSnapshot: { sections:[{ items:[{name, price}] }] }
@@ -15637,18 +15637,34 @@ function guestToken(){
 }
 
 // Combine everyone's picks into a single bring-home tally.
+// Display label for a pick: prefix the section when the item alone is ambiguous
+// (e.g. "Chicken" under "Quesadillas" -> "Quesadillas - Chicken"), but skip the
+// prefix when the item already names the dish (e.g. "Margherita Pizza" under
+// "Pizzas"). p can be a pick {item, section} or a {item, section} aggregate.
+function pickLabel(p){
+  const item = ((p && p.item) || "").trim();
+  const sec  = ((p && p.section) || "").trim();
+  if (!sec) return item;
+  const stem = sec.toLowerCase().replace(/s$/, "");
+  if (stem && item.toLowerCase().indexOf(stem) !== -1) return item;  // item already names it
+  return sec + " — " + item;
+}
 function aggregatePicks(picks){
-  const byItem = new Map();          // item -> { qty, notes:[{name,note}] }
+  // Key by section + item so the same item name in different sections (and the
+  // protein variants under a section like Quesadillas) stay distinct.
+  const byKey = new Map();           // key -> { item, section, qty, notes:[{name,note}] }
   (picks || []).forEach(g => {
     (g.picks || []).forEach(p => {
       if (!p || !p.item) return;
-      const cur = byItem.get(p.item) || { qty:0, notes:[] };
+      const sec = p.section || "";
+      const key = sec + " " + p.item;
+      const cur = byKey.get(key) || { item:p.item, section:sec, qty:0, notes:[] };
       cur.qty += (p.qty || 1);
       if (p.note) cur.notes.push({ name:g.guest_name, note:p.note });
-      byItem.set(p.item, cur);
+      byKey.set(key, cur);
     });
   });
-  return Array.from(byItem.entries()).map(([item,v]) => ({ item, qty:v.qty, notes:v.notes }));
+  return Array.from(byKey.values()).map(v => ({ item:v.item, section:v.section, qty:v.qty, notes:v.notes }));
 }
 
 // Split the check on a group order. Reuses the receipt scanner: scanning gives
@@ -16185,13 +16201,13 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   }
   function openEdit(g){
     if (!g || !g.guest_token) return;
-    setEditItems((g.picks || []).map(p => ({ item: p.item, qty: p.qty || 1, note: p.note || "" })));
+    setEditItems((g.picks || []).map(p => ({ item: p.item, section: p.section || "", qty: p.qty || 1, note: p.note || "" })));
     setEditTarget(g);
   }
   async function saveEdit(){
     if (!editTarget || !code) return;
     const token = editTarget.guest_token;
-    const list = editItems.map(it => ({ item: it.item, qty: it.qty || 1, note: (it.note || "").trim() }));
+    const list = editItems.map(it => ({ item: it.item, section: it.section || "", qty: it.qty || 1, note: (it.note || "").trim() }));
     if (!list.length) return;
     setEditBusy(true);
     try {
@@ -16363,7 +16379,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                   ) : editItems.map((it, idx)=>(
                     <div key={idx} className="go-guest" style={{display:"flex", alignItems:"center", gap:8}}>
                       <div style={{flex:1, minWidth:0}}>
-                        <div className="go-guest-name">{it.item}</div>
+                        <div className="go-guest-name">{pickLabel(it)}</div>
                         <input className="input" style={{marginTop:6}} placeholder="Note (optional)"
                           value={it.note}
                           onChange={e=> setEditItems(arr => arr.map((x,j)=> j===idx ? {...x, note:e.target.value} : x))} />
@@ -16568,7 +16584,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                   <div key={i} className="go-item">
                     <div className="go-item-head">
                       <span className="go-qty">{a.qty}&times;</span>
-                      <span className="go-name">{a.item}</span>
+                      <span className="go-name">{pickLabel(a)}</span>
                     </div>
                     {a.notes.length > 0 ? (
                       <div className="go-notes">
@@ -16649,11 +16665,11 @@ function GroupOrderGuest({code, cfg, profile}){
   const freeForm = !!data && !hasMenu;
   const hasOrder = freeForm ? !!freeText.trim() : !!selected.length;
 
-  function toggle(si, ii, item){
+  function toggle(si, ii, item, section){
     const key = si + ":" + ii;
     setPicks(p => {
       const n = Object.assign({}, p);
-      if (n[key]) delete n[key]; else n[key] = { item:item, qty:1, note:"" };
+      if (n[key]) delete n[key]; else n[key] = { item:item, section: section || "", qty:1, note:"" };
       return n;
     });
     setSent(false);
@@ -16680,7 +16696,7 @@ function GroupOrderGuest({code, cfg, profile}){
       list = [{ item:t, qty:1, note:"" }];
     } else {
       if (!selected.length){ setErr("Pick at least one item first."); return; }
-      list = selected.map(s => ({ item:s.item, qty:s.qty || 1, note:(s.note || "").trim() }));
+      list = selected.map(s => ({ item:s.item, section:s.section || "", qty:s.qty || 1, note:(s.note || "").trim() }));
     }
     setErr(""); setSending(true);
     try {
@@ -16797,7 +16813,7 @@ function GroupOrderGuest({code, cfg, profile}){
                 const on  = !!picks[key];
                 return (
                   <div key={ii} className={"go-gitem" + (on ? " on" : "")}>
-                    <div className="go-gitem-row" onClick={()=> toggle(si, ii, it.name)}>
+                    <div className="go-gitem-row" onClick={()=> toggle(si, ii, it.name, s.name)}>
                       <div className="go-check">{on ? "\u2713" : ""}</div>
                       <div style={{flex:1, minWidth:0}}>
                         <div className="go-gitem-name">{it.name}</div>
@@ -16842,7 +16858,7 @@ function GroupOrderGuest({code, cfg, profile}){
                 <div key={i} className="go-item">
                   <div className="go-item-head">
                     <span className="go-qty">{a.qty}&times;</span>
-                    <span className="go-name">{a.item}</span>
+                    <span className="go-name">{pickLabel(a)}</span>
                   </div>
                   {a.notes && a.notes.length > 0 ? (
                     <div className="go-notes">
