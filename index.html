@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.282.0";
+const APP_VERSION   = "1.283.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5136,7 +5136,6 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
   const [gBusy, setGBusy]     = useState(false);
   const [gErr, setGErr]       = useState("");
   const [gResults, setGResults] = useState(null);   // null = not searched yet
-  const [cueOff, setCueOff]   = useState(()=> { try { return localStorage.getItem("mc_home_cue_dismissed") === "1"; } catch(e){ return false; } });
 
   function getGeoOnce(){
     return new Promise((resolve)=>{
@@ -5205,8 +5204,9 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
   );
 
   return (
-    <div>
-      {/* header: wordmark + greeting + settings gear (Settings lives here now) */}
+    <div style={{paddingTop:"calc(8px + env(safe-area-inset-top))"}}>
+      {/* header: wordmark + greeting + settings gear (Settings lives here now).
+          Top padding clears the status bar since Home hides the shared TopBar. */}
       <div className="between" style={{margin:"2px 2px 14px", alignItems:"center"}}>
         <div style={{minWidth:0}}>
           <div style={{fontFamily:"'Fraunces',serif", fontSize:24, fontWeight:600, color:"var(--text)", lineHeight:1.1}}>MenuCaptain</div>
@@ -5290,22 +5290,6 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
             {recents.map(r => placeRow(r, "recent-" + r.id))}
           </div>
         </>
-      ) : null}
-
-      {!cueOff ? (
-        <div className="card" style={{marginTop:14, position:"relative"}}>
-          <button className="x" aria-label="Dismiss"
-            onClick={()=>{ try { localStorage.setItem("mc_home_cue_dismissed","1"); } catch(e){} setCueOff(true); }}
-            style={{position:"absolute", top:6, right:6}}>
-            <Icon name="close" size={16} color="var(--text-faint)" />
-          </button>
-          <div style={{fontWeight:600, marginBottom:8}}>How MenuCaptain flows</div>
-          <div className="tiny" style={{lineHeight:1.8}}>
-            <div><strong style={{color:"var(--accent)"}}>1.</strong>&nbsp; Find a place &mdash; one of yours, or a new one above.</div>
-            <div><strong style={{color:"var(--accent)"}}>2.</strong>&nbsp; Open it, scan the menu, and ask <em>Help me order</em>.</div>
-            <div><strong style={{color:"var(--accent)"}}>3.</strong>&nbsp; After the meal, log the visit and split the check.</div>
-          </div>
-        </div>
       ) : null}
 
       <div style={{height:20}} />
@@ -20253,6 +20237,17 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         <div style={{marginBottom:18}}>
           <h2 style={{fontSize:26}}>{titles[mode][0]}</h2>
           <div className="small muted" style={{marginTop:6}}>{titles[mode][1]}</div>
+        </div>
+      )}
+      {/* The flow intro lives here (the welcome), not on the Home screen. */}
+      {!asOverlay && mode !== "forgot" && (
+        <div className="card" style={{marginBottom:16}}>
+          <div style={{fontWeight:600, marginBottom:8}}>How MenuCaptain works</div>
+          <div className="tiny muted" style={{lineHeight:1.9}}>
+            <div><strong style={{color:"var(--accent)"}}>1.</strong>&nbsp; Find a place &mdash; one of yours, or a new one.</div>
+            <div><strong style={{color:"var(--accent)"}}>2.</strong>&nbsp; Open it, scan the menu, and ask <em>Help me order</em>.</div>
+            <div><strong style={{color:"var(--accent)"}}>3.</strong>&nbsp; After the meal, log the visit and split the check.</div>
+          </div>
         </div>
       )}
       <label className="fld"><span className="lbl">Email</span>
