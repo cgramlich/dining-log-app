@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.276.0";
+const APP_VERSION   = "1.277.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7227,6 +7227,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
   const [sortBy, setSortBy] = useState("newest");
   const [lovedOnly, setLovedOnly] = useState(false);   // show only visits with an "Again" dish
   const [cityFilter, setCityFilter] = useState("All"); // filter visits by the place's city
+  const [filtersOpen, setFiltersOpen] = useState(false); // sort/show/city fold behind one toggle (same as Places)
   const [lightbox, setLightbox] = useState(null);      // {paths, index} | null
   if (!visits.length){
     // WHY: visits starts empty before the first data load completes. Show a
@@ -7291,27 +7292,44 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
     <div>
       <SearchBar value={query} onChange={setQuery}
         placeholder="Search visits, dishes, notes, dates" />
-      <div className="sortbar">
-        <span className="sortbar-lbl">Sort</span>
-        <span className={"chip pick" + (sortBy === "newest" ? " on" : "")} onClick={()=> setSortBy("newest")}>Newest</span>
-        <span className={"chip pick" + (sortBy === "oldest" ? " on" : "")} onClick={()=> setSortBy("oldest")}>Oldest</span>
-        <span className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</span>
-        <span className={"chip pick" + (sortBy === "restaurant" ? " on" : "")} onClick={()=> setSortBy("restaurant")}>A&ndash;Z</span>
+
+      {/* Sort / Show / City fold behind one toggle so the visit list isn't buried
+          under chrome - same tidy pattern as the Places tab. */}
+      <div style={{margin:"2px 0 12px"}}>
+        <button className="btn ghost sm" style={{margin:0}}
+          onClick={()=> setFiltersOpen(o => !o)}>
+          <Icon name="sliders" size={15} color="var(--accent)" />
+          Filters &amp; sort {filtersOpen ? "▴" : "▾"}
+          {!filtersOpen && (sortBy !== "newest" || lovedOnly || cityActive !== "All")
+            ? <span className="tiny" style={{color:"var(--accent)", marginLeft:6}}>&bull; on</span> : null}
+        </button>
       </div>
-      <div className="sortbar">
-        <span className="sortbar-lbl">Show</span>
-        <span className={"chip pick" + (!lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(false)}>All visits</span>
-        <span className={"chip pick" + (lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(true)}
-          title="Visits you marked loved, or where you loved a dish">{"♥ Visits I loved"}</span>
-      </div>
-      {cities.length >= 2 && (
-        <div className="sortbar">
-          <span className="sortbar-lbl">City</span>
-          <span className={"chip pick" + (cityActive === "All" ? " on" : "")} onClick={()=> setCityFilter("All")}>All</span>
-          {cities.map(c => (
-            <span key={c} className={"chip pick" + (cityActive === c ? " on" : "")} onClick={()=> setCityFilter(c)}>{c}</span>
-          ))}
-        </div>
+
+      {filtersOpen && (
+        <>
+          <div className="sortbar">
+            <span className="sortbar-lbl">Sort</span>
+            <span className={"chip pick" + (sortBy === "newest" ? " on" : "")} onClick={()=> setSortBy("newest")}>Newest</span>
+            <span className={"chip pick" + (sortBy === "oldest" ? " on" : "")} onClick={()=> setSortBy("oldest")}>Oldest</span>
+            <span className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</span>
+            <span className={"chip pick" + (sortBy === "restaurant" ? " on" : "")} onClick={()=> setSortBy("restaurant")}>A&ndash;Z</span>
+          </div>
+          <div className="sortbar">
+            <span className="sortbar-lbl">Show</span>
+            <span className={"chip pick" + (!lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(false)}>All visits</span>
+            <span className={"chip pick" + (lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(true)}
+              title="Visits you marked loved, or where you loved a dish">{"♥ Visits I loved"}</span>
+          </div>
+          {cities.length >= 2 && (
+            <div className="sortbar">
+              <span className="sortbar-lbl">City</span>
+              <span className={"chip pick" + (cityActive === "All" ? " on" : "")} onClick={()=> setCityFilter("All")}>All</span>
+              {cities.map(c => (
+                <span key={c} className={"chip pick" + (cityActive === c ? " on" : "")} onClick={()=> setCityFilter(c)}>{c}</span>
+              ))}
+            </div>
+          )}
+        </>
       )}
       <div className="hist-legend">
         <InfoDot title="Calorie labels" label="Calorie labels">
@@ -12963,7 +12981,15 @@ function PeopleTag({ value, onChange, roster }){
   }
   function addFree(){
     const nm = q.trim(); if (!nm) return;
-    const hit = (roster || []).find(p => p.name && p.name.toLowerCase() === nm.toLowerCase());
+    const low = nm.toLowerCase().replace(/^@/, "");
+    // Exact name or @username match -> link to that connection's account.
+    let hit = (roster || []).find(p =>
+      (p.name || "").toLowerCase() === nm.toLowerCase() ||
+      (p.username || "").toLowerCase() === low);
+    // No exact match, but the typed text narrows to exactly one person -> link
+    // them, so typing "kristin" + Enter links the connection "Kristin Gramlich"
+    // instead of creating a separate, unlinked tag.
+    if (!hit && sugg.length === 1) hit = sugg[0];
     add(hit || { name: nm });
   }
   return (
@@ -13043,7 +13069,10 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     };
     (conns || []).forEach(c => put(c.display_name || c.username, { username: c.username || undefined, user_id: c.user_id || c.id || undefined }));
     (visits || []).forEach(v => (v.companions || []).forEach(p => put(p.name, { username: p.username, user_id: p.user_id })));
-    return Array.from(byKey.values()).sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+    // Connections (linked accounts) sort first, then past-tagged names; each A-Z.
+    return Array.from(byKey.values()).sort((a,b)=>
+      (Number(!!(b.user_id || b.username)) - Number(!!(a.user_id || a.username)))
+      || (a.name || "").localeCompare(b.name || ""));
   })();
   // seedFromSplit (new visits only): {items, total, splitDraft, receiptDataUrl} handed
   // over when you tap "Log as a visit" from a standalone split - so that one receipt
