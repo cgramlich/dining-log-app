@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.277.0";
+const APP_VERSION   = "1.278.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7856,9 +7856,16 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
           kept only in the brand-new-account empty state above so a first-time
           invitee still sees their invite on the default tab. */}
       <SearchBar value={query} onChange={setQuery}
-        placeholder="Search your places" />
+        placeholder="Search your places, or find a new one" />
       {/* The box searches YOUR saved places; the moment you type, offer Google
-          too so a place you don't have yet is one tap away (new-user instinct). */}
+          too so a place you don't have yet is one tap away (new-user instinct).
+          A one-line hint when empty makes the "find a new place" path discoverable
+          before you've typed anything. */}
+      {!q && onCreateRestaurant && restaurants.length > 0 && (
+        <div className="tiny faint" style={{margin:"-6px 2px 12px"}}>
+          Type a name to search your saved places &mdash; or find a new one on Google.
+        </div>
+      )}
       {q && onCreateRestaurant && (
         <div style={{margin:"0 0 12px"}}>
           <button className="btn ghost sm" style={{width:"100%"}} disabled={gBusy}
