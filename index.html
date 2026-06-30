@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.273.0";
+const APP_VERSION   = "1.274.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4991,9 +4991,12 @@ function InstallHint({ onClose, force }){
       <div className="small muted" style={{margin:"4px 0 12px", lineHeight:1.5}}>
         Install it once for a full-screen app, offline access, and a faster launch - no app store needed.
       </div>
-      {plat === "android" && evt ? (
+      {evt ? (
+        // Any Chromium browser that fired beforeinstallprompt - Android AND
+        // desktop Chrome/Edge - gets the real one-tap install, not manual steps.
         <button className="btn primary" style={{width:"100%"}} onClick={doInstall}>
-          <Icon name="home" size={17} color="#1b1714" /> Add to Home Screen
+          <Icon name="home" size={17} color="#1b1714" />
+          {plat === "android" ? " Add to Home Screen" : " Install MenuCaptain"}
         </button>
       ) : plat === "ios" ? (
         <div className="small">
@@ -6966,7 +6969,7 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
   const ACTIONS = {
     "first-scan":  { label:"Scan a menu",    on:onScanMenu },
     "ten-visits":  { label:"Log a visit",    on:onLogVisit },
-    "five-cities": { label:"Add a place",    on:onAddPlace },
+    "five-cities": { label:"Log a visit",    on:onLogVisit },
     "first-list":  { label:"Publish a list", on:onPublishList },
     "share-love":  { label:"Share the Love", on:onShareApp, heart:true },
   };
@@ -7123,7 +7126,11 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
                 <div className="badge-name">{b.name}</div>
                 <div className="badge-sub">{got ? b.earnedText : b.lockedText}</div>
               </div>
-              {act ? (
+              {got ? (
+                <span className="tiny" style={{color:"var(--accent)", flex:"none", fontWeight:600, whiteSpace:"nowrap"}}>
+                  &#10003; Earned
+                </span>
+              ) : act ? (
                 <button className="btn ghost badge-act" onClick={act.on}>
                   {act.label}
                   {act.heart ? <span style={{marginLeft:5, display:"inline-flex"}}>
@@ -16939,12 +16946,16 @@ function GroupOrderGuest({code, cfg, profile}){
     }
     setErr(""); setSending(true);
     try {
-      const r = await groupFetch(cfg || null, code);   // re-check it is still open before sending
-      if (!r || r.status === "closed"){ setErr("This group order is closed."); setSending(false); return; }
+      // The submit endpoint itself rejects a closed/expired order (409) with a
+      // clear message, so send straight away - no extra pre-check round trip
+      // that could fail on a cold backend and make the guest tap twice.
       await groupSubmit(cfg || null, code, nm, token, list);
       try { localStorage.setItem("dininglog_guest_name", nm); } catch(e){}
-      setData(await groupFetch(cfg || null, code));     // refresh the running order
+      // The order is in the moment submit succeeds. Mark it placed BEFORE the
+      // refresh so a transient refresh hiccup never hides a successful send
+      // (that was the "had to tap Send twice" symptom).
       setSent(true); setPlaced(true);
+      try { setData(await groupFetch(cfg || null, code)); } catch(_e){}   // best-effort refresh
       logMsg("GROUP","guest submitted " + list.length + " item(s)");
     } catch(e){
       setErr(e.message || "Could not send your order.");
