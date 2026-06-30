@@ -871,7 +871,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.270.0";
+const APP_VERSION   = "1.271.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -12338,6 +12338,78 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
   const [findBusy,setFindBusy] = useState(false);
   const [findMsg,setFindMsg]   = useState("");
 
+  // ---- In-form "Find on Google / Near me" finder. Same relay the Places search
+  // uses, but here a pick FILLS every field (name, cuisine, city, address, phone,
+  // website, rating) instead of typing it all. `picked` stashes the Google meta
+  // (place_id + g_* rating) so Save persists it. Auto-opens on a blank Add. ----
+  const [picked,setPicked]     = useState(null);
+  const [gQ,setGQ]             = useState("");
+  const [gBusy,setGBusy]       = useState(false);
+  const [gErr,setGErr]         = useState("");
+  const [gResults,setGResults] = useState([]);
+  const [finderOpen,setFinderOpen] = useState(!existing && !prefill);
+  function getGeoOnce(){
+    return new Promise((resolve)=>{
+      if (!navigator.geolocation){ resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat:p.coords.latitude, lng:p.coords.longitude }),
+        ()=> resolve(null),
+        { enableHighAccuracy:false, timeout:8000, maximumAge:300000 });
+    });
+  }
+  function gMapErr(err){
+    if (err && err.status === 402) return "Finding places on Google is a Pro feature.";
+    return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
+  }
+  async function runGoogleSearch(){
+    const q = (gQ.trim() || name.trim());
+    if (!q){ setGErr("Type the restaurant name first."); return; }
+    setGBusy(true); setGErr("");
+    try {
+      let loc=null; try { loc = await getGeoOnce(); } catch(_e){}
+      const body = { query:q, max_results:12 };
+      if (loc){ body.lat=loc.lat; body.lng=loc.lng; }
+      const data = await placesSearchText(cfg, body);
+      const list = ((data && data.places) || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      setGResults(list);
+      if (!list.length) setGErr("No matches. Add the city or street and try again.");
+    } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
+    finally { setGBusy(false); }
+  }
+  async function runNearMe(){
+    setGBusy(true); setGErr("");
+    try {
+      const loc = await getGeoOnce();
+      if (!loc){ setGErr("Location unavailable. Allow location, or use Search Google."); setGBusy(false); return; }
+      const data = await placesNearby(cfg, {
+        lat:loc.lat, lng:loc.lng, radius_m:1500, open_now:false,
+        included_types:["restaurant","cafe","bar","bakery","meal_takeaway"],
+        max_results:15, rank:"DISTANCE",
+      });
+      const list = ((data && data.places) || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      setGResults(list);
+      if (!list.length) setGErr("Nothing found nearby.");
+    } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
+    finally { setGBusy(false); }
+  }
+  function pickGoogle(c){
+    setName(c.name || gQ.trim() || name);
+    const cz = cuisineFromType(c.primary_type, c.types);
+    if (cz) setCuisine(cz);
+    const city = c.city || cityFromAddress(c.address);
+    if (city){ setAddingNew(false); setNewLoc(""); setLocation(city); }
+    if (c.address) setAddress(c.address);
+    if (c.phone)   setPhone(c.phone);
+    if (c.website) setWebsite(c.website);
+    if (c.hours && c.hours.length && !notes.trim()) setNotes("Hours: " + c.hours.join("; "));
+    if (c.lat != null && c.lng != null) setGeo({ lat:c.lat, lng:c.lng, geo_addr: c.address || c.name || "" });
+    setPicked(Object.assign({
+      google_place_id: c.place_id || null,
+    }, googleMetaFrom(c)));
+    setGResults([]); setGErr(""); setFinderOpen(false);
+    setFindMsg("Filled from Google - double-check it looks right.");
+  }
+
   // Photo state - one photo per restaurant, acts as the visual identity.
   //   existingPhotoPath -> already saved in repo (if any)
   //   pendingBlob       -> a freshly picked photo waiting to upload on Save
@@ -12480,12 +12552,14 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
     }
     // Carry Google rating/count/price from the seed (Near-me prefill or enrich)
     // so a discovered place shows its Google rating without a separate update.
+    // A pick from the in-form Google finder overrides the mount-time seed.
+    const gSrc = picked || seed;
     const gMeta = {};
-    if (seed){
-      if (typeof seed.g_rating === "number")       gMeta.g_rating = seed.g_rating;
-      if (typeof seed.g_rating_count === "number") gMeta.g_rating_count = seed.g_rating_count;
-      if (seed.g_price_level != null && seed.g_price_level !== "") gMeta.g_price_level = seed.g_price_level;
-      if (seed.g_enriched_at)                      gMeta.g_enriched_at = seed.g_enriched_at;
+    if (gSrc){
+      if (typeof gSrc.g_rating === "number")       gMeta.g_rating = gSrc.g_rating;
+      if (typeof gSrc.g_rating_count === "number") gMeta.g_rating_count = gSrc.g_rating_count;
+      if (gSrc.g_price_level != null && gSrc.g_price_level !== "") gMeta.g_price_level = gSrc.g_price_level;
+      if (gSrc.g_enriched_at)                      gMeta.g_enriched_at = gSrc.g_enriched_at;
     }
     const rec = Object.assign({}, existing || {}, gMeta, {   // preserve unknown fields (e.g. g_* Google meta)
       id: rid,
@@ -12501,8 +12575,9 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
       geo_addr:   geo ? geo.geo_addr : (existing ? (existing.geo_addr || null) : null),
       geo_ok:     geo ? true : (existing ? !!existing.geo_ok : false),
       geo_failed: (existing && !geo) ? !!existing.geo_failed : false,
-      // Discovery linkage (dedup / future re-enrich). Null for hand-added places.
-      google_place_id: googlePlaceId,
+      // Discovery linkage (dedup / future re-enrich). Null for hand-added places;
+      // a pick from the in-form finder stamps a fresh place_id.
+      google_place_id: (picked && picked.google_place_id) || googlePlaceId,
       // Google place photo (from Update from Google): carried from `seed` so the
       // enriched name/attribution actually persist and the hero can render it.
       google_photo_name: (seed && seed.google_photo_name) || null,
@@ -12523,6 +12598,63 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
           style={{color:name.trim()?"var(--accent)":"var(--text-faint)"}}>Save</button>
       </div>
       <div className="ovbody">
+
+        {/* Find on Google / Near me - fill the whole form from a real place
+            instead of typing it. Same finder as the Places search. */}
+        <div className="card" style={{padding:12, marginBottom:12}}>
+          {!finderOpen ? (
+            <button type="button" className="btn ghost sm" style={{margin:0}}
+              onClick={()=> setFinderOpen(true)}>
+              <Icon name="locate" size={15} color="var(--accent)" /> Find on Google
+            </button>
+          ) : (
+            <>
+              <div className="between" style={{marginBottom:8}}>
+                <span className="lbl" style={{margin:0}}>Find on Google</span>
+                {existing ? (
+                  <button type="button" className="x" style={{fontSize:13}}
+                    onClick={()=> setFinderOpen(false)}>Hide</button>
+                ) : null}
+              </div>
+              <input className="input" value={gQ} onChange={e=> setGQ(e.target.value)}
+                placeholder="Restaurant name (city helps)"
+                onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); runGoogleSearch(); } }} />
+              <div className="row" style={{gap:8, marginTop:8}}>
+                <button type="button" className="btn ghost sm" style={{flex:1, margin:0}}
+                  disabled={gBusy} onClick={runGoogleSearch}>
+                  {gBusy ? <span className="spin" /> : <Icon name="locate" size={15} color="var(--accent)" />}
+                  Search Google
+                </button>
+                <button type="button" className="btn ghost sm" style={{flex:1, margin:0}}
+                  disabled={gBusy} onClick={runNearMe}>
+                  {gBusy ? <span className="spin" /> : <Icon name="pin" size={15} color="var(--accent)" />}
+                  Near me
+                </button>
+              </div>
+              {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
+              {gResults.length > 0 ? (
+                <div className="card" style={{marginTop:8, maxHeight:260, overflowY:"auto", padding:"4px 0"}}>
+                  <div className="small muted" style={{padding:"6px 14px"}}>Tap to fill the form:</div>
+                  {gResults.map(c => (
+                    <div key={c.place_id} className="pick-row"
+                      style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8}}
+                      onClick={()=> pickGoogle(c)}>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div>{c.name}</div>
+                        {c.address ? <div className="tiny faint">{c.address}</div> : null}
+                      </div>
+                      <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>Use</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="tiny faint" style={{marginTop:6}}>
+                  Pulls the name, cuisine, address, phone, and rating &mdash; or just fill it in below.
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
         {/* Photo editor - one icon photo per restaurant */}
         <div className="photo-editor">
