@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.280.0";
+const APP_VERSION   = "1.281.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9004,8 +9004,21 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             .concat(orderedNonMain.map(m => card(m, true)));
         })()}
 
+        {/* Close the flow: once you've looked at the menu and ordered, log the
+            visit right here instead of hunting for the + button. */}
+        <div className="card" style={{marginTop:18, textAlign:"center",
+             background:"rgba(224,118,74,0.07)", border:"1px solid rgba(224,118,74,0.22)"}}>
+          <div className="small" style={{fontWeight:600, marginBottom:8}}>Done eating?</div>
+          <button className="btn primary" onClick={onLogVisit} style={{width:"100%"}}>
+            <Icon name="plus" size={18} color="#1b1714" />Log this visit
+          </button>
+          <div className="tiny faint" style={{marginTop:8}}>
+            Record what you had, rate the dishes, and split the check.
+          </div>
+        </div>
+
         {/* visits at this place */}
-        <div className="divider-label">Visits here ({visits.length})</div>
+        <div className="divider-label" style={{marginTop:20}}>Visits here ({visits.length})</div>
         {visits.length === 0 && (
           <div className="small faint" style={{padding:"2px 2px 8px"}}>
             No visits logged here yet.
