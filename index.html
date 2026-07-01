@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.301.4";
+const APP_VERSION   = "1.302.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2063,6 +2063,27 @@ function logMsg(tag, msg){
    listens for "mc-toast" and renders it. Outside the app shell it no-ops. */
 function toast(msg){
   try { window.dispatchEvent(new CustomEvent("mc-toast", { detail: String(msg || "") })); } catch(e){}
+}
+
+// One-tap copy to clipboard with a toast. Falls back to a hidden textarea +
+// execCommand for older iOS / restricted-clipboard contexts.
+async function copyText(text, label){
+  const t = String(text || "").trim();
+  if (!t) return;
+  const done = ()=> toast((label || "Copied") + " copied");
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(t); done(); return;
+    }
+  } catch(e){ /* fall through to legacy path */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = t; ta.style.position = "fixed"; ta.style.top = "-1000px"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    ok ? done() : toast("Couldn't copy");
+  } catch(e){ toast("Couldn't copy"); }
 }
 
 /* ---- small utilities ----------------------------------------- */
@@ -9003,22 +9024,28 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             {r.address && (
               <div className="row" style={{marginBottom:r.phone||r.website?10:0}}>
                 <Icon name="pin" size={17} color="#b3a591" />
-                <span className="small">{r.address}</span>
+                <span className="small" style={{flex:1, minWidth:0}}>{r.address}</span>
+                <button className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", color:"var(--accent)", cursor:"pointer", padding:"2px 4px"}}
+                  onClick={()=> copyText(r.address, "Address")}>Copy</button>
               </div>
             )}
             {r.phone && (
               <div className="row" style={{marginBottom:r.website?10:0}}>
                 <Icon name="phone" size={17} color="#b3a591" />
-                <a className="small" href={"tel:" + r.phone.replace(/[^0-9+]/g,"")}>{r.phone}</a>
+                <a className="small" style={{flex:1, minWidth:0}} href={"tel:" + r.phone.replace(/[^0-9+]/g,"")}>{r.phone}</a>
+                <button className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", color:"var(--accent)", cursor:"pointer", padding:"2px 4px"}}
+                  onClick={()=> copyText(r.phone, "Phone")}>Copy</button>
               </div>
             )}
             {r.website && (
               <div className="row">
                 <Icon name="link" size={17} color="#b3a591" />
-                <a className="small" target="_blank" rel="noreferrer"
+                <a className="small" style={{flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}} target="_blank" rel="noreferrer"
                    href={(r.website.indexOf("http")===0 ? r.website : "https://" + r.website)}>
                   {r.website}
                 </a>
+                <button className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", color:"var(--accent)", cursor:"pointer", padding:"2px 4px"}}
+                  onClick={()=> copyText((r.website.indexOf("http")===0 ? r.website : "https://" + r.website), "Website")}>Copy</button>
               </div>
             )}
           </div>
