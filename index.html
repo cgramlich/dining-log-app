@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.296.0";
+const APP_VERSION   = "1.297.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7935,8 +7935,8 @@ function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, 
       if (r.lat == null || r.lng == null) return;
       const m = L.circleMarker([r.lat, r.lng], {
         radius:8, weight:2,
-        color:     r.favorite ? "#e0764a" : "#9b8b78",
-        fillColor: r.favorite ? "#e0764a" : "#c9b8a8",
+        color:     r.favorite ? accentHex() : "#9b8b78",
+        fillColor: r.favorite ? accentHex() : "#c9b8a8",
         fillOpacity:0.85
       });
       const el = document.createElement("div");
@@ -8226,7 +8226,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
             </div>
           </div>
           <span className={"fav" + (r.favorite ? " on" : "")}>
-            <Icon name="star" size={20} color={r.favorite ? "#e0764a" : "#80715f"} />
+            <Icon name="star" size={20} color={r.favorite ? "var(--accent)" : "#80715f"} />
           </span>
         </div>
       </div>
@@ -8898,7 +8898,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <button className="x" onClick={()=> onToggleWishlist(r)}
             aria-label={r.wishlist ? "On your Want to try list" : "Add to Want to try"}
             title={r.wishlist ? "On your Want to try list" : "Want to try"}>
-            <Icon name="book" size={19} color={r.wishlist ? "#e0764a" : "#80715f"} />
+            <Icon name="book" size={19} color={r.wishlist ? "var(--accent)" : "#80715f"} />
           </button>
         ) : null}
         <button className="x" onClick={onToggleFav} aria-label={r.favorite ? "Loved" : "Mark as loved"}>
@@ -9652,7 +9652,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
         {/* ---- help me order (AI) ---- */}
         <div className="card ask">
           <div className="ask-head">
-            <Icon name="sparkle" size={15} color="#e0764a" />
+            <Icon name="sparkle" size={15} color="var(--accent)" />
             <span>Help me order</span>
           </div>
           <div style={{position:"relative"}}>
@@ -9702,7 +9702,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
         {/* ---- explain the menu (AI) ---- */}
         <div className="card ask">
           <div className="ask-head">
-            <Icon name="info" size={15} color="#e0764a" />
+            <Icon name="info" size={15} color="var(--accent)" />
             <span>Explain the menu</span>
           </div>
           <div className="tiny faint" style={{margin:"0 0 8px"}}>
@@ -9901,7 +9901,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSa
                           onClick={()=> estimateOne(i, oj, it)}>
                           {itemBusy[key]
                             ? <span className="spin" />
-                            : <Icon name="sparkle" size={12} color="#e0764a" />}
+                            : <Icon name="sparkle" size={12} color="var(--accent)" />}
                           {itemBusy[key] ? "Estimating..." : "Estimate calories"}
                         </button>
                         {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
@@ -9915,7 +9915,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSa
                       onClick={()=> findPhotos(i, oj, it)}>
                       {imgBusy[key]
                         ? <span className="spin" />
-                        : <Icon name="image" size={12} color="#e0764a" />}
+                        : <Icon name="image" size={12} color="var(--accent)" />}
                       {imgBusy[key] ? "Finding photos..." : "See photos"}
                     </button>
                     {imgErr[key] && <span className="iest-err">{imgErr[key]}</span>}
@@ -11784,7 +11784,7 @@ function NearbyMap({ user, results, onOpen, searchCenter, onSearchArea }){
     results.forEach(function(p){
       if (p.lat == null || p.lng == null) return;
       const m = L.circleMarker([p.lat, p.lng], {
-        radius:8, weight:2, color:"#e0764a", fillColor:"#e0764a", fillOpacity:0.85
+        radius:8, weight:2, color:accentHex(), fillColor:accentHex(), fillOpacity:0.85
       });
       const el = document.createElement("div");
       el.className = "mappop";
@@ -13441,13 +13441,13 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
         <div className="card between" onClick={()=> setWishlist(w=>!w)} style={{cursor:"pointer"}}>
           <span>Want to try (haven't been yet)</span>
           <span className={"fav" + (wishlist?" on":"")}>
-            <Icon name="book" size={22} color={wishlist?"#e0764a":"#80715f"} />
+            <Icon name="book" size={22} color={wishlist?"var(--accent)":"#80715f"} />
           </span>
         </div>
         <div className="card between" onClick={()=> setFav(f=>!f)} style={{cursor:"pointer"}}>
           <span>Mark as favorite</span>
           <span className={"fav" + (fav?" on":"")}>
-            <Icon name="star" size={22} color={fav?"#e0764a":"#80715f"} />
+            <Icon name="star" size={22} color={fav?"var(--accent)":"#80715f"} />
           </span>
         </div>
         <div style={{height:20}} />
@@ -14813,10 +14813,10 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                     ) : (
                       <>
                         <button className="dish-cam" onClick={()=> startDishPhoto(d.name)}>
-                          <Icon name="camera" size={13} color="#e0764a" />Estimate from a photo
+                          <Icon name="camera" size={13} color="var(--accent)" />Estimate from a photo
                         </button>
                         <button className="dish-cam" onClick={()=> estimateDishNoPhoto(d.name)}>
-                          <Icon name="sparkle" size={13} color="#e0764a" />Estimate without a photo
+                          <Icon name="sparkle" size={13} color="var(--accent)" />Estimate without a photo
                         </button>
                       </>
                     )}
@@ -17607,7 +17607,7 @@ function GroupOrderGuest({code, cfg, profile}){
           <div className="card ask" style={{marginBottom:12}}>
             <div className="ask-head" style={{cursor:"pointer", display:"flex", alignItems:"center", gap:8}}
               onClick={()=> setHelpOpen(o=>!o)}>
-              <Icon name="sparkle" size={15} color="#e0764a" />
+              <Icon name="sparkle" size={15} color="var(--accent)" />
               <span style={{flex:1}}>Help me decide</span>
               <Icon name={helpOpen ? "chevd" : "chev"} size={14} />
             </div>
@@ -18930,6 +18930,14 @@ const THEMES = [
 ];
 function currentTheme(){
   try { return localStorage.getItem("dininglog_theme") || "brown"; } catch(e){ return "brown"; }
+}
+// The active theme's accent as a real hex - for places that can't use a CSS var
+// (e.g. Leaflet marker options are SVG attributes, where var() doesn't resolve).
+function accentHex(){
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    return v || "#e0764a";
+  } catch(e){ return "#e0764a"; }
 }
 function applyTheme(key, setTheme){
   const el = document.documentElement;
@@ -20698,7 +20706,7 @@ class ErrorBoundary extends React.Component {
               The app hit an unexpected error. Reloading usually fixes it - your data is safe in your account.
             </div>
             <button onClick={()=> location.reload()}
-              style={{background:"#e0764a", color:"#1b1714", border:"none", borderRadius:10,
+              style={{background:"var(--accent)", color:"#1b1714", border:"none", borderRadius:10,
                       padding:"12px 22px", fontSize:15, fontWeight:600, cursor:"pointer"}}>Reload</button>
             <div style={{fontSize:12, color:"#80715f", marginTop:16}}>
               If it keeps happening, email support@menucaptain.com
