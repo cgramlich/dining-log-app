@@ -886,7 +886,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.307.0";
+const APP_VERSION   = "1.307.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7037,11 +7037,11 @@ function App(){
                   const list = await communityListMenus(config, recOut.google_place_id);
                   if (list && list.length){
                     flashAction(
-                      list.length + " community menu" + (list.length>1?"s":"") + " for " + (recOut.name || "this place"),
-                      "Pull them in",
+                      list.length + " menu" + (list.length>1?"s":"") + " already available for " + (recOut.name || "this place"),
+                      "Add them",
                       async ()=>{
                         const n = await pullAllCommunityMenus(recOut.id, recOut.google_place_id);
-                        flash(n ? ("Pulled " + n + " menu" + (n>1?"s":"") + " in") : "Couldn't pull right now.");
+                        flash(n ? ("Added " + n + " menu" + (n>1?"s":"")) : "Couldn't add right now.");
                       });
                   }
                 } catch(e){ /* silent if the library is unreachable */ }
@@ -7224,9 +7224,9 @@ function App(){
             // If the place is linked to Google, offer to contribute the scan to the
             // community right here (opt-in, one tap) so seeding is part of the flow.
             if (savedPlace && savedPlace.google_place_id){
-              flashAction(baseMsg, "Share to community", async ()=>{
+              flashAction(baseMsg, "Share with other diners", async ()=>{
                 const n = await shareMenusToCommunity(savedPlace, menusToSave);
-                flash(n ? ("Contributed " + n + " menu" + (n>1?"s":"") + ". Thanks!") : "Couldn't share right now.");
+                flash(n ? ("Shared " + n + " menu" + (n>1?"s":"") + " - thanks!") : "Couldn't share right now.");
               });
             } else {
               flash(baseMsg);
@@ -8605,7 +8605,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
       }
       if (fetched.length && onImport) onImport(fetched);
       setPicked({});
-    } catch(e){ setErr("Couldn't pull that menu. Try again."); }
+    } catch(e){ setErr("Couldn't add that menu. Try again."); }
     setPulling(false);
   }
 
@@ -8619,7 +8619,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
     if (dupes.length){
       const names = dupes.map(m => m.label || "Main").join(", ");
       if (!window.confirm(
-        "A community menu already exists here for: " + names + ".\n\n" +
+        "A menu for this place is already available for: " + names + ".\n\n" +
         "OK = update it with your version.\nCancel = leave the existing one.")) return;
     }
     setShareBusy(true); setErr(""); setMsg("");
@@ -8635,7 +8635,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
         n++;
       }
       const done = dupes.length ? "Updated your shared menu. Thanks!"
-        : ("Contributed " + n + " menu" + (n>1?"s":"") + ". Thanks for helping the community!");
+        : ("Shared " + n + " menu" + (n>1?"s":"") + " - thanks! Other diners can skip scanning now.");
       setMsg(done);
       toast(done);                    // make the confirmation obvious, not just a small line
       if (list !== null) load();
@@ -8647,7 +8647,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
     <div className="card" style={{marginBottom:12}}>
       <div className="row between" style={{alignItems:"center", cursor:"pointer"}} onClick={toggleOpen}>
         <span className="small" style={{fontWeight:600}}>
-          <Icon name="nodes" size={14} color="var(--accent)" /> Community menus
+          <Icon name="nodes" size={14} color="var(--accent)" /> Available menus
         </span>
         <span className="tiny faint">{open ? "▾" : "▸"}</span>
       </div>
@@ -8657,12 +8657,12 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
           {err ? <div className="tiny faint">{err}</div> : null}
           {msg ? <div className="tiny" style={{color:"var(--accent)"}}>{msg}</div> : null}
           {!err && list !== null && list.length === 0 && !busy ? (
-            <div className="tiny faint">No community menus for this place yet &mdash; be the first to contribute yours below.</div>
+            <div className="tiny faint">No shared menu here yet &mdash; add yours so the next diner can skip scanning.</div>
           ) : null}
           {list && list.length > 0 ? (
             <div style={{marginTop:4}}>
               <div className="tiny faint" style={{marginBottom:6}}>
-                Tap to choose, then pull in.
+                Tap to choose, then add.
               </div>
               {list.map(cm => {
                 const on = !!picked[cm.id];
@@ -8677,7 +8677,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
                       <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
                       <span style={{flex:1, minWidth:0}}>
                         <span className="small" style={{fontWeight:600}}>{cm.label}</span>
-                        <span className="tiny faint">{" · " + cm.item_count + " item" + (cm.item_count===1?"":"s") + (cm.contributor_count > 1 ? " · " + cm.contributor_count + " people" : "") + (age.label ? " · " + age.label : "")}</span>
+                        <span className="tiny faint">{" · " + cm.item_count + " item" + (cm.item_count===1?"":"s") + (cm.contributor_count > 1 ? " · " + cm.contributor_count + " diners" : "") + (age.label ? " · " + age.label : "")}</span>
                       </span>
                     </div>
                     <div className="tiny" style={{display:"flex", gap:10, alignItems:"center", paddingLeft:26, marginTop:1}}>
@@ -8685,7 +8685,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
                         ? <span className="faint">Already in your menus</span>
                         : age.stale
                           ? <span style={{color:"var(--amber)"}}>May be outdated &mdash; double-check</span>
-                          : <span className="faint">Community, not verified</span>}
+                          : <span className="faint">From another diner &middot; not verified</span>}
                       <span style={{flex:1}} />
                       {isReported
                         ? <span className="faint">Reported, thanks</span>
@@ -8698,16 +8698,16 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
               <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
                 disabled={pulling || !Object.values(picked).some(Boolean)}
                 onClick={pull}>
-                {pulling ? <span className="spin" /> : "Pull selected into my menus"}
+                {pulling ? <span className="spin" /> : "Add to your menus"}
               </button>
             </div>
           ) : null}
           <div style={{marginTop:10, borderTop:"1px solid var(--line-soft)", paddingTop:10}}>
             <button className="btn ghost sm" style={{width:"100%"}} disabled={shareBusy} onClick={shareLocal}>
-              {shareBusy ? <span className="spin" /> : "Contribute my scan to the community"}
+              {shareBusy ? <span className="spin" /> : "Share your scan with other diners"}
             </button>
             <div className="tiny faint" style={{marginTop:6}}>
-              Adds your scanned menus so anyone at {restaurant.name || "this place"} can pull them in &mdash; only the menu, never your visits, notes, or ratings.
+              Adds your scanned menus so anyone at {restaurant.name || "this place"} can add them without re-scanning &mdash; only the menu, never your visits, notes, or ratings.
             </div>
           </div>
         </div>
@@ -9320,7 +9320,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                 <div className="tiny faint" style={{marginTop:3}}>
                   {n0} item{n0 === 1 ? "" : "s"}
                   {m0.captured_date ? "  ·  Captured " + fmtDate(m0.captured_date) : ""}
-                  {m0.source === "community" ? " (community)" : m0.source === "web" ? " (web)" : m0.source === "seed" ? " (starter)" : ""}
+                  {m0.source === "community" ? " (shared)" : m0.source === "web" ? " (web)" : m0.source === "seed" ? " (starter)" : ""}
                 </div>
               </div>
               <Icon name="chev" size={18} color="#80715f" />
@@ -9371,7 +9371,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   <div className="tiny faint" style={{marginTop:3}}>
                     {itemCount} item{itemCount === 1 ? "" : "s"}
                     {"  \u00b7  Captured " + fmtDate(m.captured_date)}
-                    {m.source === "community" ? " (community)" : m.source === "web" ? " (web)" : m.source === "seed" ? " (starter)" : ""}
+                    {m.source === "community" ? " (shared)" : m.source === "web" ? " (web)" : m.source === "seed" ? " (starter)" : ""}
                   </div>
                 </div>
                 <Icon name="chev" size={18} color="#80715f" />
