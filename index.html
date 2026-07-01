@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.293.0";
+const APP_VERSION   = "1.294.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1369,9 +1369,11 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   scan the menu / ask Help me order &rarr; log the visit after the meal.
   **Settings** lives behind the gear in the top-right of Home.
 - **Places** - your list of restaurants.
-- **The plus (+) button** - the quick-action button. Tap it to log a visit,
-  pull up a menu (open a place to browse and order), start a group order, add a
-  restaurant, scan a menu, or spin a wheel to pick a place when you can't decide.
+- **The plus (+) button** - your create-and-record actions, in the order a meal
+  flows: add a restaurant or a menu (**Get set up**), then start a group order,
+  log a visit, or split the check (**At the table**). Finding or deciding on a
+  place lives on **Home** (search, Near me, Can't decide), and the + has a
+  shortcut back there.
 - **History** - everything you have logged, newest first.
 - **Discover** (the **You** tab) - the home for Your Year in Food, your Food
   passport, dining companions, your published lists, your saved splits, and any
