@@ -886,7 +886,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.305.0";
+const APP_VERSION   = "1.306.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2093,6 +2093,12 @@ function uid(prefix){
          Math.random().toString(36).slice(2,7);
 }
 function todayISO(){ const d=new Date(), p=n=>String(n).padStart(2,"0"); return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate()); }
+
+// Sort key that ignores a leading article (The/A/An) so "The Gallery" files under
+// G. Display stays "The Gallery"; only alphabetical ordering uses this.
+function nameSortKey(name){
+  return String(name || "").trim().toLowerCase().replace(/^(the|a|an)\s+/, "");
+}
 
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
@@ -8264,7 +8270,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       ? searchedRaw.filter(r => countVisits(r.id) > 0)
     : searchedRaw;
 
-  const byName = (a,b)=> (a.name || "").localeCompare(b.name || "");
+  const byName = (a,b)=> nameSortKey(a.name).localeCompare(nameSortKey(b.name));
   // Average of a place's own visit ratings (for the "Highest rated" sort, to
   // match History). -1 when it has no rated visits, so unrated sink to the end.
   const avgRating = (rid)=> {
@@ -8299,11 +8305,12 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         )}
         <div className="between" style={{flex:1,minWidth:0}}>
           <div style={{minWidth:0}}>
-            <div className="place-name">
-              {r.name}
+            <div className="place-name" style={{display:"flex", alignItems:"center", gap:6, minWidth:0}}>
+              <span style={{minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{r.name}</span>
               {r.wishlist && countVisits(r.id) === 0 ? (
-                <span className="chip" style={{marginLeft:8, fontSize:11, padding:"1px 7px",
-                      verticalAlign:"middle", color:"var(--accent)", borderColor:"var(--accent)"}}>Want to try</span>
+                <span title="Want to try" style={{flex:"none", lineHeight:0}}>
+                  <Icon name="book" size={14} color="var(--accent)" />
+                </span>
               ) : null}
             </div>
             <div className="meta-line" style={{marginTop:4}}>
@@ -10151,10 +10158,10 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onO
     const d = v.date || ""; if (d > (vLast[v.restaurant_id] || "")) vLast[v.restaurant_id] = d;
   }});
   const cmp = (a,b)=>{
-    if (sortBy === "az")  return (a.name||"").localeCompare(b.name||"");
-    if (sortBy === "fav") return (Number(!!b.favorite)-Number(!!a.favorite)) || (a.name||"").localeCompare(b.name||"");
+    if (sortBy === "az")  return nameSortKey(a.name).localeCompare(nameSortKey(b.name));
+    if (sortBy === "fav") return (Number(!!b.favorite)-Number(!!a.favorite)) || nameSortKey(a.name).localeCompare(nameSortKey(b.name));
     const ad=(vLast[a.id]||a.added_date||""), bd=(vLast[b.id]||b.added_date||"");   // recent
-    return bd.localeCompare(ad) || (a.name||"").localeCompare(b.name||"");
+    return bd.localeCompare(ad) || nameSortKey(a.name).localeCompare(nameSortKey(b.name));
   };
   const base    = (restaurants || []).filter(matchQ);
   const visited = base.filter(r => (vCount[r.id]||0) > 0).sort(cmp);
@@ -15473,7 +15480,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   // Website of the destination place (if linked to Google) - enables "Find the menu for me".
   const _destRest    = restaurants.find(r => r.id === (restId || presetRestaurantId));
   const destWebsite  = _destRest && (_destRest.website || "").trim();
-  const [label,setLabel]       = useState(presetMenu ? (presetMenu.label || "") : "");
+  const [label,setLabel]       = useState(presetMenu ? (presetMenu.label || "")
+    : ((presetRestaurantId && (menus[presetRestaurantId] || []).length === 0) ? "Main" : ""));
   // Top-level save mode for multi-section new scans:
   //   "one"    -> save all sections as subsections of one menu named `label`
   //   "custom" -> per-section: each section has its own destination label;
@@ -15812,19 +15820,18 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             </div>
             <input ref={fileRef} type="file" accept="image/*" multiple
               style={{display:"none"}} onChange={onFiles} />
-            <button className="btn ghost" onClick={()=> fileRef.current.click()}
-              disabled={!!processing}>
-              <Icon name="camera" size={18} />
-              {previews.length ? "Add more photos" : "Choose / take photos"}
-            </button>
-            {/* Twin of the photo button: same shape, so the two ways to add a
-                menu read as equal. Tapping it reveals the link field in place. */}
+            {/* When we know the place's website, lead with the lowest-effort path
+                (find the menu for them); scanning always works and comes next. */}
             {!presetMenu && !showUrl && destWebsite && (
-              <button className="btn ghost" style={{marginTop:8}} onClick={findMenu}
-                disabled={!!processing}>
+              <button className="btn ghost" onClick={findMenu} disabled={!!processing}>
                 <Icon name="search" size={18} />Find the menu for me
               </button>
             )}
+            <button className="btn ghost" style={{marginTop:(!presetMenu && !showUrl && destWebsite) ? 8 : 0}}
+              onClick={()=> fileRef.current.click()} disabled={!!processing}>
+              <Icon name="camera" size={18} />
+              {previews.length ? "Add more photos" : "Choose / take photos"}
+            </button>
             {!presetMenu && !showUrl && (
               <button className="btn ghost" style={{marginTop:8}} onClick={()=> setShowUrl(true)}
                 disabled={!!processing}>
@@ -15991,6 +15998,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                     </span>
                   </div>
                 )}
+                {!presetMenu && !(label || "").trim() ? (
+                  <div className="tiny faint" style={{marginTop:6}}>Give this menu a name (e.g. Main) to save.</div>
+                ) : null}
               </label>
             )}
 
