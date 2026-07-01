@@ -886,7 +886,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.304.0";
+const APP_VERSION   = "1.305.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5265,7 +5265,7 @@ function earnedBadgeIds({restaurants, visits, menus, lists, meta}){
    wizard: search + quick actions + continue + recents + a dismissible cue.
    ============================================================ */
 function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreateRestaurant,
-                    onNearMe, onScanMenu, onSpin, onOpenSettings, onBrowseAll, pendingReqs }){
+                    onNearMe, onScanMenu, onSpin, onOpenSettings, onBrowseAll, onBrowseUnvisited, pendingReqs }){
   const [q, setQ]             = useState("");
   const [gBusy, setGBusy]     = useState(false);
   const [gErr, setGErr]       = useState("");
@@ -5328,6 +5328,9 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
   const recents = (restaurants || []).slice().sort((a,b)=>
     (lastVisit[b.id] || b.added_date || "").localeCompare(lastVisit[a.id] || a.added_date || "")
   ).slice(0, 5);
+  // Saved places you haven't logged a visit to yet - the "still to try" nudge.
+  const visitedIds = new Set((visits || []).map(v => v && v.restaurant_id).filter(Boolean));
+  const unvisited  = (restaurants || []).filter(r => r && !visitedIds.has(r.id));
   const greeting = (function(){ const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
   const who = profileName(profile) || "";
   const placeRow = (r, key)=> (
@@ -5411,6 +5414,21 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         {onScanMenu ? <button className="btn ghost sm" onClick={onScanMenu}><Icon name="camera" size={15} color="var(--accent)" />Scan a menu</button> : null}
         {onSpin ? <button className="btn ghost sm" onClick={onSpin}><Icon name="compass" size={15} color="var(--accent)" />Can't decide?</button> : null}
       </div>
+
+      {/* "Still to try" - nudge toward saved places you haven't visited yet.
+          Opens your places pre-filtered to Not visited (wishlist first). Hidden
+          while searching and once you've been everywhere. */}
+      {!ql && onBrowseUnvisited && unvisited.length > 0 ? (
+        <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
+          onClick={onBrowseUnvisited}>
+          <Icon name="compass" size={20} color="var(--accent)" />
+          <div style={{flex:1, minWidth:0}}>
+            <div className="small" style={{fontWeight:600}}>Still to try</div>
+            <div className="tiny faint">You've saved {unvisited.length} place{unvisited.length===1?"":"s"} you haven't been to yet.</div>
+          </div>
+          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Browse ›</span>
+        </div>
+      ) : null}
 
       {/* pick up where you left off - any active/open group orders */}
       <ActiveGroupOrders cfg={cfg} />
@@ -6451,7 +6469,8 @@ function App(){
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
             onSpin={()=> setOverlay({ type:"spinPick" })}
             onOpenSettings={()=> setTab("settings")}
-            onBrowseAll={()=> setTab("restaurants")} />
+            onBrowseAll={()=> setTab("restaurants")}
+            onBrowseUnvisited={()=> setOverlay({ type:"atPlace", mode:"saved", filter:"unvisited" })} />
         )}
         {tab === "history" && (
           <>
@@ -6670,7 +6689,7 @@ function App(){
       )}
       {overlay && overlay.type === "atPlace" && (
         <AtRestaurantPicker
-          cfg={config} restaurants={restaurants} visits={visits} mode={overlay.mode || "saved"}
+          cfg={config} restaurants={restaurants} visits={visits} mode={overlay.mode || "saved"} initialFilter={overlay.filter}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
           onCreateRestaurant={(rec)=>{
             const next = [rec].concat(restaurants);
@@ -10056,7 +10075,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSa
 // The "At a restaurant" entry from the + : one box that answers "which place am
 // I at?" - your saved places surface as you type, a new one is one tap away on
 // Google (deduped), and a manual add is the fallback. New vs saved is one action.
-function AtRestaurantPicker({ cfg, restaurants, visits, mode, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose }){
+function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose }){
   const isNew = mode === "new";   // "Somewhere new" (find / near me) vs "I'm back" (saved)
   const [q, setQ]           = useState("");
   const [gBusy, setGBusy]   = useState(false);
@@ -10064,8 +10083,8 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, onOpenRestaurant, 
   const [gResults, setGResults] = useState(null);
   const [gMode, setGMode]   = useState("search");   // which action filled gResults: "search" | "nearby"
   const [sortBy, setSortBy] = useState("recent");   // "I'm back" list: recent | az | fav
-  const [filterBy, setFilterBy] = useState("all");  // all | visited | unvisited
-  const [showCtl, setShowCtl]   = useState(false);  // sort/filter collapse
+  const [filterBy, setFilterBy] = useState(initialFilter || "all");  // all | visited | unvisited
+  const [showCtl, setShowCtl]   = useState(!!initialFilter);  // open controls when arriving pre-filtered
   function getGeoOnce(){
     return new Promise((resolve)=>{
       if (!navigator.geolocation){ resolve(null); return; }
