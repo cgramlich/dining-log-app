@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.294.0";
+const APP_VERSION   = "1.295.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5302,9 +5302,9 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
   );
 
   return (
-    <div style={{paddingTop:"calc(8px + env(safe-area-inset-top))"}}>
-      {/* header: wordmark + greeting + settings gear (Settings lives here now).
-          Top padding clears the status bar since Home hides the shared TopBar. */}
+    <div style={{paddingTop:8}}>
+      {/* Status-bar clearance is handled by the shell-level spacer on Home (see
+          App), so only a small breathing gap is needed here. */}
       <div className="between" style={{margin:"2px 2px 14px", alignItems:"center"}}>
         <div style={{minWidth:0}}>
           <div style={{fontFamily:"'Fraunces',serif", fontSize:24, fontWeight:600, color:"var(--text)", lineHeight:1.1}}>MenuCaptain</div>
@@ -6324,6 +6324,9 @@ function App(){
       {/* Home owns its own header (wordmark + greeting + Settings gear), so the
           shared TopBar is hidden there to avoid a duplicate "MenuCaptain". */}
       {tab !== "home" ? <TopBar tab={tab} onShare={shareApp} /> : null}
+      {/* Home hides the TopBar, so reserve the status-bar (notch) space here, or
+          the update/sync banners ride up under the clock and battery. */}
+      {tab === "home" ? <div aria-hidden="true" style={{height:"env(safe-area-inset-top)"}} /> : null}
 
       {/* update available - tap to cache-bust reload */}
       {update && (
