@@ -107,6 +107,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .dot{width:7px; height:7px; border-radius:50%; flex:none;}
     .spin{width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;flex:none;}
     @keyframes sp{to{transform:rotate(360deg);}}
+    @keyframes mcpulse{0%,100%{transform:scale(0.9);opacity:0.5;}50%{transform:scale(1.08);opacity:1;}}
 
     /* ---- cards ---- */
     .card{
@@ -885,7 +886,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.303.1";
+const APP_VERSION   = "1.303.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4636,6 +4637,24 @@ function Icon({name, size, color}){
     sliders: <g><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="15" cy="6" r="2.3"/><circle cx="9" cy="12" r="2.3"/><circle cx="16" cy="18" r="2.3"/></g>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
+}
+
+// Branded busy indicator: a gently pulsing fork & knife, for full-screen working
+// states (menu scan / find) where the tiny generic ring reads as underwhelming.
+function Loader({size, label}){
+  const s = size || 42;
+  return (
+    <div style={{textAlign:"center"}}>
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="var(--accent)"
+           strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+           style={{display:"block", margin:"0 auto", transformOrigin:"center",
+                   animation:"mcpulse 1.05s ease-in-out infinite"}}>
+        <path d="M6 3v5M9 3v5M12 3v5M6 8c0 1.7 1.3 3 3 3s3-1.3 3-3M9 11v10" />
+        <path d="M18 21V3c-2.4 1-3.6 3.4-3.6 6 0 2.1 1.1 3.4 3.6 3.6" />
+      </svg>
+      {label ? <div style={{marginTop:12}}>{label}</div> : null}
+    </div>
+  );
 }
 
 // Right-side header action used on drill-in screens: one tap collapses the whole
@@ -15747,9 +15766,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
         {step === "working" && (
           <div className="empty" style={{paddingTop:"22vh"}}>
-            <div className="spin" style={{margin:"0 auto 16px"}} />
-            <div className="big">Reading the menu</div>
-            <div>Scanning your menu. This usually takes 10 to 30 seconds.</div>
+            <Loader size={46} />
+            <div className="big" style={{marginTop:16}}>Reading the menu</div>
+            <div>Scanning your menu. This can take up to a minute.</div>
           </div>
         )}
 
