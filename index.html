@@ -886,7 +886,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.303.2";
+const APP_VERSION   = "1.304.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6670,7 +6670,7 @@ function App(){
       )}
       {overlay && overlay.type === "atPlace" && (
         <AtRestaurantPicker
-          cfg={config} restaurants={restaurants} mode={overlay.mode || "saved"}
+          cfg={config} restaurants={restaurants} visits={visits} mode={overlay.mode || "saved"}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
           onCreateRestaurant={(rec)=>{
             const next = [rec].concat(restaurants);
@@ -10056,12 +10056,16 @@ function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSa
 // The "At a restaurant" entry from the + : one box that answers "which place am
 // I at?" - your saved places surface as you type, a new one is one tap away on
 // Google (deduped), and a manual add is the fallback. New vs saved is one action.
-function AtRestaurantPicker({ cfg, restaurants, mode, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose }){
-  const isNew = mode === "new";   // "Somewhere new" (find on Google) vs "I'm back" (saved)
+function AtRestaurantPicker({ cfg, restaurants, visits, mode, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose }){
+  const isNew = mode === "new";   // "Somewhere new" (find / near me) vs "I'm back" (saved)
   const [q, setQ]           = useState("");
   const [gBusy, setGBusy]   = useState(false);
   const [gErr, setGErr]     = useState("");
   const [gResults, setGResults] = useState(null);
+  const [gMode, setGMode]   = useState("search");   // which action filled gResults: "search" | "nearby"
+  const [sortBy, setSortBy] = useState("recent");   // "I'm back" list: recent | az | fav
+  const [filterBy, setFilterBy] = useState("all");  // all | visited | unvisited
+  const [showCtl, setShowCtl]   = useState(false);  // sort/filter collapse
   function getGeoOnce(){
     return new Promise((resolve)=>{
       if (!navigator.geolocation){ resolve(null); return; }
@@ -10076,7 +10080,7 @@ function AtRestaurantPicker({ cfg, restaurants, mode, onOpenRestaurant, onCreate
   }
   async function runGoogleSearch(){
     const term = q.trim(); if (!term){ setGErr("Type the place name first."); return; }
-    setGBusy(true); setGErr("");
+    setGBusy(true); setGErr(""); setGMode("search");
     try {
       let loc=null; try { loc = await getGeoOnce(); } catch(_e){}
       const body = { query:term, max_results:12 };
@@ -10085,6 +10089,19 @@ function AtRestaurantPicker({ cfg, restaurants, mode, onOpenRestaurant, onCreate
       const list = ((data && data.places) || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
       setGResults(list);
       if (!list.length) setGErr("No matches. Add the city or street and try again.");
+    } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
+    finally { setGBusy(false); }
+  }
+  async function runNearMe(){
+    setGBusy(true); setGErr(""); setGMode("nearby");
+    try {
+      const loc = await getGeoOnce();
+      if (!loc){ setGErr("Location unavailable. Type the name to search instead."); setGBusy(false); return; }
+      const data = await placesNearby(cfg, { lat:loc.lat, lng:loc.lng, radius_m:1500, open_now:false,
+        included_types:["restaurant","cafe","bar","bakery","meal_takeaway"], max_results:15, rank:"DISTANCE" });
+      const list = ((data && data.places) || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      setGResults(list);
+      if (!list.length) setGErr("Nothing found nearby.");
     } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
     finally { setGBusy(false); }
   }
@@ -10105,21 +10122,69 @@ function AtRestaurantPicker({ cfg, restaurants, mode, onOpenRestaurant, onCreate
   }
   useEffect(()=>{ setGResults(null); setGErr(""); }, [q]);
   const ql = q.trim().toLowerCase();
-  const saved = (restaurants || []).slice().sort((a,b)=>
-    (Number(!!b.favorite) - Number(!!a.favorite)) || (a.name || "").localeCompare(b.name || ""));
-  const savedMatches = ql
-    ? saved.filter(r => ((r.name||"")+" "+(r.cuisine||"")+" "+(r.location||"")).toLowerCase().indexOf(ql) !== -1).slice(0, 10)
-    : (isNew ? [] : saved.slice(0, 8));   // "Somewhere new" doesn't lead with your saved list
+  const matchQ = (r)=> !ql || ((r.name||"")+" "+(r.cuisine||"")+" "+(r.location||"")).toLowerCase().indexOf(ql) !== -1;
+
+  // Visit stats drive the "I'm back" grouping: visited (been here) first, then
+  // wishlist (want to try), then other saved-but-unvisited places.
+  const vCount = {}, vLast = {};
+  (visits || []).forEach(v => { if (v && v.restaurant_id){
+    vCount[v.restaurant_id] = (vCount[v.restaurant_id] || 0) + 1;
+    const d = v.date || ""; if (d > (vLast[v.restaurant_id] || "")) vLast[v.restaurant_id] = d;
+  }});
+  const cmp = (a,b)=>{
+    if (sortBy === "az")  return (a.name||"").localeCompare(b.name||"");
+    if (sortBy === "fav") return (Number(!!b.favorite)-Number(!!a.favorite)) || (a.name||"").localeCompare(b.name||"");
+    const ad=(vLast[a.id]||a.added_date||""), bd=(vLast[b.id]||b.added_date||"");   // recent
+    return bd.localeCompare(ad) || (a.name||"").localeCompare(b.name||"");
+  };
+  const base    = (restaurants || []).filter(matchQ);
+  const visited = base.filter(r => (vCount[r.id]||0) > 0).sort(cmp);
+  const wish    = base.filter(r => !(vCount[r.id]||0) && r.wishlist).sort(cmp);
+  const other   = base.filter(r => !(vCount[r.id]||0) && !r.wishlist).sort(cmp);
+  const dedupMatches = ql ? base.slice().sort(cmp).slice(0, 8) : [];   // new-mode "you already have this" hint
+
   const savedRow = (r)=> (
     <div key={r.id} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor:"pointer"}}
       onClick={()=> onOpenRestaurant(r.id)}>
       <div style={{flex:1, minWidth:0}}>
-        <div className="small" style={{fontWeight:600}}>{r.name}</div>
+        <div className="small" style={{fontWeight:600}}>
+          {r.favorite ? <span style={{color:"var(--accent)"}}>{"★ "}</span> : null}{r.name}
+        </div>
         {(r.cuisine || r.location) ? <div className="tiny faint">{[r.cuisine, r.location].filter(Boolean).join("  ·  ")}</div> : null}
       </div>
       <Icon name="chev" size={15} color="var(--text-faint)" />
     </div>
   );
+  const group = (label, list)=> list.length ? (
+    <div className="card" style={{marginTop:8, padding:"4px 0"}}>
+      <div className="small muted" style={{padding:"6px 14px"}}>{label}</div>
+      {list.map(savedRow)}
+    </div>
+  ) : null;
+  const chip = (on)=> ({ padding:"5px 11px", borderRadius:999, fontSize:12.5, fontWeight:600, cursor:"pointer",
+    border:"1px solid "+(on?"var(--accent)":"var(--line)"), background:on?"var(--accent)":"transparent",
+    color:on?"#1b1714":"var(--text-dim)", whiteSpace:"nowrap" });
+
+  const gList = Array.isArray(gResults) && gResults.length > 0 ? (
+    <div className="card" style={{marginTop:8, padding:"4px 0"}}>
+      <div className="small muted" style={{padding:"6px 14px"}}>{gMode==="nearby" ? "Places near you" : "From Google"}</div>
+      {gResults.map((c,i)=>{
+        const savedHit = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
+        return (
+          <div key={i} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"flex-start", cursor:"pointer"}}
+            onClick={()=> { if (savedHit){ toast("You already have this place"); onOpenRestaurant(savedHit.id); } else pickGoogle(c); }}>
+            <div style={{flex:1, minWidth:0}}>
+              <div className="small" style={{fontWeight:600}}>{c.name}</div>
+              {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+            </div>
+            <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
+              color: savedHit ? "var(--text-faint)" : "var(--accent)"}}>{savedHit ? "Saved · Open" : "+ Add"}</span>
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
+
   return (
     <div className="overlay">
       <div className="ovhead">
@@ -10129,51 +10194,91 @@ function AtRestaurantPicker({ cfg, restaurants, mode, onOpenRestaurant, onCreate
       </div>
       <div className="ovbody">
         <div className="small muted" style={{marginBottom:10}}>
-          {isNew ? "Find where you're eating on Google, then it's saved for next time."
-                 : "Pull up a place you've saved, or search for it."}
+          {isNew ? "Find a new place - one you haven't saved yet."
+                 : "Pull up a place you've been, or one you've saved."}
         </div>
         <SearchBar value={q} onChange={setQ}
           placeholder={isNew ? "What's the place called?" : "Search your places"} />
-        {savedMatches.length > 0 ? (
-          <div className="card" style={{marginTop:4, padding:"4px 0"}}>
-            <div className="small muted" style={{padding:"6px 14px"}}>{ql ? "Your places" : "Recent & favorites"}</div>
-            {savedMatches.map(savedRow)}
-          </div>
-        ) : null}
-        {ql ? (
-          <div style={{marginTop:10}}>
-            <button className="btn ghost" style={{width:"100%"}} disabled={gBusy} onClick={runGoogleSearch}>
-              {gBusy ? <span className="spin" />
+
+        {isNew ? (
+          <>
+            <button className="btn ghost" style={{width:"100%", marginTop:8}} disabled={gBusy} onClick={runNearMe}>
+              {gBusy && gMode==="nearby" ? <span className="spin" />
                 : <span className="row" style={{gap:6, justifyContent:"center"}}>
-                    <Icon name="locate" size={15} color="var(--accent)" />Find &ldquo;{q.trim()}&rdquo; on Google</span>}
+                    <Icon name="pin" size={15} color="var(--accent)" />See places near me</span>}
             </button>
+            {ql ? (
+              <button className="btn ghost" style={{width:"100%", marginTop:8}} disabled={gBusy} onClick={runGoogleSearch}>
+                {gBusy && gMode==="search" ? <span className="spin" />
+                  : <span className="row" style={{gap:6, justifyContent:"center"}}>
+                      <Icon name="locate" size={15} color="var(--accent)" />Find &ldquo;{q.trim()}&rdquo; on Google</span>}
+              </button>
+            ) : null}
             {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
-            {Array.isArray(gResults) && gResults.length > 0 ? (
+            {gList}
+            {dedupMatches.length > 0 ? (
               <div className="card" style={{marginTop:8, padding:"4px 0"}}>
-                <div className="small muted" style={{padding:"6px 14px"}}>From Google</div>
-                {gResults.map((c,i)=>{
-                  const savedHit = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
-                  return (
-                    <div key={i} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"flex-start", cursor:"pointer"}}
-                      onClick={()=> { if (savedHit){ toast("You already have this place"); onOpenRestaurant(savedHit.id); } else pickGoogle(c); }}>
-                      <div style={{flex:1, minWidth:0}}>
-                        <div className="small" style={{fontWeight:600}}>{c.name}</div>
-                        {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
-                      </div>
-                      <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
-                        color: savedHit ? "var(--text-faint)" : "var(--accent)"}}>{savedHit ? "Saved · Open" : "+ Add"}</span>
-                    </div>
-                  );
-                })}
+                <div className="small muted" style={{padding:"6px 14px"}}>Already in your places</div>
+                {dedupMatches.map(savedRow)}
               </div>
             ) : null}
-          </div>
-        ) : null}
-        {isNew && !ql ? (
-          <div className="tiny faint" style={{textAlign:"center", margin:"18px 8px"}}>
-            Type the restaurant's name to find it on Google.
-          </div>
-        ) : null}
+            {!ql && !gResults ? (
+              <div className="tiny faint" style={{textAlign:"center", margin:"16px 8px", lineHeight:1.5}}>
+                Tap &ldquo;See places near me,&rdquo; or type a name to find it on Google.
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div className="row" style={{justifyContent:"space-between", alignItems:"center", marginTop:8}}>
+              <button className="tiny" style={{background:"none", border:"none", color:"var(--accent)", cursor:"pointer", padding:"2px 0", fontWeight:600}}
+                onClick={()=> setShowCtl(v=>!v)}>
+                <Icon name="sliders" size={13} color="var(--accent)" /> Sort &amp; filter
+              </button>
+              <span className="tiny faint">{base.length} place{base.length===1?"":"s"}</span>
+            </div>
+            {showCtl ? (
+              <div className="card" style={{marginTop:6, padding:"10px 12px"}}>
+                <div className="tiny muted" style={{marginBottom:5}}>Sort</div>
+                <div className="row" style={{gap:7, flexWrap:"wrap", marginBottom:10}}>
+                  <span style={chip(sortBy==="recent")} onClick={()=> setSortBy("recent")}>Recent</span>
+                  <span style={chip(sortBy==="az")} onClick={()=> setSortBy("az")}>A&ndash;Z</span>
+                  <span style={chip(sortBy==="fav")} onClick={()=> setSortBy("fav")}>Favorites</span>
+                </div>
+                <div className="tiny muted" style={{marginBottom:5}}>Show</div>
+                <div className="row" style={{gap:7, flexWrap:"wrap"}}>
+                  <span style={chip(filterBy==="all")} onClick={()=> setFilterBy("all")}>All</span>
+                  <span style={chip(filterBy==="visited")} onClick={()=> setFilterBy("visited")}>Visited</span>
+                  <span style={chip(filterBy==="unvisited")} onClick={()=> setFilterBy("unvisited")}>Not visited</span>
+                </div>
+              </div>
+            ) : null}
+
+            {base.length === 0 ? (
+              <div className="empty" style={{padding:"36px 0"}}>
+                <div className="big">{ql ? "No matches" : "No places yet"}</div>
+                <div>{ql ? "Try a different search." : "Add a place to get started."}</div>
+              </div>
+            ) : filterBy === "visited" ? (
+              group("Been here", visited) ||
+                <div className="tiny faint" style={{textAlign:"center", margin:"22px 0"}}>No visited places yet.</div>
+            ) : filterBy === "unvisited" ? (
+              <>
+                {group("Want to try", wish)}
+                {group("Saved, not visited", other)}
+                {(wish.length + other.length) === 0
+                  ? <div className="tiny faint" style={{textAlign:"center", margin:"22px 0"}}>You've been to all your places.</div> : null}
+              </>
+            ) : (
+              <>
+                {group("Been here", visited)}
+                {group("Want to try", wish)}
+                {group("Saved, not visited", other)}
+              </>
+            )}
+          </>
+        )}
+
         <button className="btn ghost sm" style={{marginTop:14}} onClick={onAddManual}>
           <Icon name="pin" size={15} color="var(--accent)" />Add a place manually
         </button>
@@ -12679,7 +12784,7 @@ function ActionSheet({onClose, onPick}){
         <div className="grip" />
         <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, margin:"2px 0 14px"}}>
           <Moment what="imBack"       icon="book"   t1="I'm back"      t2="Pull up a saved place" />
-          <Moment what="somewhereNew" icon="search" t1="Somewhere new" t2="Find where you're eating" />
+          <Moment what="somewhereNew" icon="search" t1="Somewhere new" t2="Find a place you haven't saved" />
         </div>
         <div style={{borderTop:"1px solid var(--line-soft)", margin:"2px 0 6px"}} />
         <Item what="scanMenu"   icon="camera"  t1="Scan a menu"         t2="Grab a menu now - photo or link" />
