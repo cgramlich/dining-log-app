@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.301.0";
+const APP_VERSION   = "1.301.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8594,10 +8594,12 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
                 const on = !!picked[cm.id];
                 const age = communityAgeNote(cm.updated_at);
                 const isReported = !!reported[cm.id];
+                const haveIt = (localMenus || []).some(m =>
+                  (m.label || "").trim().toLowerCase() === (cm.label || "").trim().toLowerCase());
                 return (
-                  <div key={cm.id} style={{padding:"3px 0"}}>
+                  <div key={cm.id} style={{padding:"3px 0", opacity: haveIt ? 0.72 : 1}}>
                     <div className="pick-row" style={{display:"flex",alignItems:"center",gap:10}}
-                      onClick={()=> setPicked(p => Object.assign({}, p, { [cm.id]: !p[cm.id] }))}>
+                      onClick={()=> { if (haveIt) return; setPicked(p => Object.assign({}, p, { [cm.id]: !p[cm.id] })); }}>
                       <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
                       <span style={{flex:1, minWidth:0}}>
                         <span className="small" style={{fontWeight:600}}>{cm.label}</span>
@@ -8605,9 +8607,11 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
                       </span>
                     </div>
                     <div className="tiny" style={{display:"flex", gap:10, alignItems:"center", paddingLeft:26, marginTop:1}}>
-                      {age.stale
-                        ? <span style={{color:"var(--amber)"}}>May be outdated &mdash; double-check</span>
-                        : <span className="faint">Community, not verified</span>}
+                      {haveIt
+                        ? <span className="faint">Already in your menus</span>
+                        : age.stale
+                          ? <span style={{color:"var(--amber)"}}>May be outdated &mdash; double-check</span>
+                          : <span className="faint">Community, not verified</span>}
                       <span style={{flex:1}} />
                       {isReported
                         ? <span className="faint">Reported, thanks</span>
