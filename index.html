@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.292.0";
+const APP_VERSION   = "1.293.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6590,7 +6590,11 @@ function App(){
       {sheet && (
         <ActionSheet
           onClose={()=> setSheet(false)}
-          onPick={(what)=>{ setSheet(false); setOverlay({ type:what }); }} />
+          onPick={(what)=>{
+            setSheet(false);
+            if (what === "home"){ setTab("home"); return; }   // "Find a place" -> Home owns discovery
+            setOverlay({ type:what });
+          }} />
       )}
 
       {/* overlays */}
@@ -12409,50 +12413,37 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
   );
 }
 
+// The + sheet is scoped to CREATE & RECORD actions, ordered by the dining flow
+// (set up -> at the table). Finding/deciding on a place lives on Home, so those
+// items were moved off here; a footer points back to Home for discovery.
 function ActionSheet({onClose, onPick}){
+  const Item = ({what, icon, t1, t2})=> (
+    <div className="sheet-item" onClick={()=> onPick(what)}>
+      <span className="ic"><Icon name={icon} size={21} color="#e0764a" /></span>
+      <div><div className="t1">{t1}</div><div className="t2">{t2}</div></div>
+    </div>
+  );
+  const Label = ({children})=> (
+    <div className="tiny faint" style={{textTransform:"uppercase", letterSpacing:"0.08em",
+      fontWeight:600, margin:"8px 8px 2px"}}>{children}</div>
+  );
   return (
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" onClick={e=> e.stopPropagation()}>
         <div className="grip" />
-        <div className="sheet-item" onClick={()=> onPick("logVisit")}>
-          <span className="ic"><Icon name="plate" size={21} color="#e0764a" /></span>
-          <div><div className="t1">Log a visit</div>
-            <div className="t2">Record a meal and rate it</div></div>
-        </div>
-        <div className="sheet-item" onClick={()=> onPick("pullMenu")}>
-          <span className="ic"><Icon name="book" size={21} color="#e0764a" /></span>
-          <div><div className="t1">Pull up a menu</div>
-            <div className="t2">Open a place to browse and order</div></div>
-        </div>
-        <div className="sheet-item" onClick={()=> onPick("groupStart")}>
-          <span className="ic"><Icon name="nodes" size={21} color="#e0764a" /></span>
-          <div><div className="t1">Start a group order</div>
-            <div className="t2">From a menu, or no-menu where everyone types what they want</div></div>
-        </div>
-        <div className="sheet-item" onClick={()=> onPick("scanMenu")}>
-          <span className="ic"><Icon name="camera" size={21} color="#e0764a" /></span>
-          <div><div className="t1">Add a menu</div>
-            <div className="t2">Scan or pick photos to digitize a menu</div></div>
-        </div>
-        <div className="sheet-item" onClick={()=> onPick("splitCheck")}>
-          <span className="ic"><Icon name="receipt" size={21} color="#e0764a" /></span>
-          <div><div className="t1">Split a check</div>
-            <div className="t2">Scan or upload a receipt and split it by who had what</div></div>
-        </div>
-        <div className="sheet-item" onClick={()=> onPick("nearMe")}>
-          <span className="ic"><Icon name="locate" size={21} color="#e0764a" /></span>
-          <div><div className="t1">Near me</div>
-            <div className="t2">Discover places nearby and add them</div></div>
-        </div>
-        <div className="sheet-item" onClick={()=> onPick("addRestaurant")}>
-          <span className="ic"><Icon name="pin" size={21} color="#e0764a" /></span>
-          <div><div className="t1">Add a restaurant</div>
-            <div className="t2">Save a place without a menu yet</div></div>
-        </div>
-        <div className="sheet-item" onClick={()=> onPick("spinPick")}>
-          <span className="ic"><Icon name="compass" size={21} color="#e0764a" /></span>
-          <div><div className="t1">Can't decide?</div>
-            <div className="t2">Spin a wheel to pick a place to eat</div></div>
+        <Label>Get set up</Label>
+        <Item what="addRestaurant" icon="pin"    t1="Add a restaurant" t2="Save a place to log and order from" />
+        <Item what="scanMenu"      icon="camera" t1="Add a menu"        t2="Scan a photo or paste a link" />
+        <Label>At the table</Label>
+        <Item what="groupStart"    icon="nodes"   t1="Start a group order" t2="Everyone adds what they want" />
+        <Item what="logVisit"      icon="plate"   t1="Log a visit"         t2="Record a meal and rate it" />
+        <Item what="splitCheck"    icon="receipt" t1="Split the check"     t2="Snap the receipt, split by who had what" />
+        <div style={{borderTop:"1px solid var(--line-soft)", marginTop:6}}>
+          <div className="sheet-item" onClick={()=> onPick("home")}>
+            <span className="ic"><Icon name="search" size={21} color="#e0764a" /></span>
+            <div><div className="t1">Find a place</div>
+              <div className="t2">Search, Near me, or Can't decide &mdash; on Home</div></div>
+          </div>
         </div>
       </div>
     </div>
