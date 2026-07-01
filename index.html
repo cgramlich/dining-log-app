@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.302.0";
+const APP_VERSION   = "1.302.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -4620,6 +4620,7 @@ function Icon({name, size, color}){
     trash:   <g><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></g>,
     edit:    <g><path d="M4 20h4L19 9l-4-4L4 16Z"/><path d="M14 6l4 4"/></g>,
     check:   <path d="M5 12l5 5L20 6"/>,
+    copy:    <g><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></g>,
     back:    <path d="M15 6l-6 6 6 6"/>,
     image:   <g><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M4 17l5-4 4 3 4-4 4 4"/></g>,
     close:   <g><path d="M6 6l12 12M18 6 6 18"/></g>,
@@ -9025,16 +9026,16 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <div className="row" style={{marginBottom:r.phone||r.website?10:0}}>
                 <Icon name="pin" size={17} color="#b3a591" />
                 <span className="small" style={{flex:1, minWidth:0}}>{r.address}</span>
-                <button className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", color:"var(--accent)", cursor:"pointer", padding:"2px 4px"}}
-                  onClick={()=> copyText(r.address, "Address")}>Copy</button>
+                <button aria-label="Copy address" className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", cursor:"pointer", padding:"2px 6px", lineHeight:0}}
+                  onClick={()=> copyText(r.address, "Address")}><Icon name="copy" size={16} color="var(--accent)" /></button>
               </div>
             )}
             {r.phone && (
               <div className="row" style={{marginBottom:r.website?10:0}}>
                 <Icon name="phone" size={17} color="#b3a591" />
                 <a className="small" style={{flex:1, minWidth:0}} href={"tel:" + r.phone.replace(/[^0-9+]/g,"")}>{r.phone}</a>
-                <button className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", color:"var(--accent)", cursor:"pointer", padding:"2px 4px"}}
-                  onClick={()=> copyText(r.phone, "Phone")}>Copy</button>
+                <button aria-label="Copy phone" className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", cursor:"pointer", padding:"2px 6px", lineHeight:0}}
+                  onClick={()=> copyText(r.phone, "Phone")}><Icon name="copy" size={16} color="var(--accent)" /></button>
               </div>
             )}
             {r.website && (
@@ -9044,8 +9045,8 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                    href={(r.website.indexOf("http")===0 ? r.website : "https://" + r.website)}>
                   {r.website}
                 </a>
-                <button className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", color:"var(--accent)", cursor:"pointer", padding:"2px 4px"}}
-                  onClick={()=> copyText((r.website.indexOf("http")===0 ? r.website : "https://" + r.website), "Website")}>Copy</button>
+                <button aria-label="Copy website" className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", cursor:"pointer", padding:"2px 6px", lineHeight:0}}
+                  onClick={()=> copyText((r.website.indexOf("http")===0 ? r.website : "https://" + r.website), "Website")}><Icon name="copy" size={16} color="var(--accent)" /></button>
               </div>
             )}
           </div>
