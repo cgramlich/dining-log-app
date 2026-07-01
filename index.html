@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.291.0";
+const APP_VERSION   = "1.292.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -915,6 +915,19 @@ async function communityReportMenu(cfg, id){
     { method:"POST", headers });
   if (!res.ok) throw new Error("report " + res.status);
   return res.json();
+}
+// Which of these Google place_ids already have a community menu? (one batched
+// call) - powers the "Menu available" badge in discovery.
+async function communityHaveMenus(cfg, placeIds){
+  const ids = (placeIds || []).filter(Boolean);
+  if (!ids.length) return [];
+  try {
+    const headers = await authHeaders(cfg); headers["Content-Type"] = "application/json";
+    const res = await fetch(apiBase(cfg) + "/api/community/have",
+      { method:"POST", headers, body: JSON.stringify({ place_ids: ids.slice(0, 50) }) });
+    if (!res.ok) return [];
+    const d = await res.json(); return (d && d.have) || [];
+  } catch(e){ return []; }
 }
 // Relative age of a community menu + whether it's stale enough to flag (~9 mo).
 function communityAgeNote(iso){
@@ -11837,6 +11850,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
 
   // Results + status.
   const [results, setResults]       = useState([]);
+  const [haveMenus, setHaveMenus]   = useState(()=> new Set());  // place_ids with a community menu
   const [searchCenter, setSearchCenter] = useState(null);  // where the last search ran (drives "Search this area")
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState(null);
@@ -11884,6 +11898,15 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
   useEffect(function(){
     if (tier !== null){ if (geoState === "idle") requestLocation(); }
   }, [tier]);  // eslint-disable-line
+
+  // After each result set, batch-check which places have a community menu (badge).
+  useEffect(function(){
+    let alive = true;
+    const ids = (results || []).map(r => r.place_id).filter(Boolean);
+    if (!ids.length){ setHaveMenus(new Set()); return; }
+    communityHaveMenus(cfg, ids).then(have => { if (alive) setHaveMenus(new Set(have)); });
+    return function(){ alive = false; };
+  }, [results]);  // eslint-disable-line
 
   function requestLocation(){
     if (!navigator.geolocation){ setGeoState("unavailable"); return; }
@@ -12289,6 +12312,11 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
                       {p._dist != null && <span className="faint">{fmtMiles(p._dist)}</span>}
                       {p.open_now === true  && <span style={{color:"var(--accent)"}}>Open</span>}
                       {p.open_now === false && <span className="faint">Closed</span>}
+                      {haveMenus.has(p.place_id) && (
+                        <span className="row" style={{gap:3, color:"var(--accent)", fontWeight:600}}>
+                          <Icon name="book" size={12} color="var(--accent)" />Menu
+                        </span>
+                      )}
                     </div>
                     {soft && <div className="faint" style={{fontSize:11.5, marginTop:4}}>Maybe already in your places</div>}
                   </div>
