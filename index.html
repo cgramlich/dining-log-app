@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.303.0";
+const APP_VERSION   = "1.303.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -12276,6 +12276,10 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
       notes: (p.hours && p.hours.length) ? ("Hours: " + p.hours.join("; ")) : "",
       lat: p.lat, lng: p.lng,
       google_place_id: p.place_id,
+      // Carry the Google photo too, so the saved place isn't marked "up to date"
+      // while missing its hero image (googleMetaFrom stamps g_enriched_at).
+      google_photo_name: p.photo_name || undefined,
+      google_photo_attr: p.photo_attribution || "",
     }, googleMetaFrom(p));   // carry Google rating/count/price into the add form
     logMsg("PLACES", "Add to my places from discovery: " + (p.name || "") + " place_id=" + p.place_id);
     onAddPlace(prefill);
@@ -13486,7 +13490,12 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
         {/* Find on Google / Near me - fill the whole form from a real place
             instead of typing it. Same finder as the Places search. */}
         <div className="card" style={{padding:12, marginBottom:12}}>
-          {!finderOpen ? (
+          {googlePlaceId ? (
+            <div className="row" style={{gap:8}}>
+              <Icon name="check" size={15} color="var(--accent)" />
+              <span className="small">Linked to Google &mdash; details filled in for you.</span>
+            </div>
+          ) : !finderOpen ? (
             <button type="button" className="btn ghost sm" style={{margin:0}}
               onClick={()=> setFinderOpen(true)}>
               <Icon name="locate" size={15} color="var(--accent)" /> Find on Google
