@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.295.0";
+const APP_VERSION   = "1.296.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -12424,7 +12424,7 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
 function ActionSheet({onClose, onPick}){
   const Item = ({what, icon, t1, t2})=> (
     <div className="sheet-item" onClick={()=> onPick(what)}>
-      <span className="ic"><Icon name={icon} size={21} color="#e0764a" /></span>
+      <span className="ic"><Icon name={icon} size={21} color="var(--accent)" /></span>
       <div><div className="t1">{t1}</div><div className="t2">{t2}</div></div>
     </div>
   );
@@ -12445,7 +12445,7 @@ function ActionSheet({onClose, onPick}){
         <Item what="splitCheck"    icon="receipt" t1="Split the check"     t2="Snap the receipt, split by who had what" />
         <div style={{borderTop:"1px solid var(--line-soft)", marginTop:6}}>
           <div className="sheet-item" onClick={()=> onPick("home")}>
-            <span className="ic"><Icon name="search" size={21} color="#e0764a" /></span>
+            <span className="ic"><Icon name="search" size={21} color="var(--accent)" /></span>
             <div><div className="t1">Find a place</div>
               <div className="t2">Search, Near me, or Can't decide &mdash; on Home</div></div>
           </div>
