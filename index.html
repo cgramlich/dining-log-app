@@ -886,7 +886,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.306.1";
+const APP_VERSION   = "1.307.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6670,7 +6670,7 @@ function App(){
           onPick={(what)=>{
             setSheet(false);
             if (what === "imBack"){ setOverlay({ type:"atPlace", mode:"saved" }); return; }
-            if (what === "somewhereNew"){ setOverlay({ type:"atPlace", mode:"new" }); return; }
+            if (what === "somewhereNew"){ setOverlay({ type:"nearMe" }); return; }   // the full Near me experience
             setOverlay({ type:what });
           }} />
       )}
@@ -12817,7 +12817,7 @@ function ActionSheet({onClose, onPick}){
         <div className="grip" />
         <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, margin:"2px 0 14px"}}>
           <Moment what="imBack"       icon="book"   t1="I'm back"      t2="Pull up a saved place" />
-          <Moment what="somewhereNew" icon="search" t1="Somewhere new" t2="Find a place you haven't saved" />
+          <Moment what="somewhereNew" icon="search" t1="Somewhere new" t2="Not in your places yet" />
         </div>
         <div style={{borderTop:"1px solid var(--line-soft)", margin:"2px 0 6px"}} />
         <Item what="scanMenu"   icon="camera"  t1="Scan a menu"         t2="Grab a menu now - photo or link" />
