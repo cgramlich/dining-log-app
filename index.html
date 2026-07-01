@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.302.1";
+const APP_VERSION   = "1.303.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -15318,6 +15318,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [showUrl,setShowUrl]   = useState(false);       // link option starts as a twin button; reveals the field on tap
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
+  // Website of the destination place (if linked to Google) - enables "Find the menu for me".
+  const _destRest    = restaurants.find(r => r.id === (restId || presetRestaurantId));
+  const destWebsite  = _destRest && (_destRest.website || "").trim();
   const [label,setLabel]       = useState(presetMenu ? (presetMenu.label || "") : "");
   // Top-level save mode for multi-section new scans:
   //   "one"    -> save all sections as subsections of one menu named `label`
@@ -15427,8 +15430,10 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
   // Pull a menu from a web link: server fetches the page text, Claude extracts it,
   // then it drops into the SAME review/save flow as a scan.
-  async function runUrl(){
-    const u = (urlInput || "").trim();
+  async function runUrl(overrideUrl){
+    // overrideUrl is a string when called by "Find the menu for me"; when wired
+    // to onClick it receives the event object, which we ignore in favor of the field.
+    const u = ((typeof overrideUrl === "string" && overrideUrl) || urlInput || "").trim();
     if (!u) return;
     setStep("working");
     try {
@@ -15451,6 +15456,31 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       logMsg("ERROR","Web menu failed: " + err.message);
       setErrMsg(err.message);
       setStep("error");
+    }
+  }
+
+  // Find the menu for the user: crawl the place's website (from Google) for the
+  // menu/order link, then hand it to the same web-pull digitize flow. No manual
+  // URL hunting. Falls back to messaging when the site has no readable menu link.
+  async function findMenu(){
+    const rest = restaurants.find(r => r.id === (restId || presetRestaurantId));
+    const site = rest && (rest.website || "").trim();
+    if (!site){ toast("Add the website first - tap Update from Google on the place."); return; }
+    setStep("working");
+    try {
+      const headers = await authHeaders(config);
+      headers["Content-Type"] = "application/json";
+      const res = await fetch(apiBase(config) + "/api/menu/find", {
+        method:"POST", headers, body: JSON.stringify({ website: site, name: rest.name || "" }),
+      });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok) throw new Error(data.detail || "Couldn't look for a menu.");
+      if (data.found && data.url){ await runUrl(data.url); return; }
+      if (data.pdf_url) throw new Error("Their menu looks like a PDF - download it and scan it (most reliable).");
+      throw new Error("Couldn't find a menu link on their website. Paste the menu page address below, or scan the menu.");
+    } catch(err){
+      logMsg("SCAN","Find-menu: " + err.message);
+      setErrMsg(err.message); setStep("error");
     }
   }
 
@@ -15637,10 +15667,16 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             </button>
             {/* Twin of the photo button: same shape, so the two ways to add a
                 menu read as equal. Tapping it reveals the link field in place. */}
+            {!presetMenu && !showUrl && destWebsite && (
+              <button className="btn ghost" style={{marginTop:8}} onClick={findMenu}
+                disabled={!!processing}>
+                <Icon name="search" size={18} />Find the menu for me
+              </button>
+            )}
             {!presetMenu && !showUrl && (
               <button className="btn ghost" style={{marginTop:8}} onClick={()=> setShowUrl(true)}
                 disabled={!!processing}>
-                <Icon name="link" size={18} />Link to a menu online
+                <Icon name="link" size={18} />{destWebsite ? "Paste a menu link instead" : "Link to a menu online"}
               </button>
             )}
             {!presetMenu && showUrl && (
