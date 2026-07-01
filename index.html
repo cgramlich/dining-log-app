@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.301.3";
+const APP_VERSION   = "1.301.4";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5261,7 +5261,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
     // Don't create a duplicate: open the existing place on a certain match, or
     // confirm before adding when it only looks like one.
     const m = findExistingPlace(restaurants, c);
-    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ onOpenRestaurant(m.place.id); return; }
+    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ if (m.hard) toast("You already have this place"); onOpenRestaurant(m.place.id); return; }
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || q.trim() || "New place"),
@@ -8102,7 +8102,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   function pickGooglePlace(c){
     if (!onCreateRestaurant){ setGErr("Can't add a place here."); return; }
     const m = findExistingPlace(restaurants, c);
-    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ if (onOpen) onOpen(m.place); return; }
+    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ if (m.hard) toast("You already have this place"); if (onOpen) onOpen(m.place); return; }
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || query.trim() || "New place"),
@@ -10043,7 +10043,7 @@ function AtRestaurantPicker({ cfg, restaurants, mode, onOpenRestaurant, onCreate
   }
   function pickGoogle(c){
     const m = findExistingPlace(restaurants, c);
-    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ onOpenRestaurant(m.place.id); return; }
+    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ if (m.hard) toast("You already have this place"); onOpenRestaurant(m.place.id); return; }
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || q.trim() || "New place"),
@@ -10108,7 +10108,7 @@ function AtRestaurantPicker({ cfg, restaurants, mode, onOpenRestaurant, onCreate
                   const savedHit = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
                   return (
                     <div key={i} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"flex-start", cursor:"pointer"}}
-                      onClick={()=> savedHit ? onOpenRestaurant(savedHit.id) : pickGoogle(c)}>
+                      onClick={()=> { if (savedHit){ toast("You already have this place"); onOpenRestaurant(savedHit.id); } else pickGoogle(c); }}>
                       <div style={{flex:1, minWidth:0}}>
                         <div className="small" style={{fontWeight:600}}>{c.name}</div>
                         {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
