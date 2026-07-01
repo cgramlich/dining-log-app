@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.297.0";
+const APP_VERSION   = "1.298.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1369,11 +1369,10 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   scan the menu / ask Help me order &rarr; log the visit after the meal.
   **Settings** lives behind the gear in the top-right of Home.
 - **Places** - your list of restaurants.
-- **The plus (+) button** - your create-and-record actions, in the order a meal
-  flows: add a restaurant or a menu (**Get set up**), then start a group order,
-  log a visit, or split the check (**At the table**). Finding or deciding on a
-  place lives on **Home** (search, Near me, Can't decide), and the + has a
-  shortcut back there.
+- **The plus (+) button** - starts with the moment you walk in: **At a
+  restaurant** opens one search that pulls up a saved place or finds a new one on
+  Google (whichever it is, it is one step). Below it are the things you do there:
+  scan a menu, log a visit, split the check, or start a group order.
 - **History** - everything you have logged, newest first.
 - **Discover** (the **You** tab) - the home for Your Year in Food, your Food
   passport, dining companions, your published lists, your saved splits, and any
@@ -6627,6 +6626,19 @@ function App(){
           onClose={()=> setOverlay(null)}
           onPick={(id)=> setOverlay({ type:"restaurant", id:id })} />
       )}
+      {overlay && overlay.type === "atPlace" && (
+        <AtRestaurantPicker
+          cfg={config} restaurants={restaurants}
+          onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+          onCreateRestaurant={(rec)=>{
+            const next = [rec].concat(restaurants);
+            commit({ restaurants: next }, ["restaurants"]);
+            flash("Added " + (rec.name || "place"));
+            setOverlay({ type:"restaurant", id: rec.id });
+          }}
+          onAddManual={()=> setOverlay({ type:"addRestaurant" })}
+          onClose={()=> setOverlay(null)} />
+      )}
       {overlay && overlay.type === "duplicates" && (
         <DuplicatesView
           restaurants={restaurants} visits={visits} menus={menus}
@@ -9960,6 +9972,126 @@ function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSa
 /* ============================================================
    ACTION SHEET
    ============================================================ */
+// The "At a restaurant" entry from the + : one box that answers "which place am
+// I at?" - your saved places surface as you type, a new one is one tap away on
+// Google (deduped), and a manual add is the fallback. New vs saved is one action.
+function AtRestaurantPicker({ cfg, restaurants, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose }){
+  const [q, setQ]           = useState("");
+  const [gBusy, setGBusy]   = useState(false);
+  const [gErr, setGErr]     = useState("");
+  const [gResults, setGResults] = useState(null);
+  function getGeoOnce(){
+    return new Promise((resolve)=>{
+      if (!navigator.geolocation){ resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat:p.coords.latitude, lng:p.coords.longitude }),
+        ()=> resolve(null), { enableHighAccuracy:false, timeout:8000, maximumAge:300000 });
+    });
+  }
+  function gMapErr(err){
+    if (err && err.status === 402) return (err.detail || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
+    return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
+  }
+  async function runGoogleSearch(){
+    const term = q.trim(); if (!term){ setGErr("Type the place name first."); return; }
+    setGBusy(true); setGErr("");
+    try {
+      let loc=null; try { loc = await getGeoOnce(); } catch(_e){}
+      const body = { query:term, max_results:12 };
+      if (loc){ body.lat=loc.lat; body.lng=loc.lng; }
+      const data = await placesSearchText(cfg, body);
+      const list = ((data && data.places) || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
+      setGResults(list);
+      if (!list.length) setGErr("No matches. Add the city or street and try again.");
+    } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
+    finally { setGBusy(false); }
+  }
+  function pickGoogle(c){
+    const m = findExistingPlace(restaurants, c);
+    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ onOpenRestaurant(m.place.id); return; }
+    const newRest = Object.assign({
+      id: uid("rest"),
+      name: (c.name || q.trim() || "New place"),
+      cuisine: cuisineFromType(c.primary_type, c.types) || "",
+      location: c.city || cityFromAddress(c.address),
+      address: c.address || "", phone: c.phone || "", website: c.website || "", notes: "",
+      favorite: false, added_date: todayISO(),
+      google_place_id: c.place_id || undefined,
+      lat: (c.lat != null ? c.lat : undefined), lng: (c.lng != null ? c.lng : undefined),
+    }, googleMetaFrom(c));
+    onCreateRestaurant(newRest);
+  }
+  useEffect(()=>{ setGResults(null); setGErr(""); }, [q]);
+  const ql = q.trim().toLowerCase();
+  const saved = (restaurants || []).slice().sort((a,b)=>
+    (Number(!!b.favorite) - Number(!!a.favorite)) || (a.name || "").localeCompare(b.name || ""));
+  const savedMatches = ql
+    ? saved.filter(r => ((r.name||"")+" "+(r.cuisine||"")+" "+(r.location||"")).toLowerCase().indexOf(ql) !== -1).slice(0, 10)
+    : saved.slice(0, 8);
+  const savedRow = (r)=> (
+    <div key={r.id} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor:"pointer"}}
+      onClick={()=> onOpenRestaurant(r.id)}>
+      <div style={{flex:1, minWidth:0}}>
+        <div className="small" style={{fontWeight:600}}>{r.name}</div>
+        {(r.cuisine || r.location) ? <div className="tiny faint">{[r.cuisine, r.location].filter(Boolean).join("  ·  ")}</div> : null}
+      </div>
+      <Icon name="chev" size={15} color="var(--text-faint)" />
+    </div>
+  );
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}>Cancel</button>
+        <h2>At a restaurant</h2>
+        <span style={{width:54}} />
+      </div>
+      <div className="ovbody">
+        <div className="small muted" style={{marginBottom:10}}>Search your places, or find a new one on Google.</div>
+        <SearchBar value={q} onChange={setQ} placeholder="What place are you at?" />
+        {savedMatches.length > 0 ? (
+          <div className="card" style={{marginTop:4, padding:"4px 0"}}>
+            <div className="small muted" style={{padding:"6px 14px"}}>{ql ? "Your places" : "Recent & favorites"}</div>
+            {savedMatches.map(savedRow)}
+          </div>
+        ) : null}
+        {ql ? (
+          <div style={{marginTop:10}}>
+            <button className="btn ghost" style={{width:"100%"}} disabled={gBusy} onClick={runGoogleSearch}>
+              {gBusy ? <span className="spin" />
+                : <span className="row" style={{gap:6, justifyContent:"center"}}>
+                    <Icon name="locate" size={15} color="var(--accent)" />Find &ldquo;{q.trim()}&rdquo; on Google</span>}
+            </button>
+            {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
+            {Array.isArray(gResults) && gResults.length > 0 ? (
+              <div className="card" style={{marginTop:8, padding:"4px 0"}}>
+                <div className="small muted" style={{padding:"6px 14px"}}>From Google</div>
+                {gResults.map((c,i)=>{
+                  const savedHit = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
+                  return (
+                    <div key={i} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"flex-start", cursor:"pointer"}}
+                      onClick={()=> savedHit ? onOpenRestaurant(savedHit.id) : pickGoogle(c)}>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div className="small" style={{fontWeight:600}}>{c.name}</div>
+                        {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+                      </div>
+                      <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
+                        color: savedHit ? "var(--text-faint)" : "var(--accent)"}}>{savedHit ? "Saved · Open" : "+ Add"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <button className="btn ghost sm" style={{marginTop:14}} onClick={onAddManual}>
+          <Icon name="pin" size={15} color="var(--accent)" />Add a place manually
+        </button>
+        <div style={{height:20}} />
+      </div>
+    </div>
+  );
+}
+
 // "Pull up a menu": a searchable list of your places. Picking one lands on its
 // page (menu + Help me order + Group order). No visit is created - this is the
 // "I just got here, show me the menu" path, separate from logging a meal.
@@ -12428,28 +12560,18 @@ function ActionSheet({onClose, onPick}){
       <div><div className="t1">{t1}</div><div className="t2">{t2}</div></div>
     </div>
   );
-  const Label = ({children})=> (
-    <div className="tiny faint" style={{textTransform:"uppercase", letterSpacing:"0.08em",
-      fontWeight:600, margin:"8px 8px 2px"}}>{children}</div>
-  );
   return (
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" onClick={e=> e.stopPropagation()}>
         <div className="grip" />
-        <Label>Get set up</Label>
-        <Item what="addRestaurant" icon="pin"    t1="Add a restaurant" t2="Save a place to log and order from" />
-        <Item what="scanMenu"      icon="camera" t1="Add a menu"        t2="Scan a photo or paste a link" />
-        <Label>At the table</Label>
-        <Item what="groupStart"    icon="nodes"   t1="Start a group order" t2="Everyone adds what they want" />
-        <Item what="logVisit"      icon="plate"   t1="Log a visit"         t2="Record a meal and rate it" />
-        <Item what="splitCheck"    icon="receipt" t1="Split the check"     t2="Snap the receipt, split by who had what" />
-        <div style={{borderTop:"1px solid var(--line-soft)", marginTop:6}}>
-          <div className="sheet-item" onClick={()=> onPick("home")}>
-            <span className="ic"><Icon name="search" size={21} color="var(--accent)" /></span>
-            <div><div className="t1">Find a place</div>
-              <div className="t2">Search, Near me, or Can't decide &mdash; on Home</div></div>
-          </div>
-        </div>
+        {/* The moment you walk in: identify the place (new or saved) - one action. */}
+        <Item what="atPlace" icon="search" t1="At a restaurant"
+          t2="Find a new one, or pull up a saved place" />
+        <div style={{borderTop:"1px solid var(--line-soft)", margin:"6px 0"}} />
+        <Item what="scanMenu"   icon="camera"  t1="Scan a menu"         t2="Grab a menu now - photo or link" />
+        <Item what="logVisit"   icon="plate"   t1="Log a visit"         t2="Record a meal and rate it" />
+        <Item what="splitCheck" icon="receipt" t1="Split the check"     t2="Snap the receipt, split by who had what" />
+        <Item what="groupStart" icon="nodes"   t1="Start a group order" t2="Everyone adds what they want" />
       </div>
     </div>
   );
