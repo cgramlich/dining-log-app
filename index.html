@@ -886,7 +886,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.307.1";
+const APP_VERSION   = "1.307.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -13829,6 +13829,18 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
             <Icon name="star" size={22} color={fav?"var(--accent)":"#80715f"} />
           </span>
         </div>
+        {/* A warm, obvious Save for new places (the corner Save is easy to miss on
+            a fresh add). Edit mode keeps just the corner Save. */}
+        {!existing ? (
+          <div style={{marginTop:14}}>
+            <button className="btn primary" style={{width:"100%"}} onClick={submit} disabled={!name.trim()}>
+              <Icon name="check" size={18} color="#1b1714" />Save {name.trim() ? "“" + name.trim() + "”" : "this place"} to my places
+            </button>
+            <div className="tiny faint" style={{textAlign:"center", marginTop:6}}>
+              Then log visits, scan the menu, and rate the dishes.
+            </div>
+          </div>
+        ) : null}
         <div style={{height:20}} />
       </div>
     </div>
