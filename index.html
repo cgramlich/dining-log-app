@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.300.0";
+const APP_VERSION   = "1.301.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8538,6 +8538,16 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
   async function shareLocal(){
     const ms = (localMenus || []).filter(m => m && (m.sections || []).length);
     if (!ms.length){ setMsg("No saved menus here to share yet."); return; }
+    // If a same-named menu is already in the community here, confirm before
+    // overwriting your shared copy (so re-sharing isn't a silent no-op).
+    const existing = new Set((list || []).map(cm => (cm.label || "").trim().toLowerCase()));
+    const dupes = ms.filter(m => existing.has((m.label || "Main").trim().toLowerCase()));
+    if (dupes.length){
+      const names = dupes.map(m => m.label || "Main").join(", ");
+      if (!window.confirm(
+        "A community menu already exists here for: " + names + ".\n\n" +
+        "OK = update it with your version.\nCancel = leave the existing one.")) return;
+    }
     setShareBusy(true); setErr(""); setMsg("");
     try {
       let n = 0;
@@ -8550,7 +8560,10 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
         });
         n++;
       }
-      setMsg("Contributed " + n + " menu" + (n>1?"s":"") + ". Thanks for helping the community!");
+      const done = dupes.length ? "Updated your shared menu. Thanks!"
+        : ("Contributed " + n + " menu" + (n>1?"s":"") + ". Thanks for helping the community!");
+      setMsg(done);
+      toast(done);                    // make the confirmation obvious, not just a small line
       if (list !== null) load();
     } catch(e){ setErr("Couldn't share right now. Try again."); }
     setShareBusy(false);
