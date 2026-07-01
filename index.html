@@ -886,7 +886,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.306.0";
+const APP_VERSION   = "1.306.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6536,10 +6536,17 @@ function App(){
                     " visit(s) - those stay in your history but lose their place link.")){
                 return;
               }
+              const savedMenus = menus[r.id];                 // snapshot for undo
               const nextR = restaurants.filter(x => x.id !== r.id);
               const nextM = Object.assign({}, menus); delete nextM[r.id];
               commit({ restaurants:nextR, menus:nextM }, ["restaurants","menus"]);
-              flash("Removed " + (r.name || "place"));
+              flashUndo("Removed " + (r.name || "place"), ()=>{
+                const backR = [r].concat(restaurants.filter(x => x.id !== r.id));
+                const backM = Object.assign({}, menus);
+                if (savedMenus) backM[r.id] = savedMenus; else delete backM[r.id];
+                commit({ restaurants:backR, menus:backM }, ["restaurants","menus"]);
+                flash("Restored " + (r.name || "place"));
+              });
             }}
             onOpen={(r)=> setOverlay({ type:"restaurant", id:r.id })} />
         )}
