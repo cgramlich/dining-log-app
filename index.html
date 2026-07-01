@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.301.2";
+const APP_VERSION   = "1.301.3";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9085,11 +9085,17 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         )}
 
         {r.google_place_id && (
-          <button className="btn ghost" onClick={updateFromGoogle} disabled={enrichBusy} style={{marginTop:8}}>
-            {enrichBusy
-              ? <span className="spin" />
-              : <><Icon name="locate" size={16} color="var(--accent)" />Update from Google</>}
-          </button>
+          (r.g_enriched_at === todayISO()) ? (
+            <button className="btn ghost" disabled style={{marginTop:8, opacity:0.75}}>
+              <Icon name="check" size={16} color="var(--accent)" />Up to date with Google
+            </button>
+          ) : (
+            <button className="btn ghost" onClick={updateFromGoogle} disabled={enrichBusy} style={{marginTop:8}}>
+              {enrichBusy
+                ? <span className="spin" />
+                : <><Icon name="locate" size={16} color="var(--accent)" />Update from Google</>}
+            </button>
+          )
         )}
         {enrichErr ? <div className="tiny faint" style={{marginTop:6}}>{enrichErr}</div> : null}
 
