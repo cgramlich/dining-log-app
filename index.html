@@ -885,7 +885,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.301.1";
+const APP_VERSION   = "1.301.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9060,23 +9060,17 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
 
         {menuList.length === 0 ? (
           <>
-            {/* No menu yet -> the loud next step is getting the menu, not logging. */}
+            {/* No menu yet -> the loud next step is getting the menu. Logging
+                lives once, in the "Done eating?" card at the end of the page. */}
             <button className="btn primary" onClick={onAddMenu} style={{marginTop:4}}>
               <Icon name="camera" size={18} color="#1b1714" /><span>Scan or</span>
               <Icon name="link" size={18} color="#1b1714" /><span>Link a menu</span>
-            </button>
-            <button className="btn ghost" onClick={onLogVisit} style={{marginTop:8}}>
-              <Icon name="plus" size={16} color="var(--accent)" />Log a visit here
             </button>
             <div className="tiny faint" style={{marginTop:8, textAlign:"center", lineHeight:1.6}}>
               All you need is a menu. Snap or upload a photo, or paste a link to an online menu.
             </div>
           </>
-        ) : (
-          <button className="btn primary" onClick={onLogVisit} style={{marginTop:4}}>
-            <Icon name="plus" size={18} color="#1b1714" />Log a visit here
-          </button>
-        )}
+        ) : null}
 
         <button className="btn ghost" onClick={onStartGroup} style={{marginTop:8}}>
           <Icon name="nodes" size={16} color="var(--accent)" />Group order
@@ -9308,7 +9302,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         {/* Close the flow: once you've looked at the menu and ordered, log the
             visit right here instead of hunting for the + button. */}
         <div className="card" style={{marginTop:18, textAlign:"center",
-             background:"rgba(224,118,74,0.07)", border:"1px solid rgba(224,118,74,0.22)"}}>
+             background:"var(--surface-2)", border:"1px solid var(--accent)"}}>
           <div className="small" style={{fontWeight:600, marginBottom:8}}>Done eating?</div>
           <button className="btn primary" onClick={onLogVisit} style={{width:"100%"}}>
             <Icon name="plus" size={18} color="#1b1714" />Log this visit
