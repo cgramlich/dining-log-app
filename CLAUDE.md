@@ -22,7 +22,11 @@ repo (`dining-captain-backend`, FastAPI on Railway).
   is exactly `index.html`.
 - Version: the source of truth is the `APP_VERSION` constant in `index.html` (the
   in-app self-update banner reads it live). Do NOT hardcode the current number in
-  this doc — it drifts. Bump `APP_VERSION` on every user-facing change.
+  this doc — it drifts. Bump on EVERY deploy (so installed users update), following
+  semver: **patch** (third number) for tweaks/fixes — this is MOST changes;
+  **minor** (middle) only for a notable user-facing feature; **major** for a
+  redesign or breaking change. Keep `sw.js` VERSION in lockstep. Never decrease it
+  (`isNewer` needs strictly-greater, so a lower number would stop everyone updating).
 - Backend base URL: `API_BASE_DEFAULT` in `index.html` (~line 840) =
   https://web-production-cbd3b.up.railway.app
 - Sharing: lists/menus publish a static page to the Pages repo (`/l/`,`/m/`).
@@ -35,8 +39,10 @@ repo (`dining-captain-backend`, FastAPI on Railway).
 Installed PWAs cache hard. On load + on a manual "check for updates", the
 app refetches `index.html` with `cache:"no-store"`, regexes out
 `APP_VERSION`, compares, and shows an "update available" banner if newer.
-So bump `APP_VERSION` on EVERY user-facing change or installed users
-silently never update. MAJOR.MINOR.PATCH; minor = feature, patch = fix.
+So bump `APP_VERSION` on EVERY deploy or installed users silently never update.
+MAJOR.MINOR.PATCH — default to a PATCH bump (fixes/tweaks); reserve MINOR for a
+real feature and MAJOR for a redesign. `isNewer` compares all three numbers, so
+a patch bump does trigger the banner. Bump `sw.js` VERSION to match.
 
 ## How Chris works
 - Plain-English feedback. He describes changes conversationally; you read
