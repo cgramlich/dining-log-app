@@ -10189,10 +10189,11 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
   const dismissed = base.filter(r => !(vCount[r.id]||0) && r.try_dismissed).sort(cmp);
   const dedupMatches = ql ? base.slice().sort(cmp).slice(0, 8) : [];   // new-mode "you already have this" hint
 
-  const flagBtn = (label, iconName, fn)=> (
-    <button aria-label={label} title={label} onClick={(e)=>{ e.stopPropagation(); fn(); }}
-      style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:"3px 5px", lineHeight:0}}>
-      <Icon name={iconName} size={16} color="var(--accent)" />
+  const flagBtn = (label, fn, dim)=> (
+    <button onClick={(e)=>{ e.stopPropagation(); fn(); }}
+      style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:"3px 7px",
+        fontSize:12, fontWeight:600, whiteSpace:"nowrap", color: dim ? "var(--text-faint)" : "var(--accent)"}}>
+      {label}
     </button>
   );
   const savedRow = (r)=> {
@@ -10208,9 +10209,9 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
           {(r.cuisine || r.location) ? <div className="tiny faint">{[r.cuisine, r.location].filter(Boolean).join("  ·  ")}</div> : null}
         </div>
         {canFlag && !(r.wishlist && !r.try_dismissed)
-          ? flagBtn("Want to try", "book", ()=> onSetPlaceFlag(r.id, { wishlist:true, try_dismissed:false })) : null}
+          ? flagBtn("Want to try", ()=> onSetPlaceFlag(r.id, { wishlist:true, try_dismissed:false })) : null}
         {canFlag && !r.try_dismissed
-          ? flagBtn("Dismiss", "close", ()=> onSetPlaceFlag(r.id, { try_dismissed:true, wishlist:false })) : null}
+          ? flagBtn("Dismiss", ()=> onSetPlaceFlag(r.id, { try_dismissed:true, wishlist:false }), true) : null}
         <Icon name="chev" size={15} color="var(--text-faint)" />
       </div>
     );
