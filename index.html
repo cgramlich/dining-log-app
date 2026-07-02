@@ -6559,6 +6559,7 @@ function App(){
             onOpenHelp={()=> setOverlay({ type:"help" })}
             onShowInstall={()=> setOverlay({ type:"installHelp" })}
             onFindDuplicates={()=> setOverlay({ type:"duplicates" })}
+            onFeedback={()=> setOverlay({ type:"feedback" })}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             onOpenPassport={()=> setOverlay({ type:"passport" })}
             counts={{
@@ -6699,6 +6700,9 @@ function App(){
           restaurants={restaurants}
           onClose={()=> setOverlay(null)}
           onPick={(id)=> setOverlay({ type:"restaurant", id:id })} />
+      )}
+      {overlay && overlay.type === "feedback" && (
+        <FeedbackForm cfg={config} onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "atPlace" && (
         <AtRestaurantPicker
@@ -12799,6 +12803,75 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
 // The + sheet leads with the two human moments you walk in on - "I'm back"
 // (pull up a saved place) and "Somewhere new" (find it on Google) - both opening
 // the same picker (framed by mode), then the quiet things you do once you're there.
+// Low-friction feedback: pick a category, type, send. Goes to the support inbox
+// (POST /api/feedback) with the app version + the user's email for follow-up.
+function FeedbackForm({ cfg, onClose }){
+  const CATS = ["Bug", "Feature request", "Suggestion", "Other"];
+  const [cat, setCat]   = useState("Suggestion");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr]   = useState("");
+  const chip = (on)=> ({ padding:"6px 12px", borderRadius:999, fontSize:13, fontWeight:600, cursor:"pointer",
+    border:"1px solid "+(on?"var(--accent)":"var(--line)"), background:on?"var(--accent)":"transparent",
+    color:on?"#1b1714":"var(--text-dim)", whiteSpace:"nowrap" });
+  async function send(){
+    const msg = (text || "").trim();
+    if (!msg){ setErr("Add a little about your feedback first."); return; }
+    setBusy(true); setErr("");
+    try {
+      const headers = await authHeaders(cfg); headers["Content-Type"] = "application/json";
+      const res = await fetch(apiBase(cfg) + "/api/feedback", {
+        method:"POST", headers,
+        body: JSON.stringify({ category: cat, message: msg, app_version: APP_VERSION,
+          context: (navigator.userAgent || "").slice(0, 180) }),
+      });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok) throw new Error(data.detail || "Couldn't send right now. Try again.");
+      setSent(true);
+    } catch(e){ setErr(e.message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}>{sent ? "Done" : "Cancel"}</button>
+        <h2>Send feedback</h2>
+        <span style={{width:54}} />
+      </div>
+      <div className="ovbody">
+        {sent ? (
+          <div className="empty" style={{paddingTop:"18vh"}}>
+            <Icon name="check" size={40} color="var(--accent)" />
+            <div className="big" style={{marginTop:12}}>Thanks!</div>
+            <div>Your feedback's on its way &mdash; we read every note.</div>
+            <button className="btn ghost" style={{marginTop:16}} onClick={onClose}>Done</button>
+          </div>
+        ) : (
+          <>
+            <div className="small muted" style={{marginBottom:10}}>
+              Found a bug, want a feature, or have an idea? Tell us &mdash; it goes straight to the team.
+            </div>
+            <div className="row" style={{gap:7, flexWrap:"wrap", marginBottom:10}}>
+              {CATS.map(c => <span key={c} onClick={()=> setCat(c)} style={chip(cat===c)}>{c}</span>)}
+            </div>
+            <textarea className="input" value={text} onChange={e=> setText(e.target.value)}
+              placeholder="What's on your mind?" rows={6} autoFocus
+              style={{minHeight:130, resize:"vertical"}} />
+            {err ? <div className="tiny faint" style={{marginTop:6}}>{err}</div> : null}
+            <button className="btn primary" style={{width:"100%", marginTop:12}} disabled={busy || !text.trim()} onClick={send}>
+              {busy ? <span className="spin" /> : <><Icon name="check" size={18} color="#1b1714" />Send feedback</>}
+            </button>
+            <div className="tiny faint" style={{textAlign:"center", marginTop:8}}>
+              We include your app version and email so we can follow up.
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ActionSheet({onClose, onPick}){
   const Item = ({what, icon, t1, t2})=> (
     <div className="sheet-item" onClick={()=> onPick(what)}>
@@ -20305,7 +20378,7 @@ function ShareInbox({config, onClose, onHome}){
 function SettingsView({config, profile, onProfileChange, onOpenConnections, pendingReqs, onEdit, counts, lastSync, onResync,
                        locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
-                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onFindDuplicates, onOpenYearInFood, onOpenPassport}){
+                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onFindDuplicates, onFeedback, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
   const [theme,setTheme]     = useState(currentTheme());
   const [defTab,setDefTab]   = useState(getDefaultTab);   // which tab the app opens to
@@ -20557,6 +20630,18 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           </div>
         );
       })() : null}
+
+      {onFeedback ? (
+        <div className="card">
+          <div style={{fontWeight:600, marginBottom:6}}>Send feedback</div>
+          <div className="small muted" style={{lineHeight:1.7, marginBottom:12}}>
+            Found a bug, want a feature, or have an idea? Tell us &mdash; it goes straight to the team.
+          </div>
+          <button className="btn ghost sm" onClick={onFeedback}>
+            <Icon name="edit" size={15} color="var(--accent)" />Share feedback
+          </button>
+        </div>
+      ) : null}
 
       <div className="card">
         <div style={{fontWeight:600,marginBottom:6}}>Export your history</div>
