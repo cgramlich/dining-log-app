@@ -5336,7 +5336,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
   ).slice(0, 5);
   // Saved places you haven't logged a visit to yet - the "still to try" nudge.
   const visitedIds = new Set((visits || []).map(v => v && v.restaurant_id).filter(Boolean));
-  const unvisited  = (restaurants || []).filter(r => r && !visitedIds.has(r.id));
+  const unvisited  = (restaurants || []).filter(r => r && !visitedIds.has(r.id) && !r.try_dismissed);
   const greeting = (function(){ const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
   const who = profileName(profile) || "";
   const placeRow = (r, key)=> (
@@ -6707,6 +6707,10 @@ function App(){
       {overlay && overlay.type === "atPlace" && (
         <AtRestaurantPicker
           cfg={config} restaurants={restaurants} visits={visits} mode={overlay.mode || "saved"} initialFilter={overlay.filter}
+          onSetPlaceFlag={(id, patch)=>{
+            commit({ restaurants: restaurants.map(r => r.id===id ? Object.assign({}, r, patch) : r) }, ["restaurants"]);
+            flash(patch.try_dismissed ? "Dismissed" : (patch.wishlist ? "Added to Want to try" : "Updated"));
+          }}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
           onCreateRestaurant={(rec)=>{
             const next = [rec].concat(restaurants);
@@ -10097,7 +10101,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSa
 // The "At a restaurant" entry from the + : one box that answers "which place am
 // I at?" - your saved places surface as you type, a new one is one tap away on
 // Google (deduped), and a manual add is the fallback. New vs saved is one action.
-function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose }){
+function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onSetPlaceFlag, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose }){
   const isNew = mode === "new";   // "Somewhere new" (find / near me) vs "I'm back" (saved)
   const [q, setQ]           = useState("");
   const [gBusy, setGBusy]   = useState(false);
@@ -10180,22 +10184,37 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onO
   };
   const base    = (restaurants || []).filter(matchQ);
   const visited = base.filter(r => (vCount[r.id]||0) > 0).sort(cmp);
-  const wish    = base.filter(r => !(vCount[r.id]||0) && r.wishlist).sort(cmp);
-  const other   = base.filter(r => !(vCount[r.id]||0) && !r.wishlist).sort(cmp);
+  const wish      = base.filter(r => !(vCount[r.id]||0) && r.wishlist && !r.try_dismissed).sort(cmp);
+  const other     = base.filter(r => !(vCount[r.id]||0) && !r.wishlist && !r.try_dismissed).sort(cmp);
+  const dismissed = base.filter(r => !(vCount[r.id]||0) && r.try_dismissed).sort(cmp);
   const dedupMatches = ql ? base.slice().sort(cmp).slice(0, 8) : [];   // new-mode "you already have this" hint
 
-  const savedRow = (r)=> (
-    <div key={r.id} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor:"pointer"}}
-      onClick={()=> onOpenRestaurant(r.id)}>
-      <div style={{flex:1, minWidth:0}}>
-        <div className="small" style={{fontWeight:600}}>
-          {r.favorite ? <span style={{color:"var(--accent)"}}>{"★ "}</span> : null}{r.name}
-        </div>
-        {(r.cuisine || r.location) ? <div className="tiny faint">{[r.cuisine, r.location].filter(Boolean).join("  ·  ")}</div> : null}
-      </div>
-      <Icon name="chev" size={15} color="var(--text-faint)" />
-    </div>
+  const flagBtn = (label, iconName, fn)=> (
+    <button aria-label={label} title={label} onClick={(e)=>{ e.stopPropagation(); fn(); }}
+      style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:"3px 5px", lineHeight:0}}>
+      <Icon name={iconName} size={16} color="var(--accent)" />
+    </button>
   );
+  const savedRow = (r)=> {
+    // Quick triage on unvisited rows: "Want to try" (wishlist) or "Dismiss".
+    const canFlag = !isNew && onSetPlaceFlag && !(vCount[r.id]||0);
+    return (
+      <div key={r.id} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:6, alignItems:"center", cursor:"pointer"}}
+        onClick={()=> onOpenRestaurant(r.id)}>
+        <div style={{flex:1, minWidth:0}}>
+          <div className="small" style={{fontWeight:600}}>
+            {r.favorite ? <span style={{color:"var(--accent)"}}>{"★ "}</span> : null}{r.name}
+          </div>
+          {(r.cuisine || r.location) ? <div className="tiny faint">{[r.cuisine, r.location].filter(Boolean).join("  ·  ")}</div> : null}
+        </div>
+        {canFlag && !(r.wishlist && !r.try_dismissed)
+          ? flagBtn("Want to try", "book", ()=> onSetPlaceFlag(r.id, { wishlist:true, try_dismissed:false })) : null}
+        {canFlag && !r.try_dismissed
+          ? flagBtn("Dismiss", "close", ()=> onSetPlaceFlag(r.id, { try_dismissed:true, wishlist:false })) : null}
+        <Icon name="chev" size={15} color="var(--text-faint)" />
+      </div>
+    );
+  };
   const group = (label, list)=> list.length ? (
     <div className="card" style={{marginTop:8, padding:"4px 0"}}>
       <div className="small muted" style={{padding:"6px 14px"}}>{label}</div>
@@ -10307,7 +10326,8 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onO
               <>
                 {group("Want to try", wish)}
                 {group("Saved, not visited", other)}
-                {(wish.length + other.length) === 0
+                {dismissed.length ? <div style={{opacity:0.6}}>{group("Dismissed", dismissed)}</div> : null}
+                {(wish.length + other.length + dismissed.length) === 0
                   ? <div className="tiny faint" style={{textAlign:"center", margin:"22px 0"}}>You've been to all your places.</div> : null}
               </>
             ) : (
@@ -10315,6 +10335,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onO
                 {group("Been here", visited)}
                 {group("Want to try", wish)}
                 {group("Saved, not visited", other)}
+                {dismissed.length ? <div style={{opacity:0.6}}>{group("Dismissed", dismissed)}</div> : null}
               </>
             )}
           </>
