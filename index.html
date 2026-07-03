@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.320.1";
+const APP_VERSION   = "1.320.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2012,16 +2012,18 @@ A few small labels show up wherever calories appear:
 - **EST** - short for estimated.
 - **9P / 22C / 22F** - grams of protein, carbs, and fat.
 
-Where an estimate came from:
+A small tag also shows where a number came from. From most reliable to least:
 
-- **from a photo** - estimated from a picture of the actual plate.
-- **estimated** - estimated from the menu description (no photo).
-- **per menu** - taken straight from the printed menu.
-- **entered by you** - a number you typed in by hand.
+- **per menu** - the real number printed on the menu. Always the most trustworthy.
+- **your photo** - estimated from a picture you took of the actual plate.
+- **menu photo** - estimated from the restaurant's own photo of the dish (the one
+  that came in when you pulled the menu from the web).
+- **description** - estimated from the dish description alone, no picture. The
+  roughest guess.
+- **edited** - a number you typed in by hand.
 
-A photo of the real plate is treated as a better guess than one from the
-description, which is why the app offers to replace a description-based
-estimate when you add a photo.
+That order is why, when a dish has a real photo, the app leans on it before the
+description, and why you can always redo an estimate from a better source.
 
 -----
 
@@ -5099,9 +5101,15 @@ function Stars({value, size, showNum}){
    Neutral and non-judgmental: a number for memory, never a verdict. */
 function NutriLine({n}){
   if (!n || !n.kcal) return null;
-  const approx = (n.source === "photo_estimate" || n.source === "menu_estimate") ? "~" : "";
-  const tag = n.source === "menu_stated" ? "per menu"
-            : n.source === "manual"      ? "edited"
+  // Trust order (most to least reliable): printed on the menu, your own photo,
+  // the restaurant's photo, an estimate from the description. Estimates carry "~".
+  const estimated = (n.source === "photo_estimate" || n.source === "photo_web" || n.source === "menu_estimate");
+  const approx = estimated ? "~" : "";
+  const tag = n.source === "menu_stated"    ? "per menu"
+            : n.source === "manual"         ? "edited"
+            : n.source === "photo_estimate" ? "your photo"
+            : n.source === "photo_web"      ? "menu photo"
+            : n.source === "menu_estimate"  ? "description"
             : "est";
   const hasMacros = (n.protein_g || 0) + (n.carbs_g || 0) + (n.fat_g || 0) > 0;
   return (
@@ -10380,7 +10388,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
     setItemBusy(b => Object.assign({}, b, { [key]:true }));
     try {
       const est = await estimateItemFromImage(cfg, restaurantName, it);
-      est.source = "photo_estimate";
+      est.source = "photo_web";     // restaurant's photo: below a user's own photo
       est.estimated_at = todayISO();
       onSaveItemNutrition(si, ii, est);
     } catch(err){
