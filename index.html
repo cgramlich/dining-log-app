@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.320.0";
+const APP_VERSION   = "1.320.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10395,9 +10395,19 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
       {cfg && menu && menu.menu_id ? (
         <GroupOrderButton cfg={cfg} menu={menu} restaurantName={restaurantName} />
       ) : null}
-      <input className="input" placeholder="Search this menu..."
-        value={filter} onChange={e=> setFilter(e.target.value)}
-        style={{margin:"4px 0 6px"}} />
+      <div style={{position:"relative", margin:"4px 0 6px"}}>
+        <input className="input" placeholder="Search this menu..."
+          value={filter} onChange={e=> setFilter(e.target.value)}
+          style={{paddingRight: filter ? 34 : undefined}} />
+        {filter && (
+          <button aria-label="Clear search" title="Clear"
+            onClick={()=> setFilter("")}
+            style={{position:"absolute", right:8, top:"50%", transform:"translateY(-50%)",
+                    background:"none", border:"none", padding:4, cursor:"pointer", display:"flex"}}>
+            <Icon name="close" size={15} color="#80715f" />
+          </button>
+        )}
+      </div>
       {onSaveItemTags && (
         <button className="btn ghost sm" style={{marginBottom:6}} onClick={()=> setEditTags(e=> !e)}>
           {editTags ? "Done editing tags" : "Edit dietary tags"}
@@ -10459,11 +10469,26 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                   </div>
                 )}
                 {it.nutrition
-                  ? <div className="mitem-nut">
-                      {it.photo && cfg && (
-                        <div className="mitem-thumb"><PhotoImg cfg={cfg} path={it.photo} /></div>
+                  ? <div>
+                      <div className="mitem-nut">
+                        {it.photo && cfg && (
+                          <div className="mitem-thumb"><PhotoImg cfg={cfg} path={it.photo} /></div>
+                        )}
+                        <NutriLine n={it.nutrition} />
+                      </div>
+                      {canEstimate && (
+                        <div className="iest" style={{marginTop:4, gap:14}}>
+                          {it.web_image && (
+                            <button className="dish-redo" disabled={itemBusy[key]}
+                              onClick={()=> estimateFromPhoto(i, oj, it)}>
+                              {itemBusy[key] ? "Estimating..." : "Redo from photo"}</button>
+                          )}
+                          <button className="dish-redo" disabled={itemBusy[key]}
+                            onClick={()=> estimateOne(i, oj, it)}>
+                            {itemBusy[key] ? "Estimating..." : (it.web_image ? "Redo from description" : "Redo estimate")}</button>
+                          {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
+                        </div>
                       )}
-                      <NutriLine n={it.nutrition} />
                     </div>
                   : canEstimate && (
                       <div className="iest">
