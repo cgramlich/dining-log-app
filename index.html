@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.314.0";
+const APP_VERSION   = "1.314.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5462,7 +5462,7 @@ function earnedBadgeIds({restaurants, visits, menus, lists, meta}){
    wizard: search + quick actions + continue + recents + a dismissible cue.
    ============================================================ */
 function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreateRestaurant,
-                    onNearMe, onScanMenu, onSpin, onOpenSettings, onBrowseAll, onBrowseUnvisited, pendingReqs }){
+                    onNearMe, onScanMenu, onSpin, onOpenSettings, onShareApp, onBrowseAll, onBrowseUnvisited, pendingReqs }){
   const [q, setQ]             = useState("");
   const [gBusy, setGBusy]     = useState(false);
   const [gErr, setGErr]       = useState("");
@@ -5550,15 +5550,23 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
           <div style={{fontFamily:"'Fraunces',serif", fontSize:24, fontWeight:600, color:"var(--text)", lineHeight:1.1}}>MenuCaptain</div>
           <div className="tiny faint" style={{marginTop:2}}>{greeting}{who ? ", " + who : ""}</div>
         </div>
-        <button className="x" aria-label="Settings" title="Settings" onClick={onOpenSettings}
-          style={{position:"relative", flex:"none"}}>
-          <Icon name="gear" size={22} />
-          {pendingReqs > 0 ? (
-            <span style={{position:"absolute", top:-4, right:-6, minWidth:16, height:16, padding:"0 4px",
-              borderRadius:8, background:"var(--danger)", color:"#fff", fontSize:10, fontWeight:700,
-              display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1}}>{pendingReqs}</span>
+        <div className="row" style={{gap:4, flex:"none", alignItems:"center"}}>
+          {onShareApp ? (
+            <button className="x" aria-label="Share MenuCaptain" title="Share MenuCaptain"
+              onClick={onShareApp} style={{flex:"none"}}>
+              <Icon name="share" size={20} color="var(--accent)" />
+            </button>
           ) : null}
-        </button>
+          <button className="x" aria-label="Settings" title="Settings" onClick={onOpenSettings}
+            style={{position:"relative", flex:"none"}}>
+            <Icon name="gear" size={22} />
+            {pendingReqs > 0 ? (
+              <span style={{position:"absolute", top:-4, right:-6, minWidth:16, height:16, padding:"0 4px",
+                borderRadius:8, background:"var(--danger)", color:"#fff", fontSize:10, fontWeight:700,
+                display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1}}>{pendingReqs}</span>
+            ) : null}
+          </button>
+        </div>
       </div>
 
       {/* (1) Find a place - yours or new */}
@@ -6666,6 +6674,7 @@ function App(){
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
             onSpin={()=> setOverlay({ type:"spinPick" })}
             onOpenSettings={()=> setTab("settings")}
+            onShareApp={shareApp}
             onBrowseAll={()=> setTab("restaurants")}
             onBrowseUnvisited={()=> setOverlay({ type:"atPlace", mode:"saved", filter:"unvisited" })} />
         )}
