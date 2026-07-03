@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.313.3";
+const APP_VERSION   = "1.314.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1465,7 +1465,9 @@ tap **Can't decide? Pick for me** at the top and the app chooses one for you,
 with a one-line reason. It weighs your taste - the cuisines and dishes you tend
 to love across all your places - against each spot's rating and how close it is.
 In a brand-new area where it does not know your taste yet, it leans on rating and
-distance and says so. Not feeling the pick? Tap **Pick again**. (This is the
+distance and says so. Want to steer it? Tap a **vibe** - Something light, Quick
+bite, Date night, Cheap eats, Treat myself, or Try something new - and it picks
+with that in mind. Not feeling the pick? Tap **Pick again**. (This is the
 nearby-spots version of the "Can't decide?" spinner further down, which picks
 among the places you have already saved.)
 
@@ -4374,7 +4376,19 @@ function discoveryTaste(restaurants, visits){
 // taste, to a cheap model and get back ONE pick with a one-line why. Reasons
 // over already-fetched data (no extra Google cost); metered as an AI call.
 // Returns the raw text: first line = chosen spot's name, rest = the reason.
-async function pickNearbySpot(cfg, candidates, taste){
+// Optional "vibe" filters for the Can't decide? pick. Each maps a friendly label
+// to a hint the model can honor using the facts it already has (cuisine, price,
+// rating, distance) - no new data needed.
+const NEARME_MOODS = [
+  { key:"light", label:"Something light",   hint:"Favor spots known for lighter fare - salads, bowls, poke, seafood, Mediterranean, cafes - over heavy or fried-food places." },
+  { key:"quick", label:"Quick bite",        hint:"Favor fast-casual spots and cafes, and lean toward the closest ones." },
+  { key:"date",  label:"Date night",        hint:"Favor a well-rated, sit-down restaurant with fuller service over fast food or counter-service." },
+  { key:"cheap", label:"Cheap eats",        hint:"Favor the lower-priced spots." },
+  { key:"treat", label:"Treat myself",      hint:"Favor a higher-end, top-rated spot; price is not a concern." },
+  { key:"new",   label:"Try something new", hint:"Favor a cuisine different from the ones they usually go for." },
+];
+
+async function pickNearbySpot(cfg, candidates, taste, mood){
   const lines = candidates.map((c,i)=>{
     const bits = [ (i+1) + ". " + c.name ];
     if (c.cuisine) bits.push("(" + c.cuisine + ")");
@@ -4399,6 +4413,10 @@ async function pickNearbySpot(cfg, candidates, taste){
     "it doesn't.\n" +
     "- Use ONLY the facts given. Never invent a cuisine, rating, distance, or dish.\n\n" +
     (tasteStr ? ("THEIR TASTE:\n" + tasteStr + "\n") : "THEIR TASTE: not much history yet - lean on rating and distance.\n\n") +
+    (mood && mood.hint
+      ? ("THE VIBE THEY ASKED FOR: " + mood.label + ". " + mood.hint +
+         " Give this real weight, and name the vibe in your reason. If nothing fits it well, pick the closest match and say so honestly.\n\n")
+      : "") +
     "NEARBY SPOTS:\n" + lines;
   const res = await fetch(apiBase(cfg) + "/api/ai/relay", {
     method:"POST",
@@ -12522,9 +12540,10 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
   const [searchQ, setSearchQ]       = useState("");       // "search a restaurant near me" box
   const [searchMode, setSearchMode] = useState(false);    // current results came from a text search
   // "Can't decide?" - a taste-aware pick over the spots already fetched.
-  const [pick, setPick]       = useState(null);   // null | "" | { place, name, reason }
+  const [pick, setPick]       = useState(null);   // null | "" | { place, name, reason, mood }
   const [pickBusy, setPickBusy] = useState(false);
   const [pickErr, setPickErr] = useState(null);
+  const [pickMood, setPickMood] = useState("");   // active "vibe" key, "" = surprise me
   // Client-side refine of the fetched results (no new Google call): min-rating,
   // price level, hide-already-saved, and sort. Base list is distance-sorted.
   const shown = (function(){
@@ -12662,9 +12681,11 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
   useEffect(function(){ setPick(null); setPickErr(null); }, [results]);  // eslint-disable-line
 
   // "Can't decide?" - ask the model to choose one of the spots on screen.
-  async function runPick(){
+  async function runPick(moodKey){
     if (!shown.length) return;
     if (!configComplete(cfg)){ setPickErr("Set up your account in Settings to use this."); return; }
+    const activeMood = (moodKey !== undefined) ? moodKey : pickMood;
+    const moodObj = activeMood ? (NEARME_MOODS.find(m => m.key === activeMood) || null) : null;
     setPickErr(null); setPickBusy(true);
     try {
       const cand = shown.slice(0, 15).map(p => ({
@@ -12675,7 +12696,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
         price: priceLevelToDollars(p.price_level) || "",
         distMi: (typeof p._dist === "number") ? p._dist : null,
       }));
-      const text = await pickNearbySpot(cfg, cand, discoveryTaste(restaurants, visits));
+      const text = await pickNearbySpot(cfg, cand, discoveryTaste(restaurants, visits), moodObj);
       const parts = text.split("\n").map(s => s.trim()).filter(Boolean);
       const first = parts[0] || "";
       const reason = (parts.slice(1).join(" ").trim()) || first;
@@ -12683,7 +12704,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
       const nf = norm(first);
       const match = shown.find(p => norm(p.name) === nf)
                  || shown.find(p => nf && (nf.indexOf(norm(p.name)) !== -1 || norm(p.name).indexOf(nf) !== -1));
-      setPick({ place: match || null, name: match ? match.name : first, reason: reason });
+      setPick({ place: match || null, name: match ? match.name : first, reason: reason, mood: activeMood });
     } catch(err){
       if (err.status === 402){ setLimitMsg(err.message || ""); setLimitHit(true); }
       setPickErr(err.message || "Couldn't pick right now.");
@@ -12991,17 +13012,29 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
           {!loading && view === "list" && shown.length >= 2 && (
             <div style={{margin:"8px 14px 2px"}}>
               {!pick && (
-                <button className="btn ghost" style={{width:"100%"}} disabled={pickBusy} onClick={runPick}>
-                  {pickBusy
-                    ? <span className="spin" />
-                    : <Icon name="sparkle" size={15} color="var(--accent)" />}
-                  {pickBusy ? " Thinking…" : " Can't decide? Pick for me"}
-                </button>
+                <>
+                  <button className="btn ghost" style={{width:"100%"}} disabled={pickBusy}
+                    onClick={()=>{ setPickMood(""); runPick(""); }}>
+                    {pickBusy
+                      ? <span className="spin" />
+                      : <Icon name="sparkle" size={15} color="var(--accent)" />}
+                    {pickBusy ? " Thinking…" : " Can't decide? Pick for me"}
+                  </button>
+                  <div className="tiny faint" style={{margin:"9px 0 5px"}}>&hellip;or pick a vibe</div>
+                  <div className="chips" style={{marginTop:0}}>
+                    {NEARME_MOODS.map(m => (
+                      <span key={m.key} className="chip pick"
+                        onClick={()=>{ if (pickBusy) return; setPickMood(m.key); runPick(m.key); }}>{m.label}</span>
+                    ))}
+                  </div>
+                </>
               )}
               {pickErr && <div className="tiny" style={{color:"#e7a99e", marginTop:6}}>{pickErr}</div>}
               {pick && (
                 <div className="card" style={{padding:"12px 14px"}}>
-                  <div className="tiny faint" style={{marginBottom:4}}>Can't decide? Try</div>
+                  <div className="tiny faint" style={{marginBottom:4}}>
+                    Can't decide? Try{pick.mood ? " · " + ((NEARME_MOODS.find(x=>x.key===pick.mood)||{}).label || "") : ""}
+                  </div>
                   <div style={{fontWeight:800, fontSize:16, marginBottom:4}}>{pick.name}</div>
                   <div className="small" style={{marginBottom:10, lineHeight:1.45}}>{pick.reason}</div>
                   <div className="row" style={{gap:8, flexWrap:"wrap"}}>
@@ -13011,10 +13044,16 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
                         if (hp) onOpenRestaurant(hp.id); else openDetails(pick.place.place_id);
                       }}>See it</button>
                     )}
-                    <button className="btn ghost sm" disabled={pickBusy} onClick={runPick}>
+                    <button className="btn ghost sm" disabled={pickBusy} onClick={()=> runPick(pick.mood || "")}>
                       {pickBusy ? <span className="spin" /> : "Pick again"}
                     </button>
                     <button className="btn ghost sm" onClick={()=> setPick(null)}>Dismiss</button>
+                  </div>
+                  <div className="chips" style={{marginTop:10}}>
+                    {NEARME_MOODS.map(m => (
+                      <span key={m.key} className={"chip pick" + (pick.mood === m.key ? " on" : "")}
+                        onClick={()=>{ if (pickBusy) return; setPickMood(m.key); runPick(m.key); }}>{m.label}</span>
+                    ))}
                   </div>
                 </div>
               )}
