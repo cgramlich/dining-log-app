@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.315.1";
+const APP_VERSION   = "1.315.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -989,7 +989,16 @@ async function fetchMenuText(cfg, url){
     method:"POST", headers, body:JSON.stringify({ url }),
   });
   const data = await res.json().catch(()=> ({}));
-  if (!res.ok) throw new Error(data.detail || ("Couldn't read that link (" + res.status + ")"));
+  if (!res.ok){
+    const det = data && data.detail;
+    const msg = (det && typeof det === "object")
+      ? (det.message || "Couldn't read that link")
+      : (det || ("Couldn't read that link (" + res.status + ")"));
+    const dg  = (det && typeof det === "object" && det.diag) ? det.diag : "";
+    if (dg) logMsg("WEBMENU", "fetch " + res.status + " diag=" + dg);   // owner-only Diagnostics
+    throw new Error(msg);
+  }
+  if (data.diag) logMsg("WEBMENU", "fetch ok diag=" + data.diag);
   return data;
 }
 
@@ -16211,8 +16220,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       const parsed  = await digitizeMenuFromText(config, fetched.text);
       attachWebImages(parsed, fetched.images);   // restaurant's own dish photos
       if (!parsed.sections.length){
-        const d = fetched.diag ? " [" + fetched.diag + "]" : "";
-        throw new Error("No menu on that page" + d + " - homepages and contact pages usually don't have one. Try the restaurant's menu/order page, or scan the menu (most reliable).");
+        if (fetched.diag) logMsg("WEBMENU", "no menu, diag=" + fetched.diag);   // owner-only Diagnostics
+        throw new Error("No menu on that page - homepages and contact pages usually don't have one. Try the restaurant's menu/order page, or scan the menu (most reliable).");
       }
       parsed.captured_date = todayISO();
       parsed.last_updated  = todayISO();
