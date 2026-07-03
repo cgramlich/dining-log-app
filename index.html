@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.320.2";
+const APP_VERSION   = "1.320.3";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10489,11 +10489,11 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                           {it.web_image && (
                             <button className="dish-redo" disabled={itemBusy[key]}
                               onClick={()=> estimateFromPhoto(i, oj, it)}>
-                              {itemBusy[key] ? "Estimating..." : "Redo from photo"}</button>
+                              {itemBusy[key] ? "Estimating..." : "New estimate from photo"}</button>
                           )}
                           <button className="dish-redo" disabled={itemBusy[key]}
                             onClick={()=> estimateOne(i, oj, it)}>
-                            {itemBusy[key] ? "Estimating..." : (it.web_image ? "Redo from description" : "Redo estimate")}</button>
+                            {itemBusy[key] ? "Estimating..." : (it.web_image ? "New estimate from description" : "New estimate")}</button>
                           {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
                         </div>
                       )}
