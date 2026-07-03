@@ -181,6 +181,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     .dish-row-name{flex:1; min-width:0; font-size:14px; color:var(--text); word-break:break-word;}
     .dish-verdict{display:flex; gap:5px; flex:none;}
+    .dish-note-line{display:flex; align-items:center; gap:5px; margin-top:4px;
+      font-size:12.5px; color:#bcc79c; cursor:pointer; word-break:break-word;}
+    .dish-note-line span{flex:1; min-width:0;}
     .verdict-btn{
       font-size:11px; padding:5px 11px; border-radius:999px;
       border:1px solid var(--line); background:transparent; color:var(--text-dim);
@@ -223,9 +226,15 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .ask-go{width:auto; padding:8px 16px;}
     .ask-err{margin-top:10px; padding:9px 11px; border-radius:9px; font-size:13px;
       background:rgba(217,96,78,0.1); border:1px solid rgba(217,96,78,0.4); color:#eab0a6;}
-    .ask-answer{margin-top:12px; padding:12px 13px; border-radius:10px;
+    .ask-answer{position:relative; margin-top:12px; padding:12px 13px; border-radius:10px;
       background:rgba(224,118,74,0.08); border:1px solid rgba(224,118,74,0.22);
       color:var(--text); font-size:14px; line-height:1.5;}
+    .ask-answer.closable{padding-right:34px;}
+    .ask-answer-x{position:absolute; top:6px; right:6px; width:26px; height:26px;
+      display:flex; align-items:center; justify-content:center; border:none;
+      border-radius:8px; background:transparent; color:#80715f; cursor:pointer;
+      -webkit-tap-highlight-color:transparent;}
+    .ask-answer-x:active{transform:scale(0.9); background:rgba(255,255,255,0.06);}
     /* Rendered AI text (light markdown -> real formatting, no raw ** or ##) */
     .aimd > :first-child{margin-top:0;}
     .aimd p{margin:8px 0 0;}
@@ -886,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.307.3";
+const APP_VERSION   = "1.313.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -971,7 +980,8 @@ async function communityShareMenu(cfg, payload){
   return data;
 }
 // Fetch a menu web page to clean text (server-side, SSRF-guarded). Returns
-// { text, final_url, title }. Throws with a helpful message on PDF/image/etc.
+// { text, final_url, title }. Reads text-based PDFs too; throws a helpful
+// message on scanned/image PDFs and image links (scan those instead).
 async function fetchMenuText(cfg, url){
   const headers = await authHeaders(cfg);
   headers["Content-Type"] = "application/json";
@@ -4152,7 +4162,7 @@ function dishHistory(visits){
 
 // Ask Claude to recommend from THIS menu. `question` may be a question, a
 // command ("give me something healthy"), or a mood ("craving something rich").
-async function askMenu(cfg, restaurant, menu, visits, question){
+async function askMenu(cfg, restaurant, menu, visits, question, allVisits){
   const rName    = (restaurant && restaurant.name) ? restaurant.name : "this restaurant";
   const menuText = menuToText(menu);
   const hist     = dishHistory(visits);
@@ -4168,6 +4178,23 @@ async function askMenu(cfg, restaurant, menu, visits, question){
     })
     .slice(0, 12);
   const hasHist  = histRanked.length > 0;
+
+  // Cross-place taste profile: what they love / avoid across ALL their other
+  // restaurants. A broad palate hint - most useful at a place they have little
+  // or no history with. Exclude dishes already covered by the local history so
+  // this section adds breadth rather than repeating what's above. Names only,
+  // to keep the token cost tiny.
+  const localNames = new Set(histRanked.map(d => (d.name || "").trim().toLowerCase()));
+  const allHist    = dishHistory((allVisits && allVisits.length) ? allVisits : visits);
+  const profLoved  = (allHist.detail || [])
+    .filter(d => verdictPositive(d.verdict) && !localNames.has((d.name || "").trim().toLowerCase()))
+    .sort((a,b)=> b.count - a.count)
+    .slice(0, 10).map(d => d.name);
+  const profDisliked = (allHist.detail || [])
+    .filter(d => d.verdict === "skip" && !localNames.has((d.name || "").trim().toLowerCase()))
+    .sort((a,b)=> b.count - a.count)
+    .slice(0, 6).map(d => d.name);
+  const hasProfile = (profLoved.length + profDisliked.length) >= 3;
 
   let prompt =
     "You are a warm, knowledgeable dining companion helping someone decide what "+
@@ -4224,12 +4251,23 @@ async function askMenu(cfg, restaurant, menu, visits, question){
       "prices they have paid above are stronger evidence than the menu's price.\n";
   }
 
+  if (hasProfile){
+    prompt +=
+      "- Broader taste, from dishes they have ordered at OTHER restaurants (use "+
+      "only as a gentle background read on their palate - most helpful when they "+
+      "have little history at this place. Never override what they actually asked "+
+      "for, and never claim a dish here is the same as one they had elsewhere):\n";
+    if (profLoved.length)    prompt += "    Tends to enjoy: " + profLoved.join(", ") + "\n";
+    if (profDisliked.length) prompt += "    Tends to avoid: " + profDisliked.join(", ") + "\n";
+  }
+
   prompt +=
     "\nMENU:\n" + menuText +
     "\n\nTHE DINER SAYS: \"" + question + "\"";
 
   logMsg("ASK","Asking " + ASK_MODEL + " (menu " + menuText.length +
          " chars, history=" + (hasHist ? "yes" : "none") +
+         ", taste=" + (hasProfile ? (profLoved.length + "+" + profDisliked.length) : "none") +
          ", calorie-aware=" + (/\bcal\]/.test(menuText) || /cal;/.test(menuText) ? "yes" : "none") + ")");
   let res;
   try {
@@ -4267,6 +4305,82 @@ async function askMenu(cfg, restaurant, menu, visits, question){
     .filter(b => b.type === "text").map(b => b.text).join("\n").trim();
   logMsg("ASK","Received answer (" + text.length + " chars)");
   if (!text) throw new Error("The model returned an empty answer. Try rephrasing.");
+  return text;
+}
+
+// A compact taste read for Discovery: the cuisines a diner gravitates to (from
+// the places they've saved / visited / favorited) plus a few dishes they've
+// loved. Feeds the "Can't decide?" pick so a nearby suggestion reflects real
+// taste instead of just rating and distance.
+function discoveryTaste(restaurants, visits){
+  const vc = {};
+  (visits || []).forEach(v => { if (v && v.restaurant_id) vc[v.restaurant_id] = (vc[v.restaurant_id] || 0) + 1; });
+  const score = {};
+  (restaurants || []).forEach(r => {
+    if (!r) return;
+    const c = normalizeCuisine(r.cuisine || "");
+    if (!c) return;
+    let s = 1 + (vc[r.id] || 0) * 2;      // saved counts; visits count more
+    if (r.favorite) s += 3;
+    score[c] = (score[c] || 0) + s;
+  });
+  const cuisines = Object.keys(score).sort((a,b)=> score[b] - score[a]).slice(0, 5);
+  const loved = ((dishHistory(visits) || {}).loved || []).slice(0, 8);
+  return { cuisines, loved };
+}
+
+// "Can't decide?" - hand the nearby spots the diner already pulled, plus their
+// taste, to a cheap model and get back ONE pick with a one-line why. Reasons
+// over already-fetched data (no extra Google cost); metered as an AI call.
+// Returns the raw text: first line = chosen spot's name, rest = the reason.
+async function pickNearbySpot(cfg, candidates, taste){
+  const lines = candidates.map((c,i)=>{
+    const bits = [ (i+1) + ". " + c.name ];
+    if (c.cuisine) bits.push("(" + c.cuisine + ")");
+    if (c.rating != null) bits.push(c.rating + "*" + (c.rating_count != null ? " (" + c.rating_count + ")" : ""));
+    if (c.price) bits.push(c.price);
+    if (c.distMi != null) bits.push(c.distMi.toFixed(1) + " mi");
+    return bits.join(" - ");
+  }).join("\n");
+  let tasteStr = "";
+  if (taste && taste.cuisines && taste.cuisines.length) tasteStr += "Cuisines they gravitate to: " + taste.cuisines.join(", ") + ".\n";
+  if (taste && taste.loved && taste.loved.length)       tasteStr += "Dishes they've loved elsewhere: " + taste.loved.join(", ") + ".\n";
+  const prompt =
+    "A diner near these spots can't decide where to eat right now. Pick the ONE " +
+    "they'd most enjoy.\n\n" +
+    "Rules:\n" +
+    "- Choose exactly one spot from the list below.\n" +
+    "- FIRST line of your reply: that spot's EXACT name, nothing else.\n" +
+    "- SECOND line: one warm sentence on why - weave in their taste when it " +
+    "genuinely fits, plus the rating and how close it is.\n" +
+    "- If their taste doesn't clearly match anything, pick a strong nearby bet " +
+    "(well rated and close) and say so plainly. Don't pretend it matches a taste " +
+    "it doesn't.\n" +
+    "- Use ONLY the facts given. Never invent a cuisine, rating, distance, or dish.\n\n" +
+    (tasteStr ? ("THEIR TASTE:\n" + tasteStr + "\n") : "THEIR TASTE: not much history yet - lean on rating and distance.\n\n") +
+    "NEARBY SPOTS:\n" + lines;
+  const res = await fetch(apiBase(cfg) + "/api/ai/relay", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body:JSON.stringify({
+      task:"help_me_order",           // reuse the metered text task; no backend change
+      model:ASK_MODEL,
+      max_tokens:220,
+      messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
+    }),
+  });
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    let detail = ""; try { detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
+    const err = new Error(detail || (res.status === 402
+      ? "You’ve reached this month’s AI usage limit."
+      : ("Couldn't pick right now (" + res.status + ")")));
+    err.status = res.status;
+    throw err;
+  }
+  const json = await res.json();
+  const text = (json.content || []).filter(b => b.type === "text").map(b => b.text).join("\n").trim();
+  if (!text) throw new Error("The model didn't return a pick. Try again.");
   return text;
 }
 
@@ -4628,6 +4742,7 @@ function Icon({name, size, color}){
     edit:    <g><path d="M4 20h4L19 9l-4-4L4 16Z"/><path d="M14 6l4 4"/></g>,
     check:   <path d="M5 12l5 5L20 6"/>,
     copy:    <g><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></g>,
+    note:    <g><path d="M5 4h14v11l-4 5H5Z"/><path d="M15 20v-5h4"/><path d="M8.5 9h7M8.5 12.5h4"/></g>,
     back:    <path d="M15 6l-6 6 6 6"/>,
     image:   <g><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M4 17l5-4 4 3 4-4 4 4"/></g>,
     close:   <g><path d="M6 6l12 12M18 6 6 18"/></g>,
@@ -4837,6 +4952,23 @@ function dishKcalApprox(d){
 /* DishTotal - sums the per-dish estimates on a visit into one calm line.
    Shown only when 2+ dishes are estimated (a single dish's total just
    repeats the chip). Informative, never a budget: no colors, no verdicts. */
+// Read-only list of per-dish notes (substitutions, special requests) for the
+// visit views, so a note you added at log time is visible later, not write-only.
+function DishNotes({ dishes }){
+  const withNotes = (dishes || []).filter(d => d && d.note);
+  if (!withNotes.length) return null;
+  return (
+    <div style={{marginTop:6}}>
+      {withNotes.map((d,i)=>(
+        <div key={i} className="dish-note-line" style={{cursor:"default"}}>
+          <Icon name="note" size={12} color="#9aa877" />
+          <span><strong>{d.name}:</strong> {d.note}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DishTotal({dishes, min}){
   const floor = min || 2;
   const est = (dishes || []).filter(d => d && d.nutrition && d.nutrition.kcal);
@@ -6690,6 +6822,7 @@ function App(){
         <NearMeView
           cfg={config}
           restaurants={restaurants}
+          visits={visits}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
           onAddPlace={(prefill)=> setOverlay({ type:"addRestaurant", prefill:prefill })}
           onUpgrade={()=>{ setOverlay(null); setTab("settings"); }}
@@ -6901,6 +7034,7 @@ function App(){
           restaurant={restaurantById(overlay.restaurantId)}
           menu={(menus[overlay.restaurantId] || []).find(m => m.menu_id === overlay.menuId)}
           visits={visitsFor(overlay.restaurantId)}
+          allVisits={visits}
           cfg={config}
           onClose={()=> setOverlay({ type:"restaurant", id:overlay.restaurantId })}
           onReScan={()=> setOverlay({
@@ -7959,6 +8093,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
                 ))}
               </div>
             )}
+            <DishNotes dishes={v.dishes} />
             <DishTotal dishes={v.dishes} />
             <NutriLine n={v.nutrition} />
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
@@ -9456,6 +9591,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   ))}
                 </div>
               )}
+              <DishNotes dishes={v.dishes} />
               <DishTotal dishes={v.dishes} />
               <NutriLine n={v.nutrition} />
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
@@ -9591,6 +9727,22 @@ function aiInline(text){
   if (last < text.length) out.push(text.slice(last));
   return out;
 }
+// Wraps any AI answer so it can be dismissed. Pass onClose to show the "x";
+// keeps every AI response box closable/collapsible with one consistent control.
+function AiAnswer({ onClose, children }){
+  return (
+    <div className={"ask-answer" + (onClose ? " closable" : "")}>
+      {onClose && (
+        <button type="button" className="ask-answer-x" onClick={onClose}
+          title="Close" aria-label="Close answer">
+          <Icon name="close" size={13} color="#80715f" />
+        </button>
+      )}
+      {children}
+    </div>
+  );
+}
+
 function AiText({ text }){
   const lines = String(text || "").replace(/\r/g, "").split("\n");
   const blocks = [];
@@ -9633,7 +9785,7 @@ function AiText({ text }){
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onRenameMenu, onSaveItemTags, onHome}){
+function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onRenameMenu, onSaveItemTags, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
@@ -9654,6 +9806,21 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
   const _dh = dishHistory(visits);
   const hasHistory = _dh.loved.length > 0 || _dh.disliked.length > 0;
 
+  // Real photos of a dish, keyed by lowercased dish name, from THIS place's
+  // visits (a photo you snapped when logging). Feeds the menu-first photo tier:
+  // your own shot of a dish beats a generic web image. Menu items also carry
+  // their own `photo`; MenuView merges both.
+  const dishPhotos = (function(){
+    const m = {};
+    (visits || []).forEach(v => (v.dishes || []).forEach(d => {
+      if (d && d.name && d.photo){
+        const k = d.name.trim().toLowerCase();
+        (m[k] = m[k] || []).push(d.photo);
+      }
+    }));
+    return m;
+  })();
+
   async function runAsk(override){
     const q = ((override != null ? override : askInput) || "").trim();
     if (!q) return;
@@ -9661,7 +9828,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
     if (!hasKey){ setAskErr("Set up your account in Settings first."); return; }
     setAsking(true); setAskErr(null); setAnswer(null);
     try {
-      const a = await askMenu(cfg, restaurant, menu, visits, q);
+      const a = await askMenu(cfg, restaurant, menu, visits, q, allVisits);
       setAnswer(a);
     } catch(err){
       setAskErr(err.message || "Something went wrong. Try again.");
@@ -9831,9 +9998,9 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
           )}
           {askErr && <div className="ask-err">{askErr}</div>}
           {answer && (
-            <div className="ask-answer">
+            <AiAnswer onClose={()=> setAnswer(null)}>
               <AiText text={answer} />
-            </div>
+            </AiAnswer>
           )}
         </div>
 
@@ -9886,15 +10053,16 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
           )}
           {explainErr && <div className="ask-err">{explainErr}</div>}
           {explanation && (
-            <div className="ask-answer">
+            <AiAnswer onClose={()=> setExplanation(null)}>
               <AiText text={explanation} />
-            </div>
+            </AiAnswer>
           )}
         </div>
 
         <MenuView menu={menu} cfg={cfg}
           restaurantName={restaurant ? restaurant.name : ""}
           cuisine={restaurant ? restaurant.cuisine : ""}
+          dishPhotos={dishPhotos}
           onSaveItemNutrition={onSaveItemNutrition}
           onSaveItemTags={onSaveItemTags} />
         <div style={{height:20}} />
@@ -9906,7 +10074,7 @@ function MenuDetail({restaurant, menu, visits, cfg, onClose, onReScan, onDeleteM
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSaveItemTags}){
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemTags}){
   const [open, setOpen]   = useState(()=> {
     const o = {}; (menu.sections||[]).forEach((s,i)=> { o[i] = i < 2; }); return o;
   });
@@ -9917,6 +10085,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSa
   const [imgBusy, setImgBusy]   = useState({});    // "si:ii" -> bool (photo search)
   const [imgErr,  setImgErr]    = useState({});    // "si:ii" -> message
   const [imgRes,  setImgRes]    = useState({});    // "si:ii" -> [{thumb,full,source,title}] | "none"
+  const [photoOpen, setPhotoOpen] = useState({});  // "si:ii" -> bool (photo area open)
   const q = filter.trim().toLowerCase();
   const canEstimate = !!(cfg && onSaveItemNutrition);
 
@@ -9994,6 +10163,15 @@ function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSa
           </div>
           {(open[i] || q) && items.map(({it,oj})=>{
             const key = i + ":" + oj;
+            // Menu-first photos: a real shot of THIS dish (the item's own photo,
+            // plus any you snapped in a visit here) ranks ahead of web images.
+            const realPhotos = (function(){
+              const out = [], seen = new Set();
+              const add = p => { if (p && !seen.has(p)){ seen.add(p); out.push(p); } };
+              add(it.photo);
+              ((dishPhotos || {})[(it.name || "").trim().toLowerCase()] || []).forEach(add);
+              return out;
+            })();
             return (
               <div key={oj} className="mitem">
                 <div className="ihead">
@@ -10046,44 +10224,74 @@ function MenuView({menu, cfg, restaurantName, cuisine, onSaveItemNutrition, onSa
                       </div>
                     )}
 
-                {/* See real photos of this dish from the web (Pro) */}
-                {cfg && !imgRes[key] && (
+                {/* Menu-first photos: your real shot of THIS dish shows first;
+                    web look-alikes are an explicit, clearly-labeled fallback. */}
+                {cfg && !photoOpen[key] && (
                   <div className="iest" style={{marginTop:6}}>
                     <button className="iest-btn" disabled={imgBusy[key]}
-                      onClick={()=> findPhotos(i, oj, it)}>
-                      {imgBusy[key]
-                        ? <span className="spin" />
-                        : <Icon name="image" size={12} color="var(--accent)" />}
-                      {imgBusy[key] ? "Finding photos..." : "See photos"}
+                      onClick={()=>{
+                        setPhotoOpen(o=> Object.assign({}, o, { [key]:true }));
+                        if (!realPhotos.length) findPhotos(i, oj, it);   // no real photo -> straight to web
+                      }}>
+                      <Icon name="image" size={12} color="var(--accent)" />See photos
                     </button>
                     {imgErr[key] && <span className="iest-err">{imgErr[key]}</span>}
                   </div>
                 )}
-                {Array.isArray(imgRes[key]) && (
+                {cfg && photoOpen[key] && (
                   <div style={{marginTop:8}}>
-                    <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
-                      {imgRes[key].map((im,k)=>(
-                        <a key={k} href={im.source} target="_blank" rel="noopener noreferrer"
-                           title={im.title || it.name}
-                           style={{flex:"none", width:96, height:96, borderRadius:10, overflow:"hidden",
-                                   border:"1px solid var(--line-soft)", background:"var(--surface-2)"}}>
-                          <img src={im.thumb} alt={im.title || it.name} loading="lazy"
-                               style={{width:"100%", height:"100%", objectFit:"cover"}} />
-                        </a>
-                      ))}
-                    </div>
-                    <div className="row between" style={{marginTop:4}}>
-                      <span className="tiny faint">Photos from the web · tap to open the source</span>
+                    {realPhotos.length > 0 && (
+                      <div style={{marginBottom: Array.isArray(imgRes[key]) ? 10 : 6}}>
+                        <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
+                          {realPhotos.map((p,k)=>(
+                            <div key={k} style={{flex:"none", width:110, height:110, borderRadius:10,
+                                 overflow:"hidden", border:"1px solid var(--line-soft)", background:"var(--surface-2)"}}>
+                              <PhotoImg cfg={cfg} path={p}
+                                style={{width:"100%", height:"100%", objectFit:"cover"}} />
+                            </div>
+                          ))}
+                        </div>
+                        <span className="tiny faint">
+                          Your photo{realPhotos.length > 1 ? "s" : ""} of this dish
+                        </span>
+                      </div>
+                    )}
+                    {imgBusy[key] && (
+                      <div className="tiny faint"><span className="spin" /> Finding photos&hellip;</div>
+                    )}
+                    {imgErr[key] && <span className="iest-err">{imgErr[key]}</span>}
+                    {Array.isArray(imgRes[key]) && (
+                      <div>
+                        <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
+                          {imgRes[key].map((im,k)=>(
+                            <a key={k} href={im.source} target="_blank" rel="noopener noreferrer"
+                               title={im.title || it.name}
+                               style={{flex:"none", width:96, height:96, borderRadius:10, overflow:"hidden",
+                                       border:"1px solid var(--line-soft)", background:"var(--surface-2)"}}>
+                              <img src={im.thumb} alt={im.title || it.name} loading="lazy"
+                                   style={{width:"100%", height:"100%", objectFit:"cover"}} />
+                            </a>
+                          ))}
+                        </div>
+                        <span className="tiny faint">
+                          Similar from the web &middot; not this exact dish, tap to open the source
+                        </span>
+                      </div>
+                    )}
+                    {imgRes[key] === "none" && (
+                      <div className="tiny faint" style={{marginTop:2}}>No web photos found for this dish.</div>
+                    )}
+                    <div className="row" style={{gap:10, marginTop:8, alignItems:"center"}}>
+                      {realPhotos.length > 0 && !imgRes[key] && !imgBusy[key] && (
+                        <button className="btn ghost sm" style={{flex:"none"}}
+                          onClick={()=> findPhotos(i, oj, it)}>See similar from the web</button>
+                      )}
                       <button className="btn ghost sm" style={{flex:"none"}}
-                        onClick={()=> setImgRes(r=>{ const n=Object.assign({},r); delete n[key]; return n; })}>Hide</button>
+                        onClick={()=>{
+                          setPhotoOpen(o=>{ const n=Object.assign({},o); delete n[key]; return n; });
+                          setImgRes(r=>{ const n=Object.assign({},r); delete n[key]; return n; });
+                        }}>Hide</button>
                     </div>
-                  </div>
-                )}
-                {imgRes[key] === "none" && (
-                  <div className="row between" style={{marginTop:6}}>
-                    <span className="tiny faint">No photos found for this dish.</span>
-                    <button className="btn ghost sm" style={{flex:"none"}}
-                      onClick={()=> setImgRes(r=>{ const n=Object.assign({},r); delete n[key]; return n; })}>Dismiss</button>
                   </div>
                 )}
               </div>
@@ -12236,7 +12444,7 @@ function NearbyMap({ user, results, onOpen, searchCenter, onSearchArea }){
 
 function loadNearMePrefs(){ try { return JSON.parse(localStorage.getItem("dininglog_nearme_prefs") || "{}") || {}; } catch(e){ return {}; } }
 function saveNearMePrefs(p){ try { localStorage.setItem("dininglog_nearme_prefs", JSON.stringify(p)); } catch(e){} }
-function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade, onClose }){
+function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, onUpgrade, onClose }){
   // Discovery is now metered, not hard-gated: free users get a taste, so we
   // show the search UI to everyone and only flip to the upsell after a real
   // limit (402). tier still loads (for copy/labels); null = still loading.
@@ -12272,6 +12480,10 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
   const [hideSaved, setHideSaved]   = useState(false);    // hide places already in my list
   const [searchQ, setSearchQ]       = useState("");       // "search a restaurant near me" box
   const [searchMode, setSearchMode] = useState(false);    // current results came from a text search
+  // "Can't decide?" - a taste-aware pick over the spots already fetched.
+  const [pick, setPick]       = useState(null);   // null | "" | { place, name, reason }
+  const [pickBusy, setPickBusy] = useState(false);
+  const [pickErr, setPickErr] = useState(null);
   // Client-side refine of the fetched results (no new Google call): min-rating,
   // price level, hide-already-saved, and sort. Base list is distance-sorted.
   const shown = (function(){
@@ -12404,6 +12616,40 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
     }
   }
   function clearTextSearch(){ setSearchQ(""); setSearchMode(false); setResults([]); setFetchedAt(null); }
+
+  // A fresh search invalidates any prior "Can't decide?" pick.
+  useEffect(function(){ setPick(null); setPickErr(null); }, [results]);  // eslint-disable-line
+
+  // "Can't decide?" - ask the model to choose one of the spots on screen.
+  async function runPick(){
+    if (!shown.length) return;
+    if (!configComplete(cfg)){ setPickErr("Set up your account in Settings to use this."); return; }
+    setPickErr(null); setPickBusy(true);
+    try {
+      const cand = shown.slice(0, 15).map(p => ({
+        name: p.name,
+        cuisine: cuisineFromType(p.primary_type, p.types) || "",
+        rating: (typeof p.rating === "number") ? p.rating : null,
+        rating_count: (typeof p.rating_count === "number") ? p.rating_count : null,
+        price: priceLevelToDollars(p.price_level) || "",
+        distMi: (typeof p._dist === "number") ? p._dist : null,
+      }));
+      const text = await pickNearbySpot(cfg, cand, discoveryTaste(restaurants, visits));
+      const parts = text.split("\n").map(s => s.trim()).filter(Boolean);
+      const first = parts[0] || "";
+      const reason = (parts.slice(1).join(" ").trim()) || first;
+      const norm = s => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+      const nf = norm(first);
+      const match = shown.find(p => norm(p.name) === nf)
+                 || shown.find(p => nf && (nf.indexOf(norm(p.name)) !== -1 || norm(p.name).indexOf(nf) !== -1));
+      setPick({ place: match || null, name: match ? match.name : first, reason: reason });
+    } catch(err){
+      if (err.status === 402){ setLimitMsg(err.message || ""); setLimitHit(true); }
+      setPickErr(err.message || "Couldn't pick right now.");
+    } finally {
+      setPickBusy(false);
+    }
+  }
 
   async function openDetails(placeId){
     setDetail({ place_id:placeId });   // open sheet immediately in loading state
@@ -12698,6 +12944,39 @@ function NearMeView({ cfg, restaurants, onOpenRestaurant, onAddPlace, onUpgrade,
             <div className="empty" style={{padding:"30px 22px"}}>
               <div className="big">{results.length ? "No matches" : "Nothing found here"}</div>
               <div>{results.length ? "Try turning off 4-star+ or switching to Closest." : "Try a wider radius or a different type."}</div>
+            </div>
+          )}
+
+          {!loading && view === "list" && shown.length >= 2 && (
+            <div style={{margin:"8px 14px 2px"}}>
+              {!pick && (
+                <button className="btn ghost" style={{width:"100%"}} disabled={pickBusy} onClick={runPick}>
+                  {pickBusy
+                    ? <span className="spin" />
+                    : <Icon name="sparkle" size={15} color="var(--accent)" />}
+                  {pickBusy ? " Thinking…" : " Can't decide? Pick for me"}
+                </button>
+              )}
+              {pickErr && <div className="tiny" style={{color:"#e7a99e", marginTop:6}}>{pickErr}</div>}
+              {pick && (
+                <div className="card" style={{padding:"12px 14px"}}>
+                  <div className="tiny faint" style={{marginBottom:4}}>Can't decide? Try</div>
+                  <div style={{fontWeight:800, fontSize:16, marginBottom:4}}>{pick.name}</div>
+                  <div className="small" style={{marginBottom:10, lineHeight:1.45}}>{pick.reason}</div>
+                  <div className="row" style={{gap:8, flexWrap:"wrap"}}>
+                    {pick.place && (
+                      <button className="btn primary sm" onClick={()=>{
+                        const hp = hardMatch(pick.place.place_id);
+                        if (hp) onOpenRestaurant(hp.id); else openDetails(pick.place.place_id);
+                      }}>See it</button>
+                    )}
+                    <button className="btn ghost sm" disabled={pickBusy} onClick={runPick}>
+                      {pickBusy ? <span className="spin" /> : "Pick again"}
+                    </button>
+                    <button className="btn ghost sm" onClick={()=> setPick(null)}>Dismiss</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -14648,6 +14927,21 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     return Array.from(seen.values());
   })();
 
+  // Your usuals here: dishes you've logged at THIS place before, best-liked and
+  // most-ordered first (skips ones you didn't like). Most visits repeat a usual,
+  // so this makes the common case one tap instead of hunting the whole menu.
+  const usuals = (function(){
+    const mine = (visits || []).filter(v => v && v.restaurant_id === restId);
+    const detail = dishHistory(mine).detail || [];
+    const wv = x => x === "loved" ? 3 : x === "again" ? 2 : 1;   // skip filtered out
+    return detail
+      .filter(d => d.name && d.verdict !== "skip")
+      .sort((a,b)=> wv(b.verdict) - wv(a.verdict) || b.count - a.count)
+      .map(d => d.name)
+      .slice(0, 12);
+  })();
+  const menuItemTotal = menuGroups.reduce((n,g)=> n + (g.total || 0), 0);
+
   function addDish(name){
     const n = (name || "").trim();
     if (!n) return;
@@ -14662,6 +14956,8 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   // Rename a dish in place (e.g. the check printed "SPECIAL" and you want
   // the real dish name). Keeps price, verdict, estimate, and photo intact.
   const [editDish,setEditDish] = useState(null);   // null | {orig, draft, err}
+  const [showFullMenu,setShowFullMenu] = useState(false);  // collapse the big menu wall
+  const [noteOpen,setNoteOpen] = useState({});     // dish name -> note editor open
   function saveDishRename(){
     if (!editDish) return;
     const next = (editDish.draft || "").trim();
@@ -14680,6 +14976,10 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     setDishes(d => d.map(x => x.name === name
       ? Object.assign({}, x, { verdict: x.verdict === v ? null : v })
       : x));
+  }
+  function toggleNote(name){ setNoteOpen(o => Object.assign({}, o, { [name]: !o[name] })); }
+  function setDishNote(name, text){
+    setDishes(d => d.map(x => x.name === name ? Object.assign({}, x, { note: text }) : x));
   }
 
   function submit(){
@@ -14792,25 +15092,25 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         <label className="fld"><span className="lbl">Restaurant</span></label>
         <div style={{position:"relative", marginBottom:14}}>
           {chosenRest && !restOpen ? (
-            <div className="input" style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}
-              onClick={()=>{ setRestOpen(true); setRestQuery(""); }}>
-              <span style={{flex:1, minWidth:0}}>{chosenRest.name}</span>
+            <div className="input" style={{display:"flex", alignItems:"center", gap:8}}>
+              {/* Tap the name to open the place's page; explicit Change to swap. */}
+              <span
+                onClick={onOpenRestaurant ? ()=> onOpenRestaurant(chosenRest.id) : undefined}
+                title={onOpenRestaurant ? "Open this place's page" : undefined}
+                style={{flex:1, minWidth:0, display:"flex", alignItems:"center", gap:5,
+                        cursor: onOpenRestaurant ? "pointer" : "default"}}>
+                <span style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{chosenRest.name}</span>
+                {onOpenRestaurant ? <Icon name="chev" size={14} color="var(--accent)" /> : null}
+              </span>
               {onSaveRestaurant ? (
                 <button aria-label="Edit place details" title="Edit place details"
                   style={{flex:"none", background:"none", border:"none", padding:2, cursor:"pointer", display:"flex"}}
                   onClick={(e)=>{ e.stopPropagation(); setEditPlaceOpen(true); }}>
-                  <Icon name="edit" size={17} color="var(--accent)" />
+                  <Icon name="edit" size={16} color="#80715f" />
                 </button>
               ) : null}
-              {onOpenRestaurant ? (
-                <button aria-label="Open this place's page" title="Open this place's page"
-                  style={{flex:"none", background:"none", border:"none", padding:2, cursor:"pointer", display:"flex"}}
-                  onClick={(e)=>{ e.stopPropagation(); onOpenRestaurant(chosenRest.id); }}>
-                  <span style={{display:"inline-flex", transform:"rotate(180deg)"}}>
-                    <Icon name="back" size={16} color="var(--accent)" /></span>
-                </button>
-              ) : null}
-              <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>Change</span>
+              <button className="btn ghost sm" style={{flex:"none"}}
+                onClick={(e)=>{ e.stopPropagation(); setRestOpen(true); setRestQuery(""); }}>Change</button>
             </div>
           ) : (
             <>
@@ -15013,6 +15313,16 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               );
             })()}
           </div>
+          {usuals.filter(n => dishNames.indexOf(n) === -1).length > 0 && (
+            <div style={{marginTop:10}}>
+              <div className="tiny faint" style={{marginBottom:6}}>Your usuals here &mdash; tap to add</div>
+              <div className="chips">
+                {usuals.filter(n => dishNames.indexOf(n) === -1).map((n,i)=>(
+                  <span key={i} className="chip pick" onClick={()=> addDish(n)}>+ {n}</span>
+                ))}
+              </div>
+            </div>
+          )}
           <input ref={receiptRef} type="file" accept="image/*"
             style={{display:"none"}} onChange={onReceiptPicked} />
           {scannedItems && scannedItems.length ? (
@@ -15284,6 +15594,12 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                       <Icon name="close" size={14} color="#80715f" />
                     </button>
                   </div>
+                  {d.note && !noteOpen[d.name] && (
+                    <div className="dish-note-line" onClick={()=> toggleNote(d.name)}>
+                      <Icon name="note" size={12} color="#9aa877" />
+                      <span>{d.note}</span>
+                    </div>
+                  )}
                   <div className="dish-sub">
                     {dishNutBusy[d.name] ? (
                       <span className="dish-cam" style={{cursor:"default"}}>
@@ -15310,8 +15626,27 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                         </button>
                       </>
                     )}
+                    <button className="dish-cam" onClick={()=> toggleNote(d.name)}>
+                      <Icon name="note" size={13} color="var(--accent)" />
+                      {d.note ? "Edit note" : "Add a note"}
+                    </button>
                     {dishNutErr[d.name] && <span className="dish-cam-err">{dishNutErr[d.name]}</span>}
                   </div>
+                  {noteOpen[d.name] && (
+                    <div style={{marginTop:6}}>
+                      <input className="input" value={d.note || ""} autoFocus
+                        placeholder="e.g. added mushrooms, no onions, well done"
+                        onChange={e=> setDishNote(d.name, e.target.value)}
+                        onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); toggleNote(d.name); } }} />
+                      <div className="row" style={{gap:8, marginTop:6}}>
+                        <button className="btn ghost sm" onClick={()=> toggleNote(d.name)}>Done</button>
+                        {d.note && (
+                          <button className="btn ghost sm"
+                            onClick={()=>{ setDishNote(d.name, ""); toggleNote(d.name); }}>Clear</button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               <div className="tiny faint" style={{marginTop:2,padding:"0 2px"}}>
@@ -15324,8 +15659,24 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               <DishTotal dishes={dishes} min={1} />
             </div>
           )}
-          {menuGroups.length > 0 && (
+          {menuGroups.length > 0 && menuItemTotal > 12 && !showFullMenu && (
             <div style={{marginTop:12}}>
+              <button className="btn ghost sm" style={{width:"100%"}}
+                onClick={()=> setShowFullMenu(true)}>
+                <Icon name="book" size={15} color="var(--accent)" />
+                {" "}Browse the full menu ({menuItemTotal} items)
+              </button>
+            </div>
+          )}
+          {menuGroups.length > 0 && (menuItemTotal <= 12 || showFullMenu) && (
+            <div style={{marginTop:12}}>
+              {menuItemTotal > 12 && (
+                <div className="row" style={{justifyContent:"space-between", alignItems:"center", marginBottom:4}}>
+                  <div className="tiny faint">Full menu</div>
+                  <a href="#" className="tiny" style={{color:"var(--accent)"}}
+                     onClick={(e)=>{ e.preventDefault(); setShowFullMenu(false); }}>Hide</a>
+                </div>
+              )}
               {menuGroups.map((g, gi) => (
                 <div key={gi} style={{marginBottom: gi === menuGroups.length - 1 ? 0 : 14}}>
                   <div className="tiny faint" style={{marginBottom:6}}>
@@ -15754,7 +16105,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       const data = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(data.detail || "Couldn't look for a menu.");
       if (data.found && data.url){ await runUrl(data.url); return; }
-      if (data.pdf_url) throw new Error("Their menu looks like a PDF - download it and scan it (most reliable).");
+      if (data.pdf_url){ await runUrl(data.pdf_url); return; }  // backend reads text-based PDFs now
       throw new Error("Couldn't find a menu link on their website. Paste the menu page address below, or scan the menu.");
     } catch(err){
       logMsg("SCAN","Find-menu: " + err.message);
@@ -18155,11 +18506,11 @@ function GroupOrderGuest({code, cfg, profile}){
                 </button>
                 {helpErr && <div className="ask-err">{helpErr}</div>}
                 {helpAnswer && (
-                  <div className="ask-answer">
+                  <AiAnswer onClose={()=> setHelpAnswer("")}>
                     {helpAnswer.split("\n").filter(Boolean).map((line,i)=>(
                       <p key={i} style={{margin:i?"8px 0 0":0}}>{line}</p>
                     ))}
-                  </div>
+                  </AiAnswer>
                 )}
               </>
             )}
