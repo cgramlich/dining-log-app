@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.315.2";
+const APP_VERSION   = "1.316.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3832,10 +3832,42 @@ async function digitizeMenu(cfg, dataUrls){
   return parsed;
 }
 
+// Split a big menu text near a line boundary closest to the middle, so a chunk
+// rarely cuts through the middle of a dish.
+function _menuSplitPoint(t){
+  const mid = Math.floor(t.length / 2);
+  const nl = t.lastIndexOf("\n", mid);
+  return (nl > t.length * 0.3) ? nl : mid;
+}
+// Merge two digitized menus: sections that share a name (case-insensitive) fold
+// together, duplicate items drop out. Used when a large menu is read in chunks.
+function _mergeMenus(a, b){
+  if (!a) return b; if (!b) return a;
+  const out = { restaurant_name: a.restaurant_name || b.restaurant_name || null,
+                sections: (a.sections || []).map(s => ({ name:s.name, items:(s.items||[]).slice() })),
+                raw_text: "" };
+  const idx = {};
+  out.sections.forEach((s, i) => { idx[String(s.name||"").trim().toLowerCase()] = i; });
+  (b.sections || []).forEach(s => {
+    const k = String(s.name||"").trim().toLowerCase();
+    if (idx[k] != null){
+      const tgt = out.sections[idx[k]];
+      const have = new Set((tgt.items||[]).map(it => String(it.name||"").trim().toLowerCase()));
+      (s.items||[]).forEach(it => { const n = String(it.name||"").trim().toLowerCase();
+        if (n && !have.has(n)){ have.add(n); tgt.items.push(it); } });
+    } else {
+      idx[k] = out.sections.length; out.sections.push({ name:s.name, items:(s.items||[]).slice() });
+    }
+  });
+  return out;
+}
+
 // Digitize a menu from a web page's extracted TEXT (see fetchMenuText). Same
 // schema/normalization as the photo path; returns an empty sections array when
-// the page has no real menu (so the caller can say "scan it instead").
-async function digitizeMenuFromText(cfg, menuText){
+// the page has no real menu (so the caller can say "scan it instead"). A menu
+// too big to read in one pass (output hits the token cap) is split in half and
+// each part digitized, then merged - so long chain menus come through whole.
+async function digitizeMenuFromText(cfg, menuText, _depth){
   const prompt =
     "You are a menu digitization assistant. The TEXT below was extracted from a "+
     "restaurant web page. Pull the COMPLETE food/drink menu out of it into "+
@@ -3869,7 +3901,7 @@ async function digitizeMenuFromText(cfg, menuText){
       body:JSON.stringify({
         task:"ocr_menu",        // server routes the model (Sonnet, same as photo OCR)
         model:VISION_MODEL,
-        max_tokens:8192,
+        max_tokens:16000,       // big menus need room; chunk-and-merge if still capped
         messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
       }),
     });
@@ -3884,6 +3916,16 @@ async function digitizeMenuFromText(cfg, menuText){
   }
   const json = await res.json();
   if (json.stop_reason === "max_tokens"){
+    // Big menu: split the text, digitize each part, and merge - so an enormous
+    // chain menu still comes through whole instead of failing.
+    const depth = _depth || 0;
+    if (depth < 4 && menuText.length > 3000){
+      const mid = _menuSplitPoint(menuText);
+      logMsg("SCAN", "Menu too big in one pass - splitting (depth " + (depth + 1) + ", " + menuText.length + " chars)");
+      const a = await digitizeMenuFromText(cfg, menuText.slice(0, mid), depth + 1);
+      const b = await digitizeMenuFromText(cfg, menuText.slice(mid), depth + 1);
+      return _mergeMenus(a, b);
+    }
     throw new Error("That menu page was too large to read in one pass. Try a link to a single menu section.");
   }
   const text = (json.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
