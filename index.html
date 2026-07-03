@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.318.0";
+const APP_VERSION   = "1.319.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1544,13 +1544,12 @@ can tap "Estimate calories" on an item and the app will estimate it from the
 dish description. Estimated numbers are always shown with a "~" and marked EST
 so you can tell them apart from real ones.
 
-**See photos of a dish.** Each menu item has a **See photos** button, with the
-most trustworthy photo first. If you have snapped that dish before (when logging a
-visit here), **your own photo** shows first. Next, if the menu was pulled from the
-restaurant's website and that site had a photo for the dish, you'll see it labeled
-**From the restaurant** - a real picture of that exact dish. Finally, you can tap
-**See similar from the web** for look-alike photos, which are clearly labeled as
-similar, not necessarily this exact dish.
+**See photos of a dish.** Tap **See photos** on a menu item. If we have a *real*
+picture of that exact dish - one you snapped when logging a visit here, or one from
+the restaurant's own menu when you pulled it from the web (labeled **From the
+restaurant**) - that is the only photo shown; we don't clutter it with guesses.
+Only when there is no real photo do we fall back to **look-alike photos from the
+web**, clearly labeled as similar, not necessarily this exact dish.
 
 **Pull a menu from a link.** You do not have to scan a paper menu. When adding a
 menu you can paste the address of the restaurant's online menu and the app reads
@@ -10465,10 +10464,8 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                       <div className="tiny faint" style={{marginTop:2}}>No web photos found for this dish.</div>
                     )}
                     <div className="row" style={{gap:10, marginTop:8, alignItems:"center"}}>
-                      {(realPhotos.length > 0 || it.web_image) && !imgRes[key] && !imgBusy[key] && (
-                        <button className="btn ghost sm" style={{flex:"none"}}
-                          onClick={()=> findPhotos(i, oj, it)}>See similar from the web</button>
-                      )}
+                      {/* A real photo of the dish is the ONLY one we show - no web
+                          look-alikes offered when we already have the real thing. */}
                       <button className="btn ghost sm" style={{flex:"none"}}
                         onClick={()=>{
                           setPhotoOpen(o=>{ const n=Object.assign({},o); delete n[key]; return n; });
@@ -16510,16 +16507,35 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 <Icon name="search" size={18} />Find the menu for me
               </button>
             )}
-            <button className="btn ghost" style={{marginTop:(!showUrl && destWebsite) ? 8 : 0}}
+            {!showUrl && destWebsite && (
+              <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
+                We look on the restaurant's website for its menu page and read it in &mdash; no typing. Best when the place is linked to a website.
+              </div>
+            )}
+            <button className="btn ghost" style={{marginTop:8}}
               onClick={()=> fileRef.current.click()} disabled={!!processing}>
               <Icon name="camera" size={18} />
               {previews.length ? "Add more photos" : "Choose / take photos"}
             </button>
             {!showUrl && (
+              <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
+                On iPhone, picking many photos at once can pause for several seconds
+                while iOS converts them &mdash; that is normal. If it hangs, cancel and
+                pick one or two at a time.
+              </div>
+            )}
+            {!showUrl && (
               <button className="btn ghost" style={{marginTop:8}} onClick={()=> setShowUrl(true)}
                 disabled={!!processing}>
                 <Icon name="link" size={18} />{destWebsite ? "Paste a menu link instead" : "Link to a menu online"}
               </button>
+            )}
+            {!showUrl && (
+              <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
+                Paste the web address of the restaurant's own menu or ordering page &mdash;
+                we read it in and you review it before saving. Works best on their
+                actual menu page, not the homepage (though we will try to follow to it).
+              </div>
             )}
             {showUrl && (
               <div style={{marginTop:8}}>
@@ -16539,13 +16555,6 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                   onClick={()=>{ setShowUrl(false); setUrlInput(""); }}>
                   Use photos instead
                 </button>
-              </div>
-            )}
-            {!showUrl && (
-              <div className="tiny faint" style={{marginTop:8,padding:"0 2px"}}>
-                On iPhone, picking many photos at once can pause for several
-                seconds while iOS converts them. That is normal. If it
-                hangs, cancel and pick one or two at a time.
               </div>
             )}
             {processing && (
