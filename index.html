@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.317.1";
+const APP_VERSION   = "1.318.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -7110,6 +7110,8 @@ function App(){
           }}
           onOpenMenu={(menuId)=> setOverlay({
             type:"menuDetail", restaurantId:overlay.id, menuId:menuId })}
+          onRescanMenu={(menuId)=> setOverlay({
+            type:"scanMenu", restaurantId:overlay.id, menuId:menuId })}
           onOpenVisit={(v)=> setOverlay({ type:"editVisit", visit:v,
             returnTo:{ type:"restaurant", id:overlay.id } })}
           onSplitVisit={(v)=> setOverlay({ type:"splitCheck", fromVisit:v,
@@ -9016,7 +9018,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
 }
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
-                           onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onOpenVisit,
+                           onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onRescanMenu, onOpenVisit,
                            onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onToggleVisitLoved, onUpgrade, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [lightbox, setLightbox]     = useState(null);   // {paths, index} | null
@@ -9622,6 +9624,14 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   {m0.source === "community" ? " (shared)" : m0.source === "web" ? " (web)" : m0.source === "seed" ? " (starter)" : ""}
                 </div>
               </div>
+              {onRescanMenu && (
+                <button className="btn ghost sm" style={{flex:"none", marginRight:6}}
+                  onClick={(e)=>{ e.stopPropagation(); onRescanMenu(m0.menu_id); }}
+                  title="Refresh this menu (re-photograph or pull from a link)">
+                  <span className="row" style={{gap:4, alignItems:"center"}}>
+                    <Icon name="refresh" size={14} color="var(--accent)" />Refresh</span>
+                </button>
+              )}
               <Icon name="chev" size={18} color="#80715f" />
             </div>
           );
@@ -9673,6 +9683,14 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                     {m.source === "community" ? " (shared)" : m.source === "web" ? " (web)" : m.source === "seed" ? " (starter)" : ""}
                   </div>
                 </div>
+                {onRescanMenu && (
+                  <button className="btn ghost sm" style={{flex:"none", marginRight:6}}
+                    onClick={(e)=>{ e.stopPropagation(); onRescanMenu(m.menu_id); }}
+                    title="Refresh this menu (re-photograph or pull from a link)">
+                    <span className="row" style={{gap:4, alignItems:"center"}}>
+                      <Icon name="refresh" size={14} color="var(--accent)" />Refresh</span>
+                  </button>
+                )}
                 <Icon name="chev" size={18} color="#80715f" />
               </div>
             );
