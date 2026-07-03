@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.314.1";
+const APP_VERSION   = "1.315.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -991,6 +991,35 @@ async function fetchMenuText(cfg, url){
   const data = await res.json().catch(()=> ({}));
   if (!res.ok) throw new Error(data.detail || ("Couldn't read that link (" + res.status + ")"));
   return data;
+}
+
+// Match the images harvested from a menu page (each tagged with a dish name in
+// its alt text) to the digitized menu items, and stamp item.web_image - the
+// RESTAURANT'S OWN photo of that dish. Only a confident name match attaches, so
+// we never mislabel a photo; a fuzzy fallback needs solid overlap to fire.
+function attachWebImages(parsed, images){
+  if (!parsed || !Array.isArray(parsed.sections) || !Array.isArray(images) || !images.length) return parsed;
+  const norm = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const byName = {};
+  images.forEach(im => {
+    if (im && im.name && im.url){ const k = norm(im.name); if (k.length >= 3 && !byName[k]) byName[k] = im.url; }
+  });
+  const keys = Object.keys(byName);
+  if (!keys.length) return parsed;
+  let hits = 0;
+  parsed.sections.forEach(sec => (sec.items || []).forEach(it => {
+    if (!it || !it.name) return;
+    const k = norm(it.name);
+    if (k.length < 3) return;
+    let url = byName[k];
+    if (!url){
+      const m = keys.find(ik => ik.length >= 6 && k.length >= 6 && (ik.indexOf(k) !== -1 || k.indexOf(ik) !== -1));
+      if (m) url = byName[m];
+    }
+    if (url){ it.web_image = url; hits++; }
+  }));
+  logMsg("SCAN", "Matched " + hits + " restaurant dish photo(s) from " + images.length + " harvested");
+  return parsed;
 }
 
 /* ---- billing (Stripe via backend) -------------------------- */
@@ -1506,10 +1535,13 @@ can tap "Estimate calories" on an item and the app will estimate it from the
 dish description. Estimated numbers are always shown with a "~" and marked EST
 so you can tell them apart from real ones.
 
-**See photos of a dish.** Each menu item has a **See photos** button. If you have
-snapped that dish before (when logging a visit here), your own photo of it shows
-first - the real thing. You can also tap **See similar from the web** for look-alike
-photos; those are clearly labeled as similar, not necessarily this exact dish.
+**See photos of a dish.** Each menu item has a **See photos** button, with the
+most trustworthy photo first. If you have snapped that dish before (when logging a
+visit here), **your own photo** shows first. Next, if the menu was pulled from the
+restaurant's website and that site had a photo for the dish, you'll see it labeled
+**From the restaurant** - a real picture of that exact dish. Finally, you can tap
+**See similar from the web** for look-alike photos, which are clearly labeled as
+similar, not necessarily this exact dish.
 
 **Pull a menu from a link.** You do not have to scan a paper menu. When adding a
 menu you can paste the address of the restaurant's online menu and the app reads
@@ -10299,7 +10331,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                     <button className="iest-btn" disabled={imgBusy[key]}
                       onClick={()=>{
                         setPhotoOpen(o=> Object.assign({}, o, { [key]:true }));
-                        if (!realPhotos.length) findPhotos(i, oj, it);   // no real photo -> straight to web
+                        if (!realPhotos.length && !it.web_image) findPhotos(i, oj, it);   // no real photo -> straight to web
                       }}>
                       <Icon name="image" size={12} color="var(--accent)" />See photos
                     </button>
@@ -10322,6 +10354,18 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                         <span className="tiny faint">
                           Your photo{realPhotos.length > 1 ? "s" : ""} of this dish
                         </span>
+                      </div>
+                    )}
+                    {it.web_image && (
+                      <div style={{marginBottom: Array.isArray(imgRes[key]) ? 10 : 6}}>
+                        <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
+                          <div style={{flex:"none", width:110, height:110, borderRadius:10,
+                               overflow:"hidden", border:"1px solid var(--line-soft)", background:"var(--surface-2)"}}>
+                            <img src={it.web_image} alt={it.name} loading="lazy"
+                                 style={{width:"100%", height:"100%", objectFit:"cover"}} />
+                          </div>
+                        </div>
+                        <span className="tiny faint">From the restaurant</span>
                       </div>
                     )}
                     {imgBusy[key] && (
@@ -10350,7 +10394,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                       <div className="tiny faint" style={{marginTop:2}}>No web photos found for this dish.</div>
                     )}
                     <div className="row" style={{gap:10, marginTop:8, alignItems:"center"}}>
-                      {realPhotos.length > 0 && !imgRes[key] && !imgBusy[key] && (
+                      {(realPhotos.length > 0 || it.web_image) && !imgRes[key] && !imgBusy[key] && (
                         <button className="btn ghost sm" style={{flex:"none"}}
                           onClick={()=> findPhotos(i, oj, it)}>See similar from the web</button>
                       )}
@@ -16165,6 +16209,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     try {
       const fetched = await fetchMenuText(config, u);
       const parsed  = await digitizeMenuFromText(config, fetched.text);
+      attachWebImages(parsed, fetched.images);   // restaurant's own dish photos
       if (!parsed.sections.length){
         throw new Error("No menu on that page - homepages and contact pages usually don't have one. Try the restaurant's menu/order page, or scan the menu (most reliable).");
       }
