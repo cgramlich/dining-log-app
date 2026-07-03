@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.320.3";
+const APP_VERSION   = "1.321.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1539,12 +1539,13 @@ Menus heading to reach those options.) Refreshing replaces the old copy in place
 (no duplicate), so any estimates saved on the old items are not carried over.
 
 **Calories on a menu.** If the menu itself prints calories, the app captures
-those and shows them as a real number labeled "per menu." If it does not, you
-can tap "Estimate calories" on an item and the app will estimate it from the
-dish description. When the menu came in with the restaurant's own photo of a
-dish, you also get "Estimate from photo," which reads the real plate for a
-closer guess. Either way it is only an estimate, always shown with a "~" and
-marked EST, so a printed calorie count stays the more reliable number.
+those and shows them as a real number labeled "per menu." If it does not, each
+item offers a few ways to estimate, best first: **Add your photo** (snap the
+real plate right from the menu), **Estimate from menu photo** (the restaurant's
+own picture, when the menu came in from the web), and **Estimate from
+description**. You can redo an estimate from a better source any time. Whichever
+you use, it is only an estimate, always shown with a "~" and marked EST, so a
+printed calorie count stays the most reliable number.
 
 **See photos of a dish.** Tap **See photos** on a menu item. If we have a *real*
 picture of that exact dish - one you snapped when logging a visit here, or one from
@@ -7298,6 +7299,28 @@ function App(){
             const nextM = Object.assign({}, menus, { [rid]:nextList });
             commit({ menus:nextM }, ["menus"]);
           }}
+          onSaveItemPhoto={async (si, ii, nutrition, blob)=>{
+            // Add the user's OWN photo to a menu item (uploads the thumbnail,
+            // writes it + the estimate onto the item). Their photo = tier 2.
+            const rid = overlay.restaurantId, mid = overlay.menuId;
+            let photoPath = null;
+            if (blob){
+              photoPath = menuItemPhotoPath(mid, "d" + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+              try { await uploadPhotoBatch([{ path:photoPath, blob:blob }]); }
+              catch(err){ logMsg("ERROR","Menu item photo upload failed: " + err.message); photoPath = null; }
+            }
+            const list = menus[rid] || [];
+            const nextList = list.map(m => {
+              if (m.menu_id !== mid) return m;
+              const sections = (m.sections || []).map((s, sidx) =>
+                sidx !== si ? s : Object.assign({}, s, {
+                  items: s.items.map((it, iidx) => iidx !== ii ? it
+                    : Object.assign({}, it, { nutrition:nutrition, photo:photoPath || it.photo || null })),
+                }));
+              return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
+            });
+            commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
+          }}
           onSaveItemTags={(si, ii, tags)=>{
             // Manual dietary tags on a menu item, by section + item index.
             const rid = overlay.restaurantId, mid = overlay.menuId;
@@ -10023,7 +10046,7 @@ function AiText({ text }){
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onRenameMenu, onSaveItemTags, onHome}){
+function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSaveItemTags, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
@@ -10303,6 +10326,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           cuisine={restaurant ? restaurant.cuisine : ""}
           dishPhotos={dishPhotos}
           onSaveItemNutrition={onSaveItemNutrition}
+          onSaveItemPhoto={onSaveItemPhoto}
           onSaveItemTags={onSaveItemTags} />
         <div style={{height:20}} />
       </div>
@@ -10313,7 +10337,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemTags}){
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags}){
   const [open, setOpen]   = useState(()=> {
     const o = {}; (menu.sections||[]).forEach((s,i)=> { o[i] = i < 2; }); return o;
   });
@@ -10325,8 +10349,41 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
   const [imgErr,  setImgErr]    = useState({});    // "si:ii" -> message
   const [imgRes,  setImgRes]    = useState({});    // "si:ii" -> [{thumb,full,source,title}] | "none"
   const [photoOpen, setPhotoOpen] = useState({});  // "si:ii" -> bool (photo area open)
+  const itemPhotoRef = useRef(null);               // hidden file input for "your photo"
+  const pendingPhotoItem = useRef(null);           // {si,ii} awaiting a picked photo
   const q = filter.trim().toLowerCase();
   const canEstimate = !!(cfg && onSaveItemNutrition);
+  const canAddPhoto = !!(cfg && onSaveItemPhoto);
+
+  // Add the user's OWN photo of a dish straight from the menu: snap/pick a
+  // picture, estimate calories from it (tier 2 - beats the restaurant's photo
+  // and the description), and save it onto the item.
+  function addItemPhoto(si, ii){
+    pendingPhotoItem.current = { si, ii };
+    if (itemPhotoRef.current){ itemPhotoRef.current.value = ""; itemPhotoRef.current.click(); }
+  }
+  async function onItemPhotoPicked(e){
+    const file = e.target.files && e.target.files[0];
+    const target = pendingPhotoItem.current;
+    pendingPhotoItem.current = null;
+    if (e.target) e.target.value = "";
+    if (!file || !target) return;
+    const key = target.si + ":" + target.ii;
+    if (!configComplete(cfg)){ setItemErr(x => Object.assign({}, x, { [key]:"Set up your account in Settings." })); return; }
+    setItemErr(x => Object.assign({}, x, { [key]:null }));
+    setItemBusy(b => Object.assign({}, b, { [key]:true }));
+    try {
+      const est = await estimateNutrition(cfg, file);   // reads the real plate
+      est.source = "photo_estimate";                    // your own photo = tier 2
+      est.estimated_at = todayISO();
+      const blob = await resizeImageToBlob(file, 1200, 0.82);
+      await onSaveItemPhoto(target.si, target.ii, est, blob);
+    } catch(err){
+      setItemErr(x => Object.assign({}, x, { [key]:err.message || "Could not add the photo." }));
+    } finally {
+      setItemBusy(b => Object.assign({}, b, { [key]:false }));
+    }
+  }
 
   async function findPhotos(si, ii, it){
     const key = si + ":" + ii;
@@ -10400,6 +10457,10 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
 
   return (
     <div>
+      {canAddPhoto && (
+        <input ref={itemPhotoRef} type="file" accept="image/*"
+          style={{display:"none"}} onChange={onItemPhotoPicked} />
+      )}
       {cfg && menu && menu.menu_id ? (
         <GroupOrderButton cfg={cfg} menu={menu} restaurantName={restaurantName} />
       ) : null}
@@ -10484,39 +10545,58 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                         )}
                         <NutriLine n={it.nutrition} />
                       </div>
-                      {canEstimate && (
+                      {(canEstimate || canAddPhoto) && (
                         <div className="iest" style={{marginTop:4, gap:14}}>
-                          {it.web_image && (
+                          {canAddPhoto && (
+                            <button className="dish-redo" disabled={itemBusy[key]}
+                              onClick={()=> addItemPhoto(i, oj)}>
+                              {itemBusy[key] ? "Working..." : "New estimate from your photo"}</button>
+                          )}
+                          {canEstimate && it.web_image && (
                             <button className="dish-redo" disabled={itemBusy[key]}
                               onClick={()=> estimateFromPhoto(i, oj, it)}>
-                              {itemBusy[key] ? "Estimating..." : "New estimate from photo"}</button>
+                              {itemBusy[key] ? "Working..." : "New estimate from menu photo"}</button>
                           )}
-                          <button className="dish-redo" disabled={itemBusy[key]}
-                            onClick={()=> estimateOne(i, oj, it)}>
-                            {itemBusy[key] ? "Estimating..." : (it.web_image ? "New estimate from description" : "New estimate")}</button>
+                          {canEstimate && (
+                            <button className="dish-redo" disabled={itemBusy[key]}
+                              onClick={()=> estimateOne(i, oj, it)}>
+                              {itemBusy[key] ? "Working..." : "New estimate from description"}</button>
+                          )}
                           {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
                         </div>
                       )}
                     </div>
-                  : canEstimate && (
+                  : (canEstimate || canAddPhoto) && (
                       <div className="iest">
-                        {it.web_image && (
+                        {canAddPhoto && (
+                          <button className="iest-btn" disabled={itemBusy[key]}
+                            onClick={()=> addItemPhoto(i, oj)}
+                            title="Add your own photo of this dish and estimate calories from it">
+                            {itemBusy[key]
+                              ? <span className="spin" />
+                              : <Icon name="camera" size={12} color="var(--accent)" />}
+                            {itemBusy[key] ? "Working..." : "Add your photo"}
+                          </button>
+                        )}
+                        {canEstimate && it.web_image && (
                           <button className="iest-btn" disabled={itemBusy[key]}
                             onClick={()=> estimateFromPhoto(i, oj, it)}
                             title="Estimate calories from the restaurant's photo of this dish">
                             {itemBusy[key]
                               ? <span className="spin" />
-                              : <Icon name="camera" size={12} color="var(--accent)" />}
-                            {itemBusy[key] ? "Estimating..." : "Estimate from photo"}
+                              : <Icon name="image" size={12} color="var(--accent)" />}
+                            {itemBusy[key] ? "Working..." : "Estimate from menu photo"}
                           </button>
                         )}
-                        <button className="iest-btn" disabled={itemBusy[key]}
-                          onClick={()=> estimateOne(i, oj, it)}>
-                          {itemBusy[key]
-                            ? <span className="spin" />
-                            : <Icon name="sparkle" size={12} color="var(--accent)" />}
-                          {itemBusy[key] ? "Estimating..." : (it.web_image ? "Estimate from description" : "Estimate calories")}
-                        </button>
+                        {canEstimate && (
+                          <button className="iest-btn" disabled={itemBusy[key]}
+                            onClick={()=> estimateOne(i, oj, it)}>
+                            {itemBusy[key]
+                              ? <span className="spin" />
+                              : <Icon name="sparkle" size={12} color="var(--accent)" />}
+                            {itemBusy[key] ? "Working..." : "Estimate from description"}
+                          </button>
+                        )}
                         {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
                       </div>
                     )}
