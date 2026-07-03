@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.313.2";
+const APP_VERSION   = "1.313.3";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1346,7 +1346,7 @@ async function initPush(cfg){
 // In-app user guide (source of truth: menucaptain-help.md). Re-sync this when the .md changes.
 const HELP_DOC = `# MenuCaptain - User Guide
 
-*Updated June 18, 2026*
+*Updated July 2, 2026*
 
 MenuCaptain is your private notebook for eating out. You log the places you go,
 scan their menus, remember which dishes you loved, and - if you want - get a
@@ -1437,8 +1437,9 @@ the bottom of the map tells you how many are not mapped.
 ## Near me
 
 **Near me** helps you discover restaurants, cafes, bars, and bakeries close to
-wherever you are, and add the good ones to your places in a tap. It is a **Pro**
-feature - open it from the **+** button and choose **Near me**.
+wherever you are, and add the good ones to your places in a tap. Everyone gets a
+handful of free searches to try it; beyond that it is a **Pro** feature - open it
+from the **+** button and choose **Near me**.
 
 The first time, your phone asks to share your location; allow it and the app
 finds what is nearby. Set how far to look (from half a mile up to five miles),
@@ -1458,6 +1459,15 @@ Switch between **List** and **Map** any time - the map shows the results as
 orange pins with a blue dot for where you are; tap a pin to open that place. The
 list is sorted nearest-first, and the List/Map toggle is instant. Changing the
 distance or type starts a fresh search (tap **Search** again).
+
+**Can't decide? Pick for me.** When the list of nearby spots leaves you stuck,
+tap **Can't decide? Pick for me** at the top and the app chooses one for you,
+with a one-line reason. It weighs your taste - the cuisines and dishes you tend
+to love across all your places - against each spot's rating and how close it is.
+In a brand-new area where it does not know your taste yet, it leans on rating and
+distance and says so. Not feeling the pick? Tap **Pick again**. (This is the
+nearby-spots version of the "Can't decide?" spinner further down, which picks
+among the places you have already saved.)
 
 Near me is the one place in the app that reaches out to find somewhere new -
 everything else stays your own private record.
@@ -1494,6 +1504,20 @@ can tap "Estimate calories" on an item and the app will estimate it from the
 dish description. Estimated numbers are always shown with a "~" and marked EST
 so you can tell them apart from real ones.
 
+**See photos of a dish.** Each menu item has a **See photos** button. If you have
+snapped that dish before (when logging a visit here), your own photo of it shows
+first - the real thing. You can also tap **See similar from the web** for look-alike
+photos; those are clearly labeled as similar, not necessarily this exact dish.
+
+**Pull a menu from a link.** You do not have to scan a paper menu. When adding a
+menu you can paste the address of the restaurant's online menu and the app reads
+it into a clean digital menu for you. If you are not sure of the link, tap **Find
+the menu for me** and the app looks on the restaurant's website for it. This
+works on regular web menus, on the big online-ordering pages (Toast, Square, and
+similar), and on **PDF menus** that have real text in them. A menu that is just a
+scanned image has no text to read, so for those it is best to scan it with the
+camera instead.
+
 -----
 
 ## Help me order
@@ -1510,6 +1534,13 @@ for "best value" or "something cheap" and it weighs what dishes cost, leaning on
 the real prices it has learned from your scanned checks. It stays easygoing about
 it: the numbers inform the suggestion, they are never treated as a budget or a rule.
 
+It also keeps a light read on your broader taste - the kinds of dishes you have
+loved (and the ones you have skipped) across all your restaurants - and uses it
+as a gentle hint. That is most helpful at a place you have barely been to, where
+there is little history yet, so even a first visit gets a personal suggestion. It
+never overrides what you actually asked for. When you are done with an answer, tap
+the small x in its corner to close it and clear the space.
+
 -----
 
 ## Logging a visit
@@ -1524,10 +1555,15 @@ the restaurant - so a place can have a different rating every time you go. On a
 restaurant, in the Places list, and on a shared card, the star number shown is
 the average of your visits there, labelled "avg."
 
-**What you had (dishes).** Add the dishes you ordered, either by typing them or
-by tapping them straight from that restaurant's digitized menu. Tapping from
-the menu is the better habit - it makes the rest of the features line up
-correctly (see the photo estimate below).
+**What you had (dishes).** There are three easy ways to add what you ordered, top
+to bottom. **Search or type** in the box to find any dish on the menu (or type a
+new one). **Your usuals here** is a row of one-tap chips - the dishes you have
+ordered at this place before, your favorites first - so a repeat visit is a couple
+of taps with no hunting. And the full menu is there too: if it is long it tucks
+behind a **Browse the full menu** button so it does not fill the screen; tap to
+open it and tap any item to add it. Adding a dish by tapping it from the menu is
+the better habit - it makes the rest of the features line up correctly (see the
+photo estimate below).
 
 **Loved, Again, or Skip.** Each dish has three buttons. Tap **Loved** for a
 standout you adored, **Again** for something solid you would order again, or
@@ -1538,6 +1574,11 @@ wins, so you can change your mind later.
 **Rename a dish.** Tap any dish's name to rename it - useful when a
 free-typed name needs tidying up. The dish keeps its price, verdict, and any
 estimate. This works while logging and later, from any past visit.
+
+**Add a note to a dish.** Each dish has an **Add a note** button for the little
+details worth remembering - a substitution or a special request, like "added
+mushrooms," "no onions," or "well done." Your note shows under the dish and is
+saved with the visit, so when you look back later you see exactly how you had it.
 
 **Scan the check.** When the bill arrives, tap "Scan the check" (under the
 dish list) and snap a photo of the receipt. The app reads it and opens a
