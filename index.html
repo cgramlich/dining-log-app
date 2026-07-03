@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.316.0";
+const APP_VERSION   = "1.317.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1532,11 +1532,11 @@ scan of a long menu can be saved as separate Dinner, Brunch, and Drinks menus.
 shown expanded right there, so you can browse and estimate items without
 tapping in. With two or more menus, each appears as a card you tap to open.
 
-**Re-scanning and deleting.** You can re-scan a menu to replace it with a fresh
-version, or delete a menu you no longer want. (For a single inline menu, use
-the **Manage** button by the Menus heading to reach those options.) Re-scanning
-replaces the old copy, so any estimates saved on the old items are not carried
-over.
+**Re-scanning and deleting.** You can refresh a menu to replace it with a fresh
+version - either photograph it again or pull it from a link - or delete a menu
+you no longer want. (For a single inline menu, use the **Manage** button by the
+Menus heading to reach those options.) Refreshing replaces the old copy in place
+(no duplicate), so any estimates saved on the old items are not carried over.
 
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, you
@@ -16341,7 +16341,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         restaurant_id: targetRestId,
         captured_date: presetMenu.captured_date,
         last_updated:  todayISO(),
-        source:        "photo_ocr",
+        source:        result.source || "photo_ocr",   // keep "web" on a web re-pull
         sections:      sections,
         raw_text:      result.raw_text || "",
       }];
@@ -16476,8 +16476,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           <div>
             <div className="card small muted">
               {presetMenu
-                ? "Photograph the menu. The new scan replaces the current " +
-                  presetMenu.label + " menu for this restaurant."
+                ? "Refresh this menu - photograph it, or pull it from a link. " +
+                  "It replaces the current " + presetMenu.label + " menu in place."
                 : "Take clear photos of the menu, straight on. Multiple pages of " +
                   "the same menu are fine; add them all and they merge."}
             </div>
@@ -16485,23 +16485,23 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               style={{display:"none"}} onChange={onFiles} />
             {/* When we know the place's website, lead with the lowest-effort path
                 (find the menu for them); scanning always works and comes next. */}
-            {!presetMenu && !showUrl && destWebsite && (
+            {!showUrl && destWebsite && (
               <button className="btn ghost" onClick={findMenu} disabled={!!processing}>
                 <Icon name="search" size={18} />Find the menu for me
               </button>
             )}
-            <button className="btn ghost" style={{marginTop:(!presetMenu && !showUrl && destWebsite) ? 8 : 0}}
+            <button className="btn ghost" style={{marginTop:(!showUrl && destWebsite) ? 8 : 0}}
               onClick={()=> fileRef.current.click()} disabled={!!processing}>
               <Icon name="camera" size={18} />
               {previews.length ? "Add more photos" : "Choose / take photos"}
             </button>
-            {!presetMenu && !showUrl && (
+            {!showUrl && (
               <button className="btn ghost" style={{marginTop:8}} onClick={()=> setShowUrl(true)}
                 disabled={!!processing}>
                 <Icon name="link" size={18} />{destWebsite ? "Paste a menu link instead" : "Link to a menu online"}
               </button>
             )}
-            {!presetMenu && showUrl && (
+            {showUrl && (
               <div style={{marginTop:8}}>
                 <input className="input" value={urlInput} onChange={e=> setUrlInput(e.target.value)}
                   placeholder="Paste a menu web address" inputMode="url"
