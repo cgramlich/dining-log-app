@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.319.0";
+const APP_VERSION   = "1.320.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1541,8 +1541,10 @@ Menus heading to reach those options.) Refreshing replaces the old copy in place
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, you
 can tap "Estimate calories" on an item and the app will estimate it from the
-dish description. Estimated numbers are always shown with a "~" and marked EST
-so you can tell them apart from real ones.
+dish description. When the menu came in with the restaurant's own photo of a
+dish, you also get "Estimate from photo," which reads the real plate for a
+closer guess. Either way it is only an estimate, always shown with a "~" and
+marked EST, so a printed calorie count stays the more reliable number.
 
 **See photos of a dish.** Tap **See photos** on a menu item. If we have a *real*
 picture of that exact dish - one you snapped when logging a visit here, or one from
@@ -4819,6 +4821,65 @@ async function estimateItemNutrition(cfg, restaurantName, item){
   }
   const out = normalizeNutrition(parsed);
   logMsg("NUTRI","Item estimate: " + out.kcal + " kcal, conf=" + out.confidence);
+  return out;
+}
+
+// Estimate a single menu item's nutrition FROM the restaurant's own photo of it
+// (a web_image URL). More grounded than the text estimate, but still an estimate
+// and less exact than calories a menu prints. The model fetches the URL itself,
+// so there's no cross-origin fetch on our side.
+async function estimateItemFromImage(cfg, restaurantName, item){
+  const desc = item.description ? (" - " + item.description) : "";
+  const prompt =
+    "Estimate the nutrition of a single restaurant dish from its photo, for "+
+    "someone's curiosity and memory, not dieting. Be realistic and kind.\n\n"+
+    "Restaurant: " + (restaurantName || "a restaurant") + "\n"+
+    "Dish: " + item.name + desc + "\n\n"+
+    "Judge the portion from the photo. Return ONLY a JSON object, no prose, no "+
+    "markdown, with exactly these keys:\n"+
+    "{\n"+
+    '  "kcal": estimated calories for this serving (integer),\n'+
+    '  "protein_g": grams of protein (integer),\n'+
+    '  "carbs_g": grams of carbohydrate (integer),\n'+
+    '  "fat_g": grams of fat (integer),\n'+
+    '  "ingredients": [likely ingredients you can see or infer],\n'+
+    '  "confidence": "low" | "medium" | "high",\n'+
+    '  "note": one short sentence on the portion assumptions you made\n'+
+    "}\n\n"+
+    "If the photo is unclear or only partly shows the dish, lower the confidence "+
+    "and say so in the note.";
+  logMsg("NUTRI","Estimating item '" + item.name + "' from restaurant photo via " + VISION_MODEL);
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body:JSON.stringify({
+        task:"estimate_photo",
+        model:VISION_MODEL,
+        max_tokens:700,
+        messages:[{ role:"user", content:[
+          { type:"image", source:{ type:"url", url:item.web_image } },
+          { type:"text", text:prompt },
+        ]}],
+      }),
+    });
+  } catch(err){
+    throw new Error("Network error reaching the AI service. Check your connection.");
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    let _detail = ""; try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
+    if (res.status === 402) throw new Error(_detail || "You’ve reached this month’s AI usage limit.");
+    throw new Error(_detail || ("AI request failed (" + res.status + ")"));
+  }
+  const json = await res.json();
+  const text = (json.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+  let parsed;
+  try { parsed = parseJsonLoose(text); }
+  catch(err){ throw new Error("The estimate came back unreadable. Try again."); }
+  const out = normalizeNutrition(parsed);
+  logMsg("NUTRI","Item photo estimate: " + out.kcal + " kcal, conf=" + out.confidence);
   return out;
 }
 
@@ -10306,6 +10367,29 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
     }
   }
 
+  // Estimate from the restaurant's own photo of the dish (grounded by the real
+  // plate) when we have one. Still an estimate, shown with the usual "~"/EST.
+  async function estimateFromPhoto(si, ii, it){
+    const key = si + ":" + ii;
+    if (!it.web_image) return;
+    if (!configComplete(cfg)){
+      setItemErr(e => Object.assign({}, e, { [key]:"Set up your account in Settings." }));
+      return;
+    }
+    setItemErr(e => Object.assign({}, e, { [key]:null }));
+    setItemBusy(b => Object.assign({}, b, { [key]:true }));
+    try {
+      const est = await estimateItemFromImage(cfg, restaurantName, it);
+      est.source = "photo_estimate";
+      est.estimated_at = todayISO();
+      onSaveItemNutrition(si, ii, est);
+    } catch(err){
+      setItemErr(e => Object.assign({}, e, { [key]:err.message || "Could not estimate." }));
+    } finally {
+      setItemBusy(b => Object.assign({}, b, { [key]:false }));
+    }
+  }
+
   return (
     <div>
       {cfg && menu && menu.menu_id ? (
@@ -10383,12 +10467,22 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                     </div>
                   : canEstimate && (
                       <div className="iest">
+                        {it.web_image && (
+                          <button className="iest-btn" disabled={itemBusy[key]}
+                            onClick={()=> estimateFromPhoto(i, oj, it)}
+                            title="Estimate calories from the restaurant's photo of this dish">
+                            {itemBusy[key]
+                              ? <span className="spin" />
+                              : <Icon name="camera" size={12} color="var(--accent)" />}
+                            {itemBusy[key] ? "Estimating..." : "Estimate from photo"}
+                          </button>
+                        )}
                         <button className="iest-btn" disabled={itemBusy[key]}
                           onClick={()=> estimateOne(i, oj, it)}>
                           {itemBusy[key]
                             ? <span className="spin" />
                             : <Icon name="sparkle" size={12} color="var(--accent)" />}
-                          {itemBusy[key] ? "Estimating..." : "Estimate calories"}
+                          {itemBusy[key] ? "Estimating..." : (it.web_image ? "Estimate from description" : "Estimate calories")}
                         </button>
                         {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
                       </div>
@@ -16509,7 +16603,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             )}
             {!showUrl && destWebsite && (
               <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
-                We look on the restaurant's website for its menu page and read it in &mdash; no typing. Best when the place is linked to a website.
+                We look on the restaurant's website for its menu page and read it in for you, no typing. Works best when the place is linked to a website.
               </div>
             )}
             <button className="btn ghost" style={{marginTop:8}}
@@ -16520,7 +16614,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             {!showUrl && (
               <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
                 On iPhone, picking many photos at once can pause for several seconds
-                while iOS converts them &mdash; that is normal. If it hangs, cancel and
+                while iOS converts them. That is normal. If it hangs, cancel and
                 pick one or two at a time.
               </div>
             )}
@@ -16532,9 +16626,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             )}
             {!showUrl && (
               <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
-                Paste the web address of the restaurant's own menu or ordering page &mdash;
-                we read it in and you review it before saving. Works best on their
-                actual menu page, not the homepage (though we will try to follow to it).
+                Paste the web address of the restaurant's own menu or ordering page. We
+                read it in and you review it before saving. Works best on their actual
+                menu page, though if you paste the homepage we will try to follow to it.
               </div>
             )}
             {showUrl && (
@@ -16591,7 +16685,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           <div className="empty" style={{paddingTop:"22vh"}}>
             <Loader size={46} />
             <div className="big" style={{marginTop:16}}>Reading the menu</div>
-            <div>Scanning your menu. This can take up to a minute.</div>
+            <div>This usually takes a minute or two. A big menu with lots of items or photos takes longer; a short one is quick. Hang tight.</div>
           </div>
         )}
 
