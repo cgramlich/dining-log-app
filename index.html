@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.321.1";
+const APP_VERSION   = "1.321.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -16512,7 +16512,12 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   async function findMenu(){
     const rest = restaurants.find(r => r.id === (restId || presetRestaurantId));
     const site = rest && (rest.website || "").trim();
-    if (!site){ toast("This place has no website saved yet. Open it, tap Update from Google (or add the website), then try again."); return; }
+    if (!site){
+      toast(rest && rest.google_place_id
+        ? "Google has no website on file for this place. Paste the menu link, or scan it."
+        : "No website saved for this place. Link it to Google (Update from Google) or add the website, then try again.");
+      return;
+    }
     setStep("working");
     try {
       const headers = await authHeaders(config);
@@ -16718,7 +16723,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
                 {destWebsite
                   ? "We look on the restaurant's website for its menu page and read it in for you, no typing."
-                  : "This needs the restaurant's website. Open the place and tap Update from Google (or edit it to add the website), then come back and this finds the menu for you."}
+                  : (_destRest && _destRest.google_place_id
+                      ? "Google has no website on file for this place, so there is nothing to search. Paste the menu link below, or scan it."
+                      : "This needs the restaurant's website. Open the place and tap Update from Google, or add the website, then this finds the menu for you.")}
               </div>
             )}
             <button className="btn ghost" style={{marginTop:8}}
