@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.322.1";
+const APP_VERSION   = "1.322.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -15721,11 +15721,11 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           )}
         </div>
 
-        <label className="fld"><span className="lbl">Who was with you?</span></label>
-        <div className="tiny faint" style={{margin:"-6px 0 8px"}}>
-          Tag the people you dined with. Names you've used before (and your connections) autocomplete.
-        </div>
         <div className="fld">
+          <span className="lbl">Who was with you?</span>
+          <div className="tiny faint" style={{margin:"4px 0 8px"}}>
+            Tag the people you dined with. Names you've used before (and your connections) autocomplete.
+          </div>
           <PeopleTag value={companions} onChange={setCompanions} roster={peopleRoster} />
         </div>
 
