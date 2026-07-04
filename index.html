@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.321.2";
+const APP_VERSION   = "1.321.3";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -13952,7 +13952,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
                       <div className="small" style={{fontWeight:600}}>
                         {r.name}
                         {r.favorite ? <span style={{color:"var(--accent)"}}>{" \u2605"}</span> : null}
-                        {r.wishlist ? <span className="tiny" style={{color:"var(--accent)", marginLeft:6, fontWeight:600}}>\u00b7 to try</span> : null}
+                        {r.wishlist ? <span className="tiny" style={{color:"var(--accent)", marginLeft:6, fontWeight:600}}>{"\u00b7 to try"}</span> : null}
                       </div>
                       {(r.cuisine || r.location) ? (
                         <div className="tiny faint">
