@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.322.0";
+const APP_VERSION   = "1.322.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -15765,6 +15765,66 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               </div>
             </div>
           )}
+          {/* Browse the full menu sits right here, next to the type box and your
+              usuals, so the ways to add a dish are together. */}
+          {menuGroups.length > 0 && menuItemTotal > 12 && !showFullMenu && (
+            <div style={{marginTop:12}}>
+              <button className="btn ghost sm" style={{width:"100%"}}
+                onClick={()=> setShowFullMenu(true)}>
+                <Icon name="book" size={15} color="var(--accent)" />
+                {" "}Browse the full menu ({menuItemTotal} items)
+              </button>
+            </div>
+          )}
+          {menuGroups.length > 0 && (menuItemTotal <= 12 || showFullMenu) && (
+            <div style={{marginTop:12}}>
+              {menuItemTotal > 12 && (
+                <div className="row" style={{justifyContent:"space-between", alignItems:"center", marginBottom:4}}>
+                  <div className="tiny faint">Full menu</div>
+                  <a href="#" className="tiny" style={{color:"var(--accent)"}}
+                     onClick={(e)=>{ e.preventDefault(); setShowFullMenu(false); }}>Hide</a>
+                </div>
+              )}
+              {menuGroups.map((g, gi) => (
+                <div key={gi} style={{marginBottom: gi === menuGroups.length - 1 ? 0 : 14}}>
+                  <div className="tiny faint" style={{marginBottom:6}}>
+                    Tap from {g.label}:
+                  </div>
+                  {g.sections.map((s, si) => (
+                    <div key={si}>
+                      {/* show section header only when there are 2+ sections in
+                          this menu - otherwise the menu label alone is context */}
+                      {g.sections.length > 1 && (
+                        <div className="section-subhead">{s.name || "Other"}</div>
+                      )}
+                      <div className="chips">
+                        {s.items.map((n,i)=>(
+                          <span key={i}
+                            className={"chip pick" +
+                              (dishNames.indexOf(n)!==-1 ? " on" : "")}
+                            onClick={()=> dishNames.indexOf(n)!==-1
+                              ? removeDish(n) : addDish(n)}>
+                            {n}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          {menuGroups.length === 0 && restId && onScanMenu && (
+            <div style={{marginTop:12, textAlign:"center"}}>
+              <div className="tiny faint" style={{marginBottom:8}}>
+                No saved menu for this place yet &mdash; scan one to tap dishes straight from it.
+              </div>
+              <button className="btn ghost sm" onClick={()=> onScanMenu(restId)}>
+                <span className="row" style={{gap:6, justifyContent:"center"}}>
+                  <Icon name="camera" size={15} color="var(--accent)" />Scan a menu for this place</span>
+              </button>
+            </div>
+          )}
           <input ref={receiptRef} type="file" accept="image/*"
             style={{display:"none"}} onChange={onReceiptPicked} />
           {scannedItems && scannedItems.length ? (
@@ -16099,64 +16159,6 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                 it off your loved list. Estimate a dish from a photo, or without one.
               </div>
               <DishTotal dishes={dishes} min={1} />
-            </div>
-          )}
-          {menuGroups.length > 0 && menuItemTotal > 12 && !showFullMenu && (
-            <div style={{marginTop:12}}>
-              <button className="btn ghost sm" style={{width:"100%"}}
-                onClick={()=> setShowFullMenu(true)}>
-                <Icon name="book" size={15} color="var(--accent)" />
-                {" "}Browse the full menu ({menuItemTotal} items)
-              </button>
-            </div>
-          )}
-          {menuGroups.length > 0 && (menuItemTotal <= 12 || showFullMenu) && (
-            <div style={{marginTop:12}}>
-              {menuItemTotal > 12 && (
-                <div className="row" style={{justifyContent:"space-between", alignItems:"center", marginBottom:4}}>
-                  <div className="tiny faint">Full menu</div>
-                  <a href="#" className="tiny" style={{color:"var(--accent)"}}
-                     onClick={(e)=>{ e.preventDefault(); setShowFullMenu(false); }}>Hide</a>
-                </div>
-              )}
-              {menuGroups.map((g, gi) => (
-                <div key={gi} style={{marginBottom: gi === menuGroups.length - 1 ? 0 : 14}}>
-                  <div className="tiny faint" style={{marginBottom:6}}>
-                    Tap from {g.label}:
-                  </div>
-                  {g.sections.map((s, si) => (
-                    <div key={si}>
-                      {/* show section header only when there are 2+ sections in
-                          this menu - otherwise the menu label alone is context */}
-                      {g.sections.length > 1 && (
-                        <div className="section-subhead">{s.name || "Other"}</div>
-                      )}
-                      <div className="chips">
-                        {s.items.map((n,i)=>(
-                          <span key={i}
-                            className={"chip pick" +
-                              (dishNames.indexOf(n)!==-1 ? " on" : "")}
-                            onClick={()=> dishNames.indexOf(n)!==-1
-                              ? removeDish(n) : addDish(n)}>
-                            {n}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-          {menuGroups.length === 0 && restId && onScanMenu && (
-            <div style={{marginTop:12, textAlign:"center"}}>
-              <div className="tiny faint" style={{marginBottom:8}}>
-                No saved menu for this place yet &mdash; scan one to tap dishes straight from it.
-              </div>
-              <button className="btn ghost sm" onClick={()=> onScanMenu(restId)}>
-                <span className="row" style={{gap:6, justifyContent:"center"}}>
-                  <Icon name="camera" size={15} color="var(--accent)" />Scan a menu for this place</span>
-              </button>
             </div>
           )}
         </div>
