@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.321.3";
+const APP_VERSION   = "1.322.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -10060,6 +10060,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   // "explain the menu" state
   const [explainOpen, setExplainOpen] = useState(false);   // pick-dishes mode
   const [explainPicks, setExplainPicks] = useState({});    // dish name -> bool
+  const [explainFilter, setExplainFilter] = useState("");  // search within the dish picker
   const [explaining, setExplaining] = useState(false);
   const [explanation, setExplanation] = useState(null);
   const [explainErr, setExplainErr] = useState(null);
@@ -10279,13 +10280,38 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           </div>
 
           {explainOpen && (
-            <div className="chips" style={{gap:6, maxHeight:200, overflowY:"auto", marginBottom:10}}>
-              {allDishNames.map((n,i)=>(
-                <span key={i} className={"chip pick" + (explainPicks[n] ? " on" : "")}
-                  onClick={()=> setExplainPicks(p => Object.assign({}, p, { [n]: !p[n] }))}>
-                  {n}
-                </span>
-              ))}
+            <div style={{marginBottom:10}}>
+              {allDishNames.length > 8 && (
+                <div style={{position:"relative", marginBottom:6}}>
+                  <input className="input" placeholder="Search dishes..." value={explainFilter}
+                    onChange={e=> setExplainFilter(e.target.value)}
+                    autoCapitalize="off" autoCorrect="off"
+                    style={{paddingRight: explainFilter ? 34 : undefined}} />
+                  {explainFilter && (
+                    <button aria-label="Clear search" title="Clear"
+                      onClick={()=> setExplainFilter("")}
+                      style={{position:"absolute", right:8, top:"50%", transform:"translateY(-50%)",
+                              background:"none", border:"none", padding:4, cursor:"pointer", display:"flex"}}>
+                      <Icon name="close" size={15} color="#80715f" />
+                    </button>
+                  )}
+                </div>
+              )}
+              {(()=>{
+                const fq = explainFilter.trim().toLowerCase();
+                const shown = fq ? allDishNames.filter(n => n.toLowerCase().indexOf(fq) !== -1) : allDishNames;
+                if (!shown.length) return <div className="tiny faint" style={{padding:"6px 2px"}}>No dishes match.</div>;
+                return (
+                  <div className="chips" style={{gap:6, maxHeight:200, overflowY:"auto"}}>
+                    {shown.map((n,i)=>(
+                      <span key={i} className={"chip pick" + (explainPicks[n] ? " on" : "")}
+                        onClick={()=> setExplainPicks(p => Object.assign({}, p, { [n]: !p[n] }))}>
+                        {n}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -10299,7 +10325,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
                 : "How to order from this menu"}
             </button>
             <button className="btn ghost sm" style={{flex:"none"}}
-              onClick={()=>{ setExplainOpen(o=> !o); setExplainErr(null); }}>
+              onClick={()=>{ setExplainOpen(o=> !o); setExplainErr(null); setExplainFilter(""); }}>
               {explainOpen ? "Whole menu instead" : "Pick specific dishes"}
             </button>
             {explainOpen && pickedNames.length ? (
