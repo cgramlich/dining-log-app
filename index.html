@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.322.2";
+const APP_VERSION   = "1.323.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1894,6 +1894,12 @@ it (no app, no account), sees the menu, taps what they want, sets a **quantity**
 and an optional **note** ("no onions"), enters their name, and taps **Send my
 order**. They can change their order and send again any time.
 
+**Not hungry? Anyone can pass.** Right under the order button there's a **"Not
+eating? Tap to pass"** option, so someone who isn't ordering can bow out in one
+tap instead of leaving you wondering. They add their name so you know who it is,
+and it's reversible - an **"Actually, I'm in"** button brings them back if they
+change their mind.
+
 On your screen the order builds **live** - the people who have ordered show up
 first under **Who's ordered**, with a combined bring-home tally below ("2x
 Avocado Toast, 1x Pollo - no onions"). Need to fix an order? Tap **Edit** on their card to change quantities or items,
@@ -1905,12 +1911,14 @@ table's own picks - nothing else of yours.
 
 **Knowing who you are still waiting on.** Optionally, add the people you are
 expecting under **Who's in on the order?** on your host screen. As orders arrive,
-each name is marked **ordered** or **waiting**, with a clear "Still waiting on:
-Molly" line until everyone is in. Matching is by name, so it lines up when a
-person types the same name you listed; anyone who orders under a name not on
-your list still shows up under **Also ordered**, so no order is ever missed.
-The roster is yours alone - guests never see it. Leave it empty and the order
-works exactly as before.
+each name is marked **ordered**, **passed**, or **waiting**, with a clear "Still
+waiting on: Molly" line until everyone is in. Someone who taps **pass** counts as
+responded and drops off the waiting list (shown as **passed - not ordering**), so
+you are never left waiting on a person who was never going to order. Matching is
+by name, so it lines up when a person types the same name you listed; anyone who
+orders under a name not on your list still shows up under **Also ordered**, so no
+order is ever missed. The roster is yours alone - guests never see it. Leave it
+empty and the order works exactly as before.
 
 **Getting back to a running order.** Any group order you start also appears under
 **Active group orders** at the top of your **You** tab, with how many people
@@ -17591,6 +17599,22 @@ async function groupSubmit(cfg, code, name, token, picks){
   }
   return res.json();
 }
+async function groupPass(cfg, code, name, token, passed){
+  // A guest opts out ("not ordering") so the host isn't left waiting. passed=false
+  // is the undo (rejoin). Mirrors groupSubmit's auth handling for signed-in guests.
+  const headers = { "Content-Type":"application/json" };
+  if (cfg) { try { Object.assign(headers, await authHeaders(cfg)); } catch(e){} }
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/pass", {
+    method:"POST", headers,
+    body: JSON.stringify({ guest_name:name, guest_token:token, passed: passed !== false }),
+  });
+  if (!res.ok){
+    let msg = "Could not update.";
+    try { const j = await res.json(); if (j && j.detail) msg = j.detail; } catch(e){}
+    throw new Error(msg);
+  }
+  return res.json();
+}
 // Phase C: host invites connections; invitees list the orders they're invited to.
 async function inviteToGroup(cfg, code, userIds){
   const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/invite", {
@@ -18488,18 +18512,25 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   }
 
   const agg    = data ? aggregatePicks(data.picks) : [];
-  const guests = data ? (data.picks || []) : [];
+  const allGuests = data ? (data.picks || []) : [];
+  // A guest who tapped "not ordering" has an empty order + passed:true. Keep them
+  // out of the real-orders list (and the aggregate handles empty picks already),
+  // but still counted as "responded" so the host isn't left waiting on them.
+  const passedGuests = allGuests.filter(g => g.passed);
+  const guests = allGuests.filter(g => !g.passed);
   const closed = data && data.status === "closed";
   const roster    = (data && Array.isArray(data.roster)) ? data.roster : [];
   const hasRoster = roster.length > 0;
-  // Reconcile expected names against who actually submitted. Match by normalized
-  // name; submitters not on the roster fall into "extras" so nothing is lost.
+  // Reconcile expected names against who actually responded (ordered OR passed).
+  // Match by normalized name; responders not on the roster fall into "extras".
   const subByName = {};
-  guests.forEach(g => { const k = groupNorm(g.guest_name); if (k && !(k in subByName)) subByName[k] = g; });
+  allGuests.forEach(g => { const k = groupNorm(g.guest_name); if (k && !(k in subByName)) subByName[k] = g; });
   const rosterSet = new Set(roster.map(groupNorm));
   const expected  = roster.map(name => ({ name, sub: subByName[groupNorm(name)] || null }));
   const waiting   = expected.filter(r => !r.sub).map(r => r.name);
   const extras    = guests.filter(g => !rosterSet.has(groupNorm(g.guest_name)));
+  const passedNames = passedGuests.map(g => g.guest_name).filter(Boolean);
+  const passedExtras = passedGuests.filter(g => !rosterSet.has(groupNorm(g.guest_name)));
 
   return (
     <div className="go-overlay">
@@ -18695,28 +18726,37 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               ) : null}
             </div>
 
-            <div className="go-sec">Who's ordered ({guests.length})</div>
+            <div className="go-sec">Who's ordered ({guests.length}){passedGuests.length ? ", " + passedGuests.length + " passed" : ""}</div>
             {hasRoster ? (
               <div className="card">
                 {waiting.length ? (
                   <div className="go-waiting">Still waiting on: {waiting.join(", ")}</div>
                 ) : (
-                  <div className="tiny faint" style={{padding:"2px 10px 8px"}}>Everyone on your list has ordered.</div>
+                  <div className="tiny faint" style={{padding:"2px 10px 8px"}}>
+                    {passedNames.length ? "Everyone's responded - you're good to place it." : "Everyone on your list has ordered."}
+                  </div>
                 )}
-                {expected.map((r,i)=>(
+                {expected.map((r,i)=>{
+                  const isPassed = !!(r.sub && r.sub.passed);
+                  return (
                   <div key={"e"+i} className="go-guest">
                     <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
                       <div style={{flex:1,minWidth:0}}>
                         <div className="go-guest-name">
                           {r.name}
-                          {r.sub ? <span className="go-in">ordered</span> : <span className="go-wait">waiting</span>}
+                          {r.sub
+                            ? (isPassed ? <span className="go-wait">passed</span> : <span className="go-in">ordered</span>)
+                            : <span className="go-wait">waiting</span>}
                         </div>
-                        {r.sub ? <div className="tiny muted">{picksLine(r.sub.picks)}</div> : null}
+                        {r.sub ? (isPassed
+                          ? <div className="tiny faint">Not ordering</div>
+                          : <div className="tiny muted">{picksLine(r.sub.picks)}</div>) : null}
                       </div>
-                      {r.sub ? cardCtls(r.sub) : null}
+                      {r.sub && !isPassed ? cardCtls(r.sub) : null}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {extras.length ? (
                   <>
                     <div className="tiny faint" style={{padding:"10px 10px 2px"}}>Also ordered</div>
@@ -18733,8 +18773,18 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                     ))}
                   </>
                 ) : null}
+                {passedExtras.length ? (
+                  <>
+                    <div className="tiny faint" style={{padding:"10px 10px 2px"}}>Not ordering</div>
+                    {passedExtras.map((g,i)=>(
+                      <div key={"p"+i} className="go-guest">
+                        <div className="go-guest-name">{g.guest_name || "Guest"} <span className="go-wait">passed</span></div>
+                      </div>
+                    ))}
+                  </>
+                ) : null}
               </div>
-            ) : guests.length === 0 ? (
+            ) : (guests.length === 0 && passedGuests.length === 0) ? (
               <div className="card small muted" style={{textAlign:"center"}}>
                 Nobody's ordered yet. Share the link above and watch them come in.
               </div>
@@ -18751,6 +18801,16 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                     </div>
                   </div>
                 ))}
+                {passedGuests.length ? (
+                  <>
+                    <div className="tiny faint" style={{padding:"10px 10px 2px"}}>Not ordering</div>
+                    {passedGuests.map((g,i)=>(
+                      <div key={"p"+i} className="go-guest">
+                        <div className="go-guest-name">{g.guest_name || "Guest"} <span className="go-wait">passed</span></div>
+                      </div>
+                    ))}
+                  </>
+                ) : null}
               </div>
             )}
 
@@ -18816,6 +18876,8 @@ function GroupOrderGuest({code, cfg, profile}){
   const [helpBusy, setHelpBusy]     = useState(false);
   const [helpErr, setHelpErr]       = useState("");
   const [freeText, setFreeText]     = useState("");      // free-form (menu-less) order
+  const [passed, setPassed]   = useState(false);   // this guest marked themselves "not ordering"
+  const [passing, setPassing] = useState(false);   // pass/undo request in flight
   const token = guestToken();
 
   useEffect(()=>{
@@ -18896,6 +18958,40 @@ function GroupOrderGuest({code, cfg, profile}){
       setErr(e.message || "Could not send your order.");
     } finally { setSending(false); }
   }
+  async function doPass(){
+    const nm = name.trim();
+    if (!nm){ setErr("Add your name first so the host knows who's passing."); return; }
+    setErr(""); setPassing(true);
+    try {
+      await groupPass(cfg || null, code, nm, token, true);
+      try { localStorage.setItem("dininglog_guest_name", nm); } catch(e){}
+      setPassed(true); setSent(false); setPlaced(false);
+      try { setData(await groupFetch(cfg || null, code)); } catch(_e){}
+      logMsg("GROUP","guest passed (not ordering)");
+    } catch(e){
+      setErr(e.message || "Could not update.");
+    } finally { setPassing(false); }
+  }
+  async function undoPass(){
+    setErr(""); setPassing(true);
+    try {
+      await groupPass(cfg || null, code, name.trim(), token, false);
+      setPassed(false);
+      try { setData(await groupFetch(cfg || null, code)); } catch(_e){}
+      logMsg("GROUP","guest rejoined (undo pass)");
+    } catch(e){
+      setErr(e.message || "Could not update.");
+    } finally { setPassing(false); }
+  }
+  // Reflect a pass already recorded on the server (e.g. set on another device):
+  // match this guest's row by name once data + name are known.
+  useEffect(()=>{
+    const nm = groupNorm(name);
+    if (!nm || !data || !Array.isArray(data.picks)) return;
+    const mine = data.picks.find(p => groupNorm(p.guest_name) === nm);
+    if (mine && mine.passed) setPassed(true);
+  }, [data, name]);
+
   async function runHelp(preset){
     const p = (preset || helpInput || "").trim();
     if (!p){ setHelpErr("Tell me what you're in the mood for."); return; }
@@ -18934,6 +19030,14 @@ function GroupOrderGuest({code, cfg, profile}){
              background:"rgba(127,170,107,0.14)", color:"#a6c98f", border:"1px solid rgba(127,170,107,0.4)",
              fontWeight:600}}>
           &#10003; {data.host_name ? data.host_name + " placed the order" : "The order's been placed"} - it's on the way!
+        </div>
+      ) : null}
+
+      {passed && !closed ? (
+        <div style={{margin:"0 0 16px", padding:"10px 14px", borderRadius:12, textAlign:"center",
+             background:"var(--surface-2, rgba(255,255,255,0.04))", color:"var(--text-faint)",
+             border:"1px solid var(--line)", fontWeight:600}}>
+          You're not ordering this time. Scroll down to rejoin if you change your mind.
         </div>
       ) : null}
 
@@ -19069,13 +19173,23 @@ function GroupOrderGuest({code, cfg, profile}){
              padding:"10px 16px calc(12px + env(safe-area-inset-bottom))",
              boxShadow:"0 -6px 20px rgba(0,0,0,0.22)"}}>
           <div style={{maxWidth:600, margin:"0 auto"}}>
-            {placed && sent ? (
+            {passed ? (
               <div style={{textAlign:"center"}}>
-                <div style={{color:"var(--ok)", fontWeight:600, marginBottom:2}}>
-                  &#10003; Order placed{name.trim() ? " - thanks, " + name.trim() : ""}!
-                </div>
-                <div className="tiny faint">It's in. Tap any item to change it, then send the update.</div>
+                <div style={{fontWeight:600, marginBottom:2}}>You're set as not ordering</div>
+                <div className="tiny faint" style={{marginBottom:8}}>The host knows not to wait on you. Changed your mind?</div>
+                <button className="btn" onClick={undoPass} disabled={passing}>
+                  {passing ? <span className="spin" /> : "Actually, I'm in"}
+                </button>
               </div>
+            ) : placed && sent ? (
+              <>
+                <div style={{textAlign:"center"}}>
+                  <div style={{color:"var(--ok)", fontWeight:600, marginBottom:2}}>
+                    &#10003; Order placed{name.trim() ? " - thanks, " + name.trim() : ""}!
+                  </div>
+                  <div className="tiny faint">It's in. Tap any item to change it, then send the update.</div>
+                </div>
+              </>
             ) : (
               <>
                 <div className="tiny" style={{textAlign:"center", marginBottom:6,
@@ -19094,6 +19208,13 @@ function GroupOrderGuest({code, cfg, profile}){
                       + (!freeForm && selected.length ? " (" + selected.length + ")" : "")}
                 </button>
                 {placed ? <div className="tiny faint" style={{textAlign:"center", marginTop:6}}>You have unsent changes.</div> : null}
+                <div style={{textAlign:"center", marginTop:10}}>
+                  <button onClick={doPass} disabled={passing}
+                    style={{background:"none", border:"none", color:"var(--text-faint)",
+                            textDecoration:"underline", cursor:"pointer", fontSize:"0.85em", padding:"4px"}}>
+                    {passing ? "One sec..." : "Not eating? Tap to pass - no thanks, I'm out"}
+                  </button>
+                </div>
               </>
             )}
             {err ? <div className="small" style={{marginTop:8, color:"var(--danger)", textAlign:"center"}}>{err}</div> : null}
