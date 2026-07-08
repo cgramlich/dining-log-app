@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.324.0";
+const APP_VERSION   = "1.325.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -978,6 +978,19 @@ async function communityShareMenu(cfg, payload){
   const data = await res.json().catch(()=> ({}));
   if (!res.ok) throw new Error(data.detail || ("share failed (" + res.status + ")"));
   return data;
+}
+async function communityPruneMine(cfg, placeId, keepLabels){
+  // Remove YOUR OWN shared copies for this place whose label isn't in keepLabels
+  // (so a renamed/removed menu doesn't leave a stale community copy behind).
+  const headers = await authHeaders(cfg);
+  headers["Content-Type"] = "application/json";
+  const res = await fetch(apiBase(cfg) + "/api/community/menus/prune", {
+    method:"POST", headers,
+    body:JSON.stringify({ place_id: placeId, keep_labels: keepLabels || [] }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(data.detail || ("prune failed (" + res.status + ")"));
+  return data;   // { ok, removed }
 }
 // Fetch a menu web page to clean text (server-side, SSRF-guarded). Returns
 // { text, final_url, title }. Reads text-based PDFs too; throws a helpful
@@ -1412,16 +1425,19 @@ just your email and password - your data follows your account.
 
 The app opens to **Home**, and there is a bar across the bottom with five spots:
 
-- **Home** - your start screen. Find a place (one of yours, or a new one on
-  Google), jump to Near me / Scan a menu / Can't decide, pick up an active group
-  order, and reopen recent places. The flow runs find a place &rarr; open it and
-  scan the menu / ask Help me order &rarr; log the visit after the meal.
-  **Settings** lives behind the gear in the top-right of Home.
-  **Looking somewhere else?** When you search a place on Home, a **City
-  (optional)** box appears. Leave it blank and the search leans on where you are
-  now; type a city (say, Austin) and it searches there instead - handy for a spot
-  in another city you can only half-remember ("something with 'red' in Austin").
-  Each result shows its cuisine and address so you can spot the right one.
+- **Home** - your start screen. Three tabs across the top are the ways to find a
+  place: **Near me** (discover what's around you), **Scan a menu** (open the
+  camera), and **Find on Google** (search by name). Find on Google is the one that
+  lives right on Home - type a name and it searches. Below your search sit
+  **Still to try** and **Can't decide?** (a pick from your saved places), then any
+  active group order and your recent places. **Settings** is behind the gear,
+  top-right. The flow runs find a place &rarr; open it and scan the menu / ask
+  Help me order &rarr; log the visit after the meal.
+  **Looking somewhere else?** Under Find on Google a **City (optional)** box
+  appears once you start typing. Leave it blank and the search leans on where you
+  are now; type a city (say, Austin) and it searches there instead - handy for a
+  spot in another city you can only half-remember ("something with 'red' in
+  Austin"). Each result shows its cuisine and address so you can spot the right one.
 - **Places** - your list of restaurants.
 - **The plus (+) button** - starts with the moment you walk in: **I'm back**
   pulls up a place you've saved, and **Somewhere new** finds where you're eating
@@ -1567,6 +1583,17 @@ works on regular web menus, on the big online-ordering pages (Toast, Square, and
 similar), and on **PDF menus** that have real text in them. A menu that is just a
 scanned image has no text to read, so for those it is best to scan it with the
 camera instead.
+
+**Share a menu with other diners.** Once a place is linked to Google, its page
+shows an **Available menus** panel: pull down a menu someone else already
+digitized here (so you can skip scanning), or add yours so the next person can.
+You can share any time, not only right after scanning - and the app gives you a
+gentle **"Share your menu?"** prompt on the place page so it is easy to find.
+Only the menu is ever shared, never your visits, notes, or ratings, and menus
+from others are labeled "not verified." Tip: rename a menu to what it really is
+(say, **Lunch** instead of the default Main) *before* you share, and it goes into
+the library under that name; if you rename and re-share later, the app tidies up
+your old copy so there is no stale duplicate.
 
 -----
 
@@ -5744,6 +5771,32 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         </div>
       </div>
 
+      {/* How to find a place: three tabs. "Find on Google" is the inline tab shown
+          right here; "Near me" and "Scan a menu" launch their own screens. */}
+      <div style={{display:"flex", gap:4, padding:4, marginBottom:12, borderRadius:12,
+           background:"var(--surface-2, rgba(127,127,127,0.10))"}}>
+        {onNearMe ? (
+          <button onClick={onNearMe} style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center",
+            gap:5, padding:"9px 6px", borderRadius:9, border:"none", cursor:"pointer", background:"transparent",
+            color:"var(--text)", fontWeight:600, fontSize:"0.86em", whiteSpace:"nowrap"}}>
+            <Icon name="locate" size={14} color="var(--accent)" />Near me
+          </button>
+        ) : null}
+        {onScanMenu ? (
+          <button onClick={onScanMenu} style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center",
+            gap:5, padding:"9px 6px", borderRadius:9, border:"none", cursor:"pointer", background:"transparent",
+            color:"var(--text)", fontWeight:600, fontSize:"0.86em", whiteSpace:"nowrap"}}>
+            <Icon name="camera" size={14} color="var(--accent)" />Scan a menu
+          </button>
+        ) : null}
+        <button aria-current="page" style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center",
+          gap:5, padding:"9px 6px", borderRadius:9, border:"none", cursor:"default",
+          background:"var(--surface)", color:"var(--text)", fontWeight:700, fontSize:"0.86em",
+          whiteSpace:"nowrap", boxShadow:"0 1px 3px rgba(0,0,0,0.12)"}}>
+          <Icon name="search" size={14} color="var(--accent)" />Find on Google
+        </button>
+      </div>
+
       {/* (1) Find a place - yours or new */}
       <SearchBar value={q} onChange={setQ} placeholder="Find a place — yours, or somewhere new" />
 
@@ -5799,13 +5852,6 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         </div>
       ) : null}
 
-      {/* quick discovery actions */}
-      <div className="row" style={{gap:8, flexWrap:"wrap", margin:"2px 0 16px"}}>
-        {onNearMe ? <button className="btn ghost sm" onClick={onNearMe}><Icon name="locate" size={15} color="var(--accent)" />Near me</button> : null}
-        {onScanMenu ? <button className="btn ghost sm" onClick={onScanMenu}><Icon name="camera" size={15} color="var(--accent)" />Scan a menu</button> : null}
-        {onSpin ? <button className="btn ghost sm" onClick={onSpin}><Icon name="compass" size={15} color="var(--accent)" />Can't decide?</button> : null}
-      </div>
-
       {/* "Still to try" - nudge toward saved places you haven't visited yet.
           Opens your places pre-filtered to Not visited (wishlist first). Hidden
           while searching and once you've been everywhere. */}
@@ -5818,6 +5864,20 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
             <div className="tiny faint">You've saved {unvisited.length} place{unvisited.length===1?"":"s"} you haven't been to yet.</div>
           </div>
           <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Browse ›</span>
+        </div>
+      ) : null}
+
+      {/* "Can't decide?" - the spin picker over your saved places. Lives here by
+          "Still to try" now that the top row is the three find-a-place tabs. */}
+      {!ql && onSpin ? (
+        <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
+          onClick={onSpin}>
+          <Icon name="sparkle" size={20} color="var(--accent)" />
+          <div style={{flex:1, minWidth:0}}>
+            <div className="small" style={{fontWeight:600}}>Can't decide?</div>
+            <div className="tiny faint">Let MenuCaptain pick one of your places for you.</div>
+          </div>
+          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Spin ›</span>
         </div>
       ) : null}
 
@@ -8982,9 +9042,9 @@ function fmtCommunityDate(iso){
   try { return new Date(iso).toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" }); }
   catch(e){ return ""; }
 }
-function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
+function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, onShared, autoOpen}){
   const placeId = restaurant && restaurant.google_place_id;
-  const [open, setOpen]       = useState(false);
+  const [open, setOpen]       = useState(!!autoOpen);
   const [list, setList]       = useState(null);   // null=unloaded | array
   const [busy, setBusy]       = useState(false);
   const [err, setErr]         = useState("");
@@ -9010,6 +9070,8 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
     setBusy(false);
   }
   function toggleOpen(){ const n = !open; setOpen(n); if (n && list === null) load(); }
+  useEffect(()=>{ if (autoOpen) setOpen(true); }, [autoOpen]);                 // parent nudge can open it
+  useEffect(()=>{ if (open && list === null && placeId) load(); }, [open]);   // covers autoOpen
 
   async function pull(){
     const ids = Object.keys(picked).filter(id => picked[id]);
@@ -9059,6 +9121,11 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
         });
         n++;
       }
+      // Clean up any of MY older copies here whose label no longer matches - e.g.
+      // a menu I shared as "Main", renamed to "Lunch", and re-shared - so I don't
+      // leave a stale duplicate behind. Best-effort; a failure doesn't block.
+      try { await communityPruneMine(cfg, placeId, ms.map(m => m.label || "Main")); } catch(_e){}
+      if (onShared){ try { onShared(); } catch(_e){} }
       const done = dupes.length ? "Updated your shared menu. Thanks!"
         : ("Shared " + n + " menu" + (n>1?"s":"") + " - thanks! Other diners can skip scanning now.");
       setMsg(done);
@@ -9168,6 +9235,17 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const menuRowRefs   = useRef({});                     // menu_id -> DOM node (for hit-testing)
   const [dietFilter, setDietFilter] = useState(null);   // active dietary filter label, or null
   const [expenseVisit, setExpenseVisit] = useState(null);  // visit being turned into an expense item
+  // "Share your menu" nudge: makes contribute-later discoverable instead of buried
+  // in the collapsed Available-menus panel. Dismissal persists per place.
+  const shareNudgeKey = "mc_sharenudge_" + ((restaurant && restaurant.google_place_id) || "");
+  const [shareNudgeOff, setShareNudgeOff] = useState(()=>{
+    try { return !!localStorage.getItem(shareNudgeKey); } catch(e){ return false; }
+  });
+  const [autoOpenCommunity, setAutoOpenCommunity] = useState(false);
+  function dismissShareNudge(){
+    setShareNudgeOff(true);
+    try { localStorage.setItem(shareNudgeKey, "1"); } catch(e){}
+  }
   if (!restaurant){
     return (
       <div className="overlay">
@@ -9688,8 +9766,24 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <div className="tiny faint" style={{margin:"0 0 10px"}}>{mShareErr}</div>
         )}
 
+        {r.google_place_id && !shareNudgeOff
+          && menuList.some(m => m && (m.sections||[]).length && m.source !== "community" && m.source !== "shared") ? (
+          <div className="card" style={{marginBottom:12, display:"flex", gap:10, alignItems:"center",
+               background:"rgba(127,170,107,0.10)", border:"1px solid rgba(127,170,107,0.35)"}}>
+            <Icon name="nodes" size={18} color="var(--accent)" />
+            <div style={{flex:1, minWidth:0}}>
+              <div className="small" style={{fontWeight:600}}>Share your menu?</div>
+              <div className="tiny faint">Help other diners at {r.name || "this place"} skip the scan. Only the menu is shared, never your visits, notes, or ratings.</div>
+            </div>
+            <button className="btn ghost sm" style={{flex:"none"}}
+              onClick={()=>{ setAutoOpenCommunity(true); setShareNudgeOff(true); }}>Share</button>
+            <button className="x" aria-label="Not now" title="Not now" style={{flex:"none"}}
+              onClick={dismissShareNudge}><Icon name="close" size={16} /></button>
+          </div>
+        ) : null}
+
         <CommunityMenuPanel cfg={cfg} restaurant={r} localMenus={menuList}
-          onImport={onImportCommunityMenus} />
+          onImport={onImportCommunityMenus} autoOpen={autoOpenCommunity} onShared={dismissShareNudge} />
 
         {/* Dietary filter: chips for diets that have tagged matches; tapping one
             shows a combined menu of those dishes pulled from all of this place's menus. */}
