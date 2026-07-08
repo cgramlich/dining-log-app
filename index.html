@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.326.0";
+const APP_VERSION   = "1.327.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1425,15 +1425,16 @@ just your email and password - your data follows your account.
 
 The app opens to **Home**, and there is a bar across the bottom with five spots:
 
-- **Home** - your start screen. Three tabs across the top are the ways to find a
-  place: **Near me** (discover what's around you), **Scan a menu** (open the
-  camera), and **Find on Google** (search by name). Find on Google is the one that
-  lives right on Home - type a name and it searches. Below your search sit
-  **Still to try** and **Can't decide?** (a pick from your saved places), then any
-  active group order and your recent places. **Settings** is behind the gear,
-  top-right. The flow runs find a place &rarr; open it and scan the menu / ask
-  Help me order &rarr; log the visit after the meal.
-  **Looking somewhere else?** Under Find on Google a **City (optional)** box
+- **Home** - your start screen, laid out the way a night usually goes. **Find a
+  place** is front and center: search your own places or anywhere on Google.
+  Right below it is **Near me** to discover what's around you, then **Still to
+  try** and **Can't decide?** (a pick from your saved places). Lower down,
+  **Already at the restaurant?** opens the menu scanner - it sits at the bottom
+  because scanning is something you do once you're there (it's also on the **+**
+  button and every place page). Then come any active group order and your recent
+  places. **Settings** is behind the gear, top-right. The flow runs find a place
+  &rarr; open it and scan the menu / ask Help me order &rarr; log the visit.
+  **Looking somewhere else?** Under the search a **City (optional)** box
   appears once you start typing. Leave it blank and the search leans on where you
   are now; type a city (say, Austin) and it searches there instead - handy for a
   spot in another city you can only half-remember ("something with 'red' in
@@ -1582,9 +1583,10 @@ menu you can paste the address of the restaurant's online menu and the app reads
 it into a clean digital menu for you. If you are not sure of the link, tap **Find
 the menu for me** and the app looks on the restaurant's website for it. This
 works on regular web menus, on the big online-ordering pages (Toast, Square, and
-similar), and on **PDF menus** that have real text in them. A menu that is just a
-scanned image has no text to read, so for those it is best to scan it with the
-camera instead.
+similar), and on **PDF menus** that have real text in them - including sites
+(common on Squarespace and Wix) whose menu page just links to a menu PDF: the app
+follows through to the PDF and reads it. A menu that is just a scanned image has
+no text to read, so for those it is best to scan it with the camera instead.
 
 **Share a menu with other diners.** Once a place is linked to Google, its page
 shows an **Available menus** panel: pull down a menu someone else already
@@ -5805,34 +5807,12 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         </div>
       </div>
 
-      {/* How to find a place: three tabs. "Find on Google" is the inline tab shown
-          right here; "Near me" and "Scan a menu" launch their own screens. */}
-      <div style={{display:"flex", gap:4, padding:4, marginBottom:12, borderRadius:12,
-           background:"var(--surface-2, rgba(127,127,127,0.10))"}}>
-        {onNearMe ? (
-          <button onClick={onNearMe} style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center",
-            gap:5, padding:"9px 6px", borderRadius:9, border:"none", cursor:"pointer", background:"transparent",
-            color:"var(--text)", fontWeight:600, fontSize:"0.86em", whiteSpace:"nowrap"}}>
-            <Icon name="locate" size={14} color="var(--accent)" />Near me
-          </button>
-        ) : null}
-        {onScanMenu ? (
-          <button onClick={onScanMenu} style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center",
-            gap:5, padding:"9px 6px", borderRadius:9, border:"none", cursor:"pointer", background:"transparent",
-            color:"var(--text)", fontWeight:600, fontSize:"0.86em", whiteSpace:"nowrap"}}>
-            <Icon name="camera" size={14} color="var(--accent)" />Scan a menu
-          </button>
-        ) : null}
-        <button aria-current="page" style={{flex:1, display:"flex", alignItems:"center", justifyContent:"center",
-          gap:5, padding:"9px 6px", borderRadius:9, border:"none", cursor:"default",
-          background:"var(--surface)", color:"var(--text)", fontWeight:700, fontSize:"0.86em",
-          whiteSpace:"nowrap", boxShadow:"0 1px 3px rgba(0,0,0,0.12)"}}>
-          <Icon name="search" size={14} color="var(--accent)" />Find on Google
-        </button>
-      </div>
-
-      {/* (1) Find a place - yours or new */}
-      <SearchBar value={q} onChange={setQ} placeholder="Find a place — yours, or somewhere new" />
+      {/* Journey-ordered Home: FIND A PLACE is the hero (most opens start with
+          "where do I want to go?"); Near me sits just below as the discovery
+          alternative; Scan a menu is demoted lower since it's a "you're already
+          at the restaurant" action (also on the + button and each place page). */}
+      <div className="set-group" style={{margin:"0 2px 6px"}}>Find a place</div>
+      <SearchBar value={q} onChange={setQ} placeholder="Search your places, or anywhere on Google" />
 
       {savedMatches.length > 0 ? (
         <div className="card" style={{marginTop:4, marginBottom:8, padding:"4px 0"}}>
@@ -5889,6 +5869,20 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         </div>
       ) : null}
 
+      {/* Near me - the discovery alternative to searching, sitting right below
+          Find a place. Hidden while you're actively searching. */}
+      {!ql && onNearMe ? (
+        <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
+          onClick={onNearMe}>
+          <Icon name="locate" size={20} color="var(--accent)" />
+          <div style={{flex:1, minWidth:0}}>
+            <div className="small" style={{fontWeight:600}}>Near me</div>
+            <div className="tiny faint">Discover restaurants, cafes, and bars around you right now.</div>
+          </div>
+          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Explore ›</span>
+        </div>
+      ) : null}
+
       {/* "Still to try" - nudge toward saved places you haven't visited yet.
           Opens your places pre-filtered to Not visited (wishlist first). Hidden
           while searching and once you've been everywhere. */}
@@ -5904,8 +5898,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         </div>
       ) : null}
 
-      {/* "Can't decide?" - the spin picker over your saved places. Lives here by
-          "Still to try" now that the top row is the three find-a-place tabs. */}
+      {/* "Can't decide?" - the spin picker over your saved places, by "Still to try". */}
       {!ql && onSpin ? (
         <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
           onClick={onSpin}>
@@ -5915,6 +5908,21 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
             <div className="tiny faint">Let MenuCaptain pick one of your places for you.</div>
           </div>
           <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Spin ›</span>
+        </div>
+      ) : null}
+
+      {/* "Scan a menu" - demoted low on purpose: it's a "you're already at the
+          restaurant" action (also on the + button and each place page), not a way
+          to find a place. */}
+      {!ql && onScanMenu ? (
+        <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
+          onClick={onScanMenu}>
+          <Icon name="camera" size={20} color="var(--text-faint)" />
+          <div style={{flex:1, minWidth:0}}>
+            <div className="small" style={{fontWeight:600}}>Already at the restaurant?</div>
+            <div className="tiny faint">Scan the menu to digitize it and unlock Help me order.</div>
+          </div>
+          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Scan ›</span>
         </div>
       ) : null}
 
