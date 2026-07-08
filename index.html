@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.323.0";
+const APP_VERSION   = "1.324.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1417,6 +1417,11 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   order, and reopen recent places. The flow runs find a place &rarr; open it and
   scan the menu / ask Help me order &rarr; log the visit after the meal.
   **Settings** lives behind the gear in the top-right of Home.
+  **Looking somewhere else?** When you search a place on Home, a **City
+  (optional)** box appears. Leave it blank and the search leans on where you are
+  now; type a city (say, Austin) and it searches there instead - handy for a spot
+  in another city you can only half-remember ("something with 'red' in Austin").
+  Each result shows its cuisine and address so you can spot the right one.
 - **Places** - your list of restaurants.
 - **The plus (+) button** - starts with the moment you walk in: **I'm back**
   pulls up a place you've saved, and **Somewhere new** finds where you're eating
@@ -5625,6 +5630,7 @@ function earnedBadgeIds({restaurants, visits, menus, lists, meta}){
 function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreateRestaurant,
                     onNearMe, onScanMenu, onSpin, onOpenSettings, onShareApp, onBrowseAll, onBrowseUnvisited, pendingReqs }){
   const [q, setQ]             = useState("");
+  const [city, setCity]       = useState("");       // optional: search another city (skips the near-me bias)
   const [gBusy, setGBusy]     = useState(false);
   const [gErr, setGErr]       = useState("");
   const [gResults, setGResults] = useState(null);   // null = not searched yet
@@ -5644,15 +5650,23 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
   }
   async function runGoogleSearch(){
     const term = q.trim(); if (!term){ setGErr("Type a place name first."); return; }
+    const cityTerm = city.trim();
     setGBusy(true); setGErr("");
     try {
-      let loc=null; try { loc = await getGeoOnce(); } catch(_e){}
-      const body = { query:term, max_results:12 };
-      if (loc){ body.lat=loc.lat; body.lng=loc.lng; }
+      // With a city, search THAT city: fold it into the text query and DON'T bias
+      // to where you are (otherwise your location buries the out-of-town result).
+      // No city = the near-me behavior, biased to your current location.
+      const body = { query: cityTerm ? (term + " " + cityTerm) : term, max_results:12 };
+      if (!cityTerm){
+        let loc=null; try { loc = await getGeoOnce(); } catch(_e){}
+        if (loc){ body.lat=loc.lat; body.lng=loc.lng; }
+      }
       const data = await placesSearchText(cfg, body);
       const list = ((data && data.places) || []).filter(p => p.business_status !== "CLOSED_PERMANENTLY");
       setGResults(list);
-      if (!list.length) setGErr("No matches. Add the city or street and try again.");
+      if (!list.length) setGErr(cityTerm
+        ? "No matches in " + cityTerm + ". Try a street or neighborhood too."
+        : "No matches. Add the city or street and try again.");
     } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
     finally { setGBusy(false); }
   }
@@ -5674,7 +5688,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
     }, googleMetaFrom(c));
     onCreateRestaurant(newRest);   // parent commits + opens the new place
   }
-  useEffect(()=>{ setGResults(null); setGErr(""); }, [q]);
+  useEffect(()=>{ setGResults(null); setGErr(""); }, [q, city]);
 
   const ql = q.trim().toLowerCase();
   const savedMatches = ql
@@ -5742,24 +5756,35 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
 
       {ql ? (
         <div style={{margin:"0 0 12px"}}>
+          <input className="input" placeholder="City (optional) — e.g. Austin, to search another city"
+            value={city} onChange={e=> setCity(e.target.value)} style={{marginBottom:6}} />
           <button className="btn ghost sm" style={{width:"100%"}} disabled={gBusy} onClick={runGoogleSearch}>
             {gBusy ? <span className="spin" />
               : <span className="row" style={{gap:6, justifyContent:"center"}}>
                   <Icon name="locate" size={15} color="var(--accent)" />
-                  Find &ldquo;{q.trim()}&rdquo; on Google</span>}
+                  {city.trim()
+                    ? <>Find &ldquo;{q.trim()}&rdquo; in {city.trim()}</>
+                    : <>Find &ldquo;{q.trim()}&rdquo; on Google</>}</span>}
           </button>
+          {!city.trim() ? (
+            <div className="tiny faint" style={{marginTop:6, textAlign:"center"}}>
+              Somewhere else? Add a city above to search there instead of near you.
+            </div>
+          ) : null}
           {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
           {Array.isArray(gResults) && gResults.length > 0 ? (
             <div className="card" style={{marginTop:8, padding:"4px 0"}}>
               <div className="small muted" style={{padding:"6px 14px"}}>From Google</div>
               {gResults.map((c,i)=>{
                 const saved = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
+                const cz = cuisineFromType(c.primary_type, c.types);
                 return (
                   <div key={i} className="pick-row"
                     style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8, cursor:"pointer"}}
                     onClick={()=> saved ? onOpenRestaurant(saved.id) : pickGoogle(c)}>
                     <div style={{flex:1, minWidth:0}}>
                       <div className="small" style={{fontWeight:600}}>{c.name}</div>
+                      {cz ? <div className="tiny" style={{marginTop:2, color:"var(--accent)"}}>{cz}</div> : null}
                       {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
                     </div>
                     <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
