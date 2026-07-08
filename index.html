@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.325.1";
+const APP_VERSION   = "1.326.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1437,7 +1437,9 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   appears once you start typing. Leave it blank and the search leans on where you
   are now; type a city (say, Austin) and it searches there instead - handy for a
   spot in another city you can only half-remember ("something with 'red' in
-  Austin"). Each result shows its cuisine and address so you can spot the right one.
+  Austin"). Each result shows its cuisine and address so you can spot the right
+  one, and when you add a place its Google photo, rating, and hours come along
+  automatically.
 - **Places** - your list of restaurants.
 - **The plus (+) button** - starts with the moment you walk in: **I'm back**
   pulls up a place you've saved, and **Somewhere new** finds where you're eating
@@ -5658,6 +5660,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
                     onNearMe, onScanMenu, onSpin, onOpenSettings, onShareApp, onBrowseAll, onBrowseUnvisited, pendingReqs }){
   const [q, setQ]             = useState("");
   const [city, setCity]       = useState("");       // optional: search another city (skips the near-me bias)
+  const [adding, setAdding]   = useState(null);     // place_id being added+enriched from a Google result
   const [gBusy, setGBusy]     = useState(false);
   const [gErr, setGErr]       = useState("");
   const [gResults, setGResults] = useState(null);   // null = not searched yet
@@ -5697,16 +5700,16 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
     } catch(err){ setGResults([]); setGErr(gMapErr(err)); }
     finally { setGBusy(false); }
   }
-  function pickGoogle(c){
+  async function pickGoogle(c){
+    if (adding) return;
     // Don't create a duplicate: open the existing place on a certain match, or
     // confirm before adding when it only looks like one.
     const m = findExistingPlace(restaurants, c);
     if (m && (m.hard || !confirmAddAnyway(m.place.name))){ if (m.hard) toast("You already have this place"); onOpenRestaurant(m.place.id); return; }
     // The Google text search returns lean data - no photo, and sometimes only a
     // rating count without the rating. So DON'T stamp it "enriched/up to date"
-    // (googleMetaFrom would): that flag hides the "Update from Google" button, and
-    // the place would sit with no photo/hours and no way to fetch them. Keep any
-    // rating/price it did return; just leave the place enrichable.
+    // from that alone (googleMetaFrom would): that flag hides the "Update from
+    // Google" button. Keep any rating/price it did return; we enrich below.
     const gmeta = googleMetaFrom(c);
     delete gmeta.g_enriched_at;
     const newRest = Object.assign({
@@ -5720,6 +5723,30 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
       lat: (c.lat != null ? c.lat : undefined),
       lng: (c.lng != null ? c.lng : undefined),
     }, gmeta);
+    // Auto-enrich from Google details so the place lands complete (the text
+    // search has no photo). One details call. Fail-open: any error (offline / Pro
+    // cap / breaker) still adds the place, just enrichable via "Update from Google".
+    if (c.place_id){
+      setAdding(c.place_id);
+      try {
+        const data = await placesDetails(cfg, c.place_id);
+        const p = (data && data.place) || {};
+        if (p.address){ newRest.address = p.address; newRest.geo_addr = p.address; }
+        if (p.phone)   newRest.phone = p.phone;
+        if (p.website) newRest.website = p.website;
+        if (p.lat != null) newRest.lat = p.lat;
+        if (p.lng != null) newRest.lng = p.lng;
+        if (!((newRest.cuisine || "").trim())){ const cz = cuisineFromType(p.primary_type, p.types); if (cz) newRest.cuisine = cz; }
+        if (!((newRest.location || "").trim()) && p.city) newRest.location = p.city;
+        if (p.photo_name){ newRest.google_photo_name = p.photo_name; newRest.google_photo_attr = p.photo_attribution || ""; }
+        newRest.g_enriched_at = todayISO();
+        if (typeof p.rating === "number")       newRest.g_rating = p.rating;
+        if (typeof p.rating_count === "number") newRest.g_rating_count = p.rating_count;
+        if (p.price_level != null && p.price_level !== "") newRest.g_price_level = p.price_level;
+        if (Array.isArray(p.hours) && p.hours.length)      newRest.g_hours = p.hours.slice(0, 7);
+      } catch(_e){ /* fail-open: add the place lean + enrichable */ }
+      finally { setAdding(null); }
+    }
     onCreateRestaurant(newRest);   // parent commits + opens the new place
   }
   useEffect(()=>{ setGResults(null); setGErr(""); }, [q, city]);
@@ -5838,10 +5865,12 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
               {gResults.map((c,i)=>{
                 const saved = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
                 const cz = cuisineFromType(c.primary_type, c.types);
+                const isAdding = adding && adding === c.place_id;
                 return (
                   <div key={i} className="pick-row"
-                    style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8, cursor:"pointer"}}
-                    onClick={()=> saved ? onOpenRestaurant(saved.id) : pickGoogle(c)}>
+                    style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8,
+                      cursor: adding ? "default" : "pointer", opacity: (adding && !isAdding) ? 0.5 : 1}}
+                    onClick={()=> { if (adding) return; saved ? onOpenRestaurant(saved.id) : pickGoogle(c); }}>
                     <div style={{flex:1, minWidth:0}}>
                       <div className="small" style={{fontWeight:600}}>{c.name}</div>
                       {cz ? <div className="tiny" style={{marginTop:2, color:"var(--accent)"}}>{cz}</div> : null}
@@ -5849,7 +5878,8 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
                     </div>
                     <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
                       color: saved ? "var(--text-faint)" : "var(--accent)"}}>
-                      {saved ? "Saved · Open" : "+ Add to places"}
+                      {isAdding ? <span className="row" style={{gap:5}}><span className="spin" />Adding…</span>
+                        : saved ? "Saved · Open" : "+ Add to places"}
                     </span>
                   </div>
                 );
