@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.327.0";
+const APP_VERSION   = "1.328.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9117,6 +9117,17 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, onShared, au
   function toggleOpen(){ const n = !open; setOpen(n); if (n && list === null) load(); }
   useEffect(()=>{ if (autoOpen) setOpen(true); }, [autoOpen]);                 // parent nudge can open it
   useEffect(()=>{ if (open && list === null && placeId) load(); }, [open]);   // covers autoOpen
+  // If exactly one menu here is pullable (not already yours), pre-check it so the
+  // user doesn't have to tap the lone checkbox before "Add to your menus".
+  useEffect(()=>{
+    if (!Array.isArray(list)) return;
+    const pullable = list.filter(cm => !(localMenus || []).some(m =>
+      (m.label || "").trim().toLowerCase() === (cm.label || "").trim().toLowerCase()));
+    if (pullable.length === 1){
+      const id = pullable[0].id;
+      setPicked(p => (p && p[id]) ? p : Object.assign({}, p, { [id]: true }));
+    }
+  }, [list]);
 
   async function pull(){
     const ids = Object.keys(picked).filter(id => picked[id]);
@@ -9202,11 +9213,13 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, onShared, au
                 Tap to choose, then add.
               </div>
               {list.map(cm => {
-                const on = !!picked[cm.id];
                 const age = communityAgeNote(cm.updated_at);
                 const isReported = !!reported[cm.id];
                 const haveIt = (localMenus || []).some(m =>
                   (m.label || "").trim().toLowerCase() === (cm.label || "").trim().toLowerCase());
+                // Show a menu you already have as ✓ (done), not a blank box that
+                // invites a pointless tap. A picked pull-candidate also shows ✓.
+                const on = haveIt || !!picked[cm.id];
                 return (
                   <div key={cm.id} style={{padding:"3px 0", opacity: haveIt ? 0.72 : 1}}>
                     <div className="pick-row" style={{display:"flex",alignItems:"center",gap:10}}
@@ -9291,6 +9304,25 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     setShareNudgeOff(true);
     try { localStorage.setItem(shareNudgeKey, "1"); } catch(e){}
   }
+  // Smart nudge: only prompt to share a menu that ISN'T already in the community
+  // library here. Load the community labels once (cheap, no Google cost), and only
+  // when the nudge could actually show (Google-linked + a shareable menu + not
+  // dismissed) so it doesn't fetch on every place page.
+  const [nudgeCommLabels, setNudgeCommLabels] = useState(null);   // Set of lowercased labels | null = loading
+  useEffect(()=>{
+    let alive = true;
+    const pid = restaurant && restaurant.google_place_id;
+    const shareable = (menus || []).filter(m => m && (m.sections || []).length
+      && m.source !== "community" && m.source !== "shared");
+    if (!pid || !shareable.length || shareNudgeOff){ setNudgeCommLabels(new Set()); return; }
+    (async ()=>{
+      try {
+        const l = await communityListMenus(cfg, pid);
+        if (alive) setNudgeCommLabels(new Set((l || []).map(cm => (cm.label || "").trim().toLowerCase())));
+      } catch(e){ if (alive) setNudgeCommLabels(new Set()); }
+    })();
+    return ()=> { alive = false; };
+  }, [restaurant && restaurant.google_place_id, (menus || []).length, shareNudgeOff]);
   if (!restaurant){
     return (
       <div className="overlay">
@@ -9811,8 +9843,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <div className="tiny faint" style={{margin:"0 0 10px"}}>{mShareErr}</div>
         )}
 
-        {r.google_place_id && !shareNudgeOff
-          && menuList.some(m => m && (m.sections||[]).length && m.source !== "community" && m.source !== "shared") ? (
+        {r.google_place_id && !shareNudgeOff && nudgeCommLabels
+          && menuList.some(m => m && (m.sections||[]).length && m.source !== "community" && m.source !== "shared"
+               && !nudgeCommLabels.has((m.label||"").trim().toLowerCase())) ? (
           <div className="card" style={{marginBottom:12, display:"flex", gap:10, alignItems:"center",
                background:"rgba(127,170,107,0.10)", border:"1px solid rgba(127,170,107,0.35)"}}>
             <Icon name="nodes" size={18} color="var(--accent)" />
@@ -17070,9 +17103,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                     onChange={()=> setSaveMode("custom")}
                     style={{marginTop:3}} />
                   <span className="small">
-                    <strong>Customize each section</strong>: assign each section
-                    its own destination. Sections sharing the same name merge into
-                    one menu with multiple subsections.
+                    <strong>Customize each section</strong>: put each section in
+                    its own menu. Give two sections the same menu name and they
+                    merge into one menu with multiple subsections.
                   </span>
                 </label>
               </div>
@@ -17141,7 +17174,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                   Sections detected ({sectionCount})
                 </div>
                 <div className="small muted" style={{marginBottom:10,padding:"0 2px"}}>
-                  Give each section a destination name. Sections sharing the same
+                  Give each section a menu name. Sections sharing the same
                   name (e.g. tap <strong>Cocktails</strong> on two sections) merge
                   into one menu with multiple subsections.
                 </div>
@@ -17187,7 +17220,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
                 {!allCustomLabeled && (
                   <div className="tiny faint" style={{marginTop:6,padding:"0 2px"}}>
-                    Every section needs a destination name before you can save.
+                    Every section needs a menu name before you can save.
                   </div>
                 )}
               </div>
