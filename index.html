@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.325.0";
+const APP_VERSION   = "1.325.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5702,6 +5702,13 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
     // confirm before adding when it only looks like one.
     const m = findExistingPlace(restaurants, c);
     if (m && (m.hard || !confirmAddAnyway(m.place.name))){ if (m.hard) toast("You already have this place"); onOpenRestaurant(m.place.id); return; }
+    // The Google text search returns lean data - no photo, and sometimes only a
+    // rating count without the rating. So DON'T stamp it "enriched/up to date"
+    // (googleMetaFrom would): that flag hides the "Update from Google" button, and
+    // the place would sit with no photo/hours and no way to fetch them. Keep any
+    // rating/price it did return; just leave the place enrichable.
+    const gmeta = googleMetaFrom(c);
+    delete gmeta.g_enriched_at;
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || q.trim() || "New place"),
@@ -5712,7 +5719,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
       google_place_id: c.place_id || undefined,
       lat: (c.lat != null ? c.lat : undefined),
       lng: (c.lng != null ? c.lng : undefined),
-    }, googleMetaFrom(c));
+    }, gmeta);
     onCreateRestaurant(newRest);   // parent commits + opens the new place
   }
   useEffect(()=>{ setGResults(null); setGErr(""); }, [q, city]);
