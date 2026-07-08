@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.328.0";
+const APP_VERSION   = "1.329.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1585,8 +1585,10 @@ the menu for me** and the app looks on the restaurant's website for it. This
 works on regular web menus, on the big online-ordering pages (Toast, Square, and
 similar), and on **PDF menus** that have real text in them - including sites
 (common on Squarespace and Wix) whose menu page just links to a menu PDF: the app
-follows through to the PDF and reads it. A menu that is just a scanned image has
-no text to read, so for those it is best to scan it with the camera instead.
+follows through to the PDF and reads it. If the site has **several menus** (say
+dinner, drinks, and dessert), the app lists them so you can add each one. A menu
+that is just a scanned image has no text to read, so for those it is best to scan
+it with the camera instead.
 
 **Share a menu with other diners.** Once a place is linked to Google, its page
 shows an **Available menus** panel: pull down a menu someone else already
@@ -16593,6 +16595,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [result,setResult]     = useState(null);        // parsed menu
   const [urlInput,setUrlInput] = useState("");          // "pull from a link" field
   const [showUrl,setShowUrl]   = useState(false);       // link option starts as a twin button; reveals the field on tap
+  const [foundMenus,setFoundMenus] = useState([]);      // multiple menu PDFs found by "Find the menu" -> pick which to add
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
   // Website of the destination place (if linked to Google) - enables "Find the menu for me".
@@ -16760,6 +16763,10 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       });
       const data = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(data.detail || "Couldn't look for a menu.");
+      // Several menu PDFs (dinner, drinks, dessert...)? Let the user pick which to
+      // add rather than silently taking just the first.
+      const pdfs = Array.isArray(data.menu_pdfs) ? data.menu_pdfs : [];
+      if (pdfs.length > 1){ setFoundMenus(pdfs); setStep("menupick"); return; }
       if (data.found && data.url){ await runUrl(data.url); return; }
       if (data.pdf_url){ await runUrl(data.pdf_url); return; }  // backend reads text-based PDFs now
       throw new Error("Couldn't find a menu link on their website. Paste the menu page address below, or scan the menu.");
@@ -17033,6 +17040,27 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 Digitize {previews.length} photo(s)
               </button>
             )}
+          </div>
+        )}
+
+        {step === "menupick" && (
+          <div>
+            <div className="card small muted">
+              This place has more than one menu on its site. Pick one to add now &mdash;
+              come back to <strong>Find the menu</strong> to add the others.
+            </div>
+            <div className="card" style={{padding:"4px 0"}}>
+              {foundMenus.map((mn,i)=>(
+                <div key={i} className="pick-row"
+                  style={{padding:"12px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}
+                  onClick={()=> runUrl(mn.url)}>
+                  <Icon name="book" size={16} color="var(--accent)" />
+                  <span className="small" style={{flex:1, minWidth:0, fontWeight:600}}>{mn.label || ("Menu " + (i+1))}</span>
+                  <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Add &rsaquo;</span>
+                </div>
+              ))}
+            </div>
+            <button className="btn ghost" onClick={()=> setStep("pick")}>Back</button>
           </div>
         )}
 
