@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.331.0";
+const APP_VERSION   = "1.332.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2716,25 +2716,23 @@ async function publishMenuPage(cfg, payload, encoded){
    and by the inline single-menu Share on the restaurant page. setBusy/setErr
    are optional React setters so the caller can show a spinner / a small note.
    Any failure still ends with SOME shareable link - the long link never fails. */
-async function publishAndShareMenu(cfg, restaurant, menu, setBusy, setErr){
+async function publishAndShareMenu(cfg, restaurant, menu, setBusy, setErr, opts){
   if (!menu){ return; }
   if (setBusy) setBusy(true);
   if (setErr) setErr(null);
   try {
     const payload = buildMenuPayload(restaurant, menu);
     const enc     = encodeListPayload(payload);   // same transport as lists
-    const longUrl = location.origin + location.pathname + "?menu=" + enc;
-    let url = longUrl;
-    try {
-      const short = await publishMenuPage(cfg, payload, enc);
-      if (short) url = short;
-    } catch(e){
-      logMsg("PUBLISH","publish-menu threw, using long link: " + (e && e.message));
-    }
-    const title = (restaurant && restaurant.name ? restaurant.name : "Menu") + " menu";
+    // The blob is stored server-side and fetched by slug, so we share only the
+    // SHORT url - never a giant ?menu=<blob> link (that's what tripped "URL too
+    // long" on a place with several menus). No short url = don't share a broken one.
+    const url = await publishMenuPage(cfg, payload, enc);
+    if (!url){ if (setErr) setErr("Could not create the share link. Try again."); return; }
+    const title = (opts && opts.title) || ((restaurant && restaurant.name ? restaurant.name : "Menu") + " menu");
+    const text  = (opts && opts.text) || "Take a look at this menu - tap the dishes you'd like:";
     if (navigator.share){
       try {
-        await navigator.share({ title, text:"Take a look at this menu - tap the dishes you'd like:", url });
+        await navigator.share({ title, text, url });
         logMsg("PUBLISH","Menu shared via native sheet");
       } catch(e){ /* user cancelled - not an error */ }
     } else {
@@ -2759,7 +2757,12 @@ async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr){
     return;
   }
   const combined = usable.length === 1 ? usable[0] : combineGroupMenus(usable);
-  return publishAndShareMenu(cfg, restaurant, combined, setBusy, setErr);
+  const name = (restaurant && restaurant.name) || "this place";
+  const opts = {
+    title: name,
+    text: "Take a look at " + name + (usable.length > 1 ? " and its menus" : " and its menu") + " on MenuCaptain:",
+  };
+  return publishAndShareMenu(cfg, restaurant, combined, setBusy, setErr, opts);
 }
 
 /* ---- publish-a-VISIT short page (via the backend) ----
@@ -2777,6 +2780,18 @@ async function fetchSharedVisit(slug){
     throw new Error(res.status === 404
       ? "This shared visit is no longer available."
       : ("Couldn't load this visit (" + res.status + ")."));
+  }
+  const data = await res.json().catch(()=> ({}));
+  return (data && data.encoded) || "";
+}
+// Same, for a shared MENU (?ms=<slug>): the blob rides in the response body, so a
+// place with several menus can't trip the URL-length limit the old ?menu= hit.
+async function fetchSharedMenu(slug){
+  const res = await fetch(apiBase(null) + "/api/share/m/" + encodeURIComponent(slug));
+  if (!res.ok){
+    throw new Error(res.status === 404
+      ? "This shared menu is no longer available."
+      : ("Couldn't load this menu (" + res.status + ")."));
   }
   const data = await res.json().catch(()=> ({}));
   return (data && data.encoded) || "";
@@ -19404,6 +19419,38 @@ function GroupOrderGuest({code, cfg, profile}){
   );
 }
 
+/* Fetch-by-slug wrapper for a shared MENU (?ms=<slug>): pulls the blob from the
+   backend (body, no URL-length limit), decodes it, then renders PublishedMenu. */
+function PublishedMenuLoader({slug}){
+  const home = location.origin + location.pathname;
+  const [state, setState] = useState("loading");   // loading | ready | error
+  const [data, setData]   = useState(null);
+  const [err, setErr]     = useState("");
+  useEffect(()=>{
+    let alive = true;
+    fetchSharedMenu(slug).then(enc => {
+      if (!alive) return;
+      const d = decodeMenuPayload(enc);
+      if (d){ setData(d); setState("ready"); }
+      else { setErr("This link looks broken."); setState("error"); }
+    }).catch(e => { if (alive){ setErr((e && e.message) || "Couldn't load this menu."); setState("error"); } });
+    return ()=> { alive = false; };
+  }, [slug]);
+  if (state === "loading"){
+    return <div className="pub-wrap"><div style={{textAlign:"center", padding:40}}><span className="spin" /></div></div>;
+  }
+  if (state === "error"){
+    return (
+      <div className="pub-wrap">
+        <div className="pub-title">Couldn't open this menu</div>
+        <div className="muted" style={{textAlign:"center", marginBottom:20}}>{err}</div>
+        <div style={{textAlign:"center"}}><a className="btn primary" href={home}>Open MenuCaptain</a></div>
+      </div>
+    );
+  }
+  return <PublishedMenu data={data} />;
+}
+
 function PublishedMenu({data}){
   const home = location.origin + location.pathname;
   // picks: "si:ii" -> dish name (object so order-of-tap is stable enough)
@@ -22512,7 +22559,13 @@ class ErrorBoundary extends React.Component {
     else { const h = location.hash || ""; if (h.indexOf("#list=") === 0) raw = h.slice(6); }
     if (raw) published = decodeListPayload(raw);
   } catch(e){ published = null; }
-  // Shared-menu links (?menu=...) render the no-account PublishedMenu viewer.
+  // Shared-menu links. Primary: ?ms=<slug> -> fetch the blob from the backend (no
+  // URL-length limit). Legacy/inline: ?menu=<encoded> decodes directly.
+  let menuSlug = null;
+  try {
+    const msm = (location.search || "").match(/[?&]ms=([A-Za-z0-9]+)/);
+    if (msm) menuSlug = msm[1];
+  } catch(e){ menuSlug = null; }
   let publishedMenu = null;
   try {
     const mm = (location.search || "").match(/[?&]menu=([^&]+)/);
@@ -22559,6 +22612,7 @@ class ErrorBoundary extends React.Component {
                     refreshToken={recovery.refreshToken}
                     expiresIn={recovery.expiresIn} />
        : published ? <PublishedList data={published} />
+       : menuSlug ? <PublishedMenuLoader slug={menuSlug} />
        : publishedMenu ? <PublishedMenu data={publishedMenu} />
        : visitSlug ? <PublishedVisitLoader slug={visitSlug} />
        : publishedVisit ? <PublishedVisit data={publishedVisit} />
