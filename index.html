@@ -902,7 +902,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.336.2";
+const APP_VERSION   = "1.337.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1436,10 +1436,14 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   place** is front and center: search your own places or anywhere on Google.
   Right below it is **Near me** to discover what's around you, then **Still to
   try** and **Can't decide?** (a pick from your saved places). Lower down,
-  **Already at the restaurant?** opens the menu scanner - it sits at the bottom
-  because scanning is something you do once you're there (it's also on the **+**
-  button and every place page). Then come any active group order and your recent
-  places. **Settings** is behind the gear, top-right. The flow runs find a place
+  **Already at the restaurant?** is a two-step for the moment you sit down: first
+  it finds *where you are* (tap **Find me** and it uses your location to list the
+  spots right around you, or search / pick a saved place), then it walks you into
+  **scanning the menu** for that place - so the menu always lands on a real,
+  Google-linked place instead of a name you typed. If a menu is already on file
+  there, it offers to open it instead of re-scanning. (Scanning is also on the
+  **+** button and every place page.) Then come any active group order and your
+  recent places. **Settings** is behind the gear, top-right. The flow runs find a place
   &rarr; open it and scan the menu / ask Help me order &rarr; log the visit.
   **Looking somewhere else?** Under the search a **City (optional)** box
   appears once you start typing. Leave it blank and the search leans on where you
@@ -5689,7 +5693,7 @@ function earnedBadgeIds({restaurants, visits, menus, lists, meta}){
    wizard: search + quick actions + continue + recents + a dismissible cue.
    ============================================================ */
 function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreateRestaurant,
-                    onNearMe, onScanMenu, onSpin, onOpenSettings, onShareApp, onBrowseAll, onBrowseUnvisited, pendingReqs }){
+                    onNearMe, onScanMenu, onAtRestaurant, onSpin, onOpenSettings, onShareApp, onBrowseAll, onBrowseUnvisited, pendingReqs }){
   const [q, setQ]             = useState("");
   const [city, setCity]       = useState("");       // optional: search another city (skips the near-me bias)
   const [adding, setAdding]   = useState(null);     // place_id being added+enriched from a Google result
@@ -5941,18 +5945,19 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         </div>
       ) : null}
 
-      {/* "Scan a menu" - demoted low on purpose: it's a "you're already at the
-          restaurant" action (also on the + button and each place page), not a way
-          to find a place. */}
-      {!ql && onScanMenu ? (
+      {/* "Already at the restaurant?" - a guided two-step: first find WHERE you
+          are (GPS / search / saved), then grab the menu. A menu needs a place, and
+          GPS nails the place when you're standing in it. Demoted low since it's the
+          on-location action, not a way to find a place to go. */}
+      {!ql && (onAtRestaurant || onScanMenu) ? (
         <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
-          onClick={onScanMenu}>
+          onClick={onAtRestaurant || onScanMenu}>
           <Icon name="camera" size={20} color="var(--text-faint)" />
           <div style={{flex:1, minWidth:0}}>
             <div className="small" style={{fontWeight:600}}>Already at the restaurant?</div>
-            <div className="tiny faint">Scan the menu to digitize it and unlock Help me order.</div>
+            <div className="tiny faint">Find your spot, then grab the menu and dig in.</div>
           </div>
-          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Scan ›</span>
+          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Start ›</span>
         </div>
       ) : null}
 
@@ -6993,6 +6998,7 @@ function App(){
             }}
             onNearMe={()=> setOverlay({ type:"nearMe" })}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
+            onAtRestaurant={()=> setOverlay({ type:"atRestaurant" })}
             onSpin={()=> setOverlay({ type:"spinPick" })}
             onOpenSettings={()=> setTab("settings")}
             onShareApp={shareApp}
@@ -7282,6 +7288,31 @@ function App(){
           presetName={overlay.presetName || ""}
           onClose={()=> setOverlay(overlay.returnTo || null)} />
       )}
+      {/* "Already at the restaurant?" - step 1: find where you are (GPS / search /
+          saved), then route to step 2 (grab the menu) instead of the place page. */}
+      {overlay && overlay.type === "atRestaurant" && (
+        <AtRestaurantPicker
+          cfg={config} restaurants={restaurants} visits={visits} mode="new"
+          title="First, where are you?"
+          intro="You're at a restaurant. Find your spot so we can grab its menu."
+          onOpenRestaurant={(id)=> setOverlay({ type:"atRestaurantMenu", id })}
+          onCreateRestaurant={(rec)=>{
+            commit({ restaurants: [rec].concat(restaurants) }, ["restaurants"]);
+            setOverlay({ type:"atRestaurantMenu", id: rec.id });
+          }}
+          onAddManual={()=> setOverlay({ type:"addRestaurant" })}
+          onClose={()=> setOverlay(null)} />
+      )}
+      {overlay && overlay.type === "atRestaurantMenu" && (()=>{
+        const r = restaurants.find(x => x.id === overlay.id);
+        if (!r){ return null; }
+        return (
+          <AtPlaceMenuStep restaurant={r} menus={menus}
+            onScan={(id)=> setOverlay({ type:"scanMenu", restaurantId:id })}
+            onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id })}
+            onClose={()=> setOverlay(null)} />
+        );
+      })()}
       {overlay && overlay.type === "connections" && (
         <ConnectionsScreen config={config} profile={profile}
           onClose={()=> { setOverlay(null); refreshPendingReqs(); }}
@@ -10958,7 +10989,52 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
 // The "At a restaurant" entry from the + : one box that answers "which place am
 // I at?" - your saved places surface as you type, a new one is one tap away on
 // Google (deduped), and a manual add is the fallback. New vs saved is one action.
-function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onSetPlaceFlag, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose }){
+// Step 2 of the "Already at the restaurant?" flow: the place is known, now
+// encourage grabbing the menu (the key that unlocks the app's features). If a
+// menu is already on file here, offer to open it instead of re-scanning.
+function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onClose }){
+  const r = restaurant;
+  const hasMenu = Array.isArray(menus && menus[r.id])
+    && (menus[r.id] || []).some(m => m && (m.sections || []).length);
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <h2>You're all set</h2>
+        <span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        <div style={{maxWidth:440, margin:"0 auto", textAlign:"center"}}>
+          <div style={{fontSize:44, marginTop:14}}>{hasMenu ? "📖" : "🍽️"}</div>
+          <div style={{fontFamily:"'Fraunces',serif", fontSize:25, fontWeight:600, lineHeight:1.15, marginTop:10}}>
+            You're at {r.name}. Now for the good part.
+          </div>
+          <div className="muted" style={{marginTop:12}}>
+            {hasMenu
+              ? "There's already a menu on file here. Open it for Help me order, calorie estimates, and the rest."
+              : "Scan the menu and everything opens up: Help me order, calorie estimates, group ordering, and your own dining memory."}
+          </div>
+          <div style={{marginTop:22}}>
+            {hasMenu ? (
+              <button className="btn primary" style={{width:"100%"}} onClick={()=> onOpenRestaurant(r.id)}>
+                <Icon name="book" size={16} />See the menu
+              </button>
+            ) : (
+              <button className="btn primary" style={{width:"100%"}} onClick={()=> onScan(r.id)}>
+                <Icon name="camera" size={16} />Scan the menu
+              </button>
+            )}
+            <button className="btn ghost" style={{width:"100%", marginTop:10}} onClick={()=> onOpenRestaurant(r.id)}>
+              Just open {r.name}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onSetPlaceFlag, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose, title, intro }){
   const isNew = mode === "new";   // "Somewhere new" (find / near me) vs "I'm back" (saved)
   const [q, setQ]           = useState("");
   const [gBusy, setGBusy]   = useState(false);
@@ -11107,13 +11183,13 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}>Cancel</button>
-        <h2>{isNew ? "Somewhere new" : "I'm back"}</h2>
+        <h2>{title || (isNew ? "Somewhere new" : "I'm back")}</h2>
         <span style={{width:54}} />
       </div>
       <div className="ovbody">
         <div className="small muted" style={{marginBottom:10}}>
-          {isNew ? "Find a new place - one you haven't saved yet."
-                 : "Pull up a place you've been, or one you've saved."}
+          {intro || (isNew ? "Find a new place - one you haven't saved yet."
+                 : "Pull up a place you've been, or one you've saved.")}
         </div>
         <SearchBar value={q} onChange={setQ}
           placeholder={isNew ? "What's the place called?" : "Search your places"} />
