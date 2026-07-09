@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.332.0";
+const APP_VERSION   = "1.332.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -19588,6 +19588,16 @@ function PublishedMenu({data}){
         <div className="pub-sub">{[data.cu, data.c, data.l].filter(Boolean).join("  \u00b7  ")}</div>
       )}
       <div className="pub-hint">Tap the dishes you'd like, then send your picks back.</div>
+
+      {/* No-account viewer: put the signup bridge UP TOP too, before the items -
+          some menus are very long and the bottom CTA would never be seen. */}
+      {!canSave ? (
+        <div className="pub-cta" style={{marginBottom:16}}>
+          <div className="pub-cta-title">Keep your own food memory</div>
+          <div className="pub-cta-sub">MenuCaptain remembers the places you go and the dishes you loved. Free to start, private to you.</div>
+          <a className="btn primary" href={home} style={{textDecoration:"none"}}>Create your free account</a>
+        </div>
+      ) : null}
 
       {canSave ? (
         <div style={{textAlign:"center", marginBottom:14}}>
