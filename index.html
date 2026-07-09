@@ -110,7 +110,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     @keyframes mcpulse{0%,100%{transform:scale(0.9);opacity:0.5;}50%{transform:scale(1.08);opacity:1;}}
     /* "Grabbed" pop for drag-to-reorder - a quick bump that settles at scale(1.03),
        matching the inline transform so it holds seamlessly after the animation. */
-    @keyframes mcgrab{0%{transform:scale(1);}55%{transform:scale(1.07);}100%{transform:scale(1.03);}}
+    @keyframes mcgrab{0%{transform:scale(1);}55%{transform:scale(1.05);}100%{transform:scale(1.02);}}
 
     /* ---- cards ---- */
     .card{
@@ -902,7 +902,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.336.1";
+const APP_VERSION   = "1.336.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9434,6 +9434,10 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   function cardPressDown(e, id){
     if (!canReorderMenus) return;
     const el = e.currentTarget, pid = e.pointerId;
+    // Only arm a grab when the press lands near the ☰ handle on the LEFT of the
+    // card, not anywhere on it - so tapping the body still just opens the menu.
+    const rect = el.getBoundingClientRect();
+    if (e.clientX - rect.left > 92) return;
     lpStart.current = { x: e.clientX, y: e.clientY };
     clearTimeout(lpTimer.current);
     lpTimer.current = setTimeout(()=>{
@@ -9954,7 +9958,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
 
         {!dietFilter && menuList.length > 1 && (
           <div className="tiny faint" style={{margin:"0 2px 8px"}}>
-            Swipe a menu left, then tap the trash to delete{canReorderMenus ? " · hold a menu (or its ☰ handle) to grab and reorder it" : ""}.
+            Swipe a menu left, then tap the trash to delete{canReorderMenus ? " · hold the ☰ handle to grab and reorder it" : ""}.
           </div>
         )}
         {!dietFilter && menuList.length > 1 && (() => {
@@ -9973,8 +9977,8 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <div className="menu-row"
                 ref={draggable ? (el => { if (el) menuRowRefs.current[m.menu_id] = el; }) : undefined}
                 style={dragging
-                  ? {opacity:1, transform:"scale(1.03)", touchAction:"none", position:"relative", zIndex:5,
-                     boxShadow:"0 0 0 2px var(--accent), 0 14px 32px rgba(0,0,0,.5)",
+                  ? {opacity:1, transform:"scale(1.02)", touchAction:"none", position:"relative", zIndex:5,
+                     border:"2px solid var(--accent)", background:"rgba(224,118,74,0.12)",
                      animation:"mcgrab .18s ease"}
                   : undefined}
                 onClick={()=>{
