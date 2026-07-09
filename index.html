@@ -108,6 +108,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .spin{width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;flex:none;}
     @keyframes sp{to{transform:rotate(360deg);}}
     @keyframes mcpulse{0%,100%{transform:scale(0.9);opacity:0.5;}50%{transform:scale(1.08);opacity:1;}}
+    /* "Grabbed" pop for drag-to-reorder - a quick bump that settles at scale(1.03),
+       matching the inline transform so it holds seamlessly after the animation. */
+    @keyframes mcgrab{0%{transform:scale(1);}55%{transform:scale(1.07);}100%{transform:scale(1.03);}}
 
     /* ---- cards ---- */
     .card{
@@ -899,7 +902,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.336.0";
+const APP_VERSION   = "1.336.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9970,8 +9973,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <div className="menu-row"
                 ref={draggable ? (el => { if (el) menuRowRefs.current[m.menu_id] = el; }) : undefined}
                 style={dragging
-                  ? {opacity:0.92, boxShadow:"0 10px 26px rgba(0,0,0,.42)", transform:"scale(1.02)",
-                     touchAction:"none", position:"relative", zIndex:5}
+                  ? {opacity:1, transform:"scale(1.03)", touchAction:"none", position:"relative", zIndex:5,
+                     boxShadow:"0 0 0 2px var(--accent), 0 14px 32px rgba(0,0,0,.5)",
+                     animation:"mcgrab .18s ease"}
                   : undefined}
                 onClick={()=>{
                   if (justDragged.current){ justDragged.current = false; return; }
