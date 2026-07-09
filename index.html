@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.330.0";
+const APP_VERSION   = "1.331.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1590,16 +1590,22 @@ dinner, drinks, and dessert), the app lists them so you can add each one. A menu
 that is just a scanned image has no text to read, so for those it is best to scan
 it with the camera instead.
 
-**Share a menu with other diners.** Once a place is linked to Google, its page
-shows an **Available menus** panel: pull down a menu someone else already
-digitized here (so you can skip scanning), or add yours so the next person can.
-You can share any time, not only right after scanning - and the app gives you a
-gentle **"Share your menu?"** prompt on the place page so it is easy to find.
-Only the menu is ever shared, never your visits, notes, or ratings, and menus
-from others are labeled "not verified." Tip: rename a menu to what it really is
-(say, **Lunch** instead of the default Main) *before* you share, and it goes into
-the library under that name; if you rename and re-share later, the app tidies up
-your old copy so there is no stale duplicate.
+**Sharing a place or its menus.** Every way to share lives under one **Share**
+button on the place page. Tap it and pick:
+- **Send to a connection** - drop the place and its menu into a friend's "Shared
+  with you" inbox (in-app, for people you're connected with).
+- **Share a link** - a link anyone can open, no account needed.
+- **Add to the community library** - contribute your menu(s) so other diners at
+  this place can skip scanning. You choose which menus to share; only the menu is
+  shared, never your visits, notes, or ratings.
+
+Separately, when a place is Google-linked, a **Menus shared by other diners**
+panel lets you *pull down* a menu someone else already digitized here. You can
+share any time (not only right after scanning), and the app gives a gentle
+**"Share your menu?"** nudge so it's easy to find. Community menus you pull are
+labeled "not verified." Tip: rename a menu to what it really is (say **Lunch**
+instead of the default Main) *before* sharing; if you rename and re-share later,
+the app tidies up your old copy so there's no stale duplicate.
 
 -----
 
@@ -9089,22 +9095,18 @@ function fmtCommunityDate(iso){
   try { return new Date(iso).toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" }); }
   catch(e){ return ""; }
 }
-function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, onShared, autoOpen}){
+// PULL-ONLY: menus OTHER diners shared for this place, to add to yours. Sharing
+// your own menus lives under the place's "Share" button (ShareSheet), not here.
+function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
   const placeId = restaurant && restaurant.google_place_id;
-  const [open, setOpen]       = useState(!!autoOpen);
+  const [open, setOpen]       = useState(false);
   const [list, setList]       = useState(null);   // null=unloaded | array
   const [busy, setBusy]       = useState(false);
   const [err, setErr]         = useState("");
   const [msg, setMsg]         = useState("");
   const [picked, setPicked]   = useState({});     // community id -> bool (pull selection)
-  const [shareSel, setShareSel] = useState({});   // local menu_id -> bool (share selection; default on)
   const [pulling, setPulling] = useState(false);
-  const [shareBusy, setShareBusy] = useState(false);
   const [reported, setReported]   = useState({});   // community id -> reported
-  // Your local menus that CAN be shared (real sections, not pulled from elsewhere).
-  const myMenus = (localMenus || []).filter(m => m && (m.sections || []).length
-    && m.source !== "community" && m.source !== "shared");
-  const isChecked = (m)=> shareSel[m.menu_id] !== false;   // default checked
   if (!placeId) return null;
 
   async function reportMenu(id){
@@ -9122,8 +9124,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, onShared, au
     setBusy(false);
   }
   function toggleOpen(){ const n = !open; setOpen(n); if (n && list === null) load(); }
-  useEffect(()=>{ if (autoOpen) setOpen(true); }, [autoOpen]);                 // parent nudge can open it
-  useEffect(()=>{ if (open && list === null && placeId) load(); }, [open]);   // covers autoOpen
+  useEffect(()=>{ if (open && list === null && placeId) load(); }, [open]);
   // If exactly one menu here is pullable (not already yours), pre-check it so the
   // user doesn't have to tap the lone checkbox before "Add to your menus".
   useEffect(()=>{
@@ -9159,48 +9160,8 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, onShared, au
     setPulling(false);
   }
 
-  async function shareLocal(){
-    const ms = myMenus.filter(isChecked);
-    if (!ms.length){ setMsg("Pick at least one of your menus to share."); return; }
-    // If a same-named menu is already in the community here, confirm before
-    // overwriting your shared copy (so re-sharing isn't a silent no-op).
-    const existing = new Set((list || []).map(cm => (cm.label || "").trim().toLowerCase()));
-    const dupes = ms.filter(m => existing.has((m.label || "Main").trim().toLowerCase()));
-    if (dupes.length){
-      const names = dupes.map(m => m.label || "Main").join(", ");
-      if (!window.confirm(
-        "A menu for this place is already available for: " + names + ".\n\n" +
-        "OK = update it with your version.\nCancel = leave the existing one.")) return;
-    }
-    setShareBusy(true); setErr(""); setMsg("");
-    try {
-      let n = 0;
-      for (let i = 0; i < ms.length; i++){
-        await communityShareMenu(cfg, {
-          place_id: placeId,
-          place_name: restaurant.name || "",
-          label: ms[i].label || "Main",
-          menu: { sections: sanitizeMenuForShare(ms[i].sections) },   // public fields only
-        });
-        n++;
-      }
-      // Clean up any of MY older copies here whose label no longer matches one of
-      // my current local menus - e.g. shared as "Main", renamed to "Lunch" - so a
-      // rename doesn't leave a stale duplicate. Keep ALL my local labels (not just
-      // the ones shared this tap) so leaving a menu unchecked doesn't unshare it.
-      try { await communityPruneMine(cfg, placeId, myMenus.map(m => m.label || "Main")); } catch(_e){}
-      if (onShared){ try { onShared(); } catch(_e){} }
-      const done = dupes.length ? "Updated your shared menu. Thanks!"
-        : ("Shared " + n + " menu" + (n>1?"s":"") + " - thanks! Other diners can skip scanning now.");
-      setMsg(done);
-      toast(done);                    // make the confirmation obvious, not just a small line
-      if (list !== null) load();
-    } catch(e){ setErr("Couldn't share right now. Try again."); }
-    setShareBusy(false);
-  }
-
   // Community menus here that you DON'T already have (by label) - the ones worth
-  // pulling. Your own shared menus live under "Share your menus", not here.
+  // pulling. Your own menus are shared from the "Share" button, not here.
   const pullable = (list || []).filter(cm => !(localMenus || []).some(m =>
     (m.label || "").trim().toLowerCase() === (cm.label || "").trim().toLowerCase()));
 
@@ -9208,7 +9169,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, onShared, au
     <div className="card" style={{marginBottom:12}}>
       <div className="row between" style={{alignItems:"center", cursor:"pointer"}} onClick={toggleOpen}>
         <span className="small" style={{fontWeight:600}}>
-          <Icon name="nodes" size={14} color="var(--accent)" /> Available menus
+          <Icon name="nodes" size={14} color="var(--accent)" /> Menus shared by other diners
         </span>
         <span className="tiny faint">{open ? "▾" : "▸"}</span>
       </div>
@@ -9218,41 +9179,9 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, onShared, au
           {err ? <div className="tiny faint">{err}</div> : null}
           {msg ? <div className="tiny" style={{color:"var(--accent)"}}>{msg}</div> : null}
 
-          {/* Share YOUR menus - your local menus, current names, checkboxes you control */}
-          {myMenus.length ? (
-            <div style={{marginBottom:12}}>
-              <div className="small" style={{fontWeight:600, marginBottom:2}}>Share your menus</div>
-              <div className="tiny faint" style={{marginBottom:6}}>
-                Let other diners at {restaurant.name || "this place"} skip the scan. Only the menu is shared, never your visits, notes, or ratings.
-              </div>
-              {myMenus.map(m => {
-                const on = isChecked(m);
-                const n = (m.sections || []).reduce((a,s)=> a + ((s.items || []).length), 0);
-                const shared = (list || []).some(cm => (cm.label || "").trim().toLowerCase() === (m.label || "").trim().toLowerCase());
-                return (
-                  <div key={m.menu_id} className="pick-row" style={{display:"flex",alignItems:"center",gap:10}}
-                    onClick={()=> setShareSel(s => Object.assign({}, s, { [m.menu_id]: !isChecked(m) }))}>
-                    <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
-                    <span style={{flex:1, minWidth:0}}>
-                      <span className="small" style={{fontWeight:600}}>{m.label || "Menu"}</span>
-                      <span className="tiny faint">{" · " + n + " item" + (n===1?"":"s") + (shared ? " · shared" : "")}</span>
-                    </span>
-                  </div>
-                );
-              })}
-              <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
-                disabled={shareBusy || !myMenus.some(isChecked)}
-                onClick={shareLocal}>
-                {shareBusy ? <span className="spin" /> : "Share checked menus with other diners"}
-              </button>
-            </div>
-          ) : null}
-
           {/* Menus OTHER diners shared here that you don't already have */}
           {pullable.length > 0 ? (
-            <div style={{marginTop:4, borderTop: myMenus.length ? "1px solid var(--line-soft)" : "none",
-                 paddingTop: myMenus.length ? 10 : 0}}>
-              <div className="small" style={{fontWeight:600, marginBottom:2}}>Menus other diners shared here</div>
+            <div style={{marginTop:4}}>
               <div className="tiny faint" style={{marginBottom:6}}>Tap to choose, then add.</div>
               {pullable.map(cm => {
                 const age = communityAgeNote(cm.updated_at);
@@ -9287,8 +9216,8 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, onShared, au
                 {pulling ? <span className="spin" /> : "Add to your menus"}
               </button>
             </div>
-          ) : (list !== null && !myMenus.length && !busy ? (
-            <div className="tiny faint">No shared menu here yet.</div>
+          ) : (list !== null && !busy ? (
+            <div className="tiny faint">No menus shared here by other diners yet.</div>
           ) : null)}
         </div>
       )}
@@ -9329,7 +9258,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const [shareNudgeOff, setShareNudgeOff] = useState(()=>{
     try { return !!localStorage.getItem(shareNudgeKey); } catch(e){ return false; }
   });
-  const [autoOpenCommunity, setAutoOpenCommunity] = useState(false);
+  const [shareSheet, setShareSheet] = useState(null);   // null | "main" | "community" (which view of the Share sheet)
   function dismissShareNudge(){
     setShareNudgeOff(true);
     try { localStorage.setItem(shareNudgeKey, "1"); } catch(e){}
@@ -9853,25 +9782,17 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               : "Menus (" + menuList.length + ")"}
           </div>
           {menuList.length >= 1 && (
-            <button className="btn ghost sm" disabled={mShareBusy}
-              onClick={()=> publishAndSharePlace(cfg, r, menuList, setMShareBusy, setMShareErr)}
+            <button className="btn ghost sm" onClick={()=> setShareSheet("main")}
               style={{flex:"none",padding:"6px 12px",margin:0,marginRight:8}}
-              title="Share this place and its menu">
-              {mShareBusy ? <span className="spin" /> : <span className="row" style={{gap:5}}><Icon name="share" size={14} />Share</span>}
+              title="Share this place - to a connection, a link, or the community">
+              <span className="row" style={{gap:5}}><Icon name="share" size={14} />Share</span>
             </button>
-          )}
-          {menuList.length >= 1 && (
-            <ShareToConnectionButton cfg={cfg} restaurant={r} menuList={menuList} />
           )}
           <button className="btn ghost sm" onClick={onAddMenu}
             style={{flex:"none",padding:"6px 12px",margin:0}}>
             <Icon name="plus" size={15} />Add menu
           </button>
         </div>
-
-        {mShareErr && (
-          <div className="tiny faint" style={{margin:"0 0 10px"}}>{mShareErr}</div>
-        )}
 
         {r.google_place_id && !shareNudgeOff && nudgeCommLabels
           && menuList.some(m => m && (m.sections||[]).length && m.source !== "community" && m.source !== "shared"
@@ -9884,14 +9805,19 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <div className="tiny faint">Help other diners at {r.name || "this place"} skip the scan. Only the menu is shared, never your visits, notes, or ratings.</div>
             </div>
             <button className="btn ghost sm" style={{flex:"none"}}
-              onClick={()=>{ setAutoOpenCommunity(true); setShareNudgeOff(true); }}>Share</button>
+              onClick={()=>{ setShareNudgeOff(true); setShareSheet("community"); }}>Share</button>
             <button className="x" aria-label="Not now" title="Not now" style={{flex:"none"}}
               onClick={dismissShareNudge}><Icon name="close" size={16} /></button>
           </div>
         ) : null}
 
+        {shareSheet ? (
+          <ShareSheet cfg={cfg} restaurant={r} menuList={menuList} initialView={shareSheet}
+            onClose={()=> setShareSheet(null)} onShared={dismissShareNudge} />
+        ) : null}
+
         <CommunityMenuPanel cfg={cfg} restaurant={r} localMenus={menuList}
-          onImport={onImportCommunityMenus} autoOpen={autoOpenCommunity} onShared={dismissShareNudge} />
+          onImport={onImportCommunityMenus} />
 
         {/* Dietary filter: chips for diets that have tagged matches; tapping one
             shows a combined menu of those dishes pulled from all of this place's menus. */}
@@ -21371,7 +21297,121 @@ async function dismissShare(cfg, id){
 }
 
 // Button + picker to send a place (with its menu) to accepted connections.
-function ShareToConnectionButton({cfg, restaurant, menuList}){
+// One "Share" entry point for a place: send to a connection, share a public link,
+// or add your menu(s) to the community library. Opened from the place page and the
+// "Share your menu?" nudge (which jumps straight to the community view).
+function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView}){
+  const placeId = restaurant && restaurant.google_place_id;
+  const [view, setView]         = useState(initialView || "main");   // main | community
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkErr, setLinkErr]   = useState(null);
+  const [commList, setCommList] = useState(null);   // community menus here (shared indicator + dupe confirm)
+  const [shareSel, setShareSel] = useState({});
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareMsg, setShareMsg] = useState("");
+  const myMenus = (menuList || []).filter(m => m && (m.sections || []).length
+    && m.source !== "community" && m.source !== "shared");
+  const isChecked = (m)=> shareSel[m.menu_id] !== false;
+
+  useEffect(()=>{
+    let alive = true;
+    if (view !== "community" || commList !== null || !placeId) return;
+    (async ()=>{ try { const l = await communityListMenus(cfg, placeId); if (alive) setCommList(l || []); }
+                 catch(e){ if (alive) setCommList([]); } })();
+    return ()=> { alive = false; };
+  }, [view]);
+
+  async function shareLink(){ setLinkErr(null); await publishAndSharePlace(cfg, restaurant, menuList, setLinkBusy, setLinkErr); }
+  async function shareCommunity(){
+    const ms = myMenus.filter(isChecked);
+    if (!ms.length){ setShareMsg("Pick at least one menu to share."); return; }
+    const existing = new Set((commList || []).map(cm => (cm.label || "").trim().toLowerCase()));
+    const dupes = ms.filter(m => existing.has((m.label || "Main").trim().toLowerCase()));
+    if (dupes.length && !window.confirm(
+      "A menu for this place is already shared for: " + dupes.map(m=>m.label||"Main").join(", ") +
+      ".\n\nOK = update it with your version.\nCancel = leave the existing one.")) return;
+    setShareBusy(true); setShareMsg("");
+    try {
+      let n = 0;
+      for (let i = 0; i < ms.length; i++){
+        await communityShareMenu(cfg, { place_id: placeId, place_name: restaurant.name || "",
+          label: ms[i].label || "Main", menu: { sections: sanitizeMenuForShare(ms[i].sections) } });
+        n++;
+      }
+      try { await communityPruneMine(cfg, placeId, myMenus.map(m => m.label || "Main")); } catch(_e){}
+      if (onShared){ try { onShared(); } catch(_e){} }
+      toast("Shared " + n + " menu" + (n>1?"s":"") + " with other diners - thanks!");
+      onClose && onClose();
+    } catch(e){ setShareMsg("Couldn't share right now. Try again."); }
+    setShareBusy(false);
+  }
+
+  return (
+    <div style={{position:"fixed", inset:0, zIndex:85, background:"rgba(0,0,0,0.55)",
+         display:"flex", alignItems:"flex-end", justifyContent:"center"}} onClick={onClose}>
+      <div className="card" style={{width:"100%", maxWidth:520, margin:0, borderTopLeftRadius:18,
+           borderTopRightRadius:18, maxHeight:"85vh", overflowY:"auto"}} onClick={(e)=> e.stopPropagation()}>
+        {view === "main" ? (
+          <>
+            <div style={{fontWeight:600, marginBottom:4}}>Share {restaurant.name || "this place"}</div>
+            <div className="small muted" style={{marginBottom:12}}>Choose how you'd like to share.</div>
+            <div style={{marginBottom:8}}>
+              <ShareToConnectionButton cfg={cfg} restaurant={restaurant} menuList={menuList} wide />
+            </div>
+            <button className="btn ghost" style={{width:"100%", justifyContent:"flex-start", marginBottom:8}}
+              disabled={linkBusy} onClick={shareLink}>
+              {linkBusy ? <span className="spin" />
+                : <span className="row" style={{gap:8}}><Icon name="link" size={16} color="var(--accent)" />Share a link</span>}
+            </button>
+            {linkErr ? <div className="tiny faint" style={{marginBottom:8}}>{linkErr}</div> : null}
+            {placeId && myMenus.length ? (
+              <button className="btn ghost" style={{width:"100%", justifyContent:"flex-start", marginBottom:8}}
+                onClick={()=> setView("community")}>
+                <span className="row" style={{gap:8}}><Icon name="nodes" size={16} color="var(--accent)" />Add to the community library</span>
+              </button>
+            ) : null}
+            <button className="btn ghost" style={{width:"100%", marginTop:4}} onClick={onClose}>Close</button>
+          </>
+        ) : (
+          <>
+            <div style={{fontWeight:600, marginBottom:4}}>Add to the community library</div>
+            <div className="small muted" style={{marginBottom:10}}>
+              Pick which menus to share so other diners at {restaurant.name || "this place"} can skip scanning. Only the menu is shared, never your visits, notes, or ratings.
+            </div>
+            {commList === null ? (
+              <div className="empty" style={{padding:"16px 0"}}><span className="spin" /></div>
+            ) : !myMenus.length ? (
+              <div className="small faint" style={{padding:"4px 0 12px"}}>No menus to share here yet.</div>
+            ) : myMenus.map(m => {
+              const on = isChecked(m);
+              const n = (m.sections || []).reduce((a,s)=> a + ((s.items || []).length), 0);
+              const shared = (commList || []).some(cm => (cm.label || "").trim().toLowerCase() === (m.label || "").trim().toLowerCase());
+              return (
+                <div key={m.menu_id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+                  onClick={()=> setShareSel(s => Object.assign({}, s, { [m.menu_id]: !isChecked(m) }))}>
+                  <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
+                  <span style={{flex:1, minWidth:0}}>
+                    <span className="small" style={{fontWeight:600}}>{m.label || "Menu"}</span>
+                    <span className="tiny faint">{" · " + n + " item" + (n===1?"":"s") + (shared ? " · shared" : "")}</span>
+                  </span>
+                </div>
+              );
+            })}
+            {shareMsg ? <div className="tiny" style={{marginTop:8, color:"var(--accent)"}}>{shareMsg}</div> : null}
+            <div className="row" style={{gap:9, marginTop:14}}>
+              <button className="btn ghost" onClick={()=> setView("main")}>Back</button>
+              <button className="btn primary" disabled={shareBusy || !myMenus.some(isChecked)} onClick={shareCommunity}>
+                {shareBusy ? <span className="spin" /> : "Share checked menus"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
   const [open, setOpen]   = useState(false);
   const [conns, setConns] = useState(null);
   const [pick, setPick]   = useState({});
@@ -21401,11 +21441,12 @@ function ShareToConnectionButton({cfg, restaurant, menuList}){
   }
   return (
     <>
-      <button className="btn ghost sm" disabled={busy}
+      <button className={"btn ghost" + (wide ? "" : " sm")} disabled={busy}
         onClick={openPicker}
-        style={{flex:"none",padding:"6px 12px",margin:0,marginRight:8}}
+        style={wide ? {width:"100%", justifyContent:"flex-start", margin:0}
+                    : {flex:"none",padding:"6px 12px",margin:0,marginRight:8}}
         title="Send this place to a connection">
-        <span className="row" style={{gap:5}}><Icon name="nodes" size={14} />Send</span>
+        <span className="row" style={{gap: wide ? 8 : 5}}><Icon name="nodes" size={wide?16:14} color={wide?"var(--accent)":undefined} />{wide ? "Send to a connection" : "Send"}</span>
       </button>
       {open && (
         <div style={{position:"fixed", inset:0, zIndex:80, background:"rgba(0,0,0,0.55)",
