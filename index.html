@@ -896,7 +896,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.333.0";
+const APP_VERSION   = "1.334.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2760,8 +2760,8 @@ async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr){
   const combined = usable.length === 1 ? usable[0] : combineGroupMenus(usable);
   const name = (restaurant && restaurant.name) || "this place";
   const opts = {
-    title: name,
-    text: "Take a look at " + name + (usable.length > 1 ? " and its menus" : " and its menu") + " on MenuCaptain:",
+    title: name + " menu",
+    text: "Here's the menu at " + name + ". Tap the dishes you'd like and send them back:",
   };
   return publishAndShareMenu(cfg, restaurant, combined, setBusy, setErr, opts);
 }
@@ -9804,7 +9804,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               {menuList.length >= 1 && (
                 <button className="btn ghost sm" onClick={()=> setShareSheet("main")}
                   style={{flex:"none",padding:"6px 12px",margin:0}}
-                  title="Share this place - to a connection, a link, or the community">
+                  title="Share the menu - to a connection, a link, or the community">
                   <span className="row" style={{gap:5}}><Icon name="share" size={14} />Share</span>
                 </button>
               )}
@@ -21410,37 +21410,54 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView})
     setShareBusy(false);
   }
 
+  const shareableCount = (menuList || []).filter(m => m && (m.sections || []).length).length;
+  const menuWord = shareableCount === 1 ? "menu" : "menus";
+  // An elegant, uniform option row: soft icon chip + title + one-line hint + chevron.
+  const Opt = ({icon, title, sub, onClick, busy, disabled}) => (
+    <button className="btn ghost" disabled={disabled} onClick={onClick}
+      style={{width:"100%", display:"flex", alignItems:"center", gap:13, padding:"13px 14px",
+              marginBottom:9, textAlign:"left"}}>
+      <span style={{width:38, height:38, borderRadius:11, flex:"none", display:"flex",
+            alignItems:"center", justifyContent:"center", background:"rgba(224,118,74,0.12)"}}>
+        {busy ? <span className="spin" /> : <Icon name={icon} size={18} color="var(--accent)" />}
+      </span>
+      <span style={{flex:1, minWidth:0}}>
+        <span className="small" style={{fontWeight:600, display:"block"}}>{title}</span>
+        <span className="tiny faint" style={{display:"block", marginTop:2}}>{sub}</span>
+      </span>
+      <Icon name="chev" size={15} color="var(--text-faint)" />
+    </button>
+  );
+
   return (
     <div style={{position:"fixed", inset:0, zIndex:85, background:"rgba(0,0,0,0.55)",
          display:"flex", alignItems:"flex-end", justifyContent:"center"}} onClick={onClose}>
-      <div className="card" style={{width:"100%", maxWidth:520, margin:0, borderTopLeftRadius:18,
-           borderTopRightRadius:18, maxHeight:"85vh", overflowY:"auto"}} onClick={(e)=> e.stopPropagation()}>
+      <div className="card" style={{width:"100%", maxWidth:520, margin:0, borderTopLeftRadius:20,
+           borderTopRightRadius:20, maxHeight:"85vh", overflowY:"auto"}} onClick={(e)=> e.stopPropagation()}>
         {view === "main" ? (
           <>
-            <div style={{fontWeight:600, marginBottom:4}}>Share {restaurant.name || "this place"}</div>
-            <div className="small muted" style={{marginBottom:12}}>Choose how you'd like to share.</div>
-            <div style={{marginBottom:8}}>
-              <ShareToConnectionButton cfg={cfg} restaurant={restaurant} menuList={menuList} wide />
+            <div className="pub-kicker" style={{textAlign:"left", margin:"0 0 2px"}}>{restaurant.name || "This place"}</div>
+            <div style={{fontFamily:"'Fraunces',serif", fontSize:22, fontWeight:600, lineHeight:1.1, marginBottom:14}}>
+              Share the {menuWord}
             </div>
-            <button className="btn ghost" style={{width:"100%", justifyContent:"flex-start", marginBottom:8}}
-              disabled={linkBusy} onClick={shareLink}>
-              {linkBusy ? <span className="spin" />
-                : <span className="row" style={{gap:8}}><Icon name="link" size={16} color="var(--accent)" />Share a link</span>}
-            </button>
-            {linkErr ? <div className="tiny faint" style={{marginBottom:8}}>{linkErr}</div> : null}
+            <ShareToConnectionButton cfg={cfg} restaurant={restaurant} menuList={menuList} wide />
+            <Opt icon="link" title="Share a link"
+              sub="Anyone can open it, no account needed" onClick={shareLink} busy={linkBusy} />
+            {linkErr ? <div className="tiny faint" style={{margin:"-4px 0 9px 52px"}}>{linkErr}</div> : null}
             {placeId && myMenus.length ? (
-              <button className="btn ghost" style={{width:"100%", justifyContent:"flex-start", marginBottom:8}}
-                onClick={()=> setView("community")}>
-                <span className="row" style={{gap:8}}><Icon name="nodes" size={16} color="var(--accent)" />Add to the community library</span>
-              </button>
+              <Opt icon="nodes" title="Add to the community"
+                sub="Help other diners here skip the scan" onClick={()=> setView("community")} />
             ) : null}
-            <button className="btn ghost" style={{width:"100%", marginTop:4}} onClick={onClose}>Close</button>
+            <button className="btn ghost" style={{width:"100%", marginTop:5}} onClick={onClose}>Close</button>
           </>
         ) : (
           <>
-            <div style={{fontWeight:600, marginBottom:4}}>Add to the community library</div>
-            <div className="small muted" style={{marginBottom:10}}>
-              Pick which menus to share so other diners at {restaurant.name || "this place"} can skip scanning. Only the menu is shared, never your visits, notes, or ratings.
+            <div className="pub-kicker" style={{textAlign:"left", margin:"0 0 2px"}}>{restaurant.name || "This place"}</div>
+            <div style={{fontFamily:"'Fraunces',serif", fontSize:22, fontWeight:600, lineHeight:1.1, marginBottom:8}}>
+              Add to the community
+            </div>
+            <div className="small muted" style={{marginBottom:12}}>
+              Choose the {menuWord} to share so other diners here can skip the scan. Only the menu goes out, never your visits, notes, or ratings.
             </div>
             {commList === null ? (
               <div className="empty" style={{padding:"16px 0"}}><span className="spin" /></div>
@@ -21505,13 +21522,28 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
   }
   return (
     <>
-      <button className={"btn ghost" + (wide ? "" : " sm")} disabled={busy}
-        onClick={openPicker}
-        style={wide ? {width:"100%", justifyContent:"flex-start", margin:0}
-                    : {flex:"none",padding:"6px 12px",margin:0,marginRight:8}}
-        title="Send this place to a connection">
-        <span className="row" style={{gap: wide ? 8 : 5}}><Icon name="nodes" size={wide?16:14} color={wide?"var(--accent)":undefined} />{wide ? "Send to a connection" : "Send"}</span>
-      </button>
+      {wide ? (
+        <button className="btn ghost" disabled={busy} onClick={openPicker}
+          style={{width:"100%", display:"flex", alignItems:"center", gap:13, padding:"13px 14px",
+                  marginBottom:9, textAlign:"left"}}
+          title="Send this place to a connection">
+          <span style={{width:38, height:38, borderRadius:11, flex:"none", display:"flex",
+                alignItems:"center", justifyContent:"center", background:"rgba(224,118,74,0.12)"}}>
+            <Icon name="nodes" size={18} color="var(--accent)" />
+          </span>
+          <span style={{flex:1, minWidth:0}}>
+            <span className="small" style={{fontWeight:600, display:"block"}}>Send to a connection</span>
+            <span className="tiny faint" style={{display:"block", marginTop:2}}>Right into a friend's MenuCaptain</span>
+          </span>
+          <Icon name="chev" size={15} color="var(--text-faint)" />
+        </button>
+      ) : (
+        <button className="btn ghost sm" disabled={busy} onClick={openPicker}
+          style={{flex:"none",padding:"6px 12px",margin:0,marginRight:8}}
+          title="Send this place to a connection">
+          <span className="row" style={{gap:5}}><Icon name="nodes" size={14} />Send</span>
+        </button>
+      )}
       {open && (
         <div style={{position:"fixed", inset:0, zIndex:80, background:"rgba(0,0,0,0.55)",
              display:"flex", alignItems:"flex-end", justifyContent:"center"}}
