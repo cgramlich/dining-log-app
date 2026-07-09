@@ -899,7 +899,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.335.0";
+const APP_VERSION   = "1.336.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9269,6 +9269,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const dragOrderRef  = useRef(null);                   // working order of non-Main menu_ids
   const [, setDragBump] = useState(0);                  // force a re-render while dragging
   const menuRowRefs   = useRef({});                     // menu_id -> DOM node (for hit-testing)
+  const lpTimer  = useRef(null);                        // long-press timer (hold a card to grab it)
+  const lpStart  = useRef(null);                        // pointer start pos, to cancel on early movement
+  const justDragged = useRef(false);                    // suppress the tap-to-open click right after a drag
   const [dietFilter, setDietFilter] = useState(null);   // active dietary filter label, or null
   const [expenseVisit, setExpenseVisit] = useState(null);  // visit being turned into an expense item
   // "Share your menu" nudge: makes contribute-later discoverable instead of buried
@@ -9420,6 +9423,35 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     dragOrderRef.current  = null;
     setDragMenuId(null);
     if (onSetMenuOrder && finalOrder.join("|") !== nonMainIds.join("|")) onSetMenuOrder(finalOrder);
+  }
+  // ---- LONG-PRESS the whole card to grab it (like most apps) ----
+  // Hold ~320ms with the finger still -> the card lifts and follows your finger.
+  // Move early instead and it's a normal scroll or a left-swipe-to-delete; a quick
+  // tap still opens the menu. Works alongside the ☰ grip (which grabs instantly).
+  function cardPressDown(e, id){
+    if (!canReorderMenus) return;
+    const el = e.currentTarget, pid = e.pointerId;
+    lpStart.current = { x: e.clientX, y: e.clientY };
+    clearTimeout(lpTimer.current);
+    lpTimer.current = setTimeout(()=>{
+      lpTimer.current = null;
+      try { el.setPointerCapture(pid); } catch(_e){}
+      dragMenuIdRef.current = id;
+      dragOrderRef.current  = nonMainIds.slice();
+      setDragMenuId(id);
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch(_e){} }   // a little "grabbed" nudge
+    }, 320);
+  }
+  function cardPressMove(e){
+    if (dragMenuIdRef.current){ menuDragMove(e); return; }   // grabbed -> reorder
+    const s = lpStart.current;
+    if (s && (Math.abs(e.clientX - s.x) > 10 || Math.abs(e.clientY - s.y) > 10)){
+      clearTimeout(lpTimer.current); lpTimer.current = null;   // moved early -> scroll/swipe, not a grab
+    }
+  }
+  function cardPressUp(){
+    clearTimeout(lpTimer.current); lpTimer.current = null;
+    if (dragMenuIdRef.current){ justDragged.current = true; menuDragEnd(); }
   }
 
   // ---- diet-type filter -------------------------------------------------
@@ -9919,7 +9951,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
 
         {!dietFilter && menuList.length > 1 && (
           <div className="tiny faint" style={{margin:"0 2px 8px"}}>
-            Swipe a menu left, then tap the trash to delete{canReorderMenus ? " · drag the ☰ handle to reorder" : ""}.
+            Swipe a menu left, then tap the trash to delete{canReorderMenus ? " · hold a menu (or its ☰ handle) to grab and reorder it" : ""}.
           </div>
         )}
         {!dietFilter && menuList.length > 1 && (() => {
@@ -9937,8 +9969,18 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             const row = (
               <div className="menu-row"
                 ref={draggable ? (el => { if (el) menuRowRefs.current[m.menu_id] = el; }) : undefined}
-                style={dragging ? {opacity:0.85, boxShadow:"0 8px 20px rgba(0,0,0,.35)", transform:"scale(1.01)"} : undefined}
-                onClick={()=>{ if (!dragMenuIdRef.current) onOpenMenu(m.menu_id); }}>
+                style={dragging
+                  ? {opacity:0.92, boxShadow:"0 10px 26px rgba(0,0,0,.42)", transform:"scale(1.02)",
+                     touchAction:"none", position:"relative", zIndex:5}
+                  : undefined}
+                onClick={()=>{
+                  if (justDragged.current){ justDragged.current = false; return; }
+                  if (!dragMenuIdRef.current) onOpenMenu(m.menu_id);
+                }}
+                onPointerDown={draggable && canReorderMenus ? (e)=> cardPressDown(e, m.menu_id) : undefined}
+                onPointerMove={draggable && canReorderMenus ? cardPressMove : undefined}
+                onPointerUp={draggable && canReorderMenus ? cardPressUp : undefined}
+                onPointerCancel={draggable && canReorderMenus ? cardPressUp : undefined}>
                 {draggable && canReorderMenus && (
                   <span aria-label="Drag to reorder" title="Drag to reorder"
                     style={{touchAction:"none", cursor:"grab", color:"#a08e76", fontSize:22,
