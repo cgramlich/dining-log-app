@@ -426,8 +426,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .empty{text-align:center; padding:46px 20px; color:var(--text-faint);}
     .empty .big{font-family:'Fraunces',serif; font-size:20px; color:var(--text-dim); margin-bottom:6px;}
     .divider-label{
-      font-size:11.5px; letter-spacing:0.1em; text-transform:uppercase;
-      color:var(--text-faint); margin:22px 2px 9px;
+      font-size:12px; letter-spacing:0.12em; text-transform:uppercase;
+      color:var(--text-faint); margin:24px 2px 10px;
+      padding-top:16px; border-top:1px solid var(--line);
     }
     /* Drill-in row for a menu on the restaurant page */
     .menu-row{
@@ -895,7 +896,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.332.1";
+const APP_VERSION   = "1.333.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9789,24 +9790,30 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           </div>
         )}
 
-        {/* menus list - one menu shows expanded inline; 2+ stay as cards */}
-        <div className="row between" style={{margin:"22px 0 10px",alignItems:"center"}}>
-          <div className="divider-label" style={{margin:0,flex:1}}>
-            {menuList.length === 0
-              ? "Menus"
-              : "Menus (" + menuList.length + ")"}
+        {/* MENUS section - a clear, full-width header + divider line so it reads as
+            its own section instead of blurring into the place details above. */}
+        <div style={{margin:"30px 0 12px", paddingTop:18, borderTop:"2px solid var(--line)"}}>
+          <div className="row between" style={{alignItems:"center", gap:8}}>
+            <div style={{fontFamily:"'Fraunces',serif", fontSize:21, fontWeight:600,
+                 color:"var(--text)", lineHeight:1.1, flex:1, minWidth:0}}>
+              Menus{menuList.length
+                ? <span className="muted" style={{fontWeight:400, fontSize:15}}> ({menuList.length})</span>
+                : null}
+            </div>
+            <div className="row" style={{gap:8, flex:"none"}}>
+              {menuList.length >= 1 && (
+                <button className="btn ghost sm" onClick={()=> setShareSheet("main")}
+                  style={{flex:"none",padding:"6px 12px",margin:0}}
+                  title="Share this place - to a connection, a link, or the community">
+                  <span className="row" style={{gap:5}}><Icon name="share" size={14} />Share</span>
+                </button>
+              )}
+              <button className="btn ghost sm" onClick={onAddMenu}
+                style={{flex:"none",padding:"6px 12px",margin:0}}>
+                <Icon name="plus" size={15} />Add menu
+              </button>
+            </div>
           </div>
-          {menuList.length >= 1 && (
-            <button className="btn ghost sm" onClick={()=> setShareSheet("main")}
-              style={{flex:"none",padding:"6px 12px",margin:0,marginRight:8}}
-              title="Share this place - to a connection, a link, or the community">
-              <span className="row" style={{gap:5}}><Icon name="share" size={14} />Share</span>
-            </button>
-          )}
-          <button className="btn ghost sm" onClick={onAddMenu}
-            style={{flex:"none",padding:"6px 12px",margin:0}}>
-            <Icon name="plus" size={15} />Add menu
-          </button>
         </div>
 
         {r.google_place_id && !shareNudgeOff && nudgeCommLabels
