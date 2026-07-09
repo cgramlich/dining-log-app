@@ -895,7 +895,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.329.0";
+const APP_VERSION   = "1.329.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -17054,9 +17054,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 <div key={i} className="pick-row"
                   style={{padding:"12px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}
                   onClick={()=> runUrl(mn.url)}>
-                  <Icon name="book" size={16} color="var(--accent)" />
+                  <Icon name="note" size={16} color="var(--accent)" />
                   <span className="small" style={{flex:1, minWidth:0, fontWeight:600}}>{mn.label || ("Menu " + (i+1))}</span>
-                  <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Add &rsaquo;</span>
+                  <span className="btn ghost sm" style={{flex:"none", padding:"5px 12px", margin:0, pointerEvents:"none"}}>Add &rsaquo;</span>
                 </div>
               ))}
             </div>
