@@ -437,6 +437,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       background:var(--surface); border:1px solid var(--line); border-radius:12px;
       cursor:pointer; transition:background 0.12s ease, border-color 0.12s ease;
       -webkit-tap-highlight-color:transparent;
+      /* Holding a card to drag/reorder must NOT trigger iOS text selection or the
+         copy/paste callout - that was hijacking the drag. */
+      user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
     }
     .menu-row:active{ background:var(--surface-2); border-color:rgba(224,118,74,0.35); }
     .menu-row-label{
@@ -896,7 +899,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.334.0";
+const APP_VERSION   = "1.335.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -17395,7 +17398,7 @@ function PublishedVisitLoader({slug}){
     return ()=> { alive = false; };
   }, [slug]);
   if (state === "loading"){
-    return <div className="pub-wrap"><div style={{textAlign:"center", padding:40}}><span className="spin" /></div></div>;
+    return <div className="pub-wrap"><div style={{padding:"64px 0"}}><Loader size={48} label="Getting the visit ready…" /></div></div>;
   }
   if (state === "error"){
     return (
@@ -19444,7 +19447,7 @@ function PublishedMenuLoader({slug}){
     return ()=> { alive = false; };
   }, [slug]);
   if (state === "loading"){
-    return <div className="pub-wrap"><div style={{textAlign:"center", padding:40}}><span className="spin" /></div></div>;
+    return <div className="pub-wrap"><div style={{padding:"64px 0"}}><Loader size={48} label="Getting the menu ready…" /></div></div>;
   }
   if (state === "error"){
     return (
