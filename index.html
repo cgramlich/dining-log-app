@@ -902,7 +902,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.337.0";
+const APP_VERSION   = "1.338.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1432,18 +1432,18 @@ just your email and password - your data follows your account.
 
 The app opens to **Home**, and there is a bar across the bottom with five spots:
 
-- **Home** - your start screen, laid out the way a night usually goes. **Find a
-  place** is front and center: search your own places or anywhere on Google.
-  Right below it is **Near me** to discover what's around you, then **Still to
-  try** and **Can't decide?** (a pick from your saved places). Lower down,
-  **Already at the restaurant?** is a two-step for the moment you sit down: first
-  it finds *where you are* (tap **Find me** and it uses your location to list the
-  spots right around you, or search / pick a saved place), then it walks you into
-  **scanning the menu** for that place - so the menu always lands on a real,
-  Google-linked place instead of a name you typed. If a menu is already on file
-  there, it offers to open it instead of re-scanning. (Scanning is also on the
-  **+** button and every place page.) Then come any active group order and your
-  recent places. **Settings** is behind the gear, top-right. The flow runs find a place
+- **Home** - your start screen, led by the moment you're most likely in.
+  **Already at the restaurant?** is right on top: it's a two-step for when you've
+  sat down. First it finds *where you are* (tap **Find me** and it uses your
+  location to list the spots right around you, or search / pick a saved place),
+  then it walks you into **scanning the menu** for that place - so the menu always
+  lands on a real, Google-linked place instead of a name you typed. If a menu is
+  already on file there, it offers to open it instead of re-scanning. Everything
+  below that is about *finding a place*: **Find a place** (search your own places
+  or anywhere on Google), **Near me** to discover what's around you, then **Still
+  to try** and **Can't decide?** (a pick from your saved places), any active group
+  order, and your recent places. (Scanning is also on the **+** button and every
+  place page.) **Settings** is behind the gear, top-right. The flow runs find a place
   &rarr; open it and scan the menu / ask Help me order &rarr; log the visit.
   **Looking somewhere else?** Under the search a **City (optional)** box
   appears once you start typing. Leave it blank and the search leans on where you
@@ -5819,7 +5819,10 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
           App), so only a small breathing gap is needed here. */}
       <div className="between" style={{margin:"2px 2px 14px", alignItems:"center"}}>
         <div style={{minWidth:0}}>
-          <div style={{fontFamily:"'Fraunces',serif", fontSize:24, fontWeight:600, color:"var(--text)", lineHeight:1.1}}>MenuCaptain</div>
+          <div style={{display:"flex", alignItems:"center", gap:8}}>
+            <img src="helm.png" alt="" aria-hidden="true" style={{width:26, height:26, flex:"none", opacity:0.95}} />
+            <div style={{fontFamily:"'Fraunces',serif", fontSize:24, fontWeight:600, color:"var(--text)", lineHeight:1.1}}>MenuCaptain</div>
+          </div>
           <div className="tiny faint" style={{marginTop:2}}>{greeting}{who ? ", " + who : ""}</div>
         </div>
         <div className="row" style={{gap:4, flex:"none", alignItems:"center"}}>
@@ -5841,12 +5844,26 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         </div>
       </div>
 
-      {/* Journey-ordered Home: FIND A PLACE is the hero (most opens start with
-          "where do I want to go?"); Near me sits just below as the discovery
-          alternative; Scan a menu is demoted lower since it's a "you're already
-          at the restaurant" action (also on the + button and each place page). */}
+      {/* "Already at the restaurant?" LEADS the screen: it's the "I'm here now"
+          moment. Everything below it is about finding a place (search, Near me,
+          Still to try, recents), so this on-location action comes first. */}
+      {!ql && (onAtRestaurant || onScanMenu) ? (
+        <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center",
+             background:"rgba(224,118,74,0.08)", border:"1px solid rgba(224,118,74,0.30)"}}
+          onClick={onAtRestaurant || onScanMenu}>
+          <Icon name="camera" size={22} color="var(--accent)" />
+          <div style={{flex:1, minWidth:0}}>
+            <div className="small" style={{fontWeight:600}}>Already at the restaurant?</div>
+            <div className="tiny faint">Find your spot, then grab the menu and dig in.</div>
+          </div>
+          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Start ›</span>
+        </div>
+      ) : null}
+
+      {/* Everything below is about FINDING a place. Find a place (search) leads,
+          Near me is the discovery alternative, then the softer nudges + recents. */}
       <div className="set-group" style={{margin:"0 2px 6px"}}>Find a place</div>
-      <SearchBar value={q} onChange={setQ} placeholder="Search your places, or anywhere on Google" />
+      <SearchBar value={q} onChange={setQ} placeholder="Search your saved places, or anywhere on Google" />
 
       {savedMatches.length > 0 ? (
         <div className="card" style={{marginTop:4, marginBottom:8, padding:"4px 0"}}>
@@ -5942,22 +5959,6 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
             <div className="tiny faint">Let MenuCaptain pick one of your places for you.</div>
           </div>
           <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Spin ›</span>
-        </div>
-      ) : null}
-
-      {/* "Already at the restaurant?" - a guided two-step: first find WHERE you
-          are (GPS / search / saved), then grab the menu. A menu needs a place, and
-          GPS nails the place when you're standing in it. Demoted low since it's the
-          on-location action, not a way to find a place to go. */}
-      {!ql && (onAtRestaurant || onScanMenu) ? (
-        <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
-          onClick={onAtRestaurant || onScanMenu}>
-          <Icon name="camera" size={20} color="var(--text-faint)" />
-          <div style={{flex:1, minWidth:0}}>
-            <div className="small" style={{fontWeight:600}}>Already at the restaurant?</div>
-            <div className="tiny faint">Find your spot, then grab the menu and dig in.</div>
-          </div>
-          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Start ›</span>
         </div>
       ) : null}
 
@@ -12997,6 +12998,22 @@ const NEARME_RADII = [
   { label:"10 mi",  m:16093 },
   { label:"25 mi",  m:40234 },
 ];
+function radiusLabelFor(m){
+  const r = NEARME_RADII.find(x => x.m === m);
+  return r ? r.label : (Math.round((m / 1609.34) * 10) / 10 + " mi");
+}
+// Enforce the chosen distance on a distance-sorted result list. Google (esp. with
+// rank=DISTANCE, and text search which takes no radius) can return spots past the
+// selected radius; keep only those within it. Graceful: if nothing's within, fall
+// back to the nearest few + a note, so the screen is never empty.
+function withinChosenRadius(withDist, meters){
+  const mi = (meters || 0) / 1609.34;
+  if (!mi) return { list: withDist, note: "" };
+  const within = withDist.filter(p => p._dist == null || p._dist <= mi + 0.05);   // small tolerance
+  if (within.length) return { list: within, note: "" };
+  return { list: withDist.slice(0, 8),
+    note: withDist.length ? ("Nothing within " + radiusLabelFor(meters) + " - showing the nearest spots.") : "" };
+}
 // Type chips -> Google includedTypes. The relay applies NO default, so even
 // "All food" must send a food-type set or non-food places leak in.
 const NEARME_TYPES = [
@@ -13192,6 +13209,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
 
   // Results + status.
   const [results, setResults]       = useState([]);
+  const [radiusNote, setRadiusNote] = useState("");   // "nothing within X, showing nearest" fallback note
   const [haveMenus, setHaveMenus]   = useState(()=> new Set());  // place_ids with a community menu
   const [searchCenter, setSearchCenter] = useState(null);  // where the last search ran (drives "Search this area")
   const [loading, setLoading]       = useState(false);
@@ -13298,7 +13316,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
         _idx: i,
         _dist: distanceMiles(distFrom.lat, distFrom.lng, p.lat, p.lng),
       })).sort((a,b)=> (a._dist==null?1e9:a._dist) - (b._dist==null?1e9:b._dist));
-      setResults(withDist);
+      { const rr = withinChosenRadius(withDist, radius); setResults(rr.list); setRadiusNote(rr.note); }
       setSearchMode(false);
       setSearchCenter(center);
       setFetchedAt(Date.now());
@@ -13327,7 +13345,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
         _idx: i,
         _dist: distanceMiles(userLoc.lat, userLoc.lng, p.lat, p.lng),
       })).sort((a,b)=> (a._dist==null?1e9:a._dist) - (b._dist==null?1e9:b._dist));
-      setResults(withDist);
+      { const rr = withinChosenRadius(withDist, radiusM); setResults(rr.list); setRadiusNote(rr.note); }
       setSearchMode(true);
       setSearchCenter(userLoc);
       setFetchedAt(Date.now());
@@ -13341,7 +13359,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
       setLoading(false);
     }
   }
-  function clearTextSearch(){ setSearchQ(""); setSearchMode(false); setResults([]); setFetchedAt(null); }
+  function clearTextSearch(){ setSearchQ(""); setSearchMode(false); setResults([]); setFetchedAt(null); setRadiusNote(""); }
 
   // A fresh search invalidates any prior "Can't decide?" pick.
   useEffect(function(){ setPick(null); setPickErr(null); }, [results]);  // eslint-disable-line
@@ -13672,6 +13690,13 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
             <div className="empty" style={{padding:"30px 22px"}}>
               <div className="big">{results.length ? "No matches" : "Nothing found here"}</div>
               <div>{results.length ? "Try turning off 4-star+ or switching to Closest." : "Try a wider radius or a different type."}</div>
+            </div>
+          )}
+
+          {!loading && view === "list" && radiusNote && shown.length > 0 && (
+            <div className="tiny faint" style={{margin:"10px 14px 0", padding:"8px 12px", borderRadius:10,
+                 background:"var(--surface-2, rgba(127,127,127,0.10))"}}>
+              {radiusNote}
             </div>
           )}
 
