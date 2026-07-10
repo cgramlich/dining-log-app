@@ -628,6 +628,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .yif-entry-s{ font-size:12px; color:var(--text-dim); margin-top:1px; }
     .set-group{ font-size:11px; letter-spacing:0.13em; text-transform:uppercase;
       color:var(--text-faint); margin:24px 4px 9px; }
+    /* Home section headings - more prominent than the faint .set-group eyebrow. */
+    .home-section{ font-size:13px; letter-spacing:0.08em; text-transform:uppercase;
+      color:var(--text-dim); font-weight:700; margin:22px 4px 10px; }
     .theme-row{ display:flex; align-items:center; gap:12px; padding:11px 2px; cursor:pointer; }
     .theme-row + .theme-row{ border-top:1px solid var(--line); }
     .theme-dots{ display:flex; flex:none; }
@@ -902,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.338.2";
+const APP_VERSION   = "1.338.3";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5851,7 +5854,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center",
              background:"rgba(224,118,74,0.08)", border:"1px solid rgba(224,118,74,0.30)"}}
           onClick={onAtRestaurant || onScanMenu}>
-          <Icon name="camera" size={22} color="var(--accent)" />
+          <Icon name="pin" size={22} color="var(--accent)" />
           <div style={{flex:1, minWidth:0}}>
             <div className="small" style={{fontWeight:600}}>Already at the restaurant?</div>
             <div className="tiny faint">Find your spot, then grab the menu and dig in.</div>
@@ -5862,7 +5865,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
 
       {/* Direct search leads the "finding a place" block; the discovery cards
           (Near me / Still to try / Can't decide) sit under their own heading. */}
-      <div className="set-group" style={{margin:"0 2px 6px"}}>Find a place by name</div>
+      <div className="home-section" style={{margin:"0 2px 8px"}}>Find a place by name</div>
       <SearchBar value={q} onChange={setQ} placeholder="Search your saved places, or anywhere on Google" />
 
       {savedMatches.length > 0 ? (
@@ -5923,7 +5926,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
       {/* Discovery group: ways to help you land on a place when you don't have a
           name in mind. Its own heading, below the by-name search. */}
       {!ql && (onNearMe || onSpin || (onBrowseUnvisited && unvisited.length > 0)) ? (
-        <div className="set-group" style={{margin:"8px 2px 6px"}}>Not sure where to go?</div>
+        <div className="home-section" style={{margin:"10px 2px 8px"}}>Not sure where to go?</div>
       ) : null}
 
       {/* Near me - the discovery alternative to searching, sitting right below
@@ -5974,7 +5977,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
       {recents.length > 0 ? (
         <>
           <div className="between" style={{margin:"6px 2px 6px", alignItems:"baseline"}}>
-            <span className="set-group" style={{margin:0}}>Recent places</span>
+            <span className="home-section" style={{margin:0}}>Recent places</span>
             {onBrowseAll ? (
               <button className="tiny" style={{color:"var(--accent)", background:"none", border:"none", cursor:"pointer"}}
                 onClick={onBrowseAll}>Browse all ›</button>
