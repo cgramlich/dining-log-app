@@ -902,7 +902,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.338.0";
+const APP_VERSION   = "1.338.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1438,12 +1438,12 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   location to list the spots right around you, or search / pick a saved place),
   then it walks you into **scanning the menu** for that place - so the menu always
   lands on a real, Google-linked place instead of a name you typed. If a menu is
-  already on file there, it offers to open it instead of re-scanning. Everything
-  below that is about *finding a place*: **Find a place** (search your own places
-  or anywhere on Google), **Near me** to discover what's around you, then **Still
-  to try** and **Can't decide?** (a pick from your saved places), any active group
-  order, and your recent places. (Scanning is also on the **+** button and every
-  place page.) **Settings** is behind the gear, top-right. The flow runs find a place
+  already on file there, it offers to open it instead of re-scanning. Below that is
+  **Find a place by name** (search your own places or anywhere on Google), and
+  under **Not sure where to go?** the discovery helpers: **Near me** (what's
+  around you), **Still to try** (saved places you haven't been to), and **Can't
+  decide?** (a pick from your saved places). Then any active group order and your
+  recent places. (Scanning is also on the **+** button and every place page.) **Settings** is behind the gear, top-right. The flow runs find a place
   &rarr; open it and scan the menu / ask Help me order &rarr; log the visit.
   **Looking somewhere else?** Under the search a **City (optional)** box
   appears once you start typing. Leave it blank and the search leans on where you
@@ -5860,9 +5860,9 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         </div>
       ) : null}
 
-      {/* Everything below is about FINDING a place. Find a place (search) leads,
-          Near me is the discovery alternative, then the softer nudges + recents. */}
-      <div className="set-group" style={{margin:"0 2px 6px"}}>Find a place</div>
+      {/* Direct search leads the "finding a place" block; the discovery cards
+          (Near me / Still to try / Can't decide) sit under their own heading. */}
+      <div className="set-group" style={{margin:"0 2px 6px"}}>Find a place by name</div>
       <SearchBar value={q} onChange={setQ} placeholder="Search your saved places, or anywhere on Google" />
 
       {savedMatches.length > 0 ? (
@@ -5918,6 +5918,12 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {/* Discovery group: ways to help you land on a place when you don't have a
+          name in mind. Its own heading, below the by-name search. */}
+      {!ql && (onNearMe || onSpin || (onBrowseUnvisited && unvisited.length > 0)) ? (
+        <div className="set-group" style={{margin:"8px 2px 6px"}}>Not sure where to go?</div>
       ) : null}
 
       {/* Near me - the discovery alternative to searching, sitting right below
