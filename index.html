@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.338.3";
+const APP_VERSION   = "1.339.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1435,26 +1435,29 @@ just your email and password - your data follows your account.
 
 The app opens to **Home**, and there is a bar across the bottom with five spots:
 
-- **Home** - your start screen, led by the moment you're most likely in.
-  **Already at the restaurant?** is right on top: it's a two-step for when you've
-  sat down. First it finds *where you are* (tap **Find me** and it uses your
-  location to list the spots right around you, or search / pick a saved place),
-  then it walks you into **scanning the menu** for that place - so the menu always
-  lands on a real, Google-linked place instead of a name you typed. If a menu is
-  already on file there, it offers to open it instead of re-scanning. Below that is
-  **Find a place by name** (search your own places or anywhere on Google), and
-  under **Not sure where to go?** the discovery helpers: **Near me** (what's
-  around you), **Still to try** (saved places you haven't been to), and **Can't
-  decide?** (a pick from your saved places). Then any active group order and your
-  recent places. (Scanning is also on the **+** button and every place page.) **Settings** is behind the gear, top-right. The flow runs find a place
-  &rarr; open it and scan the menu / ask Help me order &rarr; log the visit.
-  **Looking somewhere else?** Under the search a **City (optional)** box
-  appears once you start typing. Leave it blank and the search leans on where you
-  are now; type a city (say, Austin) and it searches there instead - handy for a
-  spot in another city you can only half-remember ("something with 'red' in
-  Austin"). Each result shows its cuisine and address so you can spot the right
-  one, and when you add a place its Google photo, rating, and hours come along
-  automatically.
+- **Home** - your start screen, built around two doors. **Already at the
+  restaurant?** is right on top: it's a two-step for when you've sat down. First
+  it finds *where you are* (tap **Find me** and it uses your location to list the
+  spots right around you, or search / pick a saved place), then it walks you into
+  **scanning the menu** for that place - so the menu always lands on a real,
+  Google-linked place instead of a name you typed. If a menu is already on file
+  there, it offers to open it instead of re-scanning. The second door,
+  **Looking for somewhere to eat?**, opens a find-a-place page: **Find a place by
+  name** (search your own places or anywhere on Google) at the top - it's ready to
+  type the moment it opens - and under **Not sure where to go?** the discovery
+  helpers: **Near me** (what's around you), **Still to try** (saved places you
+  haven't been to), and **Can't decide?** (a pick from your saved places). Back on
+  Home, below the two cards, are any active group order and a look at what you've
+  been up to lately - your **recent places** and **recent visits**. (Scanning is
+  also on the **+** button and every place page.) **Settings** is behind the gear,
+  top-right. The flow runs find a place &rarr; open it and scan the menu / ask
+  Help me order &rarr; log the visit. **Looking somewhere else?** On the find-a-place
+  page a **City (optional)** box appears once you start typing. Leave it blank and
+  the search leans on where you are now; type a city (say, Austin) and it searches
+  there instead - handy for a spot in another city you can only half-remember
+  ("something with 'red' in Austin"). Each result shows its cuisine and address so
+  you can spot the right one, and when you add a place its Google photo, rating,
+  and hours come along automatically.
 - **Places** - your list of restaurants.
 - **The plus (+) button** - starts with the moment you walk in: **I'm back**
   pulls up a place you've saved, and **Somewhere new** finds where you're eating
@@ -5690,13 +5693,15 @@ function earnedBadgeIds({restaurants, visits, menus, lists, meta}){
 }
 
 /* ============================================================
-   HOME - the calm start screen and default landing. Owns step 1 of the flow
-   (find a place: one of yours, or a new one on Google); the place page carries
-   steps 2-3 (menu / Help me order / log the visit). A clean launcher, not a
-   wizard: search + quick actions + continue + recents + a dismissible cue.
+   FIND A PLACE - the "planning to dine out" screen, opened from Home's second
+   card ("Looking for somewhere to eat?"). Owns the by-name search (your saved
+   places + anywhere on Google, with an optional other-city field) plus the
+   discovery nudges (Near me / Still to try / Can't decide). Home stays a calm
+   launcher; this is where "where should we eat?" actually gets answered. The
+   search box auto-focuses so the extra tap in from Home costs nothing.
    ============================================================ */
-function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreateRestaurant,
-                    onNearMe, onScanMenu, onAtRestaurant, onSpin, onOpenSettings, onShareApp, onBrowseAll, onBrowseUnvisited, pendingReqs }){
+function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRestaurant,
+                         onNearMe, onSpin, onBrowseUnvisited, onClose }){
   const [q, setQ]             = useState("");
   const [city, setCity]       = useState("");       // optional: search another city (skips the near-me bias)
   const [adding, setAdding]   = useState(null);     // place_id being added+enriched from a Google result
@@ -5794,15 +5799,155 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
   const savedMatches = ql
     ? (restaurants || []).filter(r => ((r.name||"")+" "+(r.cuisine||"")+" "+(r.location||"")).toLowerCase().indexOf(ql) !== -1).slice(0, 8)
     : [];
+  // Saved places you haven't logged a visit to yet - the "still to try" nudge.
+  const visitedIds = new Set((visits || []).map(v => v && v.restaurant_id).filter(Boolean));
+  const unvisited  = (restaurants || []).filter(r => r && !visitedIds.has(r.id) && !r.try_dismissed);
+  const placeRow = (r, key)=> (
+    <div key={key} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor:"pointer"}}
+      onClick={()=> onOpenRestaurant(r.id)}>
+      <div style={{flex:1, minWidth:0}}>
+        <div className="small" style={{fontWeight:600}}>{r.name}</div>
+        {(r.cuisine || r.location) ? <div className="tiny faint">{[r.cuisine, r.location].filter(Boolean).join("  ·  ")}</div> : null}
+      </div>
+      <Icon name="chev" size={15} color="var(--text-faint)" />
+    </div>
+  );
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}>Back</button>
+        <h2>Find a place</h2>
+        <span style={{width:54}} />
+      </div>
+      <div className="ovbody">
+        {/* Direct search leads the screen; the discovery cards (Near me / Still
+            to try / Can't decide) sit under their own heading below. */}
+        <div className="home-section" style={{margin:"0 2px 8px"}}>Find a place by name</div>
+        <SearchBar value={q} onChange={setQ} autoFocus placeholder="Search your saved places, or anywhere on Google" />
+
+        {savedMatches.length > 0 ? (
+          <div className="card" style={{marginTop:4, marginBottom:8, padding:"4px 0"}}>
+            <div className="small muted" style={{padding:"6px 14px"}}>Your places</div>
+            {savedMatches.map(r => placeRow(r, r.id))}
+          </div>
+        ) : null}
+
+        {ql ? (
+          <div style={{margin:"0 0 12px"}}>
+            <input className="input" placeholder="City (optional) — e.g. Austin, to search another city"
+              value={city} onChange={e=> setCity(e.target.value)} style={{marginBottom:6}} />
+            <button className="btn ghost sm" style={{width:"100%"}} disabled={gBusy} onClick={runGoogleSearch}>
+              {gBusy ? <span className="spin" />
+                : <span className="row" style={{gap:6, justifyContent:"center"}}>
+                    <Icon name="locate" size={15} color="var(--accent)" />
+                    {city.trim()
+                      ? <>Find &ldquo;{q.trim()}&rdquo; in {city.trim()}</>
+                      : <>Find &ldquo;{q.trim()}&rdquo; on Google</>}</span>}
+            </button>
+            {!city.trim() ? (
+              <div className="tiny faint" style={{marginTop:6, textAlign:"center"}}>
+                Somewhere else? Add a city above to search there instead of near you.
+              </div>
+            ) : null}
+            {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
+            {Array.isArray(gResults) && gResults.length > 0 ? (
+              <div className="card" style={{marginTop:8, padding:"4px 0"}}>
+                <div className="small muted" style={{padding:"6px 14px"}}>From Google</div>
+                {gResults.map((c,i)=>{
+                  const saved = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
+                  const cz = cuisineFromType(c.primary_type, c.types);
+                  const isAdding = adding && adding === c.place_id;
+                  return (
+                    <div key={i} className="pick-row"
+                      style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8,
+                        cursor: adding ? "default" : "pointer", opacity: (adding && !isAdding) ? 0.5 : 1}}
+                      onClick={()=> { if (adding) return; saved ? onOpenRestaurant(saved.id) : pickGoogle(c); }}>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div className="small" style={{fontWeight:600}}>{c.name}</div>
+                        {cz ? <div className="tiny" style={{marginTop:2, color:"var(--accent)"}}>{cz}</div> : null}
+                        {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+                      </div>
+                      <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
+                        color: saved ? "var(--text-faint)" : "var(--accent)"}}>
+                        {isAdding ? <span className="row" style={{gap:5}}><span className="spin" />Adding…</span>
+                          : saved ? "Saved · Open" : "+ Add to places"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* Discovery group: ways to land on a place when you don't have a name in
+            mind. Its own heading, below the by-name search. Hidden while searching. */}
+        {!ql && (onNearMe || onSpin || (onBrowseUnvisited && unvisited.length > 0)) ? (
+          <div className="home-section" style={{margin:"14px 2px 8px"}}>Not sure where to go?</div>
+        ) : null}
+
+        {!ql && onNearMe ? (
+          <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
+            onClick={onNearMe}>
+            <Icon name="locate" size={20} color="var(--accent)" />
+            <div style={{flex:1, minWidth:0}}>
+              <div className="small" style={{fontWeight:600}}>Near me</div>
+              <div className="tiny faint">Discover restaurants, cafes, and bars around you right now.</div>
+            </div>
+            <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Explore ›</span>
+          </div>
+        ) : null}
+
+        {!ql && onBrowseUnvisited && unvisited.length > 0 ? (
+          <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
+            onClick={onBrowseUnvisited}>
+            <Icon name="compass" size={20} color="var(--accent)" />
+            <div style={{flex:1, minWidth:0}}>
+              <div className="small" style={{fontWeight:600}}>Still to try</div>
+              <div className="tiny faint">You've saved {unvisited.length} place{unvisited.length===1?"":"s"} you haven't been to yet.</div>
+            </div>
+            <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Browse ›</span>
+          </div>
+        ) : null}
+
+        {!ql && onSpin ? (
+          <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
+            onClick={onSpin}>
+            <Icon name="sparkle" size={20} color="var(--accent)" />
+            <div style={{flex:1, minWidth:0}}>
+              <div className="small" style={{fontWeight:600}}>Can't decide?</div>
+              <div className="tiny faint">Let MenuCaptain pick one of your places for you.</div>
+            </div>
+            <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Spin ›</span>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   HOME - the calm start screen and default landing. Two doors: "Already at the
+   restaurant?" (find your spot -> grab the menu) and "Looking for somewhere to
+   eat?" (opens FindPlaceView: by-name search + discovery). Below them, what
+   you've been up to lately (recent places + recent visits). A launcher, not a
+   wizard - the finding/searching work lives one tap deeper in FindPlaceView.
+   ============================================================ */
+function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
+                    onScanMenu, onAtRestaurant, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs }){
   // Recent places: most-recent visit date, then most-recently added.
   const lastVisit = {};
   (visits || []).forEach(v => { const d = v.date || ""; if (v.restaurant_id && d > (lastVisit[v.restaurant_id] || "")) lastVisit[v.restaurant_id] = d; });
   const recents = (restaurants || []).slice().sort((a,b)=>
     (lastVisit[b.id] || b.added_date || "").localeCompare(lastVisit[a.id] || a.added_date || "")
   ).slice(0, 5);
-  // Saved places you haven't logged a visit to yet - the "still to try" nudge.
-  const visitedIds = new Set((visits || []).map(v => v && v.restaurant_id).filter(Boolean));
-  const unvisited  = (restaurants || []).filter(r => r && !visitedIds.has(r.id) && !r.try_dismissed);
+  // Recent visits: the last few meals you logged, newest first. Folded onto Home
+  // beside recent places so "what have I been up to lately" lives right here.
+  const restById = {}; (restaurants || []).forEach(r => { restById[r.id] = r; });
+  const recentVisits = (visits || []).slice()
+    .sort((a,b)=> (b.date || "").localeCompare(a.date || ""))
+    .slice(0, 4);
   const greeting = (function(){ const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
   const who = profileName(profile) || "";
   const placeRow = (r, key)=> (
@@ -5847,11 +5992,13 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         </div>
       </div>
 
-      {/* "Already at the restaurant?" LEADS the screen: it's the "I'm here now"
-          moment. Everything below it is about finding a place (search, Near me,
-          Still to try, recents), so this on-location action comes first. */}
-      {!ql && (onAtRestaurant || onScanMenu) ? (
-        <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center",
+      {/* Two doors. "Already at the restaurant?" (the "I'm here now" moment)
+          leads; "Looking for somewhere to eat?" opens FindPlaceView (by-name
+          search + Near me / Still to try / Can't decide). Most sessions start
+          on-location, so that card comes first; the search work lives one tap
+          deeper so Home stays a calm launcher. */}
+      {(onAtRestaurant || onScanMenu) ? (
+        <div className="card tap" style={{marginBottom:12, cursor:"pointer", display:"flex", gap:12, alignItems:"center",
              background:"rgba(224,118,74,0.08)", border:"1px solid rgba(224,118,74,0.30)"}}
           onClick={onAtRestaurant || onScanMenu}>
           <Icon name="pin" size={22} color="var(--accent)" />
@@ -5863,111 +6010,15 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
         </div>
       ) : null}
 
-      {/* Direct search leads the "finding a place" block; the discovery cards
-          (Near me / Still to try / Can't decide) sit under their own heading. */}
-      <div className="home-section" style={{margin:"0 2px 8px"}}>Find a place by name</div>
-      <SearchBar value={q} onChange={setQ} placeholder="Search your saved places, or anywhere on Google" />
-
-      {savedMatches.length > 0 ? (
-        <div className="card" style={{marginTop:4, marginBottom:8, padding:"4px 0"}}>
-          <div className="small muted" style={{padding:"6px 14px"}}>Your places</div>
-          {savedMatches.map(r => placeRow(r, r.id))}
-        </div>
-      ) : null}
-
-      {ql ? (
-        <div style={{margin:"0 0 12px"}}>
-          <input className="input" placeholder="City (optional) — e.g. Austin, to search another city"
-            value={city} onChange={e=> setCity(e.target.value)} style={{marginBottom:6}} />
-          <button className="btn ghost sm" style={{width:"100%"}} disabled={gBusy} onClick={runGoogleSearch}>
-            {gBusy ? <span className="spin" />
-              : <span className="row" style={{gap:6, justifyContent:"center"}}>
-                  <Icon name="locate" size={15} color="var(--accent)" />
-                  {city.trim()
-                    ? <>Find &ldquo;{q.trim()}&rdquo; in {city.trim()}</>
-                    : <>Find &ldquo;{q.trim()}&rdquo; on Google</>}</span>}
-          </button>
-          {!city.trim() ? (
-            <div className="tiny faint" style={{marginTop:6, textAlign:"center"}}>
-              Somewhere else? Add a city above to search there instead of near you.
-            </div>
-          ) : null}
-          {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
-          {Array.isArray(gResults) && gResults.length > 0 ? (
-            <div className="card" style={{marginTop:8, padding:"4px 0"}}>
-              <div className="small muted" style={{padding:"6px 14px"}}>From Google</div>
-              {gResults.map((c,i)=>{
-                const saved = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
-                const cz = cuisineFromType(c.primary_type, c.types);
-                const isAdding = adding && adding === c.place_id;
-                return (
-                  <div key={i} className="pick-row"
-                    style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8,
-                      cursor: adding ? "default" : "pointer", opacity: (adding && !isAdding) ? 0.5 : 1}}
-                    onClick={()=> { if (adding) return; saved ? onOpenRestaurant(saved.id) : pickGoogle(c); }}>
-                    <div style={{flex:1, minWidth:0}}>
-                      <div className="small" style={{fontWeight:600}}>{c.name}</div>
-                      {cz ? <div className="tiny" style={{marginTop:2, color:"var(--accent)"}}>{cz}</div> : null}
-                      {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
-                    </div>
-                    <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
-                      color: saved ? "var(--text-faint)" : "var(--accent)"}}>
-                      {isAdding ? <span className="row" style={{gap:5}}><span className="spin" />Adding…</span>
-                        : saved ? "Saved · Open" : "+ Add to places"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {/* Discovery group: ways to help you land on a place when you don't have a
-          name in mind. Its own heading, below the by-name search. */}
-      {!ql && (onNearMe || onSpin || (onBrowseUnvisited && unvisited.length > 0)) ? (
-        <div className="home-section" style={{margin:"10px 2px 8px"}}>Not sure where to go?</div>
-      ) : null}
-
-      {/* Near me - the discovery alternative to searching, sitting right below
-          Find a place. Hidden while you're actively searching. */}
-      {!ql && onNearMe ? (
-        <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
-          onClick={onNearMe}>
-          <Icon name="locate" size={20} color="var(--accent)" />
+      {onFindPlace ? (
+        <div className="card tap" style={{marginBottom:20, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
+          onClick={onFindPlace}>
+          <Icon name="search" size={20} color="var(--accent)" />
           <div style={{flex:1, minWidth:0}}>
-            <div className="small" style={{fontWeight:600}}>Near me</div>
-            <div className="tiny faint">Discover restaurants, cafes, and bars around you right now.</div>
+            <div className="small" style={{fontWeight:600}}>Looking for somewhere to eat?</div>
+            <div className="tiny faint">Search by name, find one near you, or let us pick.</div>
           </div>
-          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Explore ›</span>
-        </div>
-      ) : null}
-
-      {/* "Still to try" - nudge toward saved places you haven't visited yet.
-          Opens your places pre-filtered to Not visited (wishlist first). Hidden
-          while searching and once you've been everywhere. */}
-      {!ql && onBrowseUnvisited && unvisited.length > 0 ? (
-        <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
-          onClick={onBrowseUnvisited}>
-          <Icon name="compass" size={20} color="var(--accent)" />
-          <div style={{flex:1, minWidth:0}}>
-            <div className="small" style={{fontWeight:600}}>Still to try</div>
-            <div className="tiny faint">You've saved {unvisited.length} place{unvisited.length===1?"":"s"} you haven't been to yet.</div>
-          </div>
-          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Browse ›</span>
-        </div>
-      ) : null}
-
-      {/* "Can't decide?" - the spin picker over your saved places, by "Still to try". */}
-      {!ql && onSpin ? (
-        <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
-          onClick={onSpin}>
-          <Icon name="sparkle" size={20} color="var(--accent)" />
-          <div style={{flex:1, minWidth:0}}>
-            <div className="small" style={{fontWeight:600}}>Can't decide?</div>
-            <div className="tiny faint">Let MenuCaptain pick one of your places for you.</div>
-          </div>
-          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Spin ›</span>
+          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Find a place ›</span>
         </div>
       ) : null}
 
@@ -5985,6 +6036,32 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant, onCreat
           </div>
           <div className="card" style={{padding:"4px 0"}}>
             {recents.map(r => placeRow(r, "recent-" + r.id))}
+          </div>
+        </>
+      ) : null}
+
+      {/* Recent visits: the meals you logged lately, folded onto Home beside
+          recent places. Tapping opens the place (its full visit history). */}
+      {recentVisits.length > 0 ? (
+        <>
+          <div className="home-section" style={{margin:"16px 2px 6px"}}>Recent visits</div>
+          <div className="card" style={{padding:"4px 0"}}>
+            {recentVisits.map((v)=>{
+              const r = restById[v.restaurant_id];
+              const nm = (r && r.name) || v.restaurant_name || "A place";
+              const sub = [fmtDate(v.date), v.loved ? "♥ Loved" : ""].filter(Boolean).join("  ·  ");
+              return (
+                <div key={"visit-" + v.id} className="pick-row"
+                  style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor: r ? "pointer" : "default"}}
+                  onClick={()=> { if (r) onOpenRestaurant(r.id); }}>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div className="small" style={{fontWeight:600}}>{nm}</div>
+                    {sub ? <div className="tiny faint">{sub}</div> : null}
+                  </div>
+                  {r ? <Icon name="chev" size={15} color="var(--text-faint)" /> : null}
+                </div>
+              );
+            })}
           </div>
         </>
       ) : null}
@@ -7000,20 +7077,12 @@ function App(){
             restaurants={restaurants} visits={visits} cfg={config}
             pendingReqs={pendingReqs}
             onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
-            onCreateRestaurant={(rec)=>{
-              const next = [rec].concat(restaurants);
-              commit({ restaurants: next }, ["restaurants"]);
-              flash("Added " + (rec.name || "place"));
-              setOverlay({ type:"restaurant", id: rec.id });
-            }}
-            onNearMe={()=> setOverlay({ type:"nearMe" })}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
             onAtRestaurant={()=> setOverlay({ type:"atRestaurant" })}
-            onSpin={()=> setOverlay({ type:"spinPick" })}
+            onFindPlace={()=> setOverlay({ type:"findPlace" })}
             onOpenSettings={()=> setTab("settings")}
             onShareApp={shareApp}
-            onBrowseAll={()=> setTab("restaurants")}
-            onBrowseUnvisited={()=> setOverlay({ type:"atPlace", mode:"saved", filter:"unvisited" })} />
+            onBrowseAll={()=> setTab("restaurants")} />
         )}
         {tab === "history" && (
           <>
@@ -7323,6 +7392,23 @@ function App(){
             onClose={()=> setOverlay(null)} />
         );
       })()}
+      {/* "Looking for somewhere to eat?" - the Planning page: by-name search
+          (yours + Google, optional other city) plus Near me / Still to try /
+          Can't decide. Opened from Home's second card. */}
+      {overlay && overlay.type === "findPlace" && (
+        <FindPlaceView
+          cfg={config} restaurants={restaurants} visits={visits}
+          onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id })}
+          onCreateRestaurant={(rec)=>{
+            commit({ restaurants: [rec].concat(restaurants) }, ["restaurants"]);
+            flash("Added " + (rec.name || "place"));
+            setOverlay({ type:"restaurant", id: rec.id });
+          }}
+          onNearMe={()=> setOverlay({ type:"nearMe" })}
+          onSpin={()=> setOverlay({ type:"spinPick" })}
+          onBrowseUnvisited={()=> setOverlay({ type:"atPlace", mode:"saved", filter:"unvisited" })}
+          onClose={()=> setOverlay(null)} />
+      )}
       {overlay && overlay.type === "connections" && (
         <ConnectionsScreen config={config} profile={profile}
           onClose={()=> { setOverlay(null); refreshPendingReqs(); }}
@@ -7978,11 +8064,11 @@ function InfoDot({title, label, children}){
   );
 }
 
-function SearchBar({value, onChange, placeholder}){
+function SearchBar({value, onChange, placeholder, autoFocus}){
   return (
     <div className="searchbar">
       <Icon name="search" size={16} color="#80715f" />
-      <input className="search-input" type="text" value={value}
+      <input className="search-input" type="text" value={value} autoFocus={autoFocus || undefined}
         placeholder={placeholder || "Search"}
         onChange={e=> onChange(e.target.value)} />
       {value ? (
