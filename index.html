@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.339.1";
+const APP_VERSION   = "1.339.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1450,7 +1450,8 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   helpers: **Near me** (what's around you), **Still to try** (saved places you
   haven't been to), and **Can't decide?** (a pick from your saved places). Back on
   Home, below the two cards, are any active group order and a look at what you've
-  been up to lately - your **recent places** and **recent visits**. (Scanning is
+  been up to lately - **Recently added** (your newest saved places, each with the
+  date you added it) and **Recent visits** (the meals you've logged). (Scanning is
   also on the **+** button and every place page.) **Settings** is behind the gear,
   top-right. The flow runs find a place &rarr; open it and scan the menu / ask
   Help me order &rarr; log the visit. **Looking somewhere else?** On the find-a-place
@@ -5934,35 +5935,41 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
    HOME - the calm start screen and default landing. Two doors: "Already at the
    restaurant?" (find your spot -> grab the menu) and "Looking for somewhere to
    eat?" (opens FindPlaceView: by-name search + discovery). Below them, what
-   you've been up to lately (recent places + recent visits). A launcher, not a
+   you've been up to lately (recently added places + recent visits - kept
+   distinct so they don't read as the same list). A launcher, not a
    wizard - the finding/searching work lives one tap deeper in FindPlaceView.
    ============================================================ */
 function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
                     onScanMenu, onAtRestaurant, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs }){
-  // Recent places: most-recent visit date, then most-recently added.
-  const lastVisit = {};
-  (visits || []).forEach(v => { const d = v.date || ""; if (v.restaurant_id && d > (lastVisit[v.restaurant_id] || "")) lastVisit[v.restaurant_id] = d; });
-  const recents = (restaurants || []).slice().sort((a,b)=>
-    (lastVisit[b.id] || b.added_date || "").localeCompare(lastVisit[a.id] || a.added_date || "")
-  ).slice(0, 5);
-  // Recent visits: the last few meals you logged, newest first. Folded onto Home
-  // beside recent places so "what have I been up to lately" lives right here.
+  // Recently ADDED: newest saves to your collection (by added_date). Kept
+  // deliberately distinct from Recent visits below - this is "new to my list",
+  // that is "meals I logged" - so the two Home sections don't say the same thing.
+  const recents = (restaurants || []).slice()
+    .sort((a,b)=> (b.added_date || "").localeCompare(a.added_date || ""))
+    .slice(0, 5);
+  // Recent visits: the last few meals you logged, newest first.
   const restById = {}; (restaurants || []).forEach(r => { restById[r.id] = r; });
   const recentVisits = (visits || []).slice()
     .sort((a,b)=> (b.date || "").localeCompare(a.date || ""))
     .slice(0, 4);
   const greeting = (function(){ const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
   const who = profileName(profile) || "";
-  const placeRow = (r, key)=> (
+  const placeRow = (r, key)=> {
+    // Lead the subtitle with when it was added, so "Recently added" reads
+    // clearly as a different list from "Recent visits".
+    const sub = [ r.added_date ? "Added " + fmtDate(r.added_date) : "", r.cuisine, r.location ]
+      .filter(Boolean).join("  ·  ");
+    return (
     <div key={key} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor:"pointer"}}
       onClick={()=> onOpenRestaurant(r.id)}>
       <div style={{flex:1, minWidth:0}}>
         <div className="small" style={{fontWeight:600}}>{r.name}</div>
-        {(r.cuisine || r.location) ? <div className="tiny faint">{[r.cuisine, r.location].filter(Boolean).join("  ·  ")}</div> : null}
+        {sub ? <div className="tiny faint">{sub}</div> : null}
       </div>
       <Icon name="chev" size={15} color="var(--text-faint)" />
     </div>
-  );
+    );
+  };
 
   return (
     <div style={{paddingTop:8}}>
@@ -6031,7 +6038,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
       {recents.length > 0 ? (
         <>
           <div className="between" style={{margin:"6px 2px 6px", alignItems:"baseline"}}>
-            <span className="home-section" style={{margin:0}}>Recent places</span>
+            <span className="home-section" style={{margin:0}}>Recently added</span>
             {onBrowseAll ? (
               <button className="tiny" style={{color:"var(--accent)", background:"none", border:"none", cursor:"pointer"}}
                 onClick={onBrowseAll}>Browse all ›</button>
@@ -6043,8 +6050,8 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
         </>
       ) : null}
 
-      {/* Recent visits: the meals you logged lately, folded onto Home beside
-          recent places. Tapping opens the place (its full visit history). */}
+      {/* Recent visits: the meals you logged lately (distinct from Recently
+          added above). Tapping opens the place (its full visit history). */}
       {recentVisits.length > 0 ? (
         <>
           <div className="home-section" style={{margin:"16px 2px 6px"}}>Recent visits</div>
