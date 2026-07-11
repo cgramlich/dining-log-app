@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.339.2";
+const APP_VERSION   = "1.339.3";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5933,7 +5933,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
 
 /* ============================================================
    HOME - the calm start screen and default landing. Two doors: "Already at the
-   restaurant?" (find your spot -> grab the menu) and "Looking for somewhere to
+   restaurant?" (save the spot -> grab the menu) and "Looking for somewhere to
    eat?" (opens FindPlaceView: by-name search + discovery). Below them, what
    you've been up to lately (recently added places + recent visits - kept
    distinct so they don't read as the same list). A launcher, not a
@@ -6014,9 +6014,9 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
           <Icon name="pin" size={22} color="var(--accent)" />
           <div style={{flex:1, minWidth:0}}>
             <div className="small" style={{fontWeight:600}}>Already at the restaurant?</div>
-            <div className="tiny faint">Find your spot, then grab the menu and dig in.</div>
+            <div className="tiny faint">We'll save the spot and pull up its menu.</div>
           </div>
-          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Start ›</span>
+          <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Let's go ›</span>
         </div>
       ) : null}
 
@@ -7383,7 +7383,7 @@ function App(){
         <AtRestaurantPicker
           cfg={config} restaurants={restaurants} visits={visits} mode="new"
           title="First, where are you?"
-          intro="You're at a restaurant. Find your spot so we can grab its menu."
+          intro="Pull up the spot you're at - we'll save it to your places (if it's not already) and grab its menu."
           onOpenRestaurant={(id)=> setOverlay({ type:"atRestaurantMenu", id })}
           onCreateRestaurant={(rec)=>{
             commit({ restaurants: [rec].concat(restaurants) }, ["restaurants"]);
