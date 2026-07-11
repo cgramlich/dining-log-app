@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.339.3";
+const APP_VERSION   = "1.339.4";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -6014,7 +6014,7 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
           <Icon name="pin" size={22} color="var(--accent)" />
           <div style={{flex:1, minWidth:0}}>
             <div className="small" style={{fontWeight:600}}>Already at the restaurant?</div>
-            <div className="tiny faint">We'll save the spot and pull up its menu.</div>
+            <div className="tiny faint">Get the menu, order smarter, save the memory.</div>
           </div>
           <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Let's go ›</span>
         </div>
