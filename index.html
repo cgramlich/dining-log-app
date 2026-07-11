@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.339.0";
+const APP_VERSION   = "1.339.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1422,12 +1422,14 @@ else's. Your places, visits, photos, and menus are yours alone.
 ## Getting set up
 
 Go to menucaptain.com and create an account with your email address and a
-password. The app sends you a confirmation email - tap the link inside it and
-you are in. That is the whole setup.
+password. You're in right away - no confirmation email to chase down. Because
+your email is how you'd recover the account, sign-up asks you to type it twice
+so a typo can't lock you out later. That is the whole setup.
 
 If you ever forget your password, tap "Forgot password" on the sign-in screen
-and the app emails you a reset link. Signing in on a new phone or computer is
-just your email and password - your data follows your account.
+and the app emails you a reset link (so it's worth getting your email right at
+sign-up). Signing in on a new phone or computer is just your email and password
+- your data follows your account.
 
 -----
 
@@ -2170,8 +2172,9 @@ Questions or trouble? Email **support@menucaptain.com**.
   the reset link the app emails you. If the email doesn't arrive within a
   minute or two, check your spam folder - and note the app sends at most one
   email per minute to the same address, so give it a moment before retrying.
-- **The confirmation email never arrived.** Same advice: wait a minute, check
-  spam, then request it again from the sign-in screen.
+- **The password-reset email never arrived.** Wait a minute and check your spam
+  folder. If it still doesn't come, the email on the account may have a typo from
+  sign-up - reach out at the support address and we'll help sort it out.
 - **An AI feature says you've reached your limit.** Open the Plan card in
   Settings - free accounts include a set number of AI uses, and upgrading to
   Pro removes the everyday limit. Everything that is not AI keeps working
@@ -22553,6 +22556,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   });
   const [mode,setMode]       = useState("signin");   // signin | signup | forgot
   const [email,setEmail]     = useState(initial ? (initial.email || "") : "");
+  const [email2,setEmail2]   = useState("");   // signup only: confirm-email typo guard
   const [password,setPassword] = useState("");
   const [busy,setBusy]       = useState(false);
   const [err,setErr]         = useState("");
@@ -22618,6 +22622,12 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     setErr(""); setInfo("");
     if (!email.trim() || !password){
       setErr("Email and password are required."); return;
+    }
+    // Typo guard: your account (and every password reset) hangs on this email
+    // being right, and we no longer make you confirm it by tapping a link - so
+    // catch a fat-fingered address here before it locks you out of recovery.
+    if (email.trim().toLowerCase() !== email2.trim().toLowerCase()){
+      setErr("The two emails don't match - check for a typo."); return;
     }
     if (password.length < 6){
       setErr("Password must be at least 6 characters."); return;
@@ -22710,7 +22720,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     signup:{ label:"Create account",     busyLabel:"Creating...",        fn:signUp },
     forgot:{ label:"Send reset link",    busyLabel:"Sending...",         fn:sendReset },
   }[mode];
-  const switchTo = (m)=>{ setMode(m); setErr(""); setInfo(""); };
+  const switchTo = (m)=>{ setMode(m); setErr(""); setInfo(""); setEmail2(""); };
 
   const body = (
     <div className="ovbody">
@@ -22740,6 +22750,16 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       <label className="fld"><span className="lbl">Email</span>
         <input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)}
           autoCapitalize="none" autoComplete="email" placeholder="you@example.com" /></label>
+      {mode === "signup" && (
+        <label className="fld"><span className="lbl">Confirm email</span>
+          <input className="input" type="email" value={email2} onChange={e=>setEmail2(e.target.value)}
+            autoCapitalize="none" autoComplete="email" placeholder="re-type your email"
+            onPaste={(e)=> e.preventDefault()} />
+          <span className="tiny faint" style={{marginTop:4, display:"block"}}>
+            This is how you'd recover your account, so we double-check it.
+          </span>
+        </label>
+      )}
       {mode !== "forgot" && (
         <label className="fld"><span className="lbl">Password</span>
           <PwInput value={password} onChange={e=>setPassword(e.target.value)}
