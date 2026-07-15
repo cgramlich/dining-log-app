@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.339.6";
+const APP_VERSION   = "1.340.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -22826,6 +22826,16 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         </span>)}
       </div>
       <div style={{marginTop:18}}><InstallHint /></div>
+      {/* Company + legal footer. Names the operating entity on the landing
+          screen so the site itself ties MilSpo Life LLC to menucaptain.com
+          (App Store review + org verification), and links the policies. */}
+      <div className="tiny faint" style={{marginTop:24, textAlign:"center", lineHeight:2}}>
+        <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a>
+        {"  ·  "}
+        <a href="/terms.html" target="_blank" rel="noopener">Terms</a>
+        <br/>
+        &copy; 2026 MilSpo Life LLC
+      </div>
       <div style={{height:24}} />
     </div>
   );
