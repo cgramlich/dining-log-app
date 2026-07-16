@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.340.2";
+const APP_VERSION   = "1.340.3";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5942,17 +5942,20 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
    ============================================================ */
 function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
                     onScanMenu, onAtRestaurant, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs }){
+  const [showAllVisits, setShowAllVisits] = useState(false);   // Recent visits: 3, then expand
   // Recently ADDED: newest saves to your collection (by added_date). Kept
   // deliberately distinct from Recent visits below - this is "new to my list",
   // that is "meals I logged" - so the two Home sections don't say the same thing.
   const recents = (restaurants || []).slice()
     .sort((a,b)=> (b.added_date || "").localeCompare(a.added_date || ""))
     .slice(0, 5);
-  // Recent visits: the last few meals you logged, newest first.
+  // Recent visits: the last few meals you logged, newest first. Show 3, with a
+  // toggle to expand (Home stays calm; the full log lives on the You tab).
   const restById = {}; (restaurants || []).forEach(r => { restById[r.id] = r; });
-  const recentVisits = (visits || []).slice()
+  const allRecentVisits = (visits || []).slice()
     .sort((a,b)=> (b.date || "").localeCompare(a.date || ""))
-    .slice(0, 4);
+    .slice(0, 10);
+  const recentVisits = showAllVisits ? allRecentVisits : allRecentVisits.slice(0, 3);
   const greeting = (function(){ const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
   const who = profileName(profile) || "";
   const placeRow = (r, key)=> {
@@ -6074,6 +6077,13 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
               );
             })}
           </div>
+          {allRecentVisits.length > 3 ? (
+            <button className="tiny" style={{marginTop:8, color:"var(--accent)", background:"none",
+              border:"none", cursor:"pointer", padding:"2px 4px"}}
+              onClick={()=> setShowAllVisits(s => !s)}>
+              {showAllVisits ? "Show less ▴" : "Show more ▾"}
+            </button>
+          ) : null}
         </>
       ) : null}
 
@@ -10106,9 +10116,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             : <div key={m0.menu_id}>{row}</div>;
         })()}
 
-        {!dietFilter && menuList.length > 1 && (
+        {!dietFilter && menuList.length > 1 && canReorderMenus && (
           <div className="tiny faint" style={{margin:"0 2px 8px"}}>
-            Swipe a menu left, then tap the trash to delete{canReorderMenus ? " · hold the ☰ handle to grab and reorder it" : ""}.
+            Hold the ☰ handle to grab and reorder a menu.
           </div>
         )}
         {!dietFilter && menuList.length > 1 && (() => {
