@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.340.4";
+const APP_VERSION   = "1.341.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -3180,14 +3180,18 @@ async function buildRestaurantCardBlob({ name, sub, ratingAvg, address, loved, p
     });
   }
 
+  // WHY: the card travels to people who have never heard of the app - make the
+  // footer an actual pitch (what it is + a free CTA + where to get it), not just
+  // a signature, since a static image is the only promo the recipient sees.
   cy += 72;
-  ctx.fillStyle = FAINT; ctx.font = "500 26px Outfit, system-ui, sans-serif";
-  ctx.fillText("Shared from MenuCaptain", PAD, cy);
-  // WHY: the card travels to people who have never heard of the app -
-  // give them the one string that gets them there.
-  cy += 44;
-  ctx.fillStyle = ACCENT; ctx.font = "600 26px Outfit, system-ui, sans-serif";
-  ctx.fillText("menucaptain.com", PAD, cy);
+  ctx.strokeStyle = LINE; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(PAD, cy); ctx.lineTo(W - PAD, cy); ctx.stroke();
+  cy += 46;
+  ctx.fillStyle = FAINT; ctx.font = "500 27px Outfit, system-ui, sans-serif";
+  ctx.fillText("Remember every meal worth remembering.", PAD, cy);
+  cy += 46;
+  ctx.fillStyle = ACCENT; ctx.font = "600 30px Outfit, system-ui, sans-serif";
+  ctx.fillText("Get MenuCaptain free  ·  menucaptain.com", PAD, cy);
 
   const finalH = Math.min(MAXH, cy + 48);
   const out = document.createElement("canvas");
@@ -6078,10 +6082,16 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
             })}
           </div>
           {allRecentVisits.length > 3 ? (
-            <button className="tiny" style={{marginTop:8, color:"var(--accent)", background:"none",
-              border:"none", cursor:"pointer", padding:"2px 4px"}}
-              onClick={()=> setShowAllVisits(s => !s)}>
-              {showAllVisits ? "Show less ▴" : "Show more ▾"}
+            <button onClick={()=> setShowAllVisits(s => !s)}
+              aria-label={showAllVisits ? "Show fewer visits" : "Show more visits"}
+              style={{display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                width:"100%", marginTop:8, padding:"7px 4px", background:"none", border:"none",
+                cursor:"pointer", color:"var(--accent)", fontSize:12.5, fontWeight:600}}>
+              {showAllVisits ? "Show less" : "Show " + (allRecentVisits.length - 3) + " more"}
+              <span style={{lineHeight:0, transition:"transform .15s ease",
+                transform: showAllVisits ? "rotate(180deg)" : "none"}}>
+                <Icon name="chevd" size={16} color="var(--accent)" />
+              </span>
             </button>
           ) : null}
         </>
@@ -9733,9 +9743,13 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         address: r.address || "", loved: lovedDishes, photoImg: photoImg
       });
       const file = new File([blob], "menucaptain-" + slugify(r.name) + ".png", { type:"image/png" });
+      // A short pitch travels with the image (Messages/Mail show it) so the
+      // share promotes the app even where the card's footer isn't read.
+      const shareText = "Here's " + r.name + " on MenuCaptain — my free dining memory. "
+        + "Get it free at menucaptain.com";
       if (navigator.canShare && navigator.canShare({ files:[file] })){
         try {
-          await navigator.share({ files:[file], title: r.name });
+          await navigator.share({ files:[file], title: r.name, text: shareText });
           logMsg("SHARE","Shared card via share sheet");
         } catch(e){
           // AbortError = user cancelled the sheet; not an error
