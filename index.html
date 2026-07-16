@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.340.0";
+const APP_VERSION   = "1.340.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9088,8 +9088,12 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
           A one-line hint when empty makes the "find a new place" path discoverable
           before you've typed anything. */}
       {!q && onCreateRestaurant && restaurants.length > 0 && (
-        <div className="tiny faint" style={{margin:"-6px 2px 12px"}}>
-          Type a name to search your saved places &mdash; or find a new one on Google.
+        <div style={{margin:"-4px 2px 12px", display:"flex", justifyContent:"flex-end"}}>
+          <InfoDot title="Searching places" label="How search works">
+            <span className="idl">Type a name to search your saved places.</span>
+            <span className="idl">As soon as you type, a <strong>Search Google</strong>
+            {" "}button appears so you can add a place you don&rsquo;t have yet.</span>
+          </InfoDot>
         </div>
       )}
       {q && onCreateRestaurant && (
