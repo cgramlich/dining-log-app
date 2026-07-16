@@ -105,7 +105,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .updrow{display:flex; align-items:center; gap:10px; justify-content:center; padding:14px 0 2px; flex-wrap:wrap;}
     .syncbar button{margin-left:auto; font-size:12px; color:var(--accent); font-weight:600;}
     .dot{width:7px; height:7px; border-radius:50%; flex:none;}
-    .spin{width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;flex:none;}
+    .spin{display:inline-block;vertical-align:middle;width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;flex:none;}
     @keyframes sp{to{transform:rotate(360deg);}}
     @keyframes mcpulse{0%,100%{transform:scale(0.9);opacity:0.5;}50%{transform:scale(1.08);opacity:1;}}
     /* "Grabbed" pop for drag-to-reorder - a quick bump that settles at scale(1.03),
@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.340.3";
+const APP_VERSION   = "1.340.4";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
