@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.343.0";
+const APP_VERSION   = "1.344.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9986,8 +9986,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <button className="btn ghost sm" style={{flex:"none"}}
                 disabled={linkBusy || !linkQuery.trim()} onClick={()=> linkSearch(linkQuery)}>Search</button>
             </div>
-            <div className="tiny faint" style={{marginTop:5}}>
-              Generic names ("W Lounge") need the city or street to match. Try "W Lounge, 100 Stuart St Boston".
+            <div style={{marginTop:5, display:"flex", justifyContent:"flex-end"}}>
+              <InfoDot title="Matching a place on Google" label="Not matching?">
+                <span className="idl">Generic names like &ldquo;W Lounge&rdquo; need the city or street to match.</span>
+                <span className="idl">Try &ldquo;W Lounge, 100 Stuart St Boston.&rdquo;</span>
+              </InfoDot>
             </div>
           </div>
         )}
@@ -10708,7 +10711,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           <div className="tiny faint" style={{margin:"0 0 8px"}}>
             {explainOpen
               ? "Tap the dishes you're curious about, then explain just those."
-              : "A quick guide to the menu's sections and courses (what terms like Antipasti or Primi mean) and how a meal here is usually ordered."}
+              : "What the menu's terms mean, and how a meal here is usually ordered."}
           </div>
 
           {explainOpen && (
@@ -10785,7 +10788,8 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           dishPhotos={dishPhotos}
           onSaveItemNutrition={onSaveItemNutrition}
           onSaveItemPhoto={onSaveItemPhoto}
-          onSaveItemTags={onSaveItemTags} />
+          onSaveItemTags={onSaveItemTags}
+          onRenameItem={onRenameItem} />
         <div style={{height:20}} />
       </div>
     </div>
@@ -10795,7 +10799,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags}){
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onRenameItem}){
   const [open, setOpen]   = useState(()=> {
     const o = {}; (menu.sections||[]).forEach((s,i)=> { o[i] = i < 2; }); return o;
   });
