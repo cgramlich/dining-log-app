@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.341.0";
+const APP_VERSION   = "1.342.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9782,7 +9782,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             <Icon name="edit" size={19} color="#b3a591" />
           </button>
         ) : null}
-        <button className="x" onClick={share} disabled={shareBusy} aria-label="Share">
+        <button className="x" onClick={()=> setShareSheet("main")} aria-label="Share" title="Share">
           {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
         </button>
         {onToggleWishlist ? (
@@ -10051,6 +10051,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
 
         {shareSheet ? (
           <ShareSheet cfg={cfg} restaurant={r} menuList={menuList} initialView={shareSheet}
+            onShareCard={share} cardBusy={shareBusy}
             onClose={()=> setShareSheet(null)} onShared={dismissShareNudge} />
         ) : null}
 
@@ -21677,7 +21678,7 @@ async function dismissShare(cfg, id){
 // One "Share" entry point for a place: send to a connection, share a public link,
 // or add your menu(s) to the community library. Opened from the place page and the
 // "Share your menu?" nudge (which jumps straight to the community view).
-function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView}){
+function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, onShareCard, cardBusy}){
   const placeId = restaurant && restaurant.google_place_id;
   const [view, setView]         = useState(initialView || "main");   // main | community
   const [linkBusy, setLinkBusy] = useState(false);
@@ -21751,12 +21752,20 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView})
           <>
             <div className="pub-kicker" style={{textAlign:"left", margin:"0 0 2px"}}>{restaurant.name || "This place"}</div>
             <div style={{fontFamily:"'Fraunces',serif", fontSize:22, fontWeight:600, lineHeight:1.1, marginBottom:14}}>
-              Share the {menuWord}
+              Share this place
             </div>
             <ShareToConnectionButton cfg={cfg} restaurant={restaurant} menuList={menuList} wide />
-            <Opt icon="link" title="Share a link"
-              sub="Anyone can open it, no account needed" onClick={shareLink} busy={linkBusy} />
-            {linkErr ? <div className="tiny faint" style={{margin:"-4px 0 9px 52px"}}>{linkErr}</div> : null}
+            {shareableCount > 0 ? (
+              <>
+                <Opt icon="link" title="Share a link"
+                  sub="They can open it, add it, or get the app - no account needed" onClick={shareLink} busy={linkBusy} />
+                {linkErr ? <div className="tiny faint" style={{margin:"-4px 0 9px 52px"}}>{linkErr}</div> : null}
+              </>
+            ) : null}
+            {onShareCard ? (
+              <Opt icon="image" title="Share a photo card"
+                sub="A snapshot of this place and your favorites" onClick={onShareCard} busy={cardBusy} />
+            ) : null}
             {placeId && myMenus.length ? (
               <Opt icon="nodes" title="Add to the community"
                 sub="Help other diners here skip the scan" onClick={()=> setView("community")} />
