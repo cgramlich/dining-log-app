@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.345.0";
+const APP_VERSION   = "1.346.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2721,6 +2721,7 @@ async function publishMenuPage(cfg, payload, encoded){
       body: JSON.stringify({
         restaurant: (payload && payload.r) || "Menu",
         item_count: itemCount,
+        kind: (payload && payload.k === "p") ? "place" : "menu",   // OG card framing
         encoded: encoded,
       }),
     });
@@ -19975,7 +19976,7 @@ function PublishedMenu({data}){
       {!canSave ? (
         <div className="pub-cta" style={{marginBottom:16}}>
           <div className="pub-cta-title">Keep your own food memory</div>
-          <div className="pub-cta-sub">MenuCaptain remembers the places you go and the dishes you loved. Free to start, private to you.</div>
+          <div className="pub-cta-sub">More than a memory - MenuCaptain helps you order, run group orders, split the check, and track the spend. Free to start, private to you.</div>
           <a className="btn primary" href={home} style={{textDecoration:"none"}}>Create your free account</a>
         </div>
       ) : null}
