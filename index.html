@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.344.0";
+const APP_VERSION   = "1.345.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -2590,10 +2590,10 @@ function decodeMenuPayload(s){
   try {
     if (window.LZString){
       const j = LZString.decompressFromEncodedURIComponent(s);
-      if (j){ const o = JSON.parse(j); if (o && o.k === "m" && Array.isArray(o.s)) return o; }
+      if (j){ const o = JSON.parse(j); if (o && (o.k === "m" || o.k === "p") && Array.isArray(o.s)) return o; }
     }
   } catch(e){}
-  try { const o = JSON.parse(b64urlDecode(s)); return (o && o.k === "m" && Array.isArray(o.s)) ? o : null; }
+  try { const o = JSON.parse(b64urlDecode(s)); return (o && (o.k === "m" || o.k === "p") && Array.isArray(o.s)) ? o : null; }
   catch(e){ return null; }
 }
 
@@ -2747,7 +2747,7 @@ async function publishAndShareMenu(cfg, restaurant, menu, setBusy, setErr, opts)
   if (setBusy) setBusy(true);
   if (setErr) setErr(null);
   try {
-    const payload = buildMenuPayload(restaurant, menu);
+    const payload = (opts && opts.payload) || buildMenuPayload(restaurant, menu);
     const enc     = encodeListPayload(payload);   // same transport as lists
     // The blob is stored server-side and fetched by slug, so we share only the
     // SHORT url - never a giant ?menu=<blob> link (that's what tripped "URL too
@@ -2776,7 +2776,7 @@ async function publishAndShareMenu(cfg, restaurant, menu, setBusy, setErr, opts)
 /* Share a PLACE + its menu(s) as one public link (Phase 1 of place+menu
    sharing). Combine the restaurant's menus into a single shareable blob -
    titled by the place - and reuse the menu-publish path. */
-async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr){
+async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr, lovedNames){
   const usable = (menuList || []).filter(m => m && (m.sections || []).length);
   if (!usable.length){
     if (setErr) setErr("Scan a menu for this place first, then you can share it.");
@@ -2784,9 +2784,13 @@ async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr){
   }
   const combined = usable.length === 1 ? usable[0] : combineGroupMenus(usable);
   const name = (restaurant && restaurant.name) || "this place";
+  // A place RECOMMENDATION, not a menu-pick: the recipient browses the place +
+  // its menu + a few dishes I love, and can save it or get the app. (The "tap
+  // dishes and send them back" flow lives under Send to a connection instead.)
   const opts = {
-    title: name + " menu",
-    text: "Here's the menu at " + name + ". Tap the dishes you'd like and send them back:",
+    payload: buildPlacePayload(restaurant, combined, lovedNames),
+    title: name + " on MenuCaptain",
+    text: "Check out " + name + " on MenuCaptain - the menu and a few dishes I love:",
   };
   return publishAndShareMenu(cfg, restaurant, combined, setBusy, setErr, opts);
 }
@@ -2999,6 +3003,19 @@ function buildMenuPayload(restaurant, menu){
   if (restaurant && restaurant.location) o.c = restaurant.location;
   if (restaurant && restaurant.cuisine) o.cu = restaurant.cuisine;
   if (menu && menu.label) o.l = menu.label;
+  return o;
+}
+
+/* Pure: a PLACE-recommendation payload (marker k:"p"). Same lean shape as a menu
+   share, but framed as "a place I love": the place + its combined menu to BROWSE
+   (no pick-and-send) plus a few loved dish NAMES. The viewer renders the
+   place-recommendation layout + the create-account / save-to-my-places bridge. */
+function buildPlacePayload(restaurant, menu, lovedNames){
+  const o = buildMenuPayload(restaurant, menu);
+  o.k = "p";
+  delete o.l;   // a place share isn't a single named menu
+  const loved = (lovedNames || []).map(n => (n || "").trim()).filter(Boolean);
+  if (loved.length) o.loved = loved.slice(0, 8);
   return o;
 }
 
@@ -10075,7 +10092,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
 
         {shareSheet ? (
           <ShareSheet cfg={cfg} restaurant={r} menuList={menuList} initialView={shareSheet}
-            onShareCard={share} cardBusy={shareBusy}
+            onShareCard={share} cardBusy={shareBusy} lovedDishes={lovedDishes}
             onClose={()=> setShareSheet(null)} onShared={dismissShareNudge} />
         ) : null}
 
@@ -19812,6 +19829,7 @@ function PublishedMenuLoader({slug}){
 
 function PublishedMenu({data}){
   const home = location.origin + location.pathname;
+  const isPlace = !!(data && data.k === "p");   // place recommendation (browse) vs menu-pick (send back)
   // picks: "si:ii" -> dish name (object so order-of-tap is stable enough)
   const [picks, setPicks] = useState({});
   const [notes, setNotes] = useState({});  // "si:ii" -> special-instructions note
@@ -19941,12 +19959,16 @@ function PublishedMenu({data}){
 
   return (
     <div className="pub-wrap">
-      <div className="pub-kicker">A menu on MenuCaptain</div>
-      <div className="pub-title">{data.r || "Menu"}</div>
+      <div className="pub-kicker">{isPlace ? "A place on MenuCaptain" : "A menu on MenuCaptain"}</div>
+      <div className="pub-title">{data.r || (isPlace ? "A place" : "Menu")}</div>
       {(data.cu || data.c || data.l) && (
         <div className="pub-sub">{[data.cu, data.c, data.l].filter(Boolean).join("  \u00b7  ")}</div>
       )}
-      <div className="pub-hint">Tap the dishes you'd like, then send your picks back.</div>
+      <div className="pub-hint">
+        {isPlace
+          ? "Somewhere worth a visit - here's the menu, and a few dishes worth ordering."
+          : "Tap the dishes you'd like, then send your picks back."}
+      </div>
 
       {/* No-account viewer: put the signup bridge UP TOP too, before the items -
           some menus are very long and the bottom CTA would never be seen. */}
@@ -19993,6 +20015,18 @@ function PublishedMenu({data}){
         </div>
       ) : null}
 
+      {isPlace && Array.isArray(data.loved) && data.loved.length > 0 ? (
+        <div className="card" style={{marginBottom:14}}>
+          <div className="pub-cta-title" style={{textAlign:"left", marginBottom:8}}>A few dishes I love here</div>
+          <div className="chips">
+            {data.loved.map((n,i)=>(
+              <span key={i} className="chip" style={{background:"rgba(224,118,74,0.13)",
+                color:"var(--accent)", fontWeight:600}}>{"♥ " + n}</span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="pub-menu">
         {data.s.map((s,si)=>(
           <div key={si} className="pub-msec">
@@ -20005,6 +20039,25 @@ function PublishedMenu({data}){
             ) : null}
             {(open[si] !== false) && (s.i || []).map((it,ii)=>{
               const key = si + ":" + ii;
+              if (isPlace){
+                // Place recommendation: browse only - no pick tick, no note.
+                return (
+                  <div key={ii} className="pub-mitem" style={{cursor:"default"}}>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div className="pub-mitem-head">
+                        <span className="inm">{it.n}</span>
+                        {it.p ? <span className="ipr">{it.p}</span> : null}
+                      </div>
+                      {it.d ? <div className="idesc">{it.d}</div> : null}
+                      {it.t && it.t.length > 0 && (
+                        <div className="chips" style={{marginTop:6}}>
+                          {it.t.map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
               const on  = !!picks[key];
               return (
                 <React.Fragment key={ii}>
@@ -21716,7 +21769,7 @@ async function dismissShare(cfg, id){
 // One "Share" entry point for a place: send to a connection, share a public link,
 // or add your menu(s) to the community library. Opened from the place page and the
 // "Share your menu?" nudge (which jumps straight to the community view).
-function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, onShareCard, cardBusy}){
+function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, onShareCard, cardBusy, lovedDishes}){
   const placeId = restaurant && restaurant.google_place_id;
   const [view, setView]         = useState(initialView || "main");   // main | community
   const [linkBusy, setLinkBusy] = useState(false);
@@ -21737,7 +21790,11 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
     return ()=> { alive = false; };
   }, [view]);
 
-  async function shareLink(){ setLinkErr(null); await publishAndSharePlace(cfg, restaurant, menuList, setLinkBusy, setLinkErr); }
+  async function shareLink(){
+    setLinkErr(null);
+    const loved = (lovedDishes || []).map(d => (d && d.name) || d).filter(Boolean);
+    await publishAndSharePlace(cfg, restaurant, menuList, setLinkBusy, setLinkErr, loved);
+  }
   async function shareCommunity(){
     const ms = myMenus.filter(isChecked);
     if (!ms.length){ setShareMsg("Pick at least one menu to share."); return; }
@@ -21796,7 +21853,7 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
             {shareableCount > 0 ? (
               <>
                 <Opt icon="link" title="Share a link"
-                  sub="They can open it, add it, or get the app - no account needed" onClick={shareLink} busy={linkBusy} />
+                  sub="Recommend this place - the menu + your favorites; they can save it or get the app" onClick={shareLink} busy={linkBusy} />
                 {linkErr ? <div className="tiny faint" style={{margin:"-4px 0 9px 52px"}}>{linkErr}</div> : null}
               </>
             ) : null}
