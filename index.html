@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.346.0";
+const APP_VERSION   = "1.347.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -9493,6 +9493,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     try { return !!localStorage.getItem(shareNudgeKey); } catch(e){ return false; }
   });
   const [shareSheet, setShareSheet] = useState(null);   // null | "main" | "community" (which view of the Share sheet)
+  const [showAllVisits, setShowAllVisits] = useState(false);   // "Visits here": show 3, then expand
   function dismissShareNudge(){
     setShareNudgeOff(true);
     try { localStorage.setItem(shareNudgeKey, "1"); } catch(e){}
@@ -10266,7 +10267,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             No visits logged here yet.
           </div>
         )}
-        {visits.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(v => {
+        {(showAllVisits ? byDate : byDate.slice(0, 3)).map(v => {
           const vphotos = Array.isArray(v.photos) ? v.photos.filter(Boolean) : [];
           return (
             <div key={v.id} className="card tap" onClick={()=> onOpenVisit && onOpenVisit(v)}>
@@ -10337,6 +10338,19 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             </div>
           );
         })}
+        {byDate.length > 3 ? (
+          <button onClick={()=> setShowAllVisits(s => !s)}
+            aria-label={showAllVisits ? "Show fewer visits" : "Show all visits"}
+            style={{display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+              width:"100%", marginTop:2, padding:"9px 4px", background:"none", border:"none",
+              cursor:"pointer", color:"var(--accent)", fontSize:13, fontWeight:600}}>
+            {showAllVisits ? "Show less" : "Show " + (byDate.length - 3) + " more visit" + (byDate.length - 3 === 1 ? "" : "s")}
+            <span style={{lineHeight:0, transition:"transform .15s ease",
+              transform: showAllVisits ? "rotate(180deg)" : "none"}}>
+              <Icon name="chevd" size={16} color="var(--accent)" />
+            </span>
+          </button>
+        ) : null}
 
         {/* one shared input for the per-card "Add photo"; on iOS this offers
             both Take Photo and Photo Library, so camera capture is built in */}
