@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.342.0";
+const APP_VERSION   = "1.343.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1565,6 +1565,10 @@ everything else stays your own private record.
 menu. The app reads it and turns it into a clean, digital menu - sections,
 dish names, descriptions, prices, and tags. This is what powers "Help me order"
 and the calorie estimates.
+
+**Fixing a scanned dish name.** If the scan misread a dish or two, open the menu
+and tap **Edit names & tags** - each dish name becomes editable, so you can fix a
+typo in place. Changes save as you go, and each dish keeps its price and tags.
 
 **More than one menu.** A place can have several menus (for example Dinner,
 Brunch, and Drinks). When you scan a menu that has more than one section, the
@@ -7665,6 +7669,23 @@ function App(){
             });
             commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
           }}
+          onRenameItem={(si, ii, name)=>{
+            // Fix a scanned dish name (OCR typo), by section + item index.
+            const nm = (name || "").trim().slice(0, 120);
+            if (!nm) return;
+            const rid = overlay.restaurantId, mid = overlay.menuId;
+            const list = menus[rid] || [];
+            const nextList = list.map(m => {
+              if (m.menu_id !== mid) return m;
+              const sections = (m.sections || []).map((s, sidx) =>
+                sidx !== si ? s : Object.assign({}, s, {
+                  items: s.items.map((it, iidx) =>
+                    iidx !== ii ? it : Object.assign({}, it, { name:nm })),
+                }));
+              return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
+            });
+            commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
+          }}
           onHome={()=> setOverlay(null)} />
       )}
 
@@ -10457,7 +10478,7 @@ function AiText({ text }){
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSaveItemTags, onHome}){
+function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSaveItemTags, onRenameItem, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
@@ -10914,10 +10935,15 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
           </button>
         )}
       </div>
-      {onSaveItemTags && (
+      {(onSaveItemTags || onRenameItem) && (
         <button className="btn ghost sm" style={{marginBottom:6}} onClick={()=> setEditTags(e=> !e)}>
-          {editTags ? "Done editing tags" : "Edit dietary tags"}
+          {editTags ? "Done editing" : "Edit names & tags"}
         </button>
+      )}
+      {editTags && (onSaveItemTags || onRenameItem) && (
+        <div className="tiny faint" style={{margin:"-2px 2px 9px"}}>
+          Tap a dish name to fix a typo, or toggle its dietary tags - changes save as you go.
+        </div>
       )}
       {sections.length === 0 && (
         <div className="small faint" style={{padding:"12px 2px"}}>No items match.</div>
@@ -10945,7 +10971,15 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
             return (
               <div key={oj} className="mitem">
                 <div className="ihead">
-                  <span className="inm">{it.name}</span>
+                  {editTags && onRenameItem ? (
+                    <input className="input" defaultValue={it.name} aria-label="Dish name"
+                      key={"nm-" + key + "-" + (it.name || "")}
+                      onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); e.target.blur(); } }}
+                      onBlur={e=>{ const v = (e.target.value || "").trim(); if (v && v !== it.name) onRenameItem(i, oj, v); }}
+                      style={{flex:1, minWidth:0, padding:"5px 9px", fontSize:14.5, marginRight:8}} />
+                  ) : (
+                    <span className="inm">{it.name}</span>
+                  )}
                   {it.price
                     ? <span className="ipr">{it.price}</span>
                     : (it.paid && it.paid.amount
