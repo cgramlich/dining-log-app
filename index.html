@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.347.2";
+const APP_VERSION   = "1.348.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1463,10 +1463,10 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   you can spot the right one, and when you add a place its Google photo, rating,
   and hours come along automatically.
 - **Places** - your list of restaurants.
-- **The plus (+) button** - starts with the moment you walk in: **I'm back**
-  pulls up a place you've saved, and **Somewhere new** finds where you're eating
-  on Google. Below them are the things you do there: scan a menu, log a visit,
-  split the check, or start a group order.
+- **The plus (+) button** - quick actions. **Find places near me** discovers
+  spots around you, and **Look up a place** searches your places or anywhere on
+  Google. Below them are the things you do once you're there: scan or find a
+  menu, log a visit, split the check, or start a group order.
 - **History** - everything you have logged, newest first.
 - **Discover** (the **You** tab) - the home for Your Year in Food, your Food
   passport, dining companions, your published lists, your saved splits, and any
@@ -1561,10 +1561,13 @@ everything else stays your own private record.
 
 ## Menus
 
-**Scanning a menu.** Use "Scan a menu" and take or pick photos of the physical
-menu. The app reads it and turns it into a clean, digital menu - sections,
-dish names, descriptions, prices, and tags. This is what powers "Help me order"
-and the calorie estimates.
+**Scanning a menu.** Use "Scan or find a menu" and take or pick photos of the
+physical menu. The app reads it and turns it into a clean, digital menu -
+sections, dish names, descriptions, prices, and tags. This is what powers
+"Help me order" and the calorie estimates. Prefer not to photograph it? **Find
+the menu for me** looks on the restaurant's website and reads the menu in for
+you - and if no website is on file, you can simply type it in. You can also
+paste a link straight to a menu page.
 
 **Fixing a scanned dish name.** If the scan misread a dish or two, open the menu
 and tap **Edit names & tags** - each dish name becomes editable, so you can fix a
@@ -7329,8 +7332,8 @@ function App(){
           onClose={()=> setSheet(false)}
           onPick={(what)=>{
             setSheet(false);
-            if (what === "imBack"){ setOverlay({ type:"atPlace", mode:"saved" }); return; }
-            if (what === "somewhereNew"){ setOverlay({ type:"nearMe" }); return; }   // the full Near me experience
+            // "nearMe" and "findPlace" are existing overlay types, so every
+            // sheet action maps straight onto its overlay.
             setOverlay({ type:what });
           }} />
       )}
@@ -14118,9 +14121,9 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
   );
 }
 
-// The + sheet leads with the two human moments you walk in on - "I'm back"
-// (pull up a saved place) and "Somewhere new" (find it on Google) - both opening
-// the same picker (framed by mode), then the quiet things you do once you're there.
+// The + sheet is a flat list of quick actions - find places near me / look up
+// a place lead (the two ways you land somewhere), then the things you do once
+// you're there (menu, visit, check, group order).
 // Low-friction feedback: pick a category, type, send. Goes to the support inbox
 // (POST /api/feedback) with the app version + the user's email for follow-up.
 function FeedbackForm({ cfg, onClose }){
@@ -14197,28 +14200,17 @@ function ActionSheet({onClose, onPick}){
       <div><div className="t1">{t1}</div><div className="t2">{t2}</div></div>
     </div>
   );
-  const Moment = ({what, icon, t1, t2})=> (
-    <div onClick={()=> onPick(what)}
-      style={{background:"var(--surface-2)", border:"1px solid var(--accent)", borderRadius:14,
-        padding:"16px 12px", textAlign:"center", cursor:"pointer"}}>
-      <Icon name={icon} size={26} color="var(--accent)" />
-      <div style={{fontFamily:"'Fraunces',serif", fontSize:18, color:"var(--text)", marginTop:8}}>{t1}</div>
-      <div className="tiny faint" style={{marginTop:3, lineHeight:1.4}}>{t2}</div>
-    </div>
-  );
   return (
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" onClick={e=> e.stopPropagation()}>
         <div className="grip" />
-        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, margin:"2px 0 14px"}}>
-          <Moment what="imBack"       icon="book"   t1="I'm back"      t2="Pull up a saved place" />
-          <Moment what="somewhereNew" icon="search" t1="Somewhere new" t2="Not in your places yet" />
-        </div>
+        <Item what="nearMe"     icon="pin"     t1="Find places near me"  t2="Discover spots around you" />
+        <Item what="findPlace"  icon="search"  t1="Look up a place"      t2="Your places, or anywhere on Google" />
         <div style={{borderTop:"1px solid var(--line-soft)", margin:"2px 0 6px"}} />
-        <Item what="scanMenu"   icon="camera"  t1="Scan a menu"         t2="Grab a menu now - photo or link" />
-        <Item what="logVisit"   icon="plate"   t1="Log a visit"         t2="Record a meal and rate it" />
-        <Item what="splitCheck" icon="receipt" t1="Split the check"     t2="Snap the receipt, split by who had what" />
-        <Item what="groupStart" icon="nodes"   t1="Start a group order" t2="Everyone adds what they want" />
+        <Item what="scanMenu"   icon="camera"  t1="Scan or find a menu"  t2="Photo, their website, or a link" />
+        <Item what="logVisit"   icon="plate"   t1="Log a visit"          t2="Record a meal and rate it" />
+        <Item what="splitCheck" icon="receipt" t1="Split the check"      t2="Snap the receipt, split by who had what" />
+        <Item what="groupStart" icon="nodes"   t1="Start a group order"  t2="Everyone adds what they want" />
       </div>
     </div>
   );
@@ -16971,6 +16963,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [result,setResult]     = useState(null);        // parsed menu
   const [urlInput,setUrlInput] = useState("");          // "pull from a link" field
   const [showUrl,setShowUrl]   = useState(false);       // link option starts as a twin button; reveals the field on tap
+  const [showSite,setShowSite] = useState(false);       // "Find the menu" with no website on file reveals a type-it-in field
+  const [siteInput,setSiteInput] = useState("");        // the typed website for that path
   const [foundMenus,setFoundMenus] = useState([]);      // multiple menu PDFs found by "Find the menu" -> pick which to add
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
@@ -17118,24 +17112,24 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     }
   }
 
-  // Find the menu for the user: crawl the place's website (from Google) for the
-  // menu/order link, then hand it to the same web-pull digitize flow. No manual
-  // URL hunting. Falls back to messaging when the site has no readable menu link.
-  async function findMenu(){
+  // Find the menu for the user: crawl the place's website (from Google, or one
+  // they typed in) for the menu/order link, then hand it to the same web-pull
+  // digitize flow. No website on file is NOT a dead end - it reveals a field to
+  // type the website. Falls back to messaging when the site has no readable menu link.
+  async function findMenu(overrideSite){
+    // overrideSite is a string when called from the typed-website field; when
+    // wired to onClick it receives the event object, which we ignore.
     const rest = restaurants.find(r => r.id === (restId || presetRestaurantId));
-    const site = rest && (rest.website || "").trim();
-    if (!site){
-      toast(rest && rest.google_place_id
-        ? "Google has no website on file for this place. Paste the menu link, or scan it."
-        : "No website saved for this place. Link it to Google (Update from Google) or add the website, then try again.");
-      return;
-    }
+    const typed = (typeof overrideSite === "string" && overrideSite.trim()) || "";
+    let site = typed || (rest && (rest.website || "").trim()) || "";
+    if (!site){ setShowSite(true); return; }
+    if (!/^https?:\/\//i.test(site)) site = "https://" + site;
     setStep("working");
     try {
       const headers = await authHeaders(config);
       headers["Content-Type"] = "application/json";
       const res = await fetch(apiBase(config) + "/api/menu/find", {
-        method:"POST", headers, body: JSON.stringify({ website: site, name: rest.name || "" }),
+        method:"POST", headers, body: JSON.stringify({ website: site, name: (rest && rest.name) || "" }),
       });
       const data = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(data.detail || "Couldn't look for a menu.");
@@ -17335,13 +17329,29 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 <Icon name="search" size={18} />Find the menu for me
               </button>
             )}
-            {!showUrl && (
+            {!showUrl && !showSite && (
               <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
                 {destWebsite
                   ? "We look on the restaurant's website for its menu page and read it in for you, no typing."
                   : (_destRest && _destRest.google_place_id
-                      ? "Google has no website on file for this place, so there is nothing to search. Paste the menu link below, or scan it."
-                      : "This needs the restaurant's website. Open the place and tap Update from Google, or add the website, then this finds the menu for you.")}
+                      ? "Google has no website on file for this place - tap above and type their website, and we'll find the menu."
+                      : "No website on file for this place - tap above and type their website, and we'll find the menu.")}
+              </div>
+            )}
+            {!showUrl && showSite && (
+              <div style={{marginTop:8}}>
+                <div className="tiny faint" style={{marginBottom:6, padding:"0 2px"}}>
+                  No website on file for this place. Type it and we'll look for the menu.
+                </div>
+                <input className="input" value={siteInput} onChange={e=> setSiteInput(e.target.value)}
+                  placeholder="Their website, e.g. joespizza.com" inputMode="url"
+                  autoCapitalize="off" autoCorrect="off" spellCheck={false} autoFocus
+                  onKeyDown={e=>{ if (e.key === "Enter" && siteInput.trim()){ e.preventDefault(); findMenu(siteInput); } }}
+                  style={{marginBottom:10}} />
+                <button className="btn ghost" style={{width:"100%"}} onClick={()=> findMenu(siteInput)}
+                  disabled={!siteInput.trim() || !!processing}>
+                  <Icon name="search" size={18} />Find the menu on their site
+                </button>
               </div>
             )}
             <button className="btn ghost" style={{marginTop:8}}
