@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.347.1";
+const APP_VERSION   = "1.347.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -13745,8 +13745,10 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
   }
 
   if (limitHit){
-    // Shown only after a real 402 (free taste used, or Pro monthly cap) - the
-    // user has already experienced discovery, so this is a warm upsell.
+    // Shown only after a real 402. Two states land here: a free user whose
+    // lifetime taste is used (warm upsell) vs a Pro user at the monthly abuse
+    // ceiling - a Pro user has nothing to buy, so no upsell for them.
+    const proCap = tier === "pro";
     return (
       <div className="overlay">
         <Header />
@@ -13755,15 +13757,21 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
             <div style={{display:"flex", justifyContent:"center", marginBottom:10}}>
               <Icon name="locate" size={34} color="var(--accent)" />
             </div>
-            <div className="big" style={{marginBottom:6}}>You've used your free Near me searches</div>
-            <div style={{color:"var(--text-dim)", lineHeight:1.5, marginBottom:18}}>
-              {limitMsg || "Upgrade to MenuCaptain Pro for unlimited discovery - find restaurants, cafes, and bars around you and add them with one tap."}
+            <div className="big" style={{marginBottom:6}}>
+              {proCap ? "You've hit this month's discovery limit" : "You've used your free Near me searches"}
             </div>
-            <button className="btn primary" style={{width:"100%"}} onClick={onUpgrade}>
-              See Pro
-            </button>
-            <button className="btn ghost" style={{width:"100%", marginTop:8}} onClick={onClose}>
-              Maybe later
+            <div style={{color:"var(--text-dim)", lineHeight:1.5, marginBottom:18}}>
+              {proCap
+                ? "Near me searches reset at the start of next month. Your saved places, menus, and visits all stay available."
+                : (limitMsg || "Upgrade to MenuCaptain Pro for unlimited discovery - find restaurants, cafes, and bars around you and add them with one tap.")}
+            </div>
+            {!proCap && (
+              <button className="btn primary" style={{width:"100%"}} onClick={onUpgrade}>
+                See Pro
+              </button>
+            )}
+            <button className={proCap ? "btn primary" : "btn ghost"} style={{width:"100%", marginTop: proCap ? 0 : 8}} onClick={onClose}>
+              {proCap ? "OK" : "Maybe later"}
             </button>
           </div>
         </div>
