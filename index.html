@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.348.2";
+const APP_VERSION   = "1.349.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5102,6 +5102,61 @@ function Loader({size, label}){
   );
 }
 
+// Standard text input with a clear (x) that appears only when there's text -
+// one tap wipes the field and keeps the keyboard up (no more holding delete).
+// Drop-in replacement for <input className="input">: layout style keys
+// (flex/width/margins) move to the wrapper span, the input fills it. Works
+// controlled AND uncontrolled: clearing goes through the native value setter +
+// an input event, so React's onChange fires exactly as if the user typed.
+// Pass a ref via inputRef (plain ref stays on the wrapper's input internally).
+function ClearInput(props){
+  const inRef = useRef(null);
+  const [hasUnc, setHasUnc] = useState(!!props.defaultValue);
+  const controlled = props.value !== undefined;
+  const show = controlled ? String(props.value == null ? "" : props.value).length > 0 : hasUnc;
+  const st = props.style || {};
+  const wrapSt = { position:"relative", display:"block" };
+  const inSt = {};
+  for (const k in st){
+    if (k === "flex" || k === "width" || k === "minWidth" || k === "maxWidth" || k.indexOf("margin") === 0) wrapSt[k] = st[k];
+    else inSt[k] = st[k];
+  }
+  inSt.width = "100%";
+  inSt.paddingRight = 38;
+  const rest = {};
+  for (const k in props){ if (k !== "style" && k !== "inputRef") rest[k] = props[k]; }
+  function setRefs(el){
+    inRef.current = el;
+    if (typeof props.inputRef === "function") props.inputRef(el);
+    else if (props.inputRef) props.inputRef.current = el;
+  }
+  function clear(){
+    const el = inRef.current;
+    if (!el) return;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+    setter.call(el, "");
+    el.dispatchEvent(new Event("input", { bubbles:true }));
+    setHasUnc(false);
+    el.focus();
+  }
+  return (
+    <span style={wrapSt}>
+      <input className="input" {...rest} ref={setRefs} style={inSt}
+        onInput={(e)=>{ if (!controlled) setHasUnc(!!e.target.value); if (rest.onInput) rest.onInput(e); }} />
+      {show ? (
+        <button type="button" aria-label="Clear" tabIndex={-1}
+          onMouseDown={(e)=> e.preventDefault()} onClick={clear}
+          style={{position:"absolute", right:9, top:"50%", transform:"translateY(-50%)",
+                  width:22, height:22, borderRadius:"50%", border:"none", cursor:"pointer",
+                  background:"var(--line)", color:"var(--text-dim)", fontSize:12,
+                  padding:0, display:"flex", alignItems:"center", justifyContent:"center"}}>
+          &#10005;
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
 // Right-side header action used on drill-in screens: one tap collapses the whole
 // overlay stack back to the main tab view (vs. the back button, which steps up a
 // single level). When onHome isn't supplied it renders the usual 34px spacer so
@@ -5869,7 +5924,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
 
         {ql ? (
           <div style={{margin:"0 0 12px"}}>
-            <input className="input" placeholder="City (optional) — e.g. Austin, to search another city"
+            <ClearInput placeholder="City (optional) — e.g. Austin, to search another city"
               value={city} onChange={e=> setCity(e.target.value)} style={{marginBottom:6}} />
             <button className="btn ghost sm" style={{width:"100%"}} disabled={gBusy} onClick={runGoogleSearch}>
               {gBusy ? <span className="spin" />
@@ -10009,7 +10064,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                 : <><Icon name="locate" size={16} color="var(--accent)" />Find on Google</>}
             </button>
             <div className="row" style={{gap:8, marginTop:8}}>
-              <input className="input" value={linkQuery}
+              <ClearInput value={linkQuery}
                 onChange={e=> setLinkQuery(e.target.value)}
                 onKeyDown={e=>{ if (e.key === "Enter") linkSearch(linkQuery); }}
                 placeholder="Refine: name + street or city" />
@@ -10659,7 +10714,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
         {renaming && (
           <div className="card" style={{marginBottom:10}}>
             <div className="small muted" style={{marginBottom:8}}>Rename this menu</div>
-            <input className="input" value={renameText} autoFocus
+            <ClearInput value={renameText} autoFocus
               placeholder="Menu name (e.g. Main)"
               onChange={e=> setRenameText(e.target.value)}
               onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); const v=(renameText||"").trim(); if (v){ onRenameMenu(v); setRenaming(false); } } }} />
@@ -10761,7 +10816,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             <div style={{marginBottom:10}}>
               {allDishNames.length > 8 && (
                 <div style={{position:"relative", marginBottom:6}}>
-                  <input className="input" placeholder="Search dishes..." value={explainFilter}
+                  <ClearInput placeholder="Search dishes..." value={explainFilter}
                     onChange={e=> setExplainFilter(e.target.value)}
                     autoCapitalize="off" autoCorrect="off"
                     style={{paddingRight: explainFilter ? 34 : undefined}} />
@@ -10970,7 +11025,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
         <GroupOrderButton cfg={cfg} menu={menu} restaurantName={restaurantName} />
       ) : null}
       <div style={{position:"relative", margin:"4px 0 6px"}}>
-        <input className="input" placeholder="Search this menu..."
+        <ClearInput placeholder="Search this menu..."
           value={filter} onChange={e=> setFilter(e.target.value)}
           style={{paddingRight: filter ? 34 : undefined}} />
         {filter && (
@@ -11019,7 +11074,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
               <div key={oj} className="mitem">
                 <div className="ihead">
                   {editTags && onRenameItem ? (
-                    <input className="input" defaultValue={it.name} aria-label="Dish name"
+                    <ClearInput defaultValue={it.name} aria-label="Dish name"
                       key={"nm-" + key + "-" + (it.name || "")}
                       onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); e.target.blur(); } }}
                       onBlur={e=>{ const v = (e.target.value || "").trim(); if (v && v !== it.name) onRenameItem(i, oj, v); }}
@@ -11545,7 +11600,7 @@ function RestaurantPicker({restaurants, onClose, onPick, title, onPickOther, oth
         <span style={{width:34}} />
       </div>
       <div className="ovbody">
-        <input className="input" placeholder="Search your places..." value={q}
+        <ClearInput placeholder="Search your places..." value={q}
           onChange={e=> setQ(e.target.value)} style={{marginBottom:12}} />
         {list.length === 0 ? (
           <div className="empty" style={{padding:"40px 0"}}>
@@ -12142,7 +12197,7 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
           <div className="tiny faint" style={{margin:"-2px 0 8px"}}>Edit to add full names; add the client and any company names.</div>
           {attendees.map((nm,i)=>(
             <div key={i} className="row" style={{gap:8, marginBottom:6}}>
-              <input className="input" value={nm} onChange={e=> setAttendee(i, e.target.value)} placeholder="Full name" />
+              <ClearInput value={nm} onChange={e=> setAttendee(i, e.target.value)} placeholder="Full name" />
               <button className="btn ghost sm" style={{flex:"none"}} onClick={()=> removeAttendee(i)} aria-label="Remove">✕</button>
             </div>
           ))}
@@ -12151,7 +12206,7 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
 
         <label className="fld">
           <span className="lbl">Client / company</span>
-          <input className="input" value={client} onChange={e=> setClient(e.target.value)} placeholder="e.g. Acme Corp" />
+          <ClearInput value={client} onChange={e=> setClient(e.target.value)} placeholder="e.g. Acme Corp" />
         </label>
 
         <label className="fld">
@@ -12775,7 +12830,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               ))}
             </div>
             <div className="spl-row" style={{marginBottom:14, position:"relative"}}>
-              <input className="input" value={nameDraft} placeholder="Add a name"
+              <ClearInput value={nameDraft} placeholder="Add a name"
                 onChange={e=> { setNameDraft(e.target.value); setNameOpen(true); }}
                 onFocus={()=> setNameOpen(true)}
                 onBlur={()=> setTimeout(()=> setNameOpen(false), 150)}
@@ -12836,7 +12891,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 return (
                   <div key={l.id} className="spl-line">
                     <div className="spl-row">
-                      <input className="input" value={l.name} placeholder="Item"
+                      <ClearInput value={l.name} placeholder="Item"
                         onChange={e=> setLineField(l.id, "name", e.target.value)} />
                       <input className="input spl-pricebox" value={l.price} placeholder="0.00"
                         inputMode="decimal"
@@ -12879,7 +12934,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               <label className="fld" style={{flex:1,marginBottom:0}}>
                 <span className="lbl">Tax</span>
                 <div style={{display:"flex",gap:8,alignItems:"stretch"}}>
-                  <input className="input" value={tax} placeholder="0.00" inputMode="decimal"
+                  <ClearInput value={tax} placeholder="0.00" inputMode="decimal"
                     onChange={e=> setTax(e.target.value)} />
                   <div className="amt-seg">
                     <button type="button" className={"amt-seg-b" + (taxMode==="$" ? " on" : "")}
@@ -12896,7 +12951,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               <label className="fld" style={{flex:1,marginBottom:0}}>
                 <span className="lbl">Tip</span>
                 <div style={{display:"flex",gap:8,alignItems:"stretch"}}>
-                  <input className="input" value={tip} placeholder="0.00" inputMode="decimal"
+                  <ClearInput value={tip} placeholder="0.00" inputMode="decimal"
                     onChange={e=> setTip(e.target.value)} />
                   <div className="amt-seg">
                     <button type="button" className={"amt-seg-b" + (tipMode==="$" ? " on" : "")}
@@ -12919,7 +12974,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                      onClick={(e)=>{ e.preventDefault(); setRtotal(""); }}>auto</a>
                 )}
               </span>
-              <input className="input" value={overriding ? rtotal : computedGrandStr}
+              <ClearInput value={overriding ? rtotal : computedGrandStr}
                 placeholder="0.00" inputMode="decimal"
                 onChange={e=> setRtotal(e.target.value)} />
             </label>
@@ -13073,7 +13128,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               <div style={{marginTop:10}}>
                 <label className="fld" style={{marginBottom:8}}>
                   <span className="lbl">Name this split</span>
-                  <input className="input" value={splitLabel} placeholder={defaultSplitLabel()}
+                  <ClearInput value={splitLabel} placeholder={defaultSplitLabel()}
                     onChange={e=> setSplitLabel(e.target.value)} />
                 </label>
                 <button className="btn primary" onClick={doSaveSplit}>
@@ -13826,7 +13881,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
         {geoState === "ok" && (
           <div style={{padding:"12px 14px", borderBottom:"1px solid var(--line-soft)"}}>
             <div className="row" style={{gap:8, alignItems:"center", marginBottom:10}}>
-              <input className="input" style={{flex:1, minWidth:0}} value={searchQ}
+              <ClearInput style={{flex:1, minWidth:0}} value={searchQ}
                 onChange={e=> setSearchQ(e.target.value)}
                 onKeyDown={e=>{ if (e.key === "Enter") runTextSearch(); }}
                 placeholder="Search a restaurant near me" inputMode="search" />
@@ -14524,7 +14579,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
               ticked to start - add or remove any you like.
             </div>
             <label className="fld" style={{marginBottom:10}}>
-              <input className="input" value={q} onChange={e=> setQ(e.target.value)}
+              <ClearInput value={q} onChange={e=> setQ(e.target.value)}
                 placeholder="Search your places" />
             </label>
             <div className="row" style={{gap:8, alignItems:"center", marginBottom:6, flexWrap:"wrap"}}>
@@ -15053,7 +15108,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
                     onClick={()=> setFinderOpen(false)}>Hide</button>
                 ) : null}
               </div>
-              <input className="input" value={gQ} onChange={e=> setGQ(e.target.value)}
+              <ClearInput value={gQ} onChange={e=> setGQ(e.target.value)}
                 placeholder="Restaurant name (city helps)"
                 onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); runGoogleSearch(); } }} />
               <div className="row" style={{gap:8, marginTop:8}}>
@@ -15148,10 +15203,10 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
         </div>
 
         <label className="fld"><span className="lbl">Name</span>
-          <input className="input" value={name} onChange={e=>setName(e.target.value)}
+          <ClearInput value={name} onChange={e=>setName(e.target.value)}
             placeholder="Restaurant name" /></label>
         <label className="fld"><span className="lbl">Cuisine</span>
-          <input className="input" value={cuisine} onChange={e=>setCuisine(e.target.value)}
+          <ClearInput value={cuisine} onChange={e=>setCuisine(e.target.value)}
             placeholder="e.g. Mexican / Tacos" /></label>
         <label className="fld"><span className="lbl">Location</span>
           <select className="input"
@@ -15162,7 +15217,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
             <option value="__ADD_NEW__">+ Add new location...</option>
           </select>
           {addingNew && (
-            <input ref={newLocRef} className="input"
+            <ClearInput inputRef={newLocRef}
               value={newLoc}
               onChange={e=> setNewLoc(e.target.value)}
               placeholder="City name (e.g. Boston, New York)"
@@ -15181,7 +15236,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
           )}
         </label>
         <label className="fld"><span className="lbl">Address</span>
-          <input className="input" value={address} onChange={e=>setAddress(e.target.value)}
+          <ClearInput value={address} onChange={e=>setAddress(e.target.value)}
             placeholder="Neighborhood or full address" />
           <div className="between" style={{marginTop:8,gap:10}}>
             <span className="tiny faint" style={{flex:1,minWidth:0}}>
@@ -15196,10 +15251,10 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
             </button>
           </div></label>
         <label className="fld"><span className="lbl">Phone</span>
-          <input className="input" type="tel" value={phone} onChange={e=>setPhone(e.target.value)}
+          <ClearInput type="tel" value={phone} onChange={e=>setPhone(e.target.value)}
             placeholder="Phone number" /></label>
         <label className="fld"><span className="lbl">Website</span>
-          <input className="input" value={website} onChange={e=>setWebsite(e.target.value)}
+          <ClearInput value={website} onChange={e=>setWebsite(e.target.value)}
             placeholder="example.com" /></label>
         <label className="fld"><span className="lbl">Notes</span>
           <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
@@ -15280,7 +15335,7 @@ function PeopleTag({ value, onChange, roster }){
         </div>
       ) : null}
       <div className="spl-row" style={{position:"relative"}}>
-        <input className="input" value={q} placeholder="Add a name"
+        <ClearInput value={q} placeholder="Add a name"
           onChange={e=>{ setQ(e.target.value); setOpen(true); }}
           onFocus={()=> setOpen(true)}
           onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); addFree(); } }} />
@@ -16131,7 +16186,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             </div>
           ) : (
             <>
-              <input className="input" autoFocus={restOpen} placeholder="Search your places..."
+              <ClearInput autoFocus={restOpen} placeholder="Search your places..."
                 value={restQuery}
                 onChange={e=>{ setRestQuery(e.target.value); setRestOpen(true); }}
                 onFocus={()=> setRestOpen(true)} />
@@ -16307,7 +16362,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         <div className="fld">
           <span className="lbl">What you had</span>
           <div className="row" style={{gap:8, position:"relative"}}>
-            <input className="input" value={dishInput}
+            <ClearInput value={dishInput}
               onChange={e=>setDishInput(e.target.value)}
               onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); addDish(dishInput); } }}
               placeholder="Search the menu or type a dish" />
@@ -16526,7 +16581,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               <div className="modal" onClick={e=> e.stopPropagation()}>
                 <div className="modal-title">Rename dish</div>
                 <div className="modal-body">
-                  <input className="input" value={editDish.draft} autoFocus
+                  <ClearInput value={editDish.draft} autoFocus
                     onChange={e=> setEditDish(ed => Object.assign({}, ed, {draft:e.target.value, err:""}))}
                     onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); saveDishRename(); } }} />
                   {editDish.err && (
@@ -16711,7 +16766,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   </div>
                   {noteOpen[d.name] && (
                     <div style={{marginTop:6}}>
-                      <input className="input" value={d.note || ""} autoFocus
+                      <ClearInput value={d.note || ""} autoFocus
                         placeholder="e.g. added mushrooms, no onions, well done"
                         onChange={e=> setDishNote(d.name, e.target.value)}
                         onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); toggleNote(d.name); } }} />
@@ -16808,7 +16863,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   <label>fat (g)<input className="input" type="number" inputMode="numeric"
                     value={nutrition.fat_g} onChange={e=> setNutNum("fat_g", e.target.value)} /></label>
                   <label className="wide">ingredients
-                    <input className="input" value={nutIngStr}
+                    <ClearInput value={nutIngStr}
                       onChange={e=> setNutIngStr(e.target.value)}
                       placeholder="comma, separated, list" /></label>
                 </div>
@@ -16965,6 +17020,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [showUrl,setShowUrl]   = useState(false);       // link option starts as a twin button; reveals the field on tap
   const [showSite,setShowSite] = useState(false);       // "Find the menu" with no website on file reveals a type-it-in field
   const [siteInput,setSiteInput] = useState("");        // the typed website for that path
+  const [lastTry,setLastTry]   = useState(null);        // {kind:"url"|"find", value} - powers Try again on the error screen
   const [foundMenus,setFoundMenus] = useState([]);      // multiple menu PDFs found by "Find the menu" -> pick which to add
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
@@ -17086,6 +17142,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     // to onClick it receives the event object, which we ignore in favor of the field.
     const u = ((typeof overrideUrl === "string" && overrideUrl) || urlInput || "").trim();
     if (!u) return;
+    setLastTry({ kind:"url", value:u });
     setStep("working");
     try {
       const fetched = await fetchMenuText(config, u);
@@ -17124,6 +17181,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     let site = typed || (rest && (rest.website || "").trim()) || "";
     if (!site){ setShowSite(true); return; }
     if (!/^https?:\/\//i.test(site)) site = "https://" + site;
+    setLastTry({ kind:"find", value:site });
     setStep("working");
     try {
       const headers = await authHeaders(config);
@@ -17343,7 +17401,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 <div className="tiny faint" style={{marginBottom:6, padding:"0 2px"}}>
                   No website on file for this place. Type it and we'll look for the menu.
                 </div>
-                <input className="input" value={siteInput} onChange={e=> setSiteInput(e.target.value)}
+                <ClearInput value={siteInput} onChange={e=> setSiteInput(e.target.value)}
                   placeholder="Their website, e.g. joespizza.com" inputMode="url"
                   autoCapitalize="off" autoCorrect="off" spellCheck={false} autoFocus
                   onKeyDown={e=>{ if (e.key === "Enter" && siteInput.trim()){ e.preventDefault(); findMenu(siteInput); } }}
@@ -17381,7 +17439,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             )}
             {showUrl && (
               <div style={{marginTop:8}}>
-                <input className="input" value={urlInput} onChange={e=> setUrlInput(e.target.value)}
+                <ClearInput value={urlInput} onChange={e=> setUrlInput(e.target.value)}
                   placeholder="Paste a menu web address" inputMode="url"
                   autoCapitalize="off" autoCorrect="off" spellCheck={false} autoFocus
                   onKeyDown={e=>{ if (e.key === "Enter" && urlInput.trim()){ e.preventDefault(); runUrl(); } }}
@@ -17464,7 +17522,14 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               <div style={{fontWeight:600,marginBottom:6}}>Something went wrong</div>
               <div className="small muted">{errMsg}</div>
             </div>
-            <button className="btn ghost" onClick={()=> setStep("pick")}>Back to photos</button>
+            {lastTry ? (
+              <button className="btn primary"
+                onClick={()=> lastTry.kind === "url" ? runUrl(lastTry.value) : findMenu(lastTry.value)}>
+                Try again
+              </button>
+            ) : null}
+            <button className="btn ghost" style={lastTry ? {marginTop:8} : undefined}
+              onClick={()=> setStep("pick")}>Back</button>
           </div>
         )}
 
@@ -17485,7 +17550,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             </label>
             {!restId && (
               <label className="fld"><span className="lbl">New restaurant name</span>
-                <input className="input" value={newName}
+                <ClearInput value={newName}
                   onChange={e=> setNewName(e.target.value)}
                   placeholder="Restaurant name" />
               </label>
@@ -17533,7 +17598,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                   Menu name {presetMenu &&
                     <span className="faint">(re-scanning {presetMenu.label})</span>}
                 </span>
-                <input ref={labelRef} className="input" value={label}
+                <ClearInput inputRef={labelRef} value={label}
                   onChange={e=> setLabel(e.target.value)}
                   placeholder={presetMenu
                     ? presetMenu.label
@@ -17609,9 +17674,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                           {itemCount} item{itemCount === 1 ? "" : "s"}
                         </div>
                       </div>
-                      <input
-                        ref={el => { sectionInputRefs.current[i] = el; }}
-                        className="input"
+                      <ClearInput
+                        inputRef={el => { sectionInputRefs.current[i] = el; }}
                         value={ext}
                         onChange={e=> setExtractAt(i, e.target.value)}
                         placeholder={s.name || "Menu name"} />
@@ -18621,11 +18685,11 @@ function QuickGroupStart({cfg, presetName, onClose}){
           they want in their own words and you watch the orders come in.
         </div>
         <label className="fld"><span className="lbl">Restaurant</span>
-          <input className="input" value={name} placeholder="e.g. Gloria's Latin Cuisine"
+          <ClearInput value={name} placeholder="e.g. Gloria's Latin Cuisine"
             onChange={e=> setName(e.target.value)} />
         </label>
         <label className="fld"><span className="lbl">Note (optional)</span>
-          <input className="input" value={note} placeholder="e.g. text me your order by 6"
+          <ClearInput value={note} placeholder="e.g. text me your order by 6"
             onChange={e=> setNote(e.target.value)} />
         </label>
         <button className="btn primary" onClick={start} disabled={busy || !name.trim()}>
@@ -19203,7 +19267,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                     <div key={idx} className="go-guest" style={{display:"flex", alignItems:"center", gap:8}}>
                       <div style={{flex:1, minWidth:0}}>
                         <div className="go-guest-name">{pickLabel(it)}</div>
-                        <input className="input" style={{marginTop:6}} placeholder="Note (optional)"
+                        <ClearInput style={{marginTop:6}} placeholder="Note (optional)"
                           value={it.note}
                           onChange={e=> setEditItems(arr => arr.map((x,j)=> j===idx ? {...x, note:e.target.value} : x))} />
                       </div>
@@ -19323,7 +19387,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               ) : null}
               {!closed ? (
                 <div className="row" style={{gap:8, marginTop: roster.length ? 10 : 0}}>
-                  <input className="input" placeholder="Add who you're expecting (optional)"
+                  <ClearInput placeholder="Add who you're expecting (optional)"
                     value={rosterInput}
                     onChange={e=> setRosterInput(e.target.value)}
                     onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); addRosterName(); } }} />
@@ -19809,7 +19873,7 @@ function GroupOrderGuest({code, cfg, profile}){
                     ? "Add your name so the host knows whose order this is"
                     : "Use your real name so the host knows whose order this is"}
                 </div>
-                <input className="input" placeholder="Your name" value={name}
+                <ClearInput placeholder="Your name" value={name}
                   onChange={e=> { setName(e.target.value); setSent(false); }}
                   style={{marginBottom:8, borderColor:(!name.trim() && hasOrder) ? "var(--accent)" : undefined}} />
                 <button className="btn primary" onClick={submit}
@@ -20383,7 +20447,7 @@ function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose, 
         <HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
-        <input className="input" placeholder="List title (e.g. My Top Portland Spots)"
+        <ClearInput placeholder="List title (e.g. My Top Portland Spots)"
           value={title} onChange={onTitle} style={{marginBottom:12}} />
 
         <div className="pub-make">
@@ -20417,7 +20481,7 @@ function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose, 
           </div>
         )}
 
-        <input className="input" placeholder="Search your places" value={q}
+        <ClearInput placeholder="Search your places" value={q}
           onChange={e=> setQ(e.target.value)} style={{margin:"16px 0 10px"}} />
 
         {shown.length === 0 ? (
@@ -20817,7 +20881,7 @@ function ProCard({config}){
         ) : (
           <div style={{marginTop:12}}>
             <label className="fld"><span className="lbl">Friends &amp; family code</span>
-              <input className="input" value={codeText}
+              <ClearInput value={codeText}
                 onChange={e=>{ setCodeText(e.target.value); setCodeMsg(""); }}
                 autoCapitalize="characters" autoComplete="off"
                 placeholder="YOUR-CODE" /></label>
@@ -21262,7 +21326,7 @@ function ProfileCard({config, onProfileChange}){
             <label className="fld"><span className="lbl">Username</span>
               <div style={{display:"flex", alignItems:"center", gap:6}}>
                 <span className="muted" style={{fontSize:18, color:"var(--text-faint)"}}>@</span>
-                <input className="input" value={handle} placeholder="yourhandle"
+                <ClearInput value={handle} placeholder="yourhandle"
                   autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={20}
                   onChange={e=> setHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g,"").toLowerCase())} />
               </div>
@@ -21274,7 +21338,7 @@ function ProfileCard({config, onProfileChange}){
               </div>
             ) : null}
             <label className="fld"><span className="lbl">Display name (optional)</span>
-              <input className="input" value={dname} placeholder="e.g. Chris G" maxLength={60}
+              <ClearInput value={dname} placeholder="e.g. Chris G" maxLength={60}
                 onChange={e=> setDname(e.target.value)} />
             </label>
             <div className="row" style={{gap:8}}>
@@ -21359,7 +21423,7 @@ function UsernameNudge({config, onClose, onClaimed}){
         <label className="fld"><span className="lbl">Username</span>
           <div style={{display:"flex", alignItems:"center", gap:6}}>
             <span style={{fontSize:18, color:"var(--text-faint)"}}>@</span>
-            <input className="input" value={handle} placeholder="yourhandle"
+            <ClearInput value={handle} placeholder="yourhandle"
               autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={20}
               onChange={e=> setHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g,"").toLowerCase())} />
           </div>
@@ -21371,7 +21435,7 @@ function UsernameNudge({config, onClose, onClaimed}){
           </div>
         ) : null}
         <label className="fld"><span className="lbl">Display name (optional)</span>
-          <input className="input" value={dname} placeholder="e.g. Chris G" maxLength={60}
+          <ClearInput value={dname} placeholder="e.g. Chris G" maxLength={60}
             onChange={e=> setDname(e.target.value)} />
         </label>
         <button className="btn primary" onClick={claim} disabled={busy || blocked}>
@@ -21519,7 +21583,7 @@ function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub
           vEdit ? (
             <div className="row" style={{gap:6, marginTop:6, alignItems:"center"}}>
               <span style={{color:"var(--text-faint)"}}>@</span>
-              <input className="input" value={vh} placeholder="venmo username"
+              <ClearInput value={vh} placeholder="venmo username"
                 autoCapitalize="none" autoCorrect="off" spellCheck={false}
                 style={{flex:1, padding:"5px 8px", fontSize:13, minWidth:0}}
                 onChange={e=> setVh(e.target.value.replace(/[^a-zA-Z0-9_@-]/g,"").replace(/^@/,""))}
@@ -21619,7 +21683,7 @@ function ConnectionsScreen({config, profile, onClose, onHome}){
         <div className="card">
           <div style={{display:"flex", gap:8, alignItems:"center"}}>
             <span style={{color:"var(--text-faint)", fontSize:18}}>@</span>
-            <input className="input" value={handle} placeholder="username" style={{flex:1}}
+            <ClearInput value={handle} placeholder="username" style={{flex:1}}
               autoCapitalize="none" autoCorrect="off" spellCheck={false}
               onChange={e=> setHandle(e.target.value.replace(/[^a-zA-Z0-9_@]/g,"").toLowerCase())} />
             <button className="btn primary sm" onClick={add} disabled={adding || !handle.trim()}>
@@ -22348,7 +22412,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                   padding:"8px 0", borderBottom:"1px solid var(--line-soft)"
                 }}>
                   {isEditing ? (
-                    <input className="input" value={editing.draft}
+                    <ClearInput value={editing.draft}
                       onChange={e=> setEditing({name:loc, draft:e.target.value})}
                       style={{flex:1}} autoFocus />
                   ) : (
@@ -22388,7 +22452,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           </div>
         )}
         <div className="row" style={{gap:8,marginTop:6}}>
-          <input className="input" value={newLoc}
+          <ClearInput value={newLoc}
             onChange={e=> setNewLoc(e.target.value)}
             onKeyDown={e=>{
               if (e.key === "Enter"){
@@ -22588,7 +22652,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
               immediately. This cannot be undone.
             </div>
             <label className="fld"><span className="lbl">Type DELETE to confirm</span>
-              <input className="input" value={delText}
+              <ClearInput value={delText}
                 onChange={e=>{ setDelText(e.target.value); setDelErr(""); }}
                 autoCapitalize="characters" autoComplete="off"
                 placeholder="DELETE" /></label>
@@ -22947,11 +23011,11 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         </div>
       )}
       <label className="fld"><span className="lbl">Email</span>
-        <input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)}
+        <ClearInput type="email" value={email} onChange={e=>setEmail(e.target.value)}
           autoCapitalize="none" autoComplete="email" placeholder="you@example.com" /></label>
       {mode === "signup" && (
         <label className="fld"><span className="lbl">Confirm email</span>
-          <input className="input" type="email" value={email2} onChange={e=>setEmail2(e.target.value)}
+          <ClearInput type="email" value={email2} onChange={e=>setEmail2(e.target.value)}
             autoCapitalize="none" autoComplete="email" placeholder="re-type your email"
             onPaste={(e)=> e.preventDefault()} />
           <span className="tiny faint" style={{marginTop:4, display:"block"}}>
