@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.349.0";
+const APP_VERSION   = "1.350.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -8010,7 +8010,7 @@ function App(){
           presetRestaurantId={overlay.restaurantId}
           presetMenuId={overlay.menuId}
           onClose={()=> setOverlay(overlay.returnTo || null)}
-          onSave={(restId, menusToSave, newRestaurant, isReplace)=>{
+          onSave={(restId, menusToSave, newRestaurant, isReplace, opts)=>{
             let nextR = restaurants;
             if (newRestaurant) nextR = [newRestaurant].concat(restaurants);
             const existingForRest = menus[restId] || [];
@@ -8027,14 +8027,18 @@ function App(){
             const nextM = Object.assign({}, menus, { [restId]:newRestMenus });
             commit({ restaurants:nextR, menus:nextM },
                    newRestaurant ? ["restaurants","menus"] : ["menus"]);
-            // If we were launched from somewhere (e.g. the log-visit page),
-            // return there so the menu is now available to tap from. Otherwise:
+            // stayOpen: the flow is looping through several found menus - data
+            // is saved but the sheet stays up so the next one is one tap away.
+            // Otherwise: if we were launched from somewhere (e.g. the log-visit
+            // page), return there so the menu is now available to tap from;
             // re-scan -> the menu detail; a fresh scan -> the restaurant page.
-            setOverlay(overlay.returnTo
-              ? overlay.returnTo
-              : isReplace
-                ? { type:"menuDetail", restaurantId:restId, menuId:menusToSave[0].menu_id }
-                : { type:"restaurant", id:restId });
+            if (!(opts && opts.stayOpen)){
+              setOverlay(overlay.returnTo
+                ? overlay.returnTo
+                : isReplace
+                  ? { type:"menuDetail", restaurantId:restId, menuId:menusToSave[0].menu_id }
+                  : { type:"restaurant", id:restId });
+            }
             const savedPlace = newRestaurant || restaurantById(restId);
             const baseMsg = isReplace ? "Menu replaced"
               : (menusToSave.length > 1 ? menusToSave.length + " menus saved" : "Menu saved");
@@ -17021,7 +17025,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [showSite,setShowSite] = useState(false);       // "Find the menu" with no website on file reveals a type-it-in field
   const [siteInput,setSiteInput] = useState("");        // the typed website for that path
   const [lastTry,setLastTry]   = useState(null);        // {kind:"url"|"find", value} - powers Try again on the error screen
-  const [foundMenus,setFoundMenus] = useState([]);      // multiple menu PDFs found by "Find the menu" -> pick which to add
+  const [foundMenus,setFoundMenus] = useState([]);      // multiple menus found by "Find the menu" -> pick which to add
+  const [addedUrls,setAddedUrls]   = useState([]);      // which of foundMenus are already saved this session (the add-another loop)
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
   // Website of the destination place (if linked to Google) - enables "Find the menu for me".
@@ -17285,7 +17290,24 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                    menusToSave.length > 1 ? "Adding " + menusToSave.length + " menus" :
                                             "Adding 1 menu") +
                   " to restaurant " + targetRestId);
-    onSave(targetRestId, menusToSave, newRestaurant, isReplace);
+    // Add-another loop: when this save came from the multi-menu picker and
+    // other found menus remain, keep the flow open and return to the picker
+    // instead of navigating away - one find, several menus, still one
+    // review at a time.
+    const curUrl = (lastTry && lastTry.kind === "url") ? lastTry.value : null;
+    const fromPick = !isReplace && curUrl && foundMenus.some(mn => mn.url === curUrl);
+    const remaining = fromPick
+      ? foundMenus.filter(mn => mn.url !== curUrl && addedUrls.indexOf(mn.url) === -1)
+      : [];
+    const stayOpen = remaining.length > 0;
+    onSave(targetRestId, menusToSave, newRestaurant, isReplace, { stayOpen });
+    if (stayOpen){
+      setAddedUrls(prev => prev.concat([curUrl]));
+      setRestId(targetRestId);           // later menus land in the same place
+      setResult(null); setPreviews([]); setDataUrls([]); setErrMsg("");
+      setLabel(""); setUrlInput("");
+      setStep("menupick");
+    }
   }
 
   // ---- review-step helpers ----
@@ -17490,21 +17512,30 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         {step === "menupick" && (
           <div>
             <div className="card small muted">
-              This place has more than one menu on its site. Pick one to add now &mdash;
-              come back to <strong>Find the menu</strong> to add the others.
+              {addedUrls.length
+                ? "Added! This site has more menus - add the next one, or tap Done."
+                : "This place has more than one menu on its site. Add them one at a time - you review each before it saves."}
             </div>
             <div className="card" style={{padding:"4px 0"}}>
-              {foundMenus.map((mn,i)=>(
-                <div key={i} className="pick-row"
-                  style={{padding:"12px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}
-                  onClick={()=> runUrl(mn.url)}>
-                  <Icon name="note" size={16} color="var(--accent)" />
-                  <span className="small" style={{flex:1, minWidth:0, fontWeight:600}}>{mn.label || ("Menu " + (i+1))}</span>
-                  <span className="btn ghost sm" style={{flex:"none", padding:"5px 12px", margin:0, pointerEvents:"none"}}>Add &rsaquo;</span>
-                </div>
-              ))}
+              {foundMenus.map((mn,i)=>{
+                const done = addedUrls.indexOf(mn.url) !== -1;
+                return (
+                  <div key={i} className="pick-row"
+                    style={{padding:"12px 14px", display:"flex", alignItems:"center", gap:10,
+                            cursor: done ? "default" : "pointer", opacity: done ? 0.55 : 1}}
+                    onClick={()=> { if (!done) runUrl(mn.url); }}>
+                    <Icon name={done ? "check" : "note"} size={16} color="var(--accent)" />
+                    <span className="small" style={{flex:1, minWidth:0, fontWeight:600}}>{mn.label || ("Menu " + (i+1))}</span>
+                    {done
+                      ? <span className="tiny" style={{color:"var(--text-faint)", flex:"none"}}>Added</span>
+                      : <span className="btn ghost sm" style={{flex:"none", padding:"5px 12px", margin:0, pointerEvents:"none"}}>Add &rsaquo;</span>}
+                  </div>
+                );
+              })}
             </div>
-            <button className="btn ghost" onClick={()=> setStep("pick")}>Back</button>
+            {addedUrls.length
+              ? <button className="btn primary" onClick={onClose}>Done</button>
+              : <button className="btn ghost" onClick={()=> setStep("pick")}>Back</button>}
           </div>
         )}
 
