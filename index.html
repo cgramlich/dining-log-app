@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.352.0";
+const APP_VERSION   = "1.352.1";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -18564,6 +18564,10 @@ function pickLabel(p){
   const item = ((p && p.item) || "").trim();
   const sec  = ((p && p.section) || "").trim();
   if (!sec) return item;
+  // Generic container names add nothing to an order line ("Options - Ham/
+  // Cheddar" should just read "Ham/Cheddar"). Quick-order options use
+  // "Options" as their section; some scanned menus use "Menu"/"Other".
+  if (/^(options?|menu|other)$/i.test(sec)) return item;
   const stem = sec.toLowerCase().replace(/s$/, "");
   if (stem && item.toLowerCase().indexOf(stem) !== -1) return item;  // item already names it
   return sec + " — " + item;
