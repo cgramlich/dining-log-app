@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.350.1";
+const APP_VERSION   = "1.350.2";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -11606,6 +11606,24 @@ function RestaurantPicker({restaurants, onClose, onPick, title, onPickOther, oth
       <div className="ovbody">
         <ClearInput placeholder="Search your places..." value={q}
           onChange={e=> setQ(e.target.value)} style={{marginBottom:12}} />
+        {/* Quick actions lead - with a long places list they were a full
+            scroll away at the bottom, which buried the two fastest paths. */}
+        {(onAddPlace || onPickOther) ? (
+          <div style={{marginBottom:8, borderBottom:"1px solid var(--line-soft)", paddingBottom:4}}>
+            {onPickOther ? (
+              <div className="pick-row" onClick={onPickOther}>
+                <div className="pick-row-name" style={{color:"var(--accent)"}}>{otherLabel || "Somewhere not in my list"}</div>
+                {otherSub ? <div className="tiny faint" style={{marginTop:2}}>{otherSub}</div> : null}
+              </div>
+            ) : null}
+            {onAddPlace ? (
+              <div className="pick-row" onClick={onAddPlace}>
+                <div className="pick-row-name" style={{color:"var(--accent)"}}>{addLabel || "Find & add a place"}</div>
+                {addSub ? <div className="tiny faint" style={{marginTop:2}}>{addSub}</div> : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {list.length === 0 ? (
           <div className="empty" style={{padding:"40px 0"}}>
             <div className="big">{term ? "No matches" : "No places yet"}</div>
@@ -11621,22 +11639,6 @@ function RestaurantPicker({restaurants, onClose, onPick, title, onPickOther, oth
             ) : null}
           </div>
         ))}
-        {(onAddPlace || onPickOther) ? (
-          <div style={{marginTop:8, borderTop:"1px solid var(--line-soft)"}}>
-            {onAddPlace ? (
-              <div className="pick-row" onClick={onAddPlace}>
-                <div className="pick-row-name" style={{color:"var(--accent)"}}>{addLabel || "Find & add a place"}</div>
-                {addSub ? <div className="tiny faint" style={{marginTop:2}}>{addSub}</div> : null}
-              </div>
-            ) : null}
-            {onPickOther ? (
-              <div className="pick-row" onClick={onPickOther}>
-                <div className="pick-row-name" style={{color:"var(--accent)"}}>{otherLabel || "Somewhere not in my list"}</div>
-                {otherSub ? <div className="tiny faint" style={{marginTop:2}}>{otherSub}</div> : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
       </div>
     </div>
   );
