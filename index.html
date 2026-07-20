@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.350.2";
+const APP_VERSION   = "1.351.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -19191,8 +19191,19 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
     } finally { setStarting(false); }
   }
   async function shareLink(){
+    // Share copy matches the order type: with a menu snapshot the host is
+    // usually AT the place; a quick (menu-less) order is usually a pickup run,
+    // so "I'm at X" reads wrong. The host's note rides along in the text so
+    // guests see it even before they open the link.
+    const hasMenuSnap = !!(data && data.menu_snapshot && Array.isArray(data.menu_snapshot.sections) && data.menu_snapshot.sections.length);
+    const nm = restaurantName || (data && data.restaurant_name) || "the restaurant";
+    const noteTxt = (data && (data.title || "").trim()) ? " (" + data.title.trim() + ")" : "";
+    const text = (hasMenuSnap
+      ? "I'm at " + nm + " - what do you want?"
+      : "I'm getting food from " + nm + " - want anything?") + noteTxt +
+      " Add your order here: " + link;
     try {
-      if (navigator.share) await navigator.share({ title:"Group order", text:"I'm at " + (restaurantName || "the restaurant") + " - what do you want? Add your order here: " + link });
+      if (navigator.share) await navigator.share({ title:"Group order", text: text });
       else { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(()=> setCopied(false), 1500); }
     } catch(e){}
   }
@@ -19732,6 +19743,18 @@ function GroupOrderGuest({code, cfg, profile}){
             ? "Type your order and send it back. You can change it any time until the host closes it."
             : "Pick what you'd like and send it back. You can change your order any time until the host closes it."}
       </div>
+
+      {/* The host's note (entered at start, e.g. "text me your order by 6") -
+          stored as `title`; it was collected but never shown to guests. */}
+      {data && (data.title || "").trim() ? (
+        <div style={{margin:"0 0 16px", padding:"10px 14px", borderRadius:12, textAlign:"center",
+             background:"rgba(224,118,74,0.10)", border:"1px solid rgba(224,118,74,0.35)"}}>
+          <span className="tiny faint" style={{display:"block", marginBottom:2}}>
+            {data.host_name ? "Note from " + data.host_name : "Note from the host"}
+          </span>
+          <span style={{fontWeight:600}}>{data.title}</span>
+        </div>
+      ) : null}
 
       {data && data.placed ? (
         <div style={{margin:"0 0 16px", padding:"10px 14px", borderRadius:12, textAlign:"center",
