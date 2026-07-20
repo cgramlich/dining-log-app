@@ -905,7 +905,11 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.352.1";
+const APP_VERSION   = "1.352.2";
+// True when running inside the Capacitor store build (the native shell
+// injects window.Capacitor into its webview; browsers never have it). Used to
+// hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
+const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -5630,6 +5634,8 @@ function InstallHint({ onClose, force }){
     return ()=>{ window.removeEventListener("mc-install-ready", onReady);
                  window.removeEventListener("appinstalled", onInstalled); };
   }, []);
+  // Native store build: installing is meaningless - it IS the installed app.
+  if (IS_NATIVE) return null;
   // force = shown on demand (Settings button), so render even if already installed.
   if (!force && (isStandalone() || installed)) return null;
   const plat = installPlatform();
@@ -22706,7 +22712,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           <Icon name="info" size={15} color="var(--text-dim)" />
           User guide
         </button>
-        {onShowInstall ? (
+        {onShowInstall && !IS_NATIVE ? (
           <button className="btn ghost sm" onClick={onShowInstall}>
             <Icon name="home" size={15} color="var(--text-dim)" />
             Add to Home Screen
