@@ -400,6 +400,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .sheet .grip{width:38px; height:4px; background:var(--line); border-radius:2px; margin:6px auto 14px;}
     .sheet-item{
       display:flex; align-items:center; gap:14px; padding:15px 6px;
+      width:100%; text-align:left;   /* rendered as <button> for assistive tech */
       border-bottom:1px solid var(--line-soft);
     }
     .sheet-item:last-child{border-bottom:none;}
@@ -905,11 +906,26 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.352.2";
+const APP_VERSION   = "1.353.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+// One home for "you've hit a limit" copy. On the store build any purchase
+// language is forbidden (Apple/Google payment rules), so this sanitizes BOTH
+// our fallback strings and whatever detail string the backend sent - future
+// backend copy can never leak an upsell into the native app.
+function limit402Message(detail, kind){
+  if (IS_NATIVE){
+    return kind === "ai"
+      ? "You've reached your AI usage limit for now."
+      : "You've reached your discovery search limit for now.";
+  }
+  return (detail || "") || (kind === "ai"
+    ? "You have reached your AI usage limit. Upgrade to MenuCaptain Pro for unlimited access."
+    : "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
+}
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1425,8 +1441,8 @@ else's. Your places, visits, photos, and menus are yours alone.
 
 ## Getting set up
 
-Go to menucaptain.com and create an account with your email address and a
-password. You're in right away - no confirmation email to chase down. Because
+Create an account with your email address and a password - right from the
+sign-in screen. You're in right away - no confirmation email to chase down. Because
 your email is how you'd recover the account, sign-up asks you to type it twice
 so a typo can't lock you out later. That is the whole setup.
 
@@ -1584,15 +1600,15 @@ menu, or **Customize each section** lets you split the sections into separate
 menus (any sections you give the same name merge back together). So a single
 scan of a long menu can be saved as separate Dinner, Brunch, and Drinks menus.
 
-**Where menus show.** On a restaurant page, if there is only one menu it is
-shown expanded right there, so you can browse and estimate items without
-tapping in. With two or more menus, each appears as a card you tap to open.
+**Where menus show.** On a place's page, each menu appears as a card in the
+**Menus** section - tap a card to open the full menu, with Help me order,
+Explain the menu, and the calorie tools inside.
 
-**Re-scanning and deleting.** You can refresh a menu to replace it with a fresh
-version - either photograph it again or pull it from a link - or delete a menu
-you no longer want. (For a single inline menu, use the **Manage** button by the
-Menus heading to reach those options.) Refreshing replaces the old copy in place
-(no duplicate), so any estimates saved on the old items are not carried over.
+**Re-scanning and deleting.** Each menu card offers **Refresh** to replace it
+with a fresh version - photograph it again or pull it from a link - and you
+can delete a menu you no longer want from inside it. Refreshing replaces the
+old copy in place (no duplicate), so any estimates saved on the old items are
+not carried over.
 
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, each
@@ -1877,6 +1893,23 @@ earned before badges arrived simply shows as already earned, without a fuss.
 
 -----
 
+## Connections & friends
+
+MenuCaptain has a light social layer built around your **@handle** (set it in
+Settings, under Your profile). Open **Connections** from Settings to find
+friends by their handle and send or accept requests - once connected, you can
+send a place or a menu straight to a friend from any Share sheet, and things
+friends send you appear under **Shared with you**.
+
+**Who was with you?** When logging a visit, tag the people at the table. Those
+names build your **dining companions** view in the Discover tab - who you eat
+with most, and every meal you've shared. Tagging a connection links the visit
+to their handle.
+
+**Explain the menu.** On any digitized menu, tap **Explain the menu** and pick
+the dishes you want decoded - the AI explains unfamiliar dishes and terms in
+plain language, using what is actually on the menu.
+
 ## Share the Love
 
 In the **Discover** tab, the **Five Shares** badge sits beside a **Share the
@@ -1931,7 +1964,8 @@ it can open that menu page.
 
 ## Can't decide? (spin to pick where to eat)
 
-Stuck on where to eat? Tap the **+** button and choose **Can't decide?** Pick
+Stuck on where to eat? From Home, tap **Looking for somewhere to eat?** and
+choose **Can't decide?** Pick
 up to eight places for the wheel - your favorites are ticked to start, and you
 can search to add or remove any others - then tap **Spin**. The wheel is a
 ship's helm: tap **Spin** to set it turning, then tap **Stop** whenever you're
@@ -2127,7 +2161,7 @@ many AI uses you have left. **Pro** removes the everyday limit, with a
 generous monthly allowance that normal use will not reach - scan menus and
 estimate plates freely.
 
-**Have a code?** If you were given a friends & family code, enter it on the
+${IS_NATIVE ? "" : `**Have a code?** If you were given a friends & family code, enter it on the
 Plan card in Settings ("Have a code?") and your account flips to Pro through
 the date shown - no payment needed.
 
@@ -2136,7 +2170,7 @@ Settings. Payments are handled securely by Stripe; the app never sees your
 card details. If you cancel, Pro keeps working until the end of the period you
 paid for - the card shows the exact date.
 
-Everything that is not AI - logging visits, rating dishes, places, the map,
+`}Everything that is not AI - logging visits, rating dishes, places, the map,
 History, Year in Food, the passport, and sharing - is free and unlimited on
 every plan.
 
@@ -2193,8 +2227,7 @@ Questions or trouble? Email **support@menucaptain.com**.
   folder. If it still doesn't come, the email on the account may have a typo from
   sign-up - reach out at the support address and we'll help sort it out.
 - **An AI feature says you've reached your limit.** Open the Plan card in
-  Settings - free accounts include a set number of AI uses, and upgrading to
-  Pro removes the everyday limit. Everything that is not AI keeps working
+  Settings - free accounts include a set number of AI uses${IS_NATIVE ? "" : ", and upgrading to Pro removes the everyday limit"}. Everything that is not AI keeps working
   regardless.
 - **A photo is slow to appear or won't load.** Photos load from your account
   the first time you view them, so the very first view can be slow; it is
@@ -3906,7 +3939,7 @@ async function digitizeMenu(cfg, dataUrls){
     logMsg("ERROR","Anthropic -> " + res.status + " " + txt.slice(0,180));
     let _detail = "";
     try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
-    if (res.status === 402) throw new Error(_detail || "You\u2019ve reached this month\u2019s AI usage limit.");
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
     if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
     if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
     throw new Error(_detail || ("AI request failed (" + res.status + ")"));
@@ -4041,7 +4074,7 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
     let _detail = ""; try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
-    if (res.status === 402) throw new Error(_detail || "You’ve reached this month’s AI usage limit.");
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
     throw new Error(_detail || ("AI request failed (" + res.status + ")"));
   }
   const json = await res.json();
@@ -4297,7 +4330,7 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
     logMsg("ERROR","Receipt scan -> " + res.status + " " + txt.slice(0,180));
     let _detail = "";
     try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
-    if (res.status === 402) throw new Error(_detail || "You\u2019ve reached this month\u2019s AI usage limit.");
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
     throw new Error(_detail || ("Receipt scan failed (" + res.status + ")"));
   }
   const json = await res.json();
@@ -4551,7 +4584,7 @@ async function askMenu(cfg, restaurant, menu, visits, question, allVisits){
     logMsg("ERROR","Ask -> " + res.status + " " + txt.slice(0,180));
     let _detail = "";
     try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
-    if (res.status === 402) throw new Error(_detail || "You\u2019ve reached this month\u2019s AI usage limit.");
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
     if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
     if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
     throw new Error(_detail || ("AI request failed (" + res.status + ")"));
@@ -4644,9 +4677,9 @@ async function pickNearbySpot(cfg, candidates, taste, mood){
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
     let detail = ""; try { detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
-    const err = new Error(detail || (res.status === 402
-      ? "You’ve reached this month’s AI usage limit."
-      : ("Couldn't pick right now (" + res.status + ")")));
+    const err = new Error(res.status === 402
+      ? limit402Message(detail, "ai")
+      : (detail || ("Couldn't pick right now (" + res.status + ")")));
     err.status = res.status;
     throw err;
   }
@@ -4733,7 +4766,7 @@ async function explainMenu(cfg, restaurant, menu, selectedNames){
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
     let _detail = ""; try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
-    if (res.status === 402) throw new Error(_detail || "You’ve reached this month’s AI usage limit.");
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
     if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
     if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
     throw new Error(_detail || ("AI request failed (" + res.status + ")"));
@@ -4863,7 +4896,7 @@ async function estimateNutrition(cfg, file){
     logMsg("ERROR","Nutrition -> " + res.status + " " + txt.slice(0,180));
     let _detail = "";
     try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
-    if (res.status === 402) throw new Error(_detail || "You\u2019ve reached this month\u2019s AI usage limit.");
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
     if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
     if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
     throw new Error(_detail || ("AI request failed (" + res.status + ")"));
@@ -4934,7 +4967,7 @@ async function estimateItemNutrition(cfg, restaurantName, item){
     logMsg("ERROR","Item nutrition -> " + res.status + " " + txt.slice(0,180));
     let _detail = "";
     try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
-    if (res.status === 402) throw new Error(_detail || "You\u2019ve reached this month\u2019s AI usage limit.");
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
     if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
     if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
     throw new Error(_detail || ("AI request failed (" + res.status + ")"));
@@ -4999,7 +5032,7 @@ async function estimateItemFromImage(cfg, restaurantName, item){
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
     let _detail = ""; try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
-    if (res.status === 402) throw new Error(_detail || "You’ve reached this month’s AI usage limit.");
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
     throw new Error(_detail || ("AI request failed (" + res.status + ")"));
   }
   const json = await res.json();
@@ -5170,6 +5203,17 @@ function ClearInput(props){
 // single level). When onHome isn't supplied it renders the usual 34px spacer so
 // the title stays centered. Deliberately NOT placed on create/edit forms, so a
 // stray tap can never drop a half-filled form.
+// Standard overlay back button. Icon-only controls need an accessible name
+// and a real hit area - the bare icon inside .x gives neither.
+function BackBtn({ onClick }){
+  return (
+    <button className="x" onClick={onClick} aria-label="Back" title="Back"
+      style={{minWidth:40, minHeight:40, display:"flex", alignItems:"center", justifyContent:"center"}}>
+      <Icon name="back" size={20} />
+    </button>
+  );
+}
+
 function HomeBtn({ onHome }){
   if (!onHome) return <span style={{width:34}} />;
   return (
@@ -5818,7 +5862,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
     });
   }
   function gMapErr(err){
-    if (err && err.status === 402) return (err.detail || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
+    if (err && err.status === 402) return limit402Message(err.detail, "places");
     return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
   }
   async function runGoogleSearch(){
@@ -6220,7 +6264,7 @@ function DuplicatesView({ restaurants, visits, menus, onClose, onHome, onMerge }
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>Find duplicates</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
@@ -6857,7 +6901,7 @@ function App(){
         nextShas[FILES.visits]      = await ghPutFile(cfg, FILES.visits, nextV, null);
         nextShas[FILES.locations]   = await ghPutFile(cfg, FILES.locations, nextL, null);
         missing.locations = false;
-        flash("Set up your repo with Carlita's to start");
+        flash("Added a sample place - Carlita's - so you can explore");
       } else {
         // create any individually-missing files as empty / sensible defaults
         if (missing.restaurants){ nextR = []; nextShas[FILES.restaurants] = await ghPutFile(cfg, FILES.restaurants, [], null); }
@@ -7030,7 +7074,7 @@ function App(){
     const updates = { restaurants: next }; const files = ["restaurants"];
     if (nextLocations !== locations){ updates.locations = nextLocations; files.push("locations"); }
     commit(updates, files);
-    flash("Restaurant updated");
+    flash("Place updated");
     return true;
   }
 
@@ -7337,7 +7381,7 @@ function App(){
             onDeleteLocation={(name)=>{
               const inUse = restaurants.filter(r => r.location === name).length;
               if (inUse > 0){
-                flash(inUse + " restaurant(s) use this - move them first");
+                flash(inUse + " place(s) use this - move them first");
                 return;
               }
               const next = locations.filter(l => l !== name);
@@ -7380,7 +7424,7 @@ function App(){
         <button className={tab==="restaurants" ? "on" : ""} onClick={()=> setTab("restaurants")}>
           <span className="navicon"><Icon name="plate" size={23} /></span>Places
         </button>
-        <button onClick={()=> setSheet(true)}>
+        <button onClick={()=> setSheet(true)} aria-label="Add">
           <span className="add"><Icon name="plus" size={24} color="#1b1714" /></span>
         </button>
         <button className={tab==="history" ? "on" : ""} onClick={()=> setTab("history")}>
@@ -7410,7 +7454,7 @@ function App(){
           cfg={config}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
           onAddPlace={(prefill)=> setOverlay({ type:"addRestaurant", prefill:prefill })}
-          onUpgrade={()=>{ setOverlay(null); setTab("settings"); }}
+          onUpgrade={IS_NATIVE ? null : ()=>{ setOverlay(null); setTab("settings"); }}
           onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "nearMe" && (
@@ -7420,7 +7464,7 @@ function App(){
           visits={visits}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
           onAddPlace={(prefill)=> setOverlay({ type:"addRestaurant", prefill:prefill })}
-          onUpgrade={()=>{ setOverlay(null); setTab("settings"); }}
+          onUpgrade={IS_NATIVE ? null : ()=>{ setOverlay(null); setTab("settings"); }}
           onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "pullMenu" && (
@@ -7473,6 +7517,7 @@ function App(){
       {overlay && overlay.type === "groupFindPlace" && (
         <AtRestaurantPicker
           cfg={config} restaurants={restaurants} mode="new"
+          title="Find the place to order from"
           onOpenRestaurant={(id)=> setOverlay({ type:"groupStartMenu", id:id })}
           onCreateRestaurant={(rec)=>{
             const next = [rec].concat(restaurants);
@@ -7626,7 +7671,7 @@ function App(){
             const nextR = restaurants.filter(r => r.id !== overlay.id);
             const nextM = Object.assign({}, menus); delete nextM[overlay.id];
             commit({ restaurants:nextR, menus:nextM }, ["restaurants","menus"]);
-            setOverlay(null); flash("Restaurant removed");
+            setOverlay(null); flash("Place removed");
           }}
           onSaveItemNutrition={(menuId, si, ii, nutrition)=>{
             // same write path as the menu overlay, but the inline menu passes its id
@@ -7667,7 +7712,7 @@ function App(){
             });
           }}
           onAddPhotos={addPhotosToVisit}
-          onUpgrade={()=>{ setOverlay(null); setTab("settings"); }}
+          onUpgrade={IS_NATIVE ? null : ()=>{ setOverlay(null); setTab("settings"); }}
           onHome={()=> setOverlay(null)} />
       )}
 
@@ -7838,7 +7883,7 @@ function App(){
             let next;
             if (overlay.type === "editRestaurant"){
               next = restaurants.map(r => r.id===recOut.id ? recOut : r);
-              flash("Restaurant updated");
+              flash("Place updated");
             } else {
               next = [recOut].concat(restaurants);
               flash(restaurants.length === 0
@@ -7902,6 +7947,7 @@ function App(){
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
           onScanMenu={(restId)=> setOverlay({ type:"scanMenu", restaurantId: restId,
             returnTo: Object.assign({}, overlay, { restaurantId: restId }) })}
+          onUpgrade={IS_NATIVE ? null : ()=>{ setOverlay(null); setTab("settings"); }}
           cfg={config}
           onClose={()=> setOverlay(overlay.returnTo || null)}
           onSave={async (rec, extras)=>{
@@ -8008,7 +8054,7 @@ function App(){
           initialSplit={overlay.editSplit || (overlay.fromVisit && overlay.fromVisit.split) || null}
           onSaveSplit={(entity)=>{ upsertSplit(entity); flash(overlay.editSplit ? "Split updated" : "Split saved"); }}
           onLogVisit={(seed)=> setOverlay({ type:"logVisit", seedFromSplit: seed, returnTo: overlay.returnTo || null })}
-          onUpgrade={()=>{ setOverlay(null); setTab("settings"); }}
+          onUpgrade={IS_NATIVE ? null : ()=>{ setOverlay(null); setTab("settings"); }}
           onHome={()=> setOverlay(null)}
           onClose={()=> setOverlay(overlay.returnTo || null)} />
       )}
@@ -8082,7 +8128,7 @@ function App(){
       {overlay && overlay.type === "installHelp" && (
         <div className="overlay">
           <div className="ovhead">
-            <button className="x" onClick={()=> setOverlay(null)}><Icon name="back" size={20} /></button>
+            <BackBtn onClick={()=> setOverlay(null)} />
             <h2>Add to Home Screen</h2><span style={{width:34}} />
           </div>
           <div className="ovbody">
@@ -8666,21 +8712,21 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
         <>
           <div className="sortbar">
             <span className="sortbar-lbl">Sort</span>
-            <span className={"chip pick" + (sortBy === "newest" ? " on" : "")} onClick={()=> setSortBy("newest")}>Newest</span>
-            <span className={"chip pick" + (sortBy === "oldest" ? " on" : "")} onClick={()=> setSortBy("oldest")}>Oldest</span>
-            <span className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</span>
-            <span className={"chip pick" + (sortBy === "restaurant" ? " on" : "")} onClick={()=> setSortBy("restaurant")}>A&ndash;Z</span>
+            <button type="button" className={"chip pick" + (sortBy === "newest" ? " on" : "")} onClick={()=> setSortBy("newest")}>Newest</button>
+            <button type="button" className={"chip pick" + (sortBy === "oldest" ? " on" : "")} onClick={()=> setSortBy("oldest")}>Oldest</button>
+            <button type="button" className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</button>
+            <button type="button" className={"chip pick" + (sortBy === "restaurant" ? " on" : "")} onClick={()=> setSortBy("restaurant")}>A&ndash;Z</button>
           </div>
           <div className="sortbar">
             <span className="sortbar-lbl">Show</span>
-            <span className={"chip pick" + (!lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(false)}>All visits</span>
-            <span className={"chip pick" + (lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(true)}
-              title="Visits you marked loved, or where you loved a dish">{"♥ Visits I loved"}</span>
+            <button type="button" className={"chip pick" + (!lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(false)}>All visits</button>
+            <button type="button" className={"chip pick" + (lovedOnly ? " on" : "")} onClick={()=> setLovedOnly(true)}
+              title="Visits you marked loved, or where you loved a dish">{"♥ Visits I loved"}</button>
           </div>
           {cities.length >= 2 && (
             <div className="sortbar">
               <span className="sortbar-lbl">City</span>
-              <span className={"chip pick" + (cityActive === "All" ? " on" : "")} onClick={()=> setCityFilter("All")}>All</span>
+              <button type="button" className={"chip pick" + (cityActive === "All" ? " on" : "")} onClick={()=> setCityFilter("All")}>All</button>
               {cities.map(c => (
                 <span key={c} className={"chip pick" + (cityActive === c ? " on" : "")} onClick={()=> setCityFilter(c)}>{c}</span>
               ))}
@@ -8981,7 +9027,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   const [gErr, setGErr]   = useState("");
   const [gResults, setGResults] = useState(null);   // null=not searched | array
   function gMapErr(err){
-    if (err && err.status === 402) return (err.detail || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
+    if (err && err.status === 402) return limit402Message(err.detail, "places");
     return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
   }
   function geoOnce(){
@@ -9287,12 +9333,12 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         </div>
       )}
       <div className="chips" style={{margin:"2px 0 14px"}}>
-        <span className={"chip pick" + (statusFilter === "all" ? " on" : "")}
-          onClick={()=> setStatusFilter("all")}>All</span>
-        <span className={"chip pick" + (statusFilter === "try" ? " on" : "")}
-          onClick={()=> setStatusFilter("try")}>Want to try{wantCount ? " (" + wantCount + ")" : ""}</span>
-        <span className={"chip pick" + (statusFilter === "been" ? " on" : "")}
-          onClick={()=> setStatusFilter("been")}>Been</span>
+        <button type="button" className={"chip pick" + (statusFilter === "all" ? " on" : "")}
+          onClick={()=> setStatusFilter("all")}>All</button>
+        <button type="button" className={"chip pick" + (statusFilter === "try" ? " on" : "")}
+          onClick={()=> setStatusFilter("try")}>Want to try{wantCount ? " (" + wantCount + ")" : ""}</button>
+        <button type="button" className={"chip pick" + (statusFilter === "been" ? " on" : "")}
+          onClick={()=> setStatusFilter("been")}>Been</button>
       </div>
 
       {/* City / cuisine / sort fold away behind one toggle so the list isn't
@@ -9335,8 +9381,8 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
 
           {cuisineInUse.length >= 2 && (
             <div className="chips" style={{margin:"0 0 14px"}}>
-              <span className={"chip pick" + (cuisineFilter === "All" ? " on" : "")}
-                onClick={()=> setCuisineFilter("All")}>All cuisines</span>
+              <button type="button" className={"chip pick" + (cuisineFilter === "All" ? " on" : "")}
+                onClick={()=> setCuisineFilter("All")}>All cuisines</button>
               {cuisineInUse.map(c => (
                 <span key={c} className={"chip pick" + (cuisineFilter === c ? " on" : "")}
                   onClick={()=> setCuisineFilter(c)}>{c}</span>
@@ -9355,10 +9401,10 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
 
           <div className="sortbar">
             <span className="sortbar-lbl">Sort</span>
-            <span className={"chip pick" + (sortBy === "alpha" ? " on" : "")} onClick={()=> setSortBy("alpha")}>A&ndash;Z</span>
-            <span className={"chip pick" + (sortBy === "added" ? " on" : "")} onClick={()=> setSortBy("added")}>Recently added</span>
-            <span className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</span>
-            <span className={"chip pick" + (sortBy === "fav" ? " on" : "")} onClick={()=> setSortBy("fav")}>{"♥ Loved"}</span>
+            <button type="button" className={"chip pick" + (sortBy === "alpha" ? " on" : "")} onClick={()=> setSortBy("alpha")}>A&ndash;Z</button>
+            <button type="button" className={"chip pick" + (sortBy === "added" ? " on" : "")} onClick={()=> setSortBy("added")}>Recently added</button>
+            <button type="button" className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</button>
+            <button type="button" className={"chip pick" + (sortBy === "fav" ? " on" : "")} onClick={()=> setSortBy("fav")}>{"♥ Loved"}</button>
           </div>
         </>
       )}
@@ -9895,7 +9941,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>{r.name}</h2>
         {onEdit ? (
           <button className="x" onClick={onEdit} aria-label="Edit place" title="Edit place">
@@ -10446,7 +10492,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         {/* manage */}
         <div className="divider-label">Manage</div>
         <button className="btn ghost" onClick={onEdit} style={{marginBottom:10}}>
-          <Icon name="edit" size={17} />Edit restaurant
+          <Icon name="edit" size={17} />Edit place
         </button>
         {!confirmDel ? (
           <button className="btn danger" onClick={()=> setConfirmDel(true)}>
@@ -10598,7 +10644,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
   const [renaming, setRenaming] = useState(false);    // rename this menu's name
-  const [renameText, setRenameText] = useState(menu.label || "");
+  const [renameText, setRenameText] = useState((menu && menu.label) || "");
   // "help me order" state
   const [askInput, setAskInput] = useState("");
   const [asking,   setAsking]   = useState(false);
@@ -10647,7 +10693,9 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   }
 
   // All dish names on this menu (for the pick-dishes-to-explain chips).
-  const allDishNames = (menu.sections || [])
+  // null-safe: the missing-menu guard below renders AFTER hooks run, so this
+  // computation must not dereference a menu that may be gone.
+  const allDishNames = ((menu && menu.sections) || [])
     .flatMap(s => (s.items || []).map(it => (it.name || "").trim()))
     .filter(Boolean);
   const pickedNames = allDishNames.filter(n => explainPicks[n]);
@@ -10671,7 +10719,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
     return (
       <div className="overlay">
         <div className="ovhead">
-          <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+          <BackBtn onClick={onClose} />
           <h2>Menu</h2><span style={{width:40}} />
         </div>
         <div className="ovbody">
@@ -10685,7 +10733,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>{menu.label || "Menu"}</h2>
         <HomeBtn onHome={onHome} />
       </div>
@@ -10792,7 +10840,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             {["Something healthy","Not too heavy","Something for sharing","Best value"]
               .concat(hasHistory ? ["What did I love here?","What do I usually get?"] : [])
               .map((eg,i)=>(
-                <span key={i} className="chip pick" onClick={()=> runAsk(eg)}>{eg}</span>
+                <button type="button" key={i} className="chip pick" onClick={()=> runAsk(eg)}>{eg}</button>
               ))}
           </div>
           <button className="btn primary sm ask-go"
@@ -10829,20 +10877,10 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           {explainOpen && (
             <div style={{marginBottom:10}}>
               {allDishNames.length > 8 && (
-                <div style={{position:"relative", marginBottom:6}}>
-                  <ClearInput placeholder="Search dishes..." value={explainFilter}
-                    onChange={e=> setExplainFilter(e.target.value)}
-                    autoCapitalize="off" autoCorrect="off"
-                    style={{paddingRight: explainFilter ? 34 : undefined}} />
-                  {explainFilter && (
-                    <button aria-label="Clear search" title="Clear"
-                      onClick={()=> setExplainFilter("")}
-                      style={{position:"absolute", right:8, top:"50%", transform:"translateY(-50%)",
-                              background:"none", border:"none", padding:4, cursor:"pointer", display:"flex"}}>
-                      <Icon name="close" size={15} color="#80715f" />
-                    </button>
-                  )}
-                </div>
+                <ClearInput placeholder="Search dishes..." value={explainFilter}
+                  onChange={e=> setExplainFilter(e.target.value)}
+                  autoCapitalize="off" autoCorrect="off"
+                  style={{marginBottom:6}} />
               )}
               {(()=>{
                 const fq = explainFilter.trim().toLowerCase();
@@ -11357,7 +11395,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
     });
   }
   function gMapErr(err){
-    if (err && err.status === 402) return (err.detail || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
+    if (err && err.status === 402) return limit402Message(err.detail, "places");
     return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
   }
   async function runGoogleSearch(){
@@ -11487,7 +11525,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}>Cancel</button>
-        <h2>{title || (isNew ? "Somewhere new" : "I'm back")}</h2>
+        <h2>{title || (isNew ? "Find a place" : "Your places")}</h2>
         <span style={{width:54}} />
       </div>
       <div className="ovbody">
@@ -11529,9 +11567,19 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
         ) : (
           <>
             <div className="row" style={{justifyContent:"space-between", alignItems:"center", marginTop:8}}>
-              <button className="tiny" style={{background:"none", border:"none", color:"var(--accent)", cursor:"pointer", padding:"2px 0", fontWeight:600}}
+              {/* Same "Filters & sort" widget as the Places and Visits lists -
+                  one look for one job. */}
+              <button className="btn ghost sm" style={{margin:0}}
                 onClick={()=> setShowCtl(v=>!v)}>
-                <Icon name="sliders" size={13} color="var(--accent)" /> Sort &amp; filter
+                <Icon name="sliders" size={15} color="var(--accent)" />
+                Filters &amp; sort
+                <span style={{lineHeight:0, display:"inline-flex", transition:"transform .15s ease",
+                  transform: showCtl ? "rotate(180deg)" : "none"}}>
+                  <Icon name="chevd" size={14} color="var(--accent)" />
+                </span>
+                {!showCtl && (sortBy !== "recent" || filterBy !== "all") ? (
+                  <span className="tiny" style={{color:"var(--accent)"}}>&bull; on</span>
+                ) : null}
               </button>
               <span className="tiny faint">{base.length} place{base.length===1?"":"s"}</span>
             </div>
@@ -11609,7 +11657,7 @@ function RestaurantPicker({restaurants, onClose, onPick, title, onPickOther, oth
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>{title || "Pull up a menu"}</h2>
         <span style={{width:34}} />
       </div>
@@ -11637,7 +11685,7 @@ function RestaurantPicker({restaurants, onClose, onPick, title, onPickOther, oth
         {list.length === 0 ? (
           <div className="empty" style={{padding:"40px 0"}}>
             <div className="big">{term ? "No matches" : "No places yet"}</div>
-            <div>{term ? "Try a different search." : "Add a restaurant first, then you can pull up its menu."}</div>
+            <div>{term ? "Try a different search." : "Add a place first, then you can pull up its menu."}</div>
           </div>
         ) : list.map(r => (
           <div key={r.id} className="pick-row" onClick={()=> onPick(r.id)}>
@@ -12115,7 +12163,7 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
     return (
       <div className="overlay">
         <div className="ovhead">
-          <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+          <BackBtn onClick={onClose} />
           <h2>Expense item</h2><HomeBtn onHome={onHome} />
         </div>
         <div className="ovbody"><div className="empty"><span className="spin" /></div></div>
@@ -12128,7 +12176,7 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
     return (
       <div className="overlay">
         <div className="ovhead">
-          <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+          <BackBtn onClick={onClose} />
           <h2>Expense item</h2><HomeBtn onHome={onHome} />
         </div>
         <div className="ovbody">
@@ -12136,18 +12184,21 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
             <div style={{display:"flex", justifyContent:"center", marginBottom:10}}>
               <Icon name="receipt" size={34} color="var(--accent)" />
             </div>
-            <div className="big" style={{marginBottom:6}}>Expensing is a Pro feature</div>
-            <div style={{color:"var(--text-dim)", lineHeight:1.5, marginBottom:18}}>
-              Turn any check into a clean, professional expense report - exclude
-              non-expensable items, add the client and attendees, attach the
-              receipts, and share it as a polished PDF.
+            <div className="big" style={{marginBottom:6}}>
+              {IS_NATIVE ? "Expense reports aren't included in your plan" : "Expensing is a Pro feature"}
             </div>
-            <button className="btn primary" style={{width:"100%"}}
-              onClick={()=> onUpgrade ? onUpgrade() : onClose()}>
-              See Pro
-            </button>
-            <button className="btn ghost" style={{width:"100%", marginTop:8}} onClick={onClose}>
-              Maybe later
+            <div style={{color:"var(--text-dim)", lineHeight:1.5, marginBottom:18}}>
+              {IS_NATIVE
+                ? "Everything else - your places, menus, visits, and group orders - works as usual."
+                : "Turn any check into a clean, professional expense report - exclude non-expensable items, add the client and attendees, attach the receipts, and share it as a polished PDF."}
+            </div>
+            {!IS_NATIVE && onUpgrade ? (
+              <button className="btn primary" style={{width:"100%"}} onClick={onUpgrade}>
+                See Pro
+              </button>
+            ) : null}
+            <button className={IS_NATIVE ? "btn primary" : "btn ghost"} style={{width:"100%", marginTop: IS_NATIVE ? 0 : 8}} onClick={onClose}>
+              {IS_NATIVE ? "OK" : "Maybe later"}
             </button>
           </div>
         </div>
@@ -12158,7 +12209,7 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>Expense item</h2>
         {onHome
           ? <button className="x" onClick={goHome} aria-label="Home" title="Home"><Icon name="home" size={20} /></button>
@@ -13384,9 +13435,9 @@ function mapPlacesError(err){
   const d = (err && err.detail) || "";
   if (s === 401) return { kind:"auth",     msg:"Your session expired - sign in again." };
   if (s === 402){
-    // Free taste used up (or Pro monthly cap). Either way, show the server's
-    // upsell text and route to the upgrade screen.
-    return { kind:"upsell", msg: d || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited." };
+    // Free taste used up (or Pro monthly cap). limit402Message keeps the
+    // wording in one place and strips purchase language on the store build.
+    return { kind:"upsell", msg: limit402Message(d, "places") };
   }
   if (s === 503) return { kind:"down",     msg:"Discovery is taking a short break. Try again in a bit." };
   if (s === 502) return { kind:"upstream", msg:"Couldn't search just now. Try again." };
@@ -13832,20 +13883,24 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
               <Icon name="locate" size={34} color="var(--accent)" />
             </div>
             <div className="big" style={{marginBottom:6}}>
-              {proCap ? "You've hit this month's discovery limit" : "You've used your free Near me searches"}
+              {proCap ? "You've hit this month's discovery limit"
+               : IS_NATIVE ? "You've used your included Near me searches"
+               : "You've used your free Near me searches"}
             </div>
             <div style={{color:"var(--text-dim)", lineHeight:1.5, marginBottom:18}}>
               {proCap
                 ? "Near me searches reset at the start of next month. Your saved places, menus, and visits all stay available."
-                : (limitMsg || "Upgrade to MenuCaptain Pro for unlimited discovery - find restaurants, cafes, and bars around you and add them with one tap.")}
+                : IS_NATIVE
+                  ? "Your saved places, menus, and visits all stay available."
+                  : (limitMsg || "Upgrade to MenuCaptain Pro for unlimited discovery - find restaurants, cafes, and bars around you and add them with one tap.")}
             </div>
-            {!proCap && (
+            {!proCap && !IS_NATIVE && onUpgrade && (
               <button className="btn primary" style={{width:"100%"}} onClick={onUpgrade}>
                 See Pro
               </button>
             )}
-            <button className={proCap ? "btn primary" : "btn ghost"} style={{width:"100%", marginTop: proCap ? 0 : 8}} onClick={onClose}>
-              {proCap ? "OK" : "Maybe later"}
+            <button className={(proCap || IS_NATIVE) ? "btn primary" : "btn ghost"} style={{width:"100%", marginTop: (proCap || IS_NATIVE) ? 0 : 8}} onClick={onClose}>
+              {(proCap || IS_NATIVE) ? "OK" : "Maybe later"}
             </button>
           </div>
         </div>
@@ -14266,10 +14321,10 @@ function FeedbackForm({ cfg, onClose }){
 
 function ActionSheet({onClose, onPick}){
   const Item = ({what, icon, t1, t2})=> (
-    <div className="sheet-item" onClick={()=> onPick(what)}>
+    <button type="button" className="sheet-item" onClick={()=> onPick(what)}>
       <span className="ic"><Icon name={icon} size={21} color="var(--accent)" /></span>
       <div><div className="t1">{t1}</div><div className="t2">{t2}</div></div>
-    </div>
+    </button>
   );
   return (
     <div className="sheet-bg" onClick={onClose}>
@@ -14289,7 +14344,8 @@ function ActionSheet({onClose, onPick}){
 
 /* ============================================================
    SPIN PICKER - "Can't decide?" wheel to randomly pick a place.
-   Opened from the + menu. You curate a set of places (favorites
+   Opened from the Find-a-place page (Home > "Looking for somewhere
+   to eat?"). You curate a set of places (favorites
    pre-ticked), then spin an SVG wheel that lands on a uniformly
    random winner. Pure presentation - nothing is written to data.
    ============================================================ */
@@ -14452,7 +14508,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
       startWheel(sh.slice(0, 8));
     } catch(err){
       const e = mapPlacesError(err);
-      if (e.kind === "upsell"){ setDErr(e.msg || "You've used your free discovery. Upgrade to Pro for unlimited."); setDUpsell(true); }
+      if (e.kind === "upsell"){ setDErr(e.msg || limit402Message("", "places")); setDUpsell(true); }
       else setDErr(e.msg || "Search failed. Try again.");
     } finally {
       setDBusy(false);
@@ -14691,9 +14747,9 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
             {dErr ? (
               <div className="small" style={{color:"#e7a99e", margin:"8px 2px 0"}}>
                 {dErr}
-                {dUpsell ? (
+                {dUpsell && !IS_NATIVE && onUpgrade ? (
                   <button className="btn primary sm" style={{marginTop:8, width:"100%"}}
-                    onClick={()=> onUpgrade ? onUpgrade() : null}>See Pro</button>
+                    onClick={onUpgrade}>See Pro</button>
                 ) : null}
               </div>
             ) : null}
@@ -14702,7 +14758,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
               {dBusy ? "Finding places…" : "Build my wheel"}
             </button>
             <div className="tiny faint" style={{margin:"8px 2px 0", textAlign:"center"}}>
-              Uses your location. Free to try; Pro for unlimited.
+              {IS_NATIVE ? "Uses your location." : "Uses your location. Free to try; Pro for unlimited."}
             </div>
             </React.Fragment>
             )}
@@ -14861,7 +14917,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
     });
   }
   function gMapErr(err){
-    if (err && err.status === 402) return (err.detail || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
+    if (err && err.status === 402) return limit402Message(err.detail, "places");
     return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
   }
   async function runGoogleSearch(){
@@ -15096,7 +15152,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}>Cancel</button>
-        <h2>{existing ? "Edit restaurant" : "Add restaurant"}</h2>
+        <h2>{existing ? "Edit place" : "Add a place"}</h2>
         <button className="x" onClick={submit}
           style={{color:name.trim()?"var(--accent)":"var(--text-faint)"}}>Save</button>
       </div>
@@ -15125,7 +15181,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
                 ) : null}
               </div>
               <ClearInput value={gQ} onChange={e=> setGQ(e.target.value)}
-                placeholder="Restaurant name (city helps)"
+                placeholder="Place name (city helps)"
                 onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); runGoogleSearch(); } }} />
               <div className="row" style={{gap:8, marginTop:8}}>
                 <button type="button" className="btn ghost sm" style={{flex:1, margin:0}}
@@ -15220,7 +15276,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
 
         <label className="fld"><span className="lbl">Name</span>
           <ClearInput value={name} onChange={e=>setName(e.target.value)}
-            placeholder="Restaurant name" /></label>
+            placeholder="Place name" /></label>
         <label className="fld"><span className="lbl">Cuisine</span>
           <ClearInput value={cuisine} onChange={e=>setCuisine(e.target.value)}
             placeholder="e.g. Mexican / Tacos" /></label>
@@ -15377,7 +15433,7 @@ function PeopleTag({ value, onChange, roster }){
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, onScanMenu, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit}){
+function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, onScanMenu, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit, onUpgrade}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [companions, setCompanions] = useState(()=> {
     if (existing && Array.isArray(existing.companions)) return existing.companions;
@@ -15451,7 +15507,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     });
   }
   function gMapErr(err){
-    if (err && err.status === 402) return (err.detail || "You've used your free 'near me' searches. Upgrade to MenuCaptain Pro for unlimited.");
+    if (err && err.status === 402) return limit402Message(err.detail, "places");
     return (err && (err.detail || err.message)) || "Couldn't reach Google. Try again.";
   }
   async function runGoogleSearch(){
@@ -16140,7 +16196,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         </div>
         <div className="ovbody">
           <div className="empty">
-            <div className="big">Add a restaurant first</div>
+            <div className="big">Add a place first</div>
             <div>You need at least one saved place before logging a visit.</div>
           </div>
         </div>
@@ -16406,7 +16462,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               <div className="tiny faint" style={{marginBottom:6}}>Your usuals here &mdash; tap to add</div>
               <div className="chips">
                 {usuals.filter(n => dishNames.indexOf(n) === -1).map((n,i)=>(
-                  <span key={i} className="chip pick" onClick={()=> addDish(n)}>+ {n}</span>
+                  <button type="button" key={i} className="chip pick" onClick={()=> addDish(n)}>+ {n}</button>
                 ))}
               </div>
             </div>
@@ -16976,6 +17032,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             initialFinalReceipt={finalReceiptSlot && finalReceiptSlot.kind === "existing" ? finalReceiptSlot.path : null}
             initialSplit={splitDraft || null}
             onApplyDraft={(splitObj)=>{ setSplitDraft(splitObj); setSplitOpen(false); }}
+            onUpgrade={onUpgrade}
             onClose={()=> setSplitOpen(false)} />
         </div>
       )}
@@ -18734,7 +18791,7 @@ function QuickGroupStart({cfg, presetName, onClose}){
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>Quick group order</h2><span style={{width:34}} />
       </div>
       <div className="ovbody">
@@ -18814,7 +18871,7 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
     return (
       <div className="overlay">
         <div className="ovhead">
-          <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+          <BackBtn onClick={onClose} />
           <h2>Group order</h2><span style={{width:34}} />
         </div>
         <div className="ovbody">
@@ -18833,7 +18890,7 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>Which menus?</h2><span style={{width:34}} />
       </div>
       <div className="ovbody">
@@ -19760,12 +19817,23 @@ function GroupOrderGuest({code, cfg, profile}){
     finally { setHelpBusy(false); }
   }
 
-  if (loading) return <div className="pub-wrap"><div className="muted" style={{textAlign:"center", padding:"60px 0"}}><span className="spin" /> Loading...</div></div>;
+  if (loading) return <div className="pub-wrap"><div style={{padding:"64px 0"}}><Loader size={48} label="Getting the order ready…" /></div></div>;
   if (notFound) return (
     <div className="pub-wrap">
       <div className="pub-title">This group order was not found</div>
       <div className="muted" style={{textAlign:"center", marginBottom:20}}>The link may be wrong or the order may have ended.</div>
       <div style={{textAlign:"center"}}><a className="btn primary" href={home}>Open MenuCaptain</a></div>
+    </div>
+  );
+  // Load failed (network hiccup, cold backend): a real screen with a retry,
+  // not the broken half page the render below would produce with no data.
+  if (!data) return (
+    <div className="pub-wrap">
+      <div className="pub-title">Couldn't load this group order</div>
+      <div className="muted" style={{textAlign:"center", marginBottom:20}}>{err || "It may be a momentary connection hiccup."}</div>
+      <div style={{textAlign:"center"}}>
+        <button className="btn primary" onClick={()=> location.reload()}>Try again</button>
+      </div>
     </div>
   );
 
@@ -19844,7 +19912,7 @@ function GroupOrderGuest({code, cfg, profile}){
                   value={helpInput} onChange={e=> setHelpInput(e.target.value)} />
                 <div className="chips ask-egs">
                   {["Something light","Best value","For sharing","Most popular"].map((eg,i)=>(
-                    <span key={i} className="chip pick" onClick={()=> runHelp(eg)}>{eg}</span>
+                    <button type="button" key={i} className="chip pick" onClick={()=> runHelp(eg)}>{eg}</button>
                   ))}
                 </div>
                 <button className="btn primary sm" disabled={helpBusy || !helpInput.trim()} onClick={()=> runHelp()}>
@@ -20389,7 +20457,7 @@ function MyListsOverlay({ lists, onClose, onToggleFav, onDelete, onRefresh, onHo
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>My Lists</h2>
         <HomeBtn onHome={onHome} />
       </div>
@@ -20556,7 +20624,7 @@ function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose, 
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>Publish a list</h2>
         <HomeBtn onHome={onHome} />
       </div>
@@ -20637,7 +20705,7 @@ function FoodPassport({visits, restaurantById, cfg, onOpenVisit, onClose, onHome
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>Food passport</h2>
         <HomeBtn onHome={onHome} />
       </div>
@@ -20719,7 +20787,7 @@ function YearInFood({visits, restaurants, onClose, onHome}){
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>Year in Food</h2>
         <span className="row" style={{gap:2, flex:"none"}}>
           <button className="x" onClick={share} disabled={shareBusy || s.empty} aria-label="Share recap">
@@ -20735,8 +20803,8 @@ function YearInFood({visits, restaurants, onClose, onHome}){
               <span key={y} className={"chip pick" + (period === y ? " on" : "")}
                 onClick={()=> setPeriod(y)}>{y}</span>
             ))}
-            <span className={"chip pick" + (period === "all" ? " on" : "")}
-              onClick={()=> setPeriod("all")}>All time</span>
+            <button type="button" className={"chip pick" + (period === "all" ? " on" : "")}
+              onClick={()=> setPeriod("all")}>All time</button>
           </div>
         )}
 
@@ -20851,6 +20919,8 @@ function ProCard({config}){
   const [bill,setBill] = useState(null);   // /api/billing/status payload
   const [busy,setBusy] = useState("");     // which button is working
   const [err,setErr]   = useState("");
+  const [loadErr,setLoadErr]   = useState(false);  // status fetch failed -> show Try again, not a forever-spinner
+  const [loadTick,setLoadTick] = useState(0);      // bump to re-run the status fetch
   const [showCode,setShowCode] = useState(false);  // friends & family code UI
   const [codeText,setCodeText] = useState("");
   const [codeBusy,setCodeBusy] = useState(false);
@@ -20889,9 +20959,10 @@ function ProCard({config}){
   useEffect(()=>{
     let alive = true;
     const load = ()=>{
+      setLoadErr(false);
       fetchBillingStatus(config)
         .then(d=>{ if (alive) setBill(d); })
-        .catch(e=>{ logMsg("BILLING","Status fetch failed: " + e.message); });
+        .catch(e=>{ logMsg("BILLING","Status fetch failed: " + e.message); if (alive) setLoadErr(true); });
     };
     load();
     // WHY: returning from the Stripe sheet (portal/checkout) does not
@@ -20907,7 +20978,7 @@ function ProCard({config}){
       document.removeEventListener("visibilitychange", onVis);
     };
     // eslint-disable-next-line
-  },[]);
+  },[loadTick]);
 
   async function go(kind){
     setErr(""); setBusy(kind);
@@ -20933,7 +21004,12 @@ function ProCard({config}){
 
   let body;
   if (!bill){
-    body = <div className="tiny muted">Checking your plan...</div>;
+    body = loadErr ? (
+      <div>
+        <div className="tiny muted" style={{marginBottom:8}}>Couldn't check your plan just now.</div>
+        <button className="btn ghost sm" onClick={()=> setLoadTick(t=> t+1)}>Try again</button>
+      </div>
+    ) : <div className="tiny muted">Checking your plan...</div>;
   } else if (bill.owner){
     body = <div className="tiny muted">Pro - owner account.</div>;
   } else if (bill.tier === "pro" && bill.status === "comped"){
@@ -20946,7 +21022,13 @@ function ProCard({config}){
       </div>
     );
   } else if (bill.tier === "pro"){
-    body = (
+    // Store build: status only - no price, no Stripe portal (Apple/Google
+    // forbid pointing at an external billing flow from inside the app).
+    body = IS_NATIVE ? (
+      <div className="tiny muted">
+        Pro{bill.current_period_end ? (bill.cancel_at_period_end ? " - ends " : " - renews ") + fmtDate(bill.current_period_end) : ""}
+      </div>
+    ) : (
       <div>
         <div className="tiny muted" style={{marginBottom:10}}>
           Pro{bill.plan ? " - " + (bill.plan === "yearly" ? "$19.99/year" : "$2.99/month") : ""}
@@ -20960,10 +21042,16 @@ function ProCard({config}){
     );
   } else {
     const used = bill.calls_used || 0, cap = bill.calls_cap || 75;
-    body = (
+    // The free AI allowance is LIFETIME, not monthly - say "included".
+    const freeLine = "Free plan - " + used + " of " + cap + " AI uses included.";
+    // Store build: status line only - no checkout buttons, prices, sell-list,
+    // or code redemption (all purchase surfaces live on the web only).
+    body = IS_NATIVE ? (
+      <div className="tiny muted">{freeLine}</div>
+    ) : (
       <div>
         <div className="tiny muted" style={{marginBottom:10}}>
-          Free plan - {used} of {cap} AI uses this month.
+          {freeLine}
         </div>
         <div style={{marginBottom:12}}>
           {[
@@ -21783,7 +21871,7 @@ function ConnectionsScreen({config, profile, onClose, onHome}){
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>Connections</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
@@ -21903,7 +21991,7 @@ function LeaderboardScreen({config, profile, onProfileChange, onClose, onHome}){
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>Leaderboard</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
@@ -22331,7 +22419,7 @@ function ShareInbox({config, onClose, onHome}){
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}><Icon name="back" size={20} /></button>
+        <BackBtn onClick={onClose} />
         <h2>Shared with you</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
@@ -22445,8 +22533,14 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           <div className="card">
             <div className="between" style={{marginBottom:10}}>
               <span style={{fontWeight:600}}>{usage.tier === "pro" ? "MenuCaptain Pro" : "Free"}</span>
-              {usage.tier !== "pro" && onEdit ? (
-                <button className="btn primary sm" style={{margin:0}} onClick={onEdit}>Go Pro</button>
+              {/* Scrolls to the plan card below (it used to open the advanced
+                  config editor by mistake). Hidden on the store build - no
+                  purchase CTAs there. */}
+              {usage.tier !== "pro" && !IS_NATIVE ? (
+                <button className="btn primary sm" style={{margin:0}}
+                  onClick={()=>{ const el = document.getElementById("procard"); if (el) el.scrollIntoView({ behavior:"smooth", block:"center" }); }}>
+                  Go Pro
+                </button>
               ) : null}
             </div>
             {usage.tier === "pro" ? (
@@ -22463,8 +22557,9 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                 {usageRow("AI actions (scan, help me order, explain)", usage.ai)}
                 {usageRow("Near me / Google discovery", usage.places)}
                 <div className="tiny faint" style={{marginTop:2}}>
-                  Free includes {usage.ai.cap} AI actions and {usage.places.cap} discovery
-                  searches. Dish photos and everything else stay free. Pro is unlimited.
+                  {IS_NATIVE
+                    ? "Free includes " + usage.ai.cap + " AI actions and " + usage.places.cap + " discovery searches. Dish photos and everything else stay free."
+                    : "Free includes " + usage.ai.cap + " AI actions and " + usage.places.cap + " discovery searches. Dish photos and everything else stay free. Pro is unlimited."}
                 </div>
               </>
             )}
@@ -22590,7 +22685,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       </div>
 
       <div className="set-group">Plan</div>
-      <ProCard config={config} />
+      <div id="procard"><ProCard config={config} /></div>
 
       <div className="set-group">Your data</div>
       <div className="card">
@@ -23193,9 +23288,9 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           screen so the site itself ties MilSpo Life LLC to menucaptain.com
           (App Store review + org verification), and links the policies. */}
       <div className="tiny faint" style={{marginTop:24, textAlign:"center", lineHeight:2}}>
-        <a href="/privacy.html" target="_blank" rel="noopener">Privacy</a>
+        <a href="https://menucaptain.com/privacy.html" target="_blank" rel="noopener">Privacy</a>
         {"  ·  "}
-        <a href="/terms.html" target="_blank" rel="noopener">Terms</a>
+        <a href="https://menucaptain.com/terms.html" target="_blank" rel="noopener">Terms</a>
         <br/>
         &copy; 2026 MilSpo Life LLC
       </div>
