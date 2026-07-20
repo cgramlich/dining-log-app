@@ -905,7 +905,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.351.1";
+const APP_VERSION   = "1.352.0";
 const VISION_MODEL  = "claude-sonnet-4-6";          // current Claude vision model
 const ASK_MODEL     = "claude-sonnet-4-6";          // text model for "help me order"
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
@@ -1953,12 +1953,16 @@ order across several at once (say pasta and pizza in one list); a place with a
 single menu jumps straight in.
 
 **No menu? Order free-form.** A group order doesn't need a menu. When you start
-one, choose **A place not in my list** to name somewhere new, or on the "Which
-menus?" screen tap **start a no-menu order** - and for a saved place with no menu
-scanned yet, it offers this automatically. Just enter the restaurant name and an
-optional note ("text me by 6"), share the link, and everyone types their order in
-their own words in a single **Your order** box. Same live tally on your side, no
-menu needed.
+one, choose **Just a quick order** to name the place, or on the "Which menus?"
+screen tap **start a no-menu order** - and for a saved place with no menu
+scanned yet, it offers this automatically. Enter the restaurant name, an
+optional **note to everyone** (deadlines, details - it appears at the top when
+they open the link), and, if you like, a list of **options they can pick from**
+(one per line - think a catering run: Ham/Cheddar, Turkey/Swiss...). Share the
+link: with options, everyone taps their choice (quantity and a note work as
+usual) and can still **write in their own words** below; without options, they
+just type their order in a single **Your order** box. Same live tally on your
+side, no menu needed.
 
 Tap **Start group
 order** and the app gives you a link. Text it to the table. Each person opens
@@ -18239,13 +18243,15 @@ function PublishedVisit({data}){
 // watches the aggregated order build live. All via the backend.
 
 // ---- API ----
-async function groupCreateFreeForm(cfg, restaurantName, note){
-  // Menu-less quick order: no snapshot, just a name (+ optional note). Guests
-  // type their order in free text.
+async function groupCreateFreeForm(cfg, restaurantName, note, snapshot){
+  // Menu-less quick order: no scanned menu, just a name (+ optional note).
+  // `snapshot` (optional) is a tiny host-typed options list wrapped as a
+  // quick_options menu snapshot, so guests can tap choices AND still write
+  // free text. Without it guests just type their order.
   const res = await fetch(apiBase(cfg) + "/api/group/create", {
     method:"POST",
     headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
-    body: JSON.stringify({ restaurant_name: restaurantName || "", title: note || "", menu_snapshot: null }),
+    body: JSON.stringify({ restaurant_name: restaurantName || "", title: note || "", menu_snapshot: snapshot || null }),
   });
   if (!res.ok){
     let msg = "Could not start the group order.";
@@ -18689,6 +18695,7 @@ function SplitCheck({cfg, menuSnapshot, picks}){
 function QuickGroupStart({cfg, presetName, onClose}){
   const [name, setName] = useState(presetName || "");
   const [note, setNote] = useState("");
+  const [optionsText, setOptionsText] = useState("");   // host-typed choices, one per line
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState("");
@@ -18698,11 +18705,19 @@ function QuickGroupStart({cfg, presetName, onClose}){
   async function start(){
     const nm = name.trim();
     if (!nm){ setErr("Add the restaurant name."); return; }
+    // One option per line -> a tiny quick_options snapshot. Guests get tappable
+    // choices (with qty + per-item note) AND the free-text box stays available.
+    const opts = optionsText.split("\n").map(s => s.trim()).filter(Boolean).slice(0, 60);
+    const snapshot = opts.length ? {
+      quick_options: true,
+      label: "Options",
+      sections: [{ name: "Options", items: opts.map(n => ({ name: n })) }],
+    } : null;
     setBusy(true); setErr("");
     try {
-      const r = await groupCreateFreeForm(cfg, nm, note.trim());
+      const r = await groupCreateFreeForm(cfg, nm, note.trim(), snapshot);
       setCode(r.code);
-      logMsg("GROUP","quick order started code=" + r.code);
+      logMsg("GROUP","quick order started code=" + r.code + (opts.length ? " options=" + opts.length : ""));
     } catch(e){ setErr(e.message || "Could not start. Try again."); }
     finally { setBusy(false); }
   }
@@ -18722,9 +18737,14 @@ function QuickGroupStart({cfg, presetName, onClose}){
             onChange={e=> setName(e.target.value)} />
         </label>
         <label className="fld"><span className="lbl">Note to everyone (optional)</span>
-          <textarea className="input" rows={4} value={note}
-            placeholder={"Shown when they open the order - deadlines, the options, anything.\ne.g. Box lunches from Celebration - order by 1pm Tue. Options: Ham/Cheddar, Turkey/Swiss..."}
+          <textarea className="input" rows={3} value={note}
+            placeholder={"Shown when they open the order - deadlines, details, anything.\ne.g. Box lunches from Celebration - order by 1pm Tue. Each box includes chips & a cookie."}
             onChange={e=> setNote(e.target.value)} />
+        </label>
+        <label className="fld"><span className="lbl">Options they can pick from (optional)</span>
+          <textarea className="input" rows={5} value={optionsText}
+            placeholder={"One per line - guests tap to choose, and can still write their own.\nHam/Cheddar\nTurkey/Swiss\nChicken Salad"}
+            onChange={e=> setOptionsText(e.target.value)} />
         </label>
         <button className="btn primary" onClick={start} disabled={busy || !name.trim()}>
           {busy ? <span className="spin" /> : "Start group order"}
@@ -19196,7 +19216,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
     // usually AT the place; a quick (menu-less) order is usually a pickup run,
     // so "I'm at X" reads wrong. The note deliberately does NOT ride along
     // here (it can be long); guests see it when they open the order page.
-    const hasMenuSnap = !!(data && data.menu_snapshot && Array.isArray(data.menu_snapshot.sections) && data.menu_snapshot.sections.length);
+    const hasMenuSnap = !!(data && data.menu_snapshot && Array.isArray(data.menu_snapshot.sections) && data.menu_snapshot.sections.length && !data.menu_snapshot.quick_options);
     const nm = restaurantName || (data && data.restaurant_name) || "the restaurant";
     const text = (hasMenuSnap
       ? "I'm at " + nm + " - what do you want?"
@@ -19625,7 +19645,9 @@ function GroupOrderGuest({code, cfg, profile}){
   // own words. menu_snapshot is {free_form:true} (no usable sections).
   const hasMenu  = !!(menu && Array.isArray(menu.sections) && menu.sections.length);
   const freeForm = !!data && !hasMenu;
-  const hasOrder = freeForm ? !!freeText.trim() : !!selected.length;
+  // Quick order WITH host-typed options: tappable choices AND the free-text box.
+  const quickOpts = !!(menu && menu.quick_options);
+  const hasOrder = (!!selected.length) || ((freeForm || quickOpts) && !!freeText.trim());
 
   function toggle(si, ii, item, section){
     const key = si + ":" + ii;
@@ -19657,8 +19679,14 @@ function GroupOrderGuest({code, cfg, profile}){
       if (!t){ setErr("Type your order first."); return; }
       list = [{ item:t, qty:1, note:"" }];
     } else {
-      if (!selected.length){ setErr("Pick at least one item first."); return; }
       list = selected.map(s => ({ item:s.item, section:s.section || "", qty:s.qty || 1, note:(s.note || "").trim() }));
+      // Quick options: whatever they wrote in the free box rides along too.
+      const extra = quickOpts ? freeText.trim() : "";
+      if (extra) list.push({ item:extra, qty:1, note:"" });
+      if (!list.length){
+        setErr(quickOpts ? "Tap an option or write your order first." : "Pick at least one item first.");
+        return;
+      }
     }
     setErr(""); setSending(true);
     try {
@@ -19741,7 +19769,9 @@ function GroupOrderGuest({code, cfg, profile}){
         {closed ? "This order is closed."
           : freeForm
             ? "Type your order and send it back. You can change it any time until the host closes it."
-            : "Pick what you'd like and send it back. You can change your order any time until the host closes it."}
+            : quickOpts
+              ? "Tap what you'd like - or write your own - and send it back. You can change it any time until the host closes it."
+              : "Pick what you'd like and send it back. You can change your order any time until the host closes it."}
       </div>
 
       {/* The host's note (entered at start) - stored as `title`. Notes can be
@@ -19865,6 +19895,20 @@ function GroupOrderGuest({code, cfg, profile}){
             </div>
             );
           })}
+
+          {/* Quick options: the write-your-own box sits BELOW the tappable
+              options - options first, custom second. Same freeText state. */}
+          {quickOpts ? (
+            <div className="card" style={{margin:"12px 0"}}>
+              <div className="lbl" style={{marginBottom:6}}>Want something not listed?</div>
+              <textarea className="input" rows={2}
+                placeholder="Write it in your own words - it's sent along with anything you tapped."
+                value={freeText} onChange={e=>{ setFreeText(e.target.value); setSent(false); }} />
+              <div className="tiny faint" style={{marginTop:6}}>
+                Optional - tap from the options above, write your own, or both.
+              </div>
+            </div>
+          ) : null}
 
           {/* name + Send live in the sticky bottom bar so they're reachable without scrolling */}
         </>
