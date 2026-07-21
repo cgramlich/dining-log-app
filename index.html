@@ -225,7 +225,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .card.ask{border:1px solid rgba(224,118,74,0.3); margin-bottom:14px;}
     .ask-head{display:flex; align-items:center; gap:7px; font-family:'Fraunces',serif; font-size:16px; color:var(--text); margin-bottom:9px;}
     .ask-input{width:100%; resize:none; line-height:1.4; margin-bottom:8px;}
-    .ask-egs{margin-bottom:10px;}
+    .ask-egs{margin-bottom:10px; flex-wrap:nowrap; overflow-x:auto;
+      -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:2px;}
+    .ask-egs::-webkit-scrollbar{display:none;}
+    .ask-egs .chip{flex:none;}
     .ask-go{width:auto; padding:8px 16px;}
     .ask-err{margin-top:10px; padding:9px 11px; border-radius:9px; font-size:13px;
       background:rgba(217,96,78,0.1); border:1px solid rgba(217,96,78,0.4); color:#eab0a6;}
@@ -906,7 +909,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.354.0";
+const APP_VERSION   = "1.355.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -4464,7 +4467,7 @@ function dishHistory(visits){
 
 // Ask Claude to recommend from THIS menu. `question` may be a question, a
 // command ("give me something healthy"), or a mood ("craving something rich").
-async function askMenu(cfg, restaurant, menu, visits, question, allVisits){
+async function askMenu(cfg, restaurant, menu, visits, question, allVisits, thread){
   const rName    = (restaurant && restaurant.name) ? restaurant.name : "this restaurant";
   const menuText = menuToText(menu);
   const hist     = dishHistory(visits);
@@ -4561,6 +4564,16 @@ async function askMenu(cfg, restaurant, menu, visits, question, allVisits){
       "for, and never claim a dish here is the same as one they had elsewhere):\n";
     if (profLoved.length)    prompt += "    Tends to enjoy: " + profLoved.join(", ") + "\n";
     if (profDisliked.length) prompt += "    Tends to avoid: " + profDisliked.join(", ") + "\n";
+  }
+
+  // A short running exchange rides along so the diner can REPLY to the last
+  // answer ("yes, the spicy one") and be understood. Capped upstream at the
+  // last 3 exchanges; answers trimmed so context stays cheap.
+  if (thread && thread.length){
+    prompt += "\nEARLIER IN THIS CONVERSATION (the diner may be replying to your last message - continue it naturally):\n";
+    thread.forEach(h => {
+      prompt += "DINER: \"" + (h.q || "") + "\"\nYOU: " + ((h.a || "").slice(0, 700)) + "\n";
+    });
   }
 
   prompt +=
@@ -10671,7 +10684,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   // "help me order" state
   const [askInput, setAskInput] = useState("");
   const [asking,   setAsking]   = useState(false);
-  const [answer,   setAnswer]   = useState(null);
+  const [askThread,setAskThread]= useState([]);   // short running exchange [{q,a}] - replies carry context
   const [askErr,   setAskErr]   = useState(null);
   // "explain the menu" state
   const [explainOpen, setExplainOpen] = useState(false);   // pick-dishes mode
@@ -10704,10 +10717,13 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
     if (!q) return;
     if (override != null) setAskInput(override);
     if (!hasKey){ setAskErr("Set up your account in Settings first."); return; }
-    setAsking(true); setAskErr(null); setAnswer(null);
+    setAsking(true); setAskErr(null);
     try {
-      const a = await askMenu(cfg, restaurant, menu, visits, q, allVisits);
-      setAnswer(a);
+      // The last few exchanges ride along so a reply ("yes, the spicy one")
+      // actually lands. The menu dominates token cost either way.
+      const a = await askMenu(cfg, restaurant, menu, visits, q, allVisits, askThread.slice(-3));
+      setAskThread(t => t.concat([{ q: q, a: a }]));
+      setAskInput("");
     } catch(err){
       setAskErr(err.message || "Something went wrong. Try again.");
     } finally {
@@ -10843,7 +10859,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           </div>
           <div style={{position:"relative"}}>
             <textarea className="input ask-input" rows={2}
-              placeholder={"What are you in the mood for?  e.g. something light, no pork, best value"}
+              placeholder={askThread.length ? "Reply, or ask something new..." : "What are you in the mood for?  e.g. something light, no pork, best value"}
               value={askInput}
               style={askInput ? {paddingRight:34} : undefined}
               onChange={e=> setAskInput(e.target.value)}
@@ -10859,13 +10875,15 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
               </button>
             ) : null}
           </div>
-          <div className="chips ask-egs">
-            {["Something healthy","Not too heavy","Something for sharing","Best value"]
-              .concat(hasHistory ? ["What did I love here?","What do I usually get?"] : [])
-              .map((eg,i)=>(
-                <button type="button" key={i} className="chip pick" onClick={()=> runAsk(eg)}>{eg}</button>
-              ))}
-          </div>
+          {askThread.length === 0 && (
+            <div className="chips ask-egs">
+              {["Something healthy","Not too heavy","Something for sharing","Best value"]
+                .concat(hasHistory ? ["What did I love here?","What do I usually get?"] : [])
+                .map((eg,i)=>(
+                  <button type="button" key={i} className="chip pick" onClick={()=> runAsk(eg)}>{eg}</button>
+                ))}
+            </div>
+          )}
           <button className="btn primary sm ask-go"
             disabled={asking || !askInput.trim()}
             onClick={()=> runAsk()}>
@@ -10878,10 +10896,23 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             </div>
           )}
           {askErr && <div className="ask-err">{askErr}</div>}
-          {answer && (
-            <AiAnswer onClose={()=> setAnswer(null)}>
-              <AiText text={answer} />
-            </AiAnswer>
+          {askThread.length > 0 && (
+            <div style={{marginTop:4}}>
+              {askThread.map((t,i)=>(
+                <div key={i}>
+                  <div className="tiny" style={{margin:"10px 2px 4px", color:"var(--text-dim)"}}>
+                    <strong>You:</strong> {t.q}
+                  </div>
+                  <div className="ask-answer"><AiText text={t.a} /></div>
+                </div>
+              ))}
+              <div style={{marginTop:8, textAlign:"right"}}>
+                <a href="#" className="tiny" style={{color:"var(--accent)"}}
+                  onClick={(e)=>{ e.preventDefault(); setAskThread([]); setAskErr(null); }}>
+                  Start over
+                </a>
+              </div>
+            </div>
           )}
         </div>
 
@@ -19936,11 +19967,13 @@ function GroupOrderGuest({code, cfg, profile}){
                 <textarea className="input ask-input" rows={2}
                   placeholder="What are you in the mood for? e.g. something light, no pork, best value"
                   value={helpInput} onChange={e=> setHelpInput(e.target.value)} />
-                <div className="chips ask-egs">
-                  {["Something light","Best value","For sharing","Most popular"].map((eg,i)=>(
-                    <button type="button" key={i} className="chip pick" onClick={()=> runHelp(eg)}>{eg}</button>
-                  ))}
-                </div>
+                {!helpAnswer && (
+                  <div className="chips ask-egs">
+                    {["Something light","Best value","For sharing","Most popular"].map((eg,i)=>(
+                      <button type="button" key={i} className="chip pick" onClick={()=> runHelp(eg)}>{eg}</button>
+                    ))}
+                  </div>
+                )}
                 <button className="btn primary sm" disabled={helpBusy || !helpInput.trim()} onClick={()=> runHelp()}>
                   {helpBusy ? <span className="spin" /> : "Ask"}
                 </button>
