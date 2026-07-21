@@ -909,7 +909,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.355.0";
+const APP_VERSION   = "1.355.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -10685,6 +10685,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   const [askInput, setAskInput] = useState("");
   const [asking,   setAsking]   = useState(false);
   const [askThread,setAskThread]= useState([]);   // short running exchange [{q,a}] - replies carry context
+  const [activeChip,setActiveChip] = useState(null); // which suggestion chip fired the in-flight ask
   const [askErr,   setAskErr]   = useState(null);
   // "explain the menu" state
   const [explainOpen, setExplainOpen] = useState(false);   // pick-dishes mode
@@ -10713,9 +10714,10 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   })();
 
   async function runAsk(override){
+    if (asking) return;   // a second tap while thinking must not fire again
     const q = ((override != null ? override : askInput) || "").trim();
     if (!q) return;
-    if (override != null) setAskInput(override);
+    if (override != null){ setAskInput(override); setActiveChip(override); }
     if (!hasKey){ setAskErr("Set up your account in Settings first."); return; }
     setAsking(true); setAskErr(null);
     try {
@@ -10724,6 +10726,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
       const a = await askMenu(cfg, restaurant, menu, visits, q, allVisits, askThread.slice(-3));
       setAskThread(t => t.concat([{ q: q, a: a }]));
       setAskInput("");
+      setActiveChip(null);
     } catch(err){
       setAskErr(err.message || "Something went wrong. Try again.");
     } finally {
@@ -10857,6 +10860,26 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             <Icon name="sparkle" size={15} color="var(--accent)" />
             <span>Help me order</span>
           </div>
+          {/* Chat order: the conversation ABOVE, the reply box UNDER it -
+              after reading an answer your eye lands on where to reply. */}
+          {askThread.length > 0 && (
+            <div style={{margin:"2px 0 10px"}}>
+              {askThread.map((t,i)=>(
+                <div key={i}>
+                  <div className="tiny" style={{margin:"10px 2px 4px", color:"var(--text-dim)"}}>
+                    <strong>You:</strong> {t.q}
+                  </div>
+                  <div className="ask-answer"><AiText text={t.a} /></div>
+                </div>
+              ))}
+              <div style={{marginTop:8, textAlign:"right"}}>
+                <a href="#" className="tiny" style={{color:"var(--accent)"}}
+                  onClick={(e)=>{ e.preventDefault(); setAskThread([]); setAskErr(null); }}>
+                  Start over
+                </a>
+              </div>
+            </div>
+          )}
           <div style={{position:"relative"}}>
             <textarea className="input ask-input" rows={2}
               placeholder={askThread.length ? "Reply, or ask something new..." : "What are you in the mood for?  e.g. something light, no pork, best value"}
@@ -10880,7 +10903,14 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
               {["Something healthy","Not too heavy","Something for sharing","Best value"]
                 .concat(hasHistory ? ["What did I love here?","What do I usually get?"] : [])
                 .map((eg,i)=>(
-                  <button type="button" key={i} className="chip pick" onClick={()=> runAsk(eg)}>{eg}</button>
+                  <button type="button" key={i}
+                    className={"chip pick" + (asking && activeChip === eg ? " on" : "")}
+                    disabled={asking}
+                    style={asking && activeChip !== eg ? {opacity:0.45} : undefined}
+                    onClick={()=> runAsk(eg)}>
+                    {asking && activeChip === eg ? <span className="spin" style={{width:12, height:12, marginRight:6}} /> : null}
+                    {eg}
+                  </button>
                 ))}
             </div>
           )}
@@ -10896,24 +10926,6 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             </div>
           )}
           {askErr && <div className="ask-err">{askErr}</div>}
-          {askThread.length > 0 && (
-            <div style={{marginTop:4}}>
-              {askThread.map((t,i)=>(
-                <div key={i}>
-                  <div className="tiny" style={{margin:"10px 2px 4px", color:"var(--text-dim)"}}>
-                    <strong>You:</strong> {t.q}
-                  </div>
-                  <div className="ask-answer"><AiText text={t.a} /></div>
-                </div>
-              ))}
-              <div style={{marginTop:8, textAlign:"right"}}>
-                <a href="#" className="tiny" style={{color:"var(--accent)"}}
-                  onClick={(e)=>{ e.preventDefault(); setAskThread([]); setAskErr(null); }}>
-                  Start over
-                </a>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ---- explain the menu (AI) ---- */}
@@ -19737,6 +19749,7 @@ function GroupOrderGuest({code, cfg, profile}){
   const [helpInput, setHelpInput]   = useState("");
   const [helpAnswer, setHelpAnswer] = useState("");
   const [helpBusy, setHelpBusy]     = useState(false);
+  const [helpChip, setHelpChip]     = useState(null);   // which chip fired the in-flight ask
   const [helpErr, setHelpErr]       = useState("");
   const [freeText, setFreeText]     = useState("");      // free-form (menu-less) order
   const [passed, setPassed]   = useState(false);   // this guest marked themselves "not ordering"
@@ -19864,8 +19877,10 @@ function GroupOrderGuest({code, cfg, profile}){
   }, [data, name]);
 
   async function runHelp(preset){
+    if (helpBusy) return;   // no double-fire while thinking
     const p = (preset || helpInput || "").trim();
     if (!p){ setHelpErr("Tell me what you're in the mood for."); return; }
+    if (preset) setHelpChip(preset);
     setHelpErr(""); setHelpBusy(true); setHelpAnswer("");
     try {
       const data = await groupHelp(code, p, token);
@@ -19970,7 +19985,14 @@ function GroupOrderGuest({code, cfg, profile}){
                 {!helpAnswer && (
                   <div className="chips ask-egs">
                     {["Something light","Best value","For sharing","Most popular"].map((eg,i)=>(
-                      <button type="button" key={i} className="chip pick" onClick={()=> runHelp(eg)}>{eg}</button>
+                      <button type="button" key={i}
+                        className={"chip pick" + (helpBusy && helpChip === eg ? " on" : "")}
+                        disabled={helpBusy}
+                        style={helpBusy && helpChip !== eg ? {opacity:0.45} : undefined}
+                        onClick={()=> runHelp(eg)}>
+                        {helpBusy && helpChip === eg ? <span className="spin" style={{width:12, height:12, marginRight:6}} /> : null}
+                        {eg}
+                      </button>
                     ))}
                   </div>
                 )}
