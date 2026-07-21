@@ -45,7 +45,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     :root{
       --bg:#1b1714; --bg-2:#221d18; --surface:#272019; --surface-2:#2f2720;
       --line:#3a3128; --line-soft:#332b23;
-      --text:#f3ebdd; --text-dim:#b3a591; --text-faint:#80715f;
+      --text:#f3ebdd; --text-dim:#b3a591; --text-faint:#93826d;
       --accent:#e0764a; --accent-dim:#b85f3a;
       --amber:#e7b24c; --sage:#9aa877; --danger:#d9604e; --ok:#7faa6b;
       --shadow:0 8px 28px rgba(0,0,0,0.45);
@@ -53,10 +53,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     /* Theme palettes. Each overrides only the core surface/text/accent vars;
        semantic colors (amber/sage/danger/ok) stay constant. Warm Brown is the
        default :root above. Applied via data-theme on <html>. */
-    :root[data-theme="navy"]{ --bg:#121621; --bg-2:#161c29; --surface:#1c2433; --surface-2:#243041; --line:#334053; --line-soft:#2b3647; --text:#eef2f8; --text-dim:#aab6c8; --text-faint:#6f7c90; --accent:#e7b24c; --accent-dim:#c5923a; }
-    :root[data-theme="forest"]{ --bg:#121814; --bg-2:#171f19; --surface:#1c261f; --surface-2:#26332a; --line:#344538; --line-soft:#2c3a30; --text:#eef1e9; --text-dim:#a8b6a4; --text-faint:#6f7d6b; --accent:#86b06a; --accent-dim:#6a934f; }
-    :root[data-theme="plum"]{ --bg:#181219; --bg-2:#1f1721; --surface:#251c28; --surface-2:#2f2433; --line:#3f3144; --line-soft:#372a3b; --text:#f2eaf2; --text-dim:#bba7bd; --text-faint:#857089; --accent:#cf7aa6; --accent-dim:#ad5f87; }
-    :root[data-theme="slate"]{ --bg:#15181c; --bg-2:#1a1e24; --surface:#20252c; --surface-2:#2a313a; --line:#39414c; --line-soft:#313842; --text:#eef1f4; --text-dim:#aab2bd; --text-faint:#6f7884; --accent:#6f9fc9; --accent-dim:#577fa6; }
+    :root[data-theme="navy"]{ --bg:#121621; --bg-2:#161c29; --surface:#1c2433; --surface-2:#243041; --line:#334053; --line-soft:#2b3647; --text:#eef2f8; --text-dim:#aab6c8; --text-faint:#8291a6; --accent:#e7b24c; --accent-dim:#c5923a; }
+    :root[data-theme="forest"]{ --bg:#121814; --bg-2:#171f19; --surface:#1c261f; --surface-2:#26332a; --line:#344538; --line-soft:#2c3a30; --text:#eef1e9; --text-dim:#a8b6a4; --text-faint:#82917d; --accent:#86b06a; --accent-dim:#6a934f; }
+    :root[data-theme="plum"]{ --bg:#181219; --bg-2:#1f1721; --surface:#251c28; --surface-2:#2f2433; --line:#3f3144; --line-soft:#372a3b; --text:#f2eaf2; --text-dim:#bba7bd; --text-faint:#98839c; --accent:#cf7aa6; --accent-dim:#ad5f87; }
+    :root[data-theme="slate"]{ --bg:#15181c; --bg-2:#1a1e24; --surface:#20252c; --surface-2:#2a313a; --line:#39414c; --line-soft:#313842; --text:#eef1f4; --text-dim:#aab2bd; --text-faint:#828b98; --accent:#6f9fc9; --accent-dim:#577fa6; }
     *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
     html,body{margin:0; padding:0; background:var(--bg); color:var(--text);}
     body{
@@ -196,7 +196,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .verdict-btn.loved.on{background:rgba(214,73,97,0.2); border-color:#d64961; color:#e98aa0; font-weight:700;}
     .verdict-btn.again.on{background:rgba(224,118,74,0.2); border-color:var(--accent); color:var(--accent); font-weight:600;}
     .verdict-btn.skip.on{background:rgba(179,165,145,0.16); border-color:var(--text-faint); color:var(--text-dim); font-weight:600;}
-    .dish-row-x{flex:none; padding:5px; background:transparent; border:none; cursor:pointer; line-height:0;}
+    .dish-row-x{flex:none; padding:9px; background:transparent; border:none; cursor:pointer; line-height:0;}
     .dish-item{margin-bottom:8px;}
     .dish-item .dish-row{margin-bottom:0;}
     .dish-sub{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:5px 0 0 4px;}
@@ -321,7 +321,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .star{font-size:17px; color:var(--line);}
     .star.lit{color:var(--amber);}
     .star.big{font-size:30px;}
-    .stars-num{margin-left:5px; font-size:13px; color:var(--muted); font-weight:600;}
+    .stars-num{margin-left:5px; font-size:13px; color:var(--text-dim); font-weight:600;}
 
     .fav{color:var(--text-faint); font-size:21px; line-height:1;}
     .fav.on{color:var(--accent);}
@@ -906,7 +906,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.353.0";
+const APP_VERSION   = "1.354.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1459,7 +1459,7 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
 
 - **Home** - your start screen, built around two doors. **Already at the
   restaurant?** is right on top: it's a two-step for when you've sat down. First
-  it finds *where you are* (tap **Find me** and it uses your location to list the
+  it finds *where you are* (tap **See places near me** and it uses your location to list the
   spots right around you, or search / pick a saved place), then it walks you into
   **scanning the menu** for that place - so the menu always lands on a real,
   Google-linked place instead of a name you typed. If a menu is already on file
@@ -1469,7 +1469,8 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   name** (search your own places or anywhere on Google) at the top - it's ready to
   type the moment it opens - and under **Not sure where to go?** the discovery
   helpers: **Near me** (what's around you), **Still to try** (saved places you
-  haven't been to), and **Can't decide?** (a pick from your saved places). Back on
+  haven't been to - mark one **Want to try** to pin it, or **Dismiss** it to
+  clear it off the list), and **Can't decide?** (a pick from your saved places). Back on
   Home, below the two cards, are any active group order and a look at what you've
   been up to lately - **Recently added** (your newest saved places, each with the
   date you added it) and **Recent visits** (the meals you've logged). (Scanning is
@@ -1484,11 +1485,11 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   and hours come along automatically.
 - **Places** - your list of restaurants.
 - **The plus (+) button** - quick actions. **Find places near me** discovers
-  spots around you, and **Look up a place** searches your places or anywhere on
+  spots around you, and **Find a place** searches your places or anywhere on
   Google. Below them are the things you do once you're there: scan or find a
   menu, log a visit, split the check, or start a group order.
 - **History** - everything you have logged, newest first.
-- **Discover** (the **You** tab) - the home for Your Year in Food, your Food
+- **Discover** - the home for Your Year in Food, your Food
   passport, dining companions, your published lists, your saved splits, and any
   active group orders.
 
@@ -1542,10 +1543,10 @@ the bottom of the map tells you how many are not mapped.
 **Near me** helps you discover restaurants, cafes, bars, and bakeries close to
 wherever you are, and add the good ones to your places in a tap. Everyone gets a
 handful of free searches to try it; beyond that it is a **Pro** feature - open it
-from the **+** button and choose **Near me**.
+from the **+** button and choose **Find places near me**.
 
 The first time, your phone asks to share your location; allow it and the app
-finds what is nearby. Set how far to look (from half a mile up to five miles),
+finds what is nearby. Set how far to look (from half a mile up to 25 miles),
 choose what you are after (all food, or just restaurants, cafes, bars, or
 bakeries), and flip **Open now** if you only want places open right now. Tap
 **Search nearby** and the results come back as a list, nearest first - each with
@@ -1571,8 +1572,9 @@ In a brand-new area where it does not know your taste yet, it leans on rating an
 distance and says so. Want to steer it? Tap a **vibe** - Something light, Quick
 bite, Date night, Cheap eats, Treat myself, or Try something new - and it picks
 with that in mind. Not feeling the pick? Tap **Pick again**. (This is the
-nearby-spots version of the "Can't decide?" spinner further down, which picks
-among the places you have already saved.)
+nearby-spots version of the "Can't decide?" spinner further down. That spinner
+can build its wheel from your SAVED places - or, with "Discover nearby" on,
+from spots around you, which uses the same Near me discovery allowance.)
 
 Near me is the one place in the app that reaches out to find somewhere new -
 everything else stays your own private record.
@@ -1602,7 +1604,12 @@ scan of a long menu can be saved as separate Dinner, Brunch, and Drinks menus.
 
 **Where menus show.** On a place's page, each menu appears as a card in the
 **Menus** section - tap a card to open the full menu, with Help me order,
-Explain the menu, and the calorie tools inside.
+Explain the menu, and the calorie tools inside. With several menus, press and
+hold a card near the grip to drag it into the order you like.
+
+**Dietary filters.** Open a menu and tap the diet chips (vegetarian, vegan,
+gluten-free, and friends) to narrow the list to dishes that fit - tags come
+from the menu itself plus the scan's best read of each dish.
 
 **Re-scanning and deleting.** Each menu card offers **Refresh** to replace it
 with a fresh version - photograph it again or pull it from a link - and you
@@ -1643,7 +1650,7 @@ button on the place page. Tap it and pick:
 - **Send to a connection** - drop the place and its menu into a friend's "Shared
   with you" inbox (in-app, for people you're connected with).
 - **Share a link** - a link anyone can open, no account needed.
-- **Add to the community library** - contribute your menu(s) so other diners at
+- **Add to the community** - contribute your menu(s) so other diners at
   this place can skip scanning. You choose which menus to share; only the menu is
   shared, never your visits, notes, or ratings.
 
@@ -1725,9 +1732,11 @@ their prices. When a line has more than one of an item, a small - / + stepper
 lets you say how many of them were yours ("2 of 3"). When a line matches the
 restaurant's digitized menu, the dish takes the menu's proper name, with a
 small note showing how it appeared on the check. The editor works both ways:
-after a scan the button reads "From Receipt Image", and re-opening it shows
-your current picks already ticked, so you can add or remove items later without
-paying for another scan. The receipt itself stays attached to the visit behind
+after a scan the button reads "Edit dishes from the check", and re-opening it
+shows your current picks already ticked, so you can add or remove items later
+without paying for another scan. (The scan buttons themselves read "Scan or
+upload itemized check" and "Scan or upload final / total receipt"; once the
+total is captured, that section folds away.) The receipt itself stays attached to the visit behind
 a quiet "Show receipt" link - it never appears in your photo strip or Food
 passport.
 
@@ -1924,15 +1933,19 @@ a friend something you like.
 
 ## Sharing a place
 
-On a restaurant page, tap the **share** icon at the top (next to the favorite
-star) to turn that place into a shareable card - its photo, name, your rating,
-the address, and the dishes you have loved there. The app builds the card as an
-image and hands it to your phone's share sheet, so you can text it to a friend,
-save it to Photos, or post it.
+On a place's page, tap the **share** icon at the top to open the Share sheet.
+It offers four ways to share:
 
-It is just a picture, so the person you send it to does not need the app or any
-access to your data - they simply get your recommendation. If a place has no
-photo yet, the card uses a colored header instead.
+- **Send to a connection** - sends the place (with its menu) straight to a
+  MenuCaptain friend; it appears under their "Shared with you."
+- **Share a link** - a recommendation link anyone can open, app or not: the
+  place, its menu to browse, and a few dishes you loved. Signed-in friends can
+  save the place to their own list in one tap.
+- **Share a photo card** - a picture of the place (photo, name, your rating,
+  loved dishes) handed to your phone's share sheet. Just an image, so it works
+  for anyone.
+- **Add to the community** - contribute the digitized menu so other diners at
+  that place can pull it.
 
 -----
 
@@ -2062,7 +2075,7 @@ several of the same item (like **3 GL Prisoner** at one price), a **Split into 3
 button breaks it into separate per-unit rows so you can give each one to a
 different person.
 
-Tap **See the split** and you get each person's total - their items plus a
+Tap **See the split summary** and you get each person's total - their items plus a
 proportional share of tax and tip - adding up exactly to the real check. **Share**
 hands a plain-text breakdown to your phone so you can drop it in the group chat.
 
@@ -2075,8 +2088,8 @@ and nothing is saved.)
 You can also attach a split to a visit you've already logged: open the
 visit (in History or on the restaurant page) and tap **Split the check**. It opens
 already filled in with that visit's dishes and total, and a **Show receipt** link
-lets you check the prices against the actual check. Add who was there, tap **See
-the split**, then **Save to this visit** - it is stored right on that visit (you'll
+lets you check the prices against the actual check. Add who was there, tap **Save
+split**, then **Save to this visit** - it is stored right on that visit (you'll
 see a **Check split** line in History) without touching the rest of the meal.
 
 You can also split while you are logging: under the scanned receipt in **Log a
@@ -2084,7 +2097,7 @@ visit**, tap **Split the check**, build the split, and tap **Use this split** - 
 rides along on the visit and is saved when you save the visit.
 
 ## Publishing a list
-On the **You** tab under **Your lists**, tap **Publish a list**, give it a title,
+On the **Discover** tab under **Your lists**, tap **Publish a list**, give it a title,
 and tick the restaurants to include (your favorites and
 highest-rated are listed first). Tap **Create link**, then **Copy** or **Share**.
 
@@ -2104,8 +2117,8 @@ if you want a tidier one.
 just that city's places and opens your share sheet straight away - no titling or
 ticking needed.
 
-**My Lists.** Once you have published at least one list, a **My Lists** entry
-appears under **Your lists** on the **You** tab, next to **Publish a list**. It keeps every list you
+**My lists.** Once you have published at least one list, a **My lists** entry
+appears under **Your lists** on the **Discover** tab, next to **Publish a list**. It keeps every list you
 have published so you can re-share or copy its link, **favorite** one to pin it
 to the top, sort them (recent, newest, A-Z, or most places), and **refresh** a
 list to rebuild it from your current places - handy when you have added or
@@ -5203,6 +5216,17 @@ function ClearInput(props){
 // single level). When onHome isn't supplied it renders the usual 34px spacer so
 // the title stays centered. Deliberately NOT placed on create/edit forms, so a
 // stray tap can never drop a half-filled form.
+// Standard rotating disclosure chevron - one look for every expand/collapse
+// (the audit found six spots doing an instant icon swap instead).
+function Chevron({ open, size, color }){
+  return (
+    <span style={{lineHeight:0, display:"inline-flex", transition:"transform .15s ease",
+                  transform: open ? "rotate(180deg)" : "none"}}>
+      <Icon name="chevd" size={size || 15} color={color || "var(--accent)"} />
+    </span>
+  );
+}
+
 // Standard overlay back button. Icon-only controls need an accessible name
 // and a real hit area - the bare icon inside .x gives neither.
 function BackBtn({ onClick }){
@@ -5256,7 +5280,11 @@ function StarRater({value, onChange, size}){
   }
   return (
     <div className="row" style={{alignItems:"center", gap:10}}>
-      <div ref={ref} onClick={onTap} role="slider" aria-label="Rating"
+      <div ref={ref} onClick={onTap} role="slider" aria-label="Rating" tabIndex={0}
+           onKeyDown={e=>{
+             if (e.key === "ArrowRight" || e.key === "ArrowUp"){ e.preventDefault(); onChange(Math.min(5, val0 + 0.5)); }
+             else if (e.key === "ArrowLeft" || e.key === "ArrowDown"){ e.preventDefault(); onChange(Math.max(0, val0 - 0.5)); }
+           }}
            aria-valuemin={0} aria-valuemax={5} aria-valuenow={val0}
            style={{display:"inline-flex", gap:0, cursor:"pointer", touchAction:"manipulation",
                    WebkitUserSelect:"none", userSelect:"none", padding:"4px 0"}}>
@@ -5978,7 +6006,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
 
         {ql ? (
           <div style={{margin:"0 0 12px"}}>
-            <ClearInput placeholder="City (optional) — e.g. Austin, to search another city"
+            <ClearInput placeholder="City (optional) - e.g. Austin, to search another city"
               value={city} onChange={e=> setCity(e.target.value)} style={{marginBottom:6}} />
             <button className="btn ghost sm" style={{width:"100%"}} disabled={gBusy} onClick={runGoogleSearch}>
               {gBusy ? <span className="spin" />
@@ -6271,12 +6299,12 @@ function DuplicatesView({ restaurants, visits, menus, onClose, onHome, onMerge }
         {groups.length === 0 ? (
           <div className="empty" style={{paddingTop:30}}>
             <div className="big">No duplicates found</div>
-            <div>Your places all look unique &mdash; nice and tidy.</div>
+            <div>Your places all look unique - nice and tidy.</div>
           </div>
         ) : (
           <>
             <div className="small muted" style={{marginBottom:14, lineHeight:1.6}}>
-              These look like the same place. Pick the one to <strong>keep</strong> &mdash;
+              These look like the same place. Pick the one to <strong>keep</strong>  - 
               the others' visits and menus move onto it, then the duplicates are removed.
             </div>
             {groups.map((g, gi)=>{
@@ -6491,6 +6519,7 @@ function App(){
   // additive: the network-first shell + version-tied caches mean it never
   // overrides the in-app updater above. Registration failures are non-fatal.
   useEffect(()=>{
+    if (IS_NATIVE) return;   // the store build is not a PWA; /sw.js does not exist there
     if (!("serviceWorker" in navigator)) return;
     const onLoad = ()=>{
       navigator.serviceWorker.register("/sw.js")
@@ -7418,20 +7447,20 @@ function App(){
 
       {/* bottom navigation. Settings moved to the gear in the Home header. */}
       <nav className="nav">
-        <button className={tab==="home" ? "on" : ""} onClick={()=> setTab("home")}>
+        <button className={tab==="home" ? "on" : ""} aria-current={tab==="home" ? "page" : undefined} onClick={()=> setTab("home")}>
           <span className="navicon"><Icon name="home" size={23} /></span>Home
         </button>
-        <button className={tab==="restaurants" ? "on" : ""} onClick={()=> setTab("restaurants")}>
+        <button className={tab==="restaurants" ? "on" : ""} aria-current={tab==="restaurants" ? "page" : undefined} onClick={()=> setTab("restaurants")}>
           <span className="navicon"><Icon name="plate" size={23} /></span>Places
         </button>
         <button onClick={()=> setSheet(true)} aria-label="Add">
           <span className="add"><Icon name="plus" size={24} color="#1b1714" /></span>
         </button>
-        <button className={tab==="history" ? "on" : ""} onClick={()=> setTab("history")}>
+        <button className={tab==="history" ? "on" : ""} aria-current={tab==="history" ? "page" : undefined} onClick={()=> setTab("history")}>
           <span className="navicon"><Icon name="clock" size={23} /></span>History
         </button>
-        <button className={tab==="discover" ? "on" : ""} onClick={()=> setTab("discover")}>
-          <span className="navicon"><Icon name="compass" size={23} /></span>You
+        <button className={tab==="discover" ? "on" : ""} aria-current={tab==="discover" ? "page" : undefined} onClick={()=> setTab("discover")}>
+          <span className="navicon"><Icon name="compass" size={23} /></span>Discover
         </button>
       </nav>
 
@@ -7466,12 +7495,6 @@ function App(){
           onAddPlace={(prefill)=> setOverlay({ type:"addRestaurant", prefill:prefill })}
           onUpgrade={IS_NATIVE ? null : ()=>{ setOverlay(null); setTab("settings"); }}
           onClose={()=> setOverlay(null)} />
-      )}
-      {overlay && overlay.type === "pullMenu" && (
-        <RestaurantPicker
-          restaurants={restaurants}
-          onClose={()=> setOverlay(null)}
-          onPick={(id)=> setOverlay({ type:"restaurant", id:id })} />
       )}
       {overlay && overlay.type === "feedback" && (
         <FeedbackForm cfg={config} onClose={()=> setOverlay(null)} />
@@ -8471,7 +8494,7 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
         <div className="yif-entry tap" onClick={onOpenMyLists}>
           <span className="yif-entry-ic"><Icon name="book" size={16} color="var(--accent)" /></span>
           <span className="yif-entry-tx">
-            <span className="yif-entry-t">My Lists</span>
+            <span className="yif-entry-t">My lists</span>
             <span className="yif-entry-s">{savedListCount + (savedListCount === 1 ? " list you've published" : " lists you've published")}</span>
           </span>
           <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
@@ -8590,7 +8613,7 @@ function VisitSplit({split, cfg, receipt, onSeeItemized, merchant, date}){
     <div className="vsplit">
       <button className="vsplit-head" onClick={(e)=>{ e.stopPropagation(); setOpen(o => !o); }}>
         <span>Check split summary{split.grand ? " - " + money(split.grand) : ""}</span>
-        <Icon name={open ? "chevd" : "chev"} size={15} />
+        <Chevron open={open} size={15} />
       </button>
       {open ? (
         <div className="vsplit-body">
@@ -8736,10 +8759,10 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
       )}
       <div className="hist-legend">
         <InfoDot title="Calorie labels" label="Calorie labels">
-          <span className="idl"><strong>~320 cal</strong> &mdash; an estimate (the ~ means estimated).</span>
-          <span className="idl"><strong>850 cal, per menu</strong> &mdash; a real number printed on the menu.</span>
-          <span className="idl"><strong>EST</strong> &mdash; estimated. <strong>9P / 22C / 22F</strong> &mdash; grams of protein, carbs, and fat.</span>
-          <span className="idl">These numbers are here for memory and curiosity &mdash; never a budget.</span>
+          <span className="idl"><strong>~320 cal</strong> - an estimate (the ~ means estimated).</span>
+          <span className="idl"><strong>850 cal, per menu</strong> - a real number printed on the menu.</span>
+          <span className="idl"><strong>EST</strong> - estimated. <strong>9P / 22C / 22F</strong> - grams of protein, carbs, and fat.</span>
+          <span className="idl">These numbers are here for memory and curiosity - never a budget.</span>
         </InfoDot>
       </div>
       {!q && onOpenYearInFood && (
@@ -9082,7 +9105,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         <div className="empty" style={{paddingTop:30}}>
           <div className="big">Welcome to MenuCaptain</div>
           <div style={{maxWidth:320, margin:"0 auto 18px"}}>
-            Your private log for eating out &mdash; the places you go, the dishes
+            Your private log for eating out - the places you go, the dishes
             you love, the menus you scan. Start by adding a place:
           </div>
           <div style={{display:"flex", flexDirection:"column", gap:10, maxWidth:280, margin:"0 auto"}}>
@@ -9106,7 +9129,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
             )}
           </div>
           <div className="tiny faint" style={{marginTop:16, maxWidth:300, marginLeft:"auto", marginRight:"auto"}}>
-            You can also tap the &#43; button any time to add a place, scan a menu, or log a meal.
+            You can also tap the &#43; button any time to add a place, scan a menu, or log a visit.
           </div>
         </div>
       </div>
@@ -9272,7 +9295,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         <div style={{margin:"-4px 2px 12px", display:"flex", justifyContent:"flex-end"}}>
           <InfoDot title="Searching places" label="How search works">
             <span className="idl">Type a name to search your saved places.</span>
-            <span className="idl">As soon as you type, a <strong>Search Google</strong>
+            <span className="idl">As soon as you type, a <strong>Find on Google</strong>
             {" "}button appears so you can add a place you don&rsquo;t have yet.</span>
           </InfoDot>
         </div>
@@ -9284,7 +9307,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
             {gBusy ? <span className="spin" />
               : <span className="row" style={{gap:6, justifyContent:"center"}}>
                   <Icon name="locate" size={15} color="var(--accent)" />
-                  Search Google for &ldquo;{query.trim()}&rdquo;</span>}
+                  Find on Google: &ldquo;{query.trim()}&rdquo;</span>}
           </button>
           {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
           {Array.isArray(gResults) && gResults.length > 0 ? (
@@ -9416,7 +9439,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
             : statusFilter === "been" ? "No visits yet"
             : "Nothing in " + filter}</div>
           <div>{q
-            ? "Not in your places yet — use “Search Google” above to add it."
+            ? "Not in your places yet - use “Find on Google” above to add it."
             : statusFilter === "try" ? "Add a place and mark it “Want to try,” or tap the book icon on any place."
             : statusFilter === "been" ? "Log a visit to a place and it shows up here."
             : "Add a restaurant in this location, or pick a different filter."}</div>
@@ -9556,7 +9579,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
                     </div>
                     <div className="tiny" style={{display:"flex", gap:10, alignItems:"center", paddingLeft:26, marginTop:1}}>
                       {age.stale
-                        ? <span style={{color:"var(--amber)"}}>May be outdated &mdash; double-check</span>
+                        ? <span style={{color:"var(--amber)"}}>May be outdated - double-check</span>
                         : <span className="faint">From another diner &middot; not verified</span>}
                       <span style={{flex:1}} />
                       {isReported
@@ -9911,7 +9934,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
       const file = new File([blob], "menucaptain-" + slugify(r.name) + ".png", { type:"image/png" });
       // A short pitch travels with the image (Messages/Mail show it) so the
       // share promotes the app even where the card's footer isn't read.
-      const shareText = "Here's " + r.name + " on MenuCaptain — my free dining memory. "
+      const shareText = "Here's " + r.name + " on MenuCaptain - my free dining memory. "
         + "Get it free at menucaptain.com";
       if (navigator.canShare && navigator.canShare({ files:[file] })){
         try {
@@ -11104,13 +11127,15 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
       )}
       {sections.map(({s,i,items})=>(
         <div key={i} className="msec">
-          <div className="msec-head" onClick={()=> setOpen(o=> Object.assign({},o,{[i]:!o[i]}))}>
+          <button type="button" className="msec-head" aria-expanded={!!(open[i]||q)}
+            style={{width:"100%", textAlign:"left"}}
+            onClick={()=> setOpen(o=> Object.assign({},o,{[i]:!o[i]}))}>
             <span className="nm">{s.name}</span>
             <span className="row" style={{gap:8}}>
               <span className="ct">{items.length}</span>
-              <Icon name={(open[i]||q) ? "chevd" : "chev"} size={16} color="#80715f" />
+              <Chevron open={(open[i]||q)} size={16} color="#80715f" />
             </span>
-          </div>
+          </button>
           {(open[i] || q) && items.map(({it,oj})=>{
             const key = i + ":" + oj;
             // Menu-first photos: a real shot of THIS dish (the item's own photo,
@@ -11497,9 +11522,6 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
       {list.map(savedRow)}
     </div>
   ) : null;
-  const chip = (on)=> ({ padding:"5px 11px", borderRadius:999, fontSize:12.5, fontWeight:600, cursor:"pointer",
-    border:"1px solid "+(on?"var(--accent)":"var(--line)"), background:on?"var(--accent)":"transparent",
-    color:on?"#1b1714":"var(--text-dim)", whiteSpace:"nowrap" });
 
   const gList = Array.isArray(gResults) && gResults.length > 0 ? (
     <div className="card" style={{marginTop:8, padding:"4px 0"}}>
@@ -11587,15 +11609,15 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
               <div className="card" style={{marginTop:6, padding:"10px 12px"}}>
                 <div className="tiny muted" style={{marginBottom:5}}>Sort</div>
                 <div className="row" style={{gap:7, flexWrap:"wrap", marginBottom:10}}>
-                  <span style={chip(sortBy==="recent")} onClick={()=> setSortBy("recent")}>Recent</span>
-                  <span style={chip(sortBy==="az")} onClick={()=> setSortBy("az")}>A&ndash;Z</span>
-                  <span style={chip(sortBy==="fav")} onClick={()=> setSortBy("fav")}>Favorites</span>
+                  <button type="button" className={"chip pick" + ((sortBy==="recent") ? " on" : "")} onClick={()=> setSortBy("recent")}>Recent</button>
+                  <button type="button" className={"chip pick" + ((sortBy==="az") ? " on" : "")} onClick={()=> setSortBy("az")}>A&ndash;Z</button>
+                  <button type="button" className={"chip pick" + ((sortBy==="fav") ? " on" : "")} onClick={()=> setSortBy("fav")}>Favorites</button>
                 </div>
                 <div className="tiny muted" style={{marginBottom:5}}>Show</div>
                 <div className="row" style={{gap:7, flexWrap:"wrap"}}>
-                  <span style={chip(filterBy==="all")} onClick={()=> setFilterBy("all")}>All</span>
-                  <span style={chip(filterBy==="visited")} onClick={()=> setFilterBy("visited")}>Visited</span>
-                  <span style={chip(filterBy==="unvisited")} onClick={()=> setFilterBy("unvisited")}>Not visited</span>
+                  <button type="button" className={"chip pick" + ((filterBy==="all") ? " on" : "")} onClick={()=> setFilterBy("all")}>All</button>
+                  <button type="button" className={"chip pick" + ((filterBy==="visited") ? " on" : "")} onClick={()=> setFilterBy("visited")}>Visited</button>
+                  <button type="button" className={"chip pick" + ((filterBy==="unvisited") ? " on" : "")} onClick={()=> setFilterBy("unvisited")}>Not visited</button>
                 </div>
               </div>
             ) : null}
@@ -11662,8 +11684,7 @@ function RestaurantPicker({restaurants, onClose, onPick, title, onPickOther, oth
         <span style={{width:34}} />
       </div>
       <div className="ovbody">
-        <ClearInput placeholder="Search your places..." value={q}
-          onChange={e=> setQ(e.target.value)} style={{marginBottom:12}} />
+        <div style={{marginBottom:12}}><SearchBar placeholder="Search your places" value={q} onChange={setQ} /></div>
         {/* Quick actions lead - with a long places list they were a full
             scroll away at the bottom, which buried the two fastest paths. */}
         {(onAddPlace || onPickOther) ? (
@@ -12291,7 +12312,7 @@ function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
               <span style={{flex:1}}>{r.label}</span>
             </div>
           )) : (
-            <div className="tiny faint" style={{margin:"-2px 0 8px"}}>No receipt stored on this one &mdash; add a photo to attach.</div>
+            <div className="tiny faint" style={{margin:"-2px 0 8px"}}>No receipt stored on this one - add a photo to attach.</div>
           )}
           <input ref={addRef} type="file" accept="image/*" style={{display:"none"}} onChange={onAddPhoto} />
           <button className="btn ghost sm" style={{marginTop:8}} disabled={addBusy}
@@ -12960,8 +12981,8 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                     <div className="spl-row">
                       <ClearInput value={l.name} placeholder="Item"
                         onChange={e=> setLineField(l.id, "name", e.target.value)} />
-                      <input className="input spl-pricebox" value={l.price} placeholder="0.00"
-                        inputMode="decimal"
+                      <ClearInput className="input spl-pricebox" value={l.price} placeholder="0.00"
+                        inputMode="decimal" style={{width:88, flex:"0 0 auto"}}
                         onChange={e=> setLineField(l.id, "price", e.target.value)} />
                       <button className="spl-x" onClick={()=> removeLine(l.id)}>&times;</button>
                     </div>
@@ -13842,12 +13863,6 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
   const onPrimary = ()=> hasQuery ? runTextSearch() : runSearch();
 
   // ---- small inline style helpers (avoid touching the CSS block) ----
-  const chip = (on)=> ({
-    padding:"7px 12px", borderRadius:999, fontSize:13, fontWeight:600,
-    border:"1px solid " + (on ? "var(--accent)" : "var(--line)"),
-    background: on ? "var(--accent)" : "transparent",
-    color: on ? "#1b1714" : "var(--text-dim)", cursor:"pointer", whiteSpace:"nowrap",
-  });
 
   // ---------- render: gate first ----------
   function Header(){
@@ -13964,34 +13979,34 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
             </div>
             <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
               {NEARME_RADII.map(r => (
-                <button key={r.m} style={chip(radiusM === r.m)} onClick={()=> setRadiusM(r.m)}>{r.label}</button>
+                <button key={r.m} className={"chip pick" + ((radiusM === r.m) ? " on" : "")} onClick={()=> setRadiusM(r.m)}>{r.label}</button>
               ))}
             </div>
             <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
               {NEARME_TYPES.map(t => (
-                <button key={t.key} style={chip(typeKey === t.key && !cuisineKey)}
+                <button key={t.key} className={"chip pick" + ((typeKey === t.key && !cuisineKey) ? " on" : "")}
                   onClick={()=> { setTypeKey(t.key); setCuisineKey(""); }}>{t.label}</button>
               ))}
             </div>
             <div className="row" style={{gap:8, overflowX:"auto", paddingBottom:8}}>
               <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Cuisine</span>
               {NEARME_CUISINES.map(c => (
-                <button key={c.key} style={chip(cuisineKey === c.key)}
+                <button key={c.key} className={"chip pick" + ((cuisineKey === c.key) ? " on" : "")}
                   onClick={()=> setCuisineKey(v => v === c.key ? "" : c.key)}>{c.label}</button>
               ))}
-              <button style={chip(cuisMore || NEARME_CUISINES_MORE.some(c => c.key === cuisineKey))}
+              <button className={"chip pick" + ((cuisMore || NEARME_CUISINES_MORE.some(c => c.key === cuisineKey)) ? " on" : "")}
                 onClick={()=> setCuisMore(v => !v)}>{cuisMore ? "Less" : "More…"}</button>
             </div>
             {(cuisMore || NEARME_CUISINES_MORE.some(c => c.key === cuisineKey)) && (
               <div className="row" style={{gap:8, flexWrap:"wrap", paddingBottom:8}}>
                 {NEARME_CUISINES_MORE.map(c => (
-                  <button key={c.key} style={chip(cuisineKey === c.key)}
+                  <button key={c.key} className={"chip pick" + ((cuisineKey === c.key) ? " on" : "")}
                     onClick={()=> setCuisineKey(v => v === c.key ? "" : c.key)}>{c.label}</button>
                 ))}
               </div>
             )}
             <div className="row" style={{gap:10, justifyContent:"space-between", alignItems:"center"}}>
-              <button style={chip(openNow)} onClick={()=> setOpenNow(v => !v)}>
+              <button className={"chip pick" + ((openNow) ? " on" : "")} onClick={()=> setOpenNow(v => !v)}>
                 {openNow ? "Open now: on" : "Open now"}
               </button>
               <button className="btn primary" style={{flex:1, opacity: loading ? 0.7 : 1}}
@@ -14001,18 +14016,18 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
             </div>
             <div className="row" style={{gap:8, marginTop:8, overflowX:"auto"}}>
               <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Sort</span>
-              <button style={chip(nearSort === "dist")}  onClick={()=> setNearSort("dist")}>Closest</button>
-              <button style={chip(nearSort === "rated")} onClick={()=> setNearSort("rated")}>Top rated</button>
-              <button style={chip(nearSort === "az")}    onClick={()=> setNearSort("az")}>A&ndash;Z</button>
-              <button style={chip(minStars === 4)} onClick={()=> setMinStars(v => v === 4 ? 0 : 4)}>4&#9733;+</button>
+              <button className={"chip pick" + ((nearSort === "dist") ? " on" : "")}  onClick={()=> setNearSort("dist")}>Closest</button>
+              <button className={"chip pick" + ((nearSort === "rated") ? " on" : "")} onClick={()=> setNearSort("rated")}>Top rated</button>
+              <button className={"chip pick" + ((nearSort === "az") ? " on" : "")}    onClick={()=> setNearSort("az")}>A&ndash;Z</button>
+              <button className={"chip pick" + ((minStars === 4) ? " on" : "")} onClick={()=> setMinStars(v => v === 4 ? 0 : 4)}>4&#9733;+</button>
             </div>
             <div className="row" style={{gap:8, marginTop:8, overflowX:"auto"}}>
               <span className="faint" style={{fontSize:12, alignSelf:"center", flex:"none"}}>Price</span>
               {[1,2,3,4].map(n => (
-                <button key={n} style={chip(!!priceSel[n])}
+                <button key={n} className={"chip pick" + ((!!priceSel[n]) ? " on" : "")}
                   onClick={()=> setPriceSel(s => Object.assign({}, s, { [n]: !s[n] }))}>{"$".repeat(n)}</button>
               ))}
-              <button style={chip(hideSaved)} onClick={()=> setHideSaved(v => !v)}>
+              <button className={"chip pick" + ((hideSaved) ? " on" : "")} onClick={()=> setHideSaved(v => !v)}>
                 {hideSaved ? "Hiding saved" : "Hide saved"}
               </button>
             </div>
@@ -14029,8 +14044,8 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
                     : "")}
             </span>
             <div className="row" style={{gap:6}}>
-              <button style={chip(view === "list")} onClick={()=> setView("list")}>List</button>
-              <button style={chip(view === "map")}  onClick={()=> setView("map")}>Map</button>
+              <button className={"chip pick" + ((view === "list") ? " on" : "")} onClick={()=> setView("list")}>List</button>
+              <button className={"chip pick" + ((view === "map") ? " on" : "")}  onClick={()=> setView("map")}>Map</button>
             </div>
           </div>
         )}
@@ -14041,7 +14056,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
         {geoState === "ok" && !loading && !searchMode && results.length >= 20 && (
           <div className="tiny faint" style={{padding:"0 14px 8px", lineHeight:1.45}}>
             Showing the 20 nearest matches (Google's cap). Something farther out may be
-            missing — narrow the radius or type its name in Search above.
+            missing - narrow the radius or type its name in Search above.
           </div>
         )}
 
@@ -14259,9 +14274,6 @@ function FeedbackForm({ cfg, onClose }){
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [err, setErr]   = useState("");
-  const chip = (on)=> ({ padding:"6px 12px", borderRadius:999, fontSize:13, fontWeight:600, cursor:"pointer",
-    border:"1px solid "+(on?"var(--accent)":"var(--line)"), background:on?"var(--accent)":"transparent",
-    color:on?"#1b1714":"var(--text-dim)", whiteSpace:"nowrap" });
   async function send(){
     const msg = (text || "").trim();
     if (!msg){ setErr("Add a little about your feedback first."); return; }
@@ -14291,16 +14303,16 @@ function FeedbackForm({ cfg, onClose }){
           <div className="empty" style={{paddingTop:"18vh"}}>
             <Icon name="check" size={40} color="var(--accent)" />
             <div className="big" style={{marginTop:12}}>Thanks!</div>
-            <div>Your feedback's on its way &mdash; we read every note.</div>
+            <div>Your feedback's on its way - we read every note.</div>
             <button className="btn ghost" style={{marginTop:16}} onClick={onClose}>Done</button>
           </div>
         ) : (
           <>
             <div className="small muted" style={{marginBottom:10}}>
-              Found a bug, want a feature, or have an idea? Tell us &mdash; it goes straight to the team.
+              Found a bug, want a feature, or have an idea? Tell us - it goes straight to the team.
             </div>
             <div className="row" style={{gap:7, flexWrap:"wrap", marginBottom:10}}>
-              {CATS.map(c => <span key={c} onClick={()=> setCat(c)} style={chip(cat===c)}>{c}</span>)}
+              {CATS.map(c => <button type="button" key={c} onClick={()=> setCat(c)} className={"chip pick" + ((cat===c) ? " on" : "")}>{c}</button>)}
             </div>
             <textarea className="input" value={text} onChange={e=> setText(e.target.value)}
               placeholder="What's on your mind?" rows={6} autoFocus
@@ -14331,7 +14343,7 @@ function ActionSheet({onClose, onPick}){
       <div className="sheet" onClick={e=> e.stopPropagation()}>
         <div className="grip" />
         <Item what="nearMe"     icon="pin"     t1="Find places near me"  t2="Discover spots around you" />
-        <Item what="findPlace"  icon="search"  t1="Look up a place"      t2="Your places, or anywhere on Google" />
+        <Item what="findPlace"  icon="search"  t1="Find a place"         t2="Your places, or anywhere on Google" />
         <div style={{borderTop:"1px solid var(--line-soft)", margin:"2px 0 6px"}} />
         <Item what="scanMenu"   icon="camera"  t1="Scan or find a menu"  t2="Photo, their website, or a link" />
         <Item what="logVisit"   icon="plate"   t1="Log a visit"          t2="Record a meal and rate it" />
@@ -14650,10 +14662,9 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
               Pick up to 8 places for the wheel, then spin. Your favorites are
               ticked to start - add or remove any you like.
             </div>
-            <label className="fld" style={{marginBottom:10}}>
-              <ClearInput value={q} onChange={e=> setQ(e.target.value)}
-                placeholder="Search your places" />
-            </label>
+            <div style={{marginBottom:10}}>
+              <SearchBar placeholder="Search your places" value={q} onChange={setQ} />
+            </div>
             <div className="row" style={{gap:8, alignItems:"center", marginBottom:6, flexWrap:"wrap"}}>
               <button className="btn ghost sm" onClick={selectAllShown}>Select all</button>
               {wantToTry.length ? (
@@ -14939,7 +14950,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
     setGBusy(true); setGErr("");
     try {
       const loc = await getGeoOnce();
-      if (!loc){ setGErr("Location unavailable. Allow location, or use Search Google."); setGBusy(false); return; }
+      if (!loc){ setGErr("Location unavailable. Allow location, or use Find on Google."); setGBusy(false); return; }
       const data = await placesNearby(cfg, {
         lat:loc.lat, lng:loc.lng, radius_m:1500, open_now:false,
         included_types:["restaurant","cafe","bar","bakery","meal_takeaway"],
@@ -15164,7 +15175,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
           {googlePlaceId ? (
             <div className="row" style={{gap:8}}>
               <Icon name="check" size={15} color="var(--accent)" />
-              <span className="small">Linked to Google &mdash; details filled in for you.</span>
+              <span className="small">Linked to Google - details filled in for you.</span>
             </div>
           ) : !finderOpen ? (
             <button type="button" className="btn ghost sm" style={{margin:0}}
@@ -15187,7 +15198,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
                 <button type="button" className="btn ghost sm" style={{flex:1, margin:0}}
                   disabled={gBusy} onClick={runGoogleSearch}>
                   {gBusy ? <span className="spin" /> : <Icon name="locate" size={15} color="var(--accent)" />}
-                  Search Google
+                  Find on Google
                 </button>
                 <button type="button" className="btn ghost sm" style={{flex:1, margin:0}}
                   disabled={gBusy} onClick={runNearMe}>
@@ -15213,7 +15224,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
                 </div>
               ) : (
                 <div className="tiny faint" style={{marginTop:6}}>
-                  Pulls the name, cuisine, address, phone, and rating &mdash; or just fill it in below.
+                  Pulls the name, cuisine, address, phone, and rating - or just fill it in below.
                 </div>
               )}
             </>
@@ -15302,7 +15313,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
           )}
           {!addingNew && opts.length === 0 && (
             <div className="tiny faint" style={{marginTop:6}}>
-              No saved cities yet &mdash; pick <strong>+ Add new location...</strong>
+              No saved cities yet - pick <strong>+ Add new location...</strong>
               {" "}to add one.
             </div>
           )}
@@ -15512,7 +15523,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   }
   async function runGoogleSearch(){
     const q = restQuery.trim();
-    if (!q){ setGErr("Type a name first, then Search Google."); return; }
+    if (!q){ setGErr("Type a name first, then tap Find on Google."); return; }
     setGBusy(true); setGErr("");
     try {
       let loc = null; try { loc = await getGeoOnce(); } catch(_e){}
@@ -15529,7 +15540,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     setGBusy(true); setGErr("");
     try {
       const loc = await getGeoOnce();
-      if (!loc){ setGErr("Location unavailable. Allow location, or use Search Google."); setGBusy(false); return; }
+      if (!loc){ setGErr("Location unavailable. Allow location, or use Find on Google."); setGBusy(false); return; }
       const data = await placesNearby(cfg, {
         lat:loc.lat, lng:loc.lng, radius_m:1500, open_now:false,
         included_types:["restaurant","cafe","bar","bakery","meal_takeaway"],
@@ -16258,7 +16269,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             </div>
           ) : (
             <>
-              <ClearInput autoFocus={restOpen} placeholder="Search your places..."
+              <ClearInput autoFocus={restOpen} placeholder="Search your places"
                 value={restQuery}
                 onChange={e=>{ setRestQuery(e.target.value); setRestOpen(true); }}
                 onFocus={()=> setRestOpen(true)} />
@@ -16285,7 +16296,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               <div className="row" style={{gap:8, marginTop:8}}>
                 <button className="btn ghost sm" style={{flex:1}} disabled={gBusy} onClick={runGoogleSearch}>
                   {gBusy ? <span className="spin" /> : <Icon name="locate" size={15} color="var(--accent)" />}
-                  Search Google
+                  Find on Google
                 </button>
                 <button className="btn ghost sm" style={{flex:1}} disabled={gBusy} onClick={runNearMe}>
                   {gBusy ? <span className="spin" /> : <Icon name="locate" size={15} color="var(--accent)" />}
@@ -16295,7 +16306,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
               {gResults.length > 0 ? (
                 <div className="card" style={{marginTop:6, maxHeight:260, overflowY:"auto", padding:"4px 0"}}>
-                  <div className="small muted" style={{padding:"6px 14px"}}>From Google &mdash; tap to add:</div>
+                  <div className="small muted" style={{padding:"6px 14px"}}>From Google - tap to add:</div>
                   {gResults.map(c => (
                     <div key={c.place_id} className="pick-row"
                       style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8}}
@@ -16327,7 +16338,11 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               portion of a star is a half and the right portion is a whole.
               No gaps between stars so the position maps cleanly. */}
           <div className="row" style={{alignItems:"center", gap:10}}>
-            <div ref={ratingRef} onClick={onRateTap} role="slider"
+            <div ref={ratingRef} onClick={onRateTap} role="slider" tabIndex={0}
+                 onKeyDown={e=>{
+                   if (e.key === "ArrowRight" || e.key === "ArrowUp"){ e.preventDefault(); setRating(Math.min(5, (rating || 0) + 0.5)); }
+                   else if (e.key === "ArrowLeft" || e.key === "ArrowDown"){ e.preventDefault(); setRating(Math.max(0, (rating || 0) - 0.5)); }
+                 }}
                  aria-label="Rating" aria-valuemin={0} aria-valuemax={5}
                  aria-valuenow={rating}
                  style={{display:"inline-flex", gap:0, cursor:"pointer",
@@ -16388,9 +16403,10 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                 {s.kind === "existing" && cfg && (
                   <PhotoImg cfg={cfg} path={s.path} />
                 )}
-                <div className="photo-remove" onClick={(e)=>{ e.stopPropagation(); removePhotoSlot(i); }}>
+                <button type="button" className="photo-remove" aria-label="Remove photo"
+                  onClick={(e)=>{ e.stopPropagation(); removePhotoSlot(i); }}>
                   <Icon name="close" size={14} color="#e8dac6" />
-                </div>
+                </button>
               </div>
             ))}
             {photoSlots.length < MAX_PHOTOS && (
@@ -16459,7 +16475,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           </div>
           {usuals.filter(n => dishNames.indexOf(n) === -1).length > 0 && (
             <div style={{marginTop:10}}>
-              <div className="tiny faint" style={{marginBottom:6}}>Your usuals here &mdash; tap to add</div>
+              <div className="tiny faint" style={{marginBottom:6}}>Your usuals here - tap to add</div>
               <div className="chips">
                 {usuals.filter(n => dishNames.indexOf(n) === -1).map((n,i)=>(
                   <button type="button" key={i} className="chip pick" onClick={()=> addDish(n)}>+ {n}</button>
@@ -16519,9 +16535,11 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           {menuGroups.length === 0 && restId && onScanMenu && (
             <div style={{marginTop:12, textAlign:"center"}}>
               <div className="tiny faint" style={{marginBottom:8}}>
-                No saved menu for this place yet &mdash; scan one to tap dishes straight from it.
+                No saved menu for this place yet - scan one to tap dishes straight from it.
               </div>
-              <button className="btn ghost sm" onClick={()=> onScanMenu(restId)}>
+              <button className="btn ghost sm" onClick={()=>{
+                if (window.confirm("Opening the scanner closes this visit form - anything you've entered here will be lost. Continue?")) onScanMenu(restId);
+              }}>
                 <span className="row" style={{gap:6, justifyContent:"center"}}>
                   <Icon name="camera" size={15} color="var(--accent)" />Scan a menu for this place</span>
               </button>
@@ -16786,15 +16804,18 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                     <div className="dish-verdict">
                       <button
                         className={"verdict-btn loved" + (d.verdict==="loved" ? " on" : "")}
-                        onClick={()=> setVerdict(d.name, "loved")}>Loved</button>
+                        aria-pressed={d.verdict==="loved"}
+                        onClick={()=> setVerdict(d.name, "loved")}>{"♥ Loved"}</button>
                       <button
                         className={"verdict-btn again" + (d.verdict==="again" ? " on" : "")}
+                        aria-pressed={d.verdict==="again"}
                         onClick={()=> setVerdict(d.name, "again")}>Again</button>
                       <button
                         className={"verdict-btn skip" + (d.verdict==="skip" ? " on" : "")}
+                        aria-pressed={d.verdict==="skip"}
                         onClick={()=> setVerdict(d.name, "skip")}>Skip</button>
                     </div>
-                    <button className="dish-row-x" onClick={()=> removeDish(d.name)}>
+                    <button className="dish-row-x" aria-label={"Remove " + d.name} onClick={()=> removeDish(d.name)}>
                       <Icon name="close" size={14} color="#80715f" />
                     </button>
                   </div>
@@ -16855,7 +16876,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               ))}
               <div className="tiny faint" style={{marginTop:2,padding:"0 2px"}}>
                 Tap <strong>Again</strong> for something you'd order again,
-                {" "}<strong>Skip</strong> for something you wouldn't &mdash; it's how
+                {" "}<strong>Skip</strong> for something you wouldn't - it's how
                 you remember what's worth getting next time. Your most recent verdict
                 wins, so you can change your mind later, and skipping a dish just keeps
                 it off your loved list. Estimate a dish from a photo, or without one.
@@ -16989,7 +17010,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="share" size={16} />Share a link</span>}
               </button>
               <div className="tiny faint">
-                Sends the place, the photos, who you were with, and the menu &mdash; never your notes or what you ate.
+                Sends the place, the photos, who you were with, and the menu - never your notes or what you ate.
               </div>
               {shareErr ? <div className="tiny" style={{color:"var(--accent)"}}>{shareErr}</div> : null}
             </div>
@@ -17558,13 +17579,13 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 {previews.map((u,i)=> (
                   <div key={i} style={{position:"relative",display:"inline-block"}}>
                     <img className="pth" src={u} alt="" />
-                    <div className="photo-remove"
+                    <button type="button" className="photo-remove" aria-label="Remove photo"
                       onClick={()=>{
                         setPreviews(p => p.filter((_,j)=> j !== i));
                         setDataUrls(d => d.filter((_,j)=> j !== i));
                       }}>
                       <Icon name="close" size={14} color="#e8dac6" />
-                    </div>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -18633,7 +18654,7 @@ function pickLabel(p){
   if (/^(options?|menu|other)$/i.test(sec)) return item;
   const stem = sec.toLowerCase().replace(/s$/, "");
   if (stem && item.toLowerCase().indexOf(stem) !== -1) return item;  // item already names it
-  return sec + " — " + item;
+  return sec + " - " + item;
 }
 function aggregatePicks(picks){
   // Key by section + item so the same item name in different sections (and the
@@ -18913,7 +18934,7 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
           {chosenList.length > 1 ? ("Start with these " + chosenList.length + " menus") : "Start group order"}
         </button>
         <div className="tiny faint" style={{textAlign:"center", marginTop:14, borderTop:"1px solid var(--line-soft)", paddingTop:12}}>
-          Or skip the menu &mdash;
+          Or skip the menu  - 
           <a href="#" style={{color:"var(--accent)", marginLeft:4}}
              onClick={(e)=>{ e.preventDefault(); setQuick(true); }}>start a no-menu order</a> where everyone just types what they want.
         </div>
@@ -19039,12 +19060,15 @@ function GroupInvitePicker({cfg, code}){
   const [pick, setPick] = useState({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg]   = useState("");
+  const [msgErr, setMsgErr] = useState(false);   // failures render in danger, not success-green
+  const [loadFail, setLoadFail] = useState(false);
   const favSet = loadConnFavs();   // favorite connections float to the top
   async function openPicker(){
-    setOpen(true); setMsg("");
+    setOpen(true); setMsg(""); setMsgErr(false);
     if (conns === null){
+      setLoadFail(false);
       try { const d = await getConnections(cfg); setConns(d.connections || []); }
-      catch(e){ setConns([]); }
+      catch(e){ setLoadFail(true); }
     }
   }
   async function send(){
@@ -19053,10 +19077,10 @@ function GroupInvitePicker({cfg, code}){
     setBusy(true); setMsg("");
     try {
       const r = await inviteToGroup(cfg, code, ids);
-      setMsg("Invited " + (r.invited || 0));
+      setMsg("Invited " + (r.invited || 0)); setMsgErr(false);
       setPick({});
       setTimeout(()=> setOpen(false), 800);
-    } catch(e){ setMsg(e.message); }
+    } catch(e){ setMsg(e.message || "Couldn't send the invites. Try again."); setMsgErr(true); }
     finally { setBusy(false); }
   }
   return (
@@ -19079,7 +19103,9 @@ function GroupInvitePicker({cfg, code}){
               <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
             ) : conns.length === 0 ? (
               <div className="small faint" style={{padding:"4px 0 12px"}}>
-                No connections yet. Add some in Settings &rarr; Connections.
+                {loadFail
+                  ? <>Couldn't load your connections. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
+                  : <>No connections yet. Add some in Settings &rarr; Connections.</>}
               </div>
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
               const l = connLabel(c);
@@ -19101,7 +19127,7 @@ function GroupInvitePicker({cfg, code}){
                 {busy ? <span className="spin" /> : "Invite"}
               </button>
             </div>
-            {msg ? <div className="tiny" style={{marginTop:8, color:"var(--ok)"}}>{msg}</div> : null}
+            {msg ? <div className="tiny" style={{marginTop:8, color: msgErr ? "var(--danger)" : "var(--ok)"}}>{msg}</div> : null}
           </div>
         </div>
       )}
@@ -19903,7 +19929,7 @@ function GroupOrderGuest({code, cfg, profile}){
               onClick={()=> setHelpOpen(o=>!o)}>
               <Icon name="sparkle" size={15} color="var(--accent)" />
               <span style={{flex:1}}>Help me decide</span>
-              <Icon name={helpOpen ? "chevd" : "chev"} size={14} />
+              <Chevron open={helpOpen} size={14} />
             </div>
             {helpOpen && (
               <>
@@ -19934,12 +19960,13 @@ function GroupOrderGuest({code, cfg, profile}){
             const secSel  = Object.keys(picks).filter(k => picks[k] && k.indexOf(si + ":") === 0).length;
             return (
             <div key={si} className="go-gsec">
-              <div className="go-gsec-head" style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer"}}
+              <button type="button" className="go-gsec-head" aria-expanded={secOpen}
+                style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer", width:"100%", textAlign:"left"}}
                 onClick={()=> setOpenSec(o => Object.assign({}, o, { [si]: !((si in o) ? o[si] : !collapseDefault) }))}>
                 <span style={{flex:1, minWidth:0}}>{s.name || "Menu"}</span>
                 {secSel ? <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>{secSel} added</span> : null}
-                <Icon name={secOpen ? "chevd" : "chev"} size={15} />
-              </div>
+                <Chevron open={secOpen} size={15} />
+              </button>
               {secOpen ? (s.items || []).map((it, ii)=>{
                 const key = si + ":" + ii;
                 const on  = !!picks[key];
@@ -19963,7 +19990,8 @@ function GroupOrderGuest({code, cfg, profile}){
                           <span className="go-stepn">{picks[key].qty}</span>
                           <button className="go-step" onClick={()=> bump(key, +1)}>+</button>
                         </div>
-                        <input className="input go-note" placeholder="Add a note (no onions...)"
+                        <ClearInput className="input go-note" placeholder="Add a note (no onions...)"
+                          style={{flex:1}}
                           value={picks[key].note} onChange={e=> setNote(key, e.target.value)} />
                       </div>
                     ) : null}
@@ -20318,11 +20346,12 @@ function PublishedMenu({data}){
         {data.s.map((s,si)=>(
           <div key={si} className="pub-msec">
             {s.n ? (
-              <div className="pub-msec-head"
+              <button type="button" className="pub-msec-head" aria-expanded={open[si] !== false}
+                style={{width:"100%", textAlign:"left"}}
                 onClick={()=> setOpen(o=> Object.assign({}, o, { [si]: !o[si] }))}>
                 <span className="nm">{s.n}</span>
                 <span className="ct">{(s.i || []).length}</span>
-              </div>
+              </button>
             ) : null}
             {(open[si] !== false) && (s.i || []).map((it,ii)=>{
               const key = si + ":" + ii;
@@ -20458,7 +20487,7 @@ function MyListsOverlay({ lists, onClose, onToggleFav, onDelete, onRefresh, onHo
     <div className="overlay">
       <div className="ovhead">
         <BackBtn onClick={onClose} />
-        <h2>My Lists</h2>
+        <h2>My lists</h2>
         <HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
@@ -20663,8 +20692,7 @@ function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose, 
           </div>
         )}
 
-        <ClearInput placeholder="Search your places" value={q}
-          onChange={e=> setQ(e.target.value)} style={{margin:"16px 0 10px"}} />
+        <div style={{margin:"16px 0 10px"}}><SearchBar placeholder="Search your places" value={q} onChange={setQ} /></div>
 
         {shown.length === 0 ? (
           <div className="empty" style={{padding:"30px 10px"}}>
@@ -20892,7 +20920,7 @@ function YearInFood({visits, restaurants, onClose, onHome}){
               scope="year" />
 
             <div className="tiny faint" style={{textAlign:"center",margin:"6px 0 24px"}}>
-              A look back for memory and joy &mdash; built from what you logged.
+              A look back for memory and joy - built from what you logged.
             </div>
           </>
         )}
@@ -21116,7 +21144,7 @@ function ProCard({config}){
           <div className="tiny muted" style={{marginBottom:6}}>Owner testing</div>
           <button className={"btn sm " + (forced === "free" ? "primary" : "ghost")} style={{width:"100%"}}
             onClick={()=> simulate(forced === "free" ? "" : "free")}>
-            {forced === "free" ? "Testing as Free — tap to return to Pro" : "Test as Free (non-Pro)"}
+            {forced === "free" ? "Testing as Free - tap to return to Pro" : "Test as Free (non-Pro)"}
           </button>
           {forced === "free" && (
             <div className="tiny" style={{marginTop:6, color:"var(--accent)"}}>
@@ -21973,7 +22001,7 @@ function LeaderboardScreen({config, profile, onProfileChange, onClose, onHome}){
     let alive = true;
     getLeaderboard(config)
       .then(d => { if (alive) setRows((d && d.leaderboard) || []); })
-      .catch(e => { if (alive){ setErr(e.message); setRows([]); } });
+      .catch(e => { if (alive){ setErr(e.message || "Couldn't load the leaderboard."); } });   // rows stay null -> error view, not the empty state
     return ()=>{ alive = false; };
     // eslint-disable-next-line
   },[]);
@@ -22003,7 +22031,11 @@ function LeaderboardScreen({config, profile, onProfileChange, onClose, onHome}){
             <div className="small">Claim a username (Settings &rarr; Your profile) to join the leaderboard.</div>
           </div>
         ) : null}
-        {rows === null ? (
+        {err && rows === null ? (
+          <div className="small" style={{padding:"10px 2px", color:"var(--danger)"}}>
+            {err} <a href="#" onClick={(e)=>{ e.preventDefault(); location.reload(); }}>Try again</a>
+          </div>
+        ) : rows === null ? (
           <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
         ) : rows.length === 0 ? (
           <div className="small faint" style={{padding:"4px 2px"}}>
@@ -22222,12 +22254,14 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
   const [pick, setPick]   = useState({});
   const [busy, setBusy]   = useState(false);
   const [msg, setMsg]     = useState("");
+  const [msgErr, setMsgErr]     = useState(false);
+  const [loadFail, setLoadFail] = useState(false);
   const favSet = loadConnFavs();   // favorite connections float to the top
   const hasMenu = (menuList || []).some(m => m && (m.sections || []).length);
   if (!hasMenu) return null;   // need a menu to share the place
   async function openPicker(){
-    setOpen(true); setMsg("");
-    if (conns === null){ try { const d = await getConnections(cfg); setConns(d.connections || []); } catch(e){ setConns([]); } }
+    setOpen(true); setMsg(""); setMsgErr(false); setLoadFail(false);
+    if (conns === null){ try { const d = await getConnections(cfg); setConns(d.connections || []); } catch(e){ setLoadFail(true); } }
   }
   async function send(){
     const ids = Object.keys(pick).filter(k => pick[k]);
@@ -22238,10 +22272,10 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
     setBusy(true); setMsg("");
     try {
       const r = await sendShare(cfg, ids, "place", restaurant.name, payload);
-      setMsg("Sent to " + (r.sent || 0));
+      setMsg("Sent to " + (r.sent || 0)); setMsgErr(false);
       setPick({});
       setTimeout(()=> setOpen(false), 800);
-    } catch(e){ setMsg(e.message); }
+    } catch(e){ setMsg(e.message || "Could not send."); setMsgErr(true); }
     finally { setBusy(false); }
   }
   return (
@@ -22283,7 +22317,9 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
               <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
             ) : conns.length === 0 ? (
               <div className="small faint" style={{padding:"4px 0 12px"}}>
-                No connections yet. Add some in Settings &rarr; Connections.
+                {loadFail
+                  ? <>Couldn't load your connections. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
+                  : <>No connections yet. Add some in Settings &rarr; Connections.</>}
               </div>
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
               const l = connLabel(c); const on = !!pick[c.user_id];
@@ -22304,7 +22340,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
                 {busy ? <span className="spin" /> : "Send"}
               </button>
             </div>
-            {msg ? <div className="tiny" style={{marginTop:8, color:"var(--ok)"}}>{msg}</div> : null}
+            {msg ? <div className="tiny" style={{marginTop:8, color: msgErr ? "var(--danger)" : "var(--ok)"}}>{msg}</div> : null}
           </div>
         </div>
       )}
@@ -22321,11 +22357,13 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label}){
   const [pick, setPick]   = useState({});
   const [busy, setBusy]   = useState(false);
   const [msg, setMsg]     = useState("");
+  const [msgErr, setMsgErr]     = useState(false);
+  const [loadFail, setLoadFail] = useState(false);
   const favSet = loadConnFavs();
   const place = (restaurant && restaurant.name) || (visit && visit.restaurant_name) || "this visit";
   async function openPicker(){
-    setOpen(true); setMsg("");
-    if (conns === null){ try { const d = await getConnections(cfg); setConns(d.connections || []); } catch(e){ setConns([]); } }
+    setOpen(true); setMsg(""); setMsgErr(false); setLoadFail(false);
+    if (conns === null){ try { const d = await getConnections(cfg); setConns(d.connections || []); } catch(e){ setLoadFail(true); } }
   }
   async function send(){
     const ids = Object.keys(pick).filter(k => pick[k]);
@@ -22335,10 +22373,10 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label}){
       const photoUrls = await signVisitPhotos(cfg, (visit.photos || []).filter(Boolean));
       const payload = buildVisitPayload(visit, restaurant, menuList || [], photoUrls);
       const r = await sendShare(cfg, ids, "visit", place, payload);
-      setMsg("Sent to " + (r.sent || 0));
+      setMsg("Sent to " + (r.sent || 0)); setMsgErr(false);
       setPick({});
       setTimeout(()=> setOpen(false), 800);
-    } catch(e){ setMsg(e.message || "Could not send."); }
+    } catch(e){ setMsg(e.message || "Could not send."); setMsgErr(true); }
     finally { setBusy(false); }
   }
   return (
@@ -22356,14 +22394,16 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label}){
                onClick={(e)=> e.stopPropagation()}>
             <div style={{fontWeight:600, marginBottom:4}}>Send your visit to&hellip;</div>
             <div className="small muted" style={{marginBottom:10}}>
-              They'll get it in their &ldquo;Shared with you&rdquo; inbox &mdash; with the photos,
+              They'll get it in their &ldquo;Shared with you&rdquo; inbox - with the photos,
               the place, and the menu. No notes, ratings, or what you spent.
             </div>
             {conns === null ? (
               <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
             ) : conns.length === 0 ? (
               <div className="small faint" style={{padding:"4px 0 12px"}}>
-                No connections yet. Add some in Settings &rarr; Connections.
+                {loadFail
+                  ? <>Couldn't load your connections. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
+                  : <>No connections yet. Add some in Settings &rarr; Connections.</>}
               </div>
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
               const l = connLabel(c); const on = !!pick[c.user_id];
@@ -22384,7 +22424,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label}){
                 {busy ? <span className="spin" /> : "Send"}
               </button>
             </div>
-            {msg ? <div className="tiny" style={{marginTop:8, color:"var(--ok)"}}>{msg}</div> : null}
+            {msg ? <div className="tiny" style={{marginTop:8, color: msgErr ? "var(--danger)" : "var(--ok)"}}>{msg}</div> : null}
           </div>
         </div>
       )}
@@ -22398,9 +22438,11 @@ function ShareInbox({config, onClose, onHome}){
   const [shares, setShares] = useState(null);
   const [open, setOpen]     = useState(null);   // the share being viewed
   const [busyId, setBusyId] = useState(null);
-  async function load(){ try { const d = await getShares(config); setShares((d && d.shares) || []); } catch(e){ setShares([]); } }
+  const [loadFail, setLoadFail] = useState(false);
+  async function load(){ setLoadFail(false); try { const d = await getShares(config); setShares((d && d.shares) || []); } catch(e){ setLoadFail(true); } }
   useEffect(()=>{ load(); /* eslint-disable-next-line */ },[]);
-  async function remove(id){ setBusyId(id); try { await dismissShare(config, id); await load(); } catch(e){} finally { setBusyId(null); } }
+  const [note, setNote] = useState("");
+  async function remove(id){ setBusyId(id); setNote(""); try { await dismissShare(config, id); await load(); } catch(e){ setNote("Couldn't dismiss that just now - try again."); } finally { setBusyId(null); } }
 
   if (open){
     return (
@@ -22423,7 +22465,12 @@ function ShareInbox({config, onClose, onHome}){
         <h2>Shared with you</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
-        {shares === null ? (
+        {note ? <div className="tiny" style={{color:"var(--danger)", margin:"0 0 8px"}}>{note}</div> : null}
+        {loadFail ? (
+          <div className="small" style={{padding:"10px 2px", color:"var(--danger)"}}>
+            Couldn't load what's been shared with you. <a href="#" onClick={(e)=>{ e.preventDefault(); load(); }}>Try again</a>
+          </div>
+        ) : shares === null ? (
           <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
         ) : shares.length === 0 ? (
           <div className="small faint" style={{padding:"4px 2px"}}>
@@ -22548,7 +22595,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                 {usageRow("AI actions (scan, help me order, explain)", usage.ai)}
                 {usageRow("Near me / Google discovery", usage.places)}
                 <div className="tiny faint" style={{marginTop:2}}>
-                  Your Pro monthly allowance &mdash; it resets at the start of each
+                  Your Pro monthly allowance - it resets at the start of each
                   month. Thanks for being Pro.
                 </div>
               </>
@@ -22684,12 +22731,11 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
         </div>
       </div>
 
-      <div className="set-group">Plan</div>
+      <div className="set-group">Your plan</div>
       <div id="procard"><ProCard config={config} /></div>
 
       <div className="set-group">Your data</div>
       <div className="card">
-        <div style={{fontWeight:600,marginBottom:8}}>Your data</div>
         <div className="small muted" style={{lineHeight:1.9}}>
           Restaurants: {counts.r}<br/>
           Saved menus: {counts.m}<br/>
@@ -22724,7 +22770,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
         <div className="card">
           <div style={{fontWeight:600, marginBottom:6}}>Send feedback</div>
           <div className="small muted" style={{lineHeight:1.7, marginBottom:12}}>
-            Found a bug, want a feature, or have an idea? Tell us &mdash; it goes straight to the team.
+            Found a bug, want a feature, or have an idea? Tell us - it goes straight to the team.
           </div>
           <button className="btn ghost sm" onClick={onFeedback}>
             <Icon name="edit" size={15} color="var(--accent)" />Share feedback
@@ -22835,7 +22881,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
         <div className="card" style={{marginTop:12}}>
           <div className="between" onClick={()=> setShowLog(s=>!s)} style={{cursor:"pointer"}}>
             <div style={{fontWeight:600}}>Diagnostics</div>
-            <Icon name={showLog ? "chevd" : "chev"} size={17} color="#80715f" />
+            <Chevron open={showLog} size={17} color="#80715f" />
           </div>
           {showLog && (
             <div style={{marginTop:11}}>
@@ -22858,7 +22904,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       <div className="card" style={{marginTop:12}}>
         <div className="between" onClick={()=> setShowDel(s=>!s)} style={{cursor:"pointer"}}>
           <div style={{fontWeight:600,color:"#e7a99e"}}>Delete account</div>
-          <Icon name={showDel ? "chevd" : "chev"} size={17} color="#80715f" />
+          <Chevron open={showDel} size={17} color="#80715f" />
         </div>
         {showDel && (
           <div style={{marginTop:11}}>
@@ -22911,7 +22957,7 @@ function PwInput({value, onChange, placeholder, id}){
           position:"absolute", right:0, top:0, bottom:0,
           width:40, background:"none", border:"none", cursor:"pointer",
           display:"flex", alignItems:"center", justifyContent:"center",
-          color:"var(--muted)", padding:0,
+          color:"var(--text-dim)", padding:0,
         }}>
         {show ? (
           // eye-off
@@ -22942,6 +22988,7 @@ function ResetPasswordScreen({accessToken, refreshToken, expiresIn}){
   const [pw2,setPw2]   = useState("");
   const [busy,setBusy] = useState(false);
   const [err,setErr]   = useState("");
+  const [expired,setExpired] = useState(false);  // dead link -> offer the way back
 
   async function applyNewPassword(){
     setErr("");
@@ -22961,7 +23008,7 @@ function ResetPasswordScreen({accessToken, refreshToken, expiresIn}){
       });
       const data = await res.json().catch(()=> ({}));
       if (res.status === 401){
-        setErr("This reset link has expired. Request a new one from the sign-in screen.");
+        setErr("This reset link has expired. Request a new one from the sign-in screen."); setExpired(true);
         setBusy(false); return;
       }
       if (!res.ok || !data.id){
@@ -23016,6 +23063,12 @@ function ResetPasswordScreen({accessToken, refreshToken, expiresIn}){
           {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
           {busy ? "Saving..." : "Set new password"}
         </button>
+        {expired && (
+          <button className="btn ghost" style={{marginTop:8}}
+            onClick={()=> location.replace(location.pathname)}>
+            Back to sign in
+          </button>
+        )}
       </div>
     </div>
   );
@@ -23190,7 +23243,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   }
 
   const titles = {
-    signin:["Welcome","MenuCaptain keeps your restaurants, menus and visits in your private account so they sync across devices. Sign in to get started."],
+    signin:["Welcome","MenuCaptain keeps your places, menus, and visits in your private account so they sync across devices. Sign in to get started."],
     signup:["Create your account","One account, all your devices. Your log stays private to you."],
     forgot:["Reset your password","Enter your account email and we will send you a reset link."],
   };
@@ -23220,7 +23273,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         <div className="card" style={{marginBottom:16}}>
           <div style={{fontWeight:600, marginBottom:8}}>How MenuCaptain works</div>
           <div className="tiny muted" style={{lineHeight:1.9}}>
-            <div><strong style={{color:"var(--accent)"}}>1.</strong>&nbsp; Find a place &mdash; one of yours, or a new one.</div>
+            <div><strong style={{color:"var(--accent)"}}>1.</strong>&nbsp; Find a place - one of yours, or a new one.</div>
             <div><strong style={{color:"var(--accent)"}}>2.</strong>&nbsp; Open it, scan the menu, and ask <em>Help me order</em>.</div>
             <div><strong style={{color:"var(--accent)"}}>3.</strong>&nbsp; After the meal, log the visit and split the check.</div>
           </div>
