@@ -26,7 +26,7 @@
    - everything else (other API, list pages) -> default network
 */
 
-const VERSION = "1.355.1";                 // keep in lockstep with APP_VERSION
+const VERSION = "1.355.2";                 // keep in lockstep with APP_VERSION
 const SHELL_CACHE = "mc-shell-" + VERSION;
 const ASSET_CACHE = "mc-assets-" + VERSION;
 const DATA_CACHE  = "mc-data-v1";           // user collections; UN-versioned so it
@@ -37,12 +37,31 @@ const TILE_MAX    = 400;                     // ~400 tiles (~6-12MB); FIFO trim
 const SHELL_URL   = "/";                    // canonical key for the app document
 
 // Primed on install so even the very first offline open works.
+// CDN entries are Requests with SRI (integrity) + CORS mode, mirroring the
+// <script>/<link> tags in index.html - the fetch fails (and is skipped by
+// allSettled) if the CDN response doesn't hash-match, so a tampered copy
+// never enters the cache.
 const CRITICAL_ASSETS = [
-  "https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css",
-  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
+  new Request("https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js", {
+    integrity: "sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8",
+    mode: "cors",
+  }),
+  new Request("https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js", {
+    integrity: "sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh",
+    mode: "cors",
+  }),
+  new Request("https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js", {
+    integrity: "sha384-sw98ksifz4z7bpf5bssQYm0RlqkUsNXcYh7KqhO3+SIrvf3+mf0kQRNxaCWcgzjG",
+    mode: "cors",
+  }),
+  new Request("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css", {
+    integrity: "sha384-c6Rcwz4e4CITMbu/NBmnNS8yN2sC3cUElMEMfP3vqqKFp7GOYaaBBCqmaWBjmkjb",
+    mode: "cors",
+  }),
+  new Request("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js", {
+    integrity: "sha384-NElt3Op+9NBMCYaef5HxeJmU4Xeard/Lku8ek6hoPTvYkQPh3zLIrJP7KiRocsxO",
+    mode: "cors",
+  }),
   // Self-hosted fonts: primed so even a first offline open renders in-brand.
   "/fonts/fonts.css",
   "/fonts/f0.woff2", "/fonts/f1.woff2", "/fonts/f2.woff2", "/fonts/f3.woff2", "/fonts/f4.woff2",
