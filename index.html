@@ -922,7 +922,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.355.2";
+const APP_VERSION   = "1.356.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -7219,7 +7219,8 @@ function App(){
     <div id="app-shell">
       {/* Home owns its own header (wordmark + greeting + Settings gear), so the
           shared TopBar is hidden there to avoid a duplicate "MenuCaptain". */}
-      {tab !== "home" ? <TopBar tab={tab} onShare={shareApp} /> : null}
+      {tab !== "home" ? <TopBar tab={tab} onShare={shareApp}
+        onOpenSettings={()=> setTab("settings")} pendingReqs={pendingReqs} /> : null}
       {/* Home hides the TopBar, so reserve the status-bar (notch) space here, or
           the update/sync banners ride up under the clock and battery. */}
       {tab === "home" ? <div aria-hidden="true" style={{height:"env(safe-area-inset-top)"}} /> : null}
@@ -8253,7 +8254,7 @@ function App(){
 /* ============================================================
    TOP BAR
    ============================================================ */
-function TopBar({tab, onShare}){
+function TopBar({tab, onShare, onOpenSettings, pendingReqs}){
   const titles = {
     history:["MenuCaptain","Where you have been"],
     restaurants:["Places","Your restaurants & menus"],
@@ -8267,12 +8268,28 @@ function TopBar({tab, onShare}){
         <h1>{t}</h1>
         <div className="sub">{s}</div>
       </div>
-      {onShare ? (
-        <button className="topbar-share" onClick={onShare}
-          aria-label="Share MenuCaptain" title="Share MenuCaptain">
-          <Icon name="share" size={19} color="var(--accent)" />
-        </button>
-      ) : null}
+      <div style={{display:"flex", gap:8, flex:"none", alignItems:"flex-start"}}>
+        {onShare ? (
+          <button className="topbar-share" onClick={onShare}
+            aria-label="Share MenuCaptain" title="Share MenuCaptain">
+            <Icon name="share" size={19} color="var(--accent)" />
+          </button>
+        ) : null}
+        {/* Nav standard 2026-07-24: Settings is one tap away on EVERY screen.
+            Same gear + pending-requests badge as the Home header; hidden on the
+            Settings screen itself. */}
+        {(onOpenSettings && tab !== "settings") ? (
+          <button className="topbar-share" aria-label="Settings" title="Settings"
+            onClick={onOpenSettings} style={{position:"relative"}}>
+            <Icon name="gear" size={20} />
+            {pendingReqs > 0 ? (
+              <span style={{position:"absolute", top:-4, right:-6, minWidth:16, height:16, padding:"0 4px",
+                borderRadius:8, background:"var(--danger)", color:"#fff", fontSize:10, fontWeight:700,
+                display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1}}>{pendingReqs}</span>
+            ) : null}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -21473,7 +21490,7 @@ const DEFAULT_TABS = [
   { key:"home",        name:"Home",    icon:"home" },
   { key:"restaurants", name:"Places",  icon:"plate" },
   { key:"history",     name:"History", icon:"clock" },
-  { key:"discover",    name:"You",     icon:"compass" },
+  { key:"discover",    name:"Discover", icon:"compass" },
 ];
 function getDefaultTab(){
   try {
