@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.357.0";
+const APP_VERSION   = "1.358.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1923,13 +1923,23 @@ earned before badges arrived simply shows as already earned, without a fuss.
 
 -----
 
-## Connections & friends
+## Friends
 
 MenuCaptain has a light social layer built around your **@handle** (set it in
-Settings, under Your profile). Open **Connections** from Settings to find
+Settings, under Your profile). Open **Friends** from Settings to find
 friends by their handle and send or accept requests - once connected, you can
 send a place or a menu straight to a friend from any Share sheet, and things
-friends send you appear under **Shared with you**.
+friends send you appear under **Shared with you**. Friends are also one tap
+from the **+** button.
+
+**Call people what you call them.** Usernames are rarely how you think of
+someone. On any friend, tap **+ Add your name for them** and type the name you
+know them by, so "@ashuttles" simply reads "Ashley Williams". It is your own
+address book: their account and handle never change, and nobody else sees it.
+The name follows them everywhere - your friends list, the people you tag on
+visits (including visits you logged before the rename), split-the-check
+suggestions, group-order invites, and Venmo requests. Clear it and they go
+back to their own name.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
 names build your **dining companions** view in the Discover tab - who you eat
@@ -6688,6 +6698,8 @@ function App(){
         setMeta(m);
         // Venmo @handles sync via meta - seed the module cache from the saved map.
         try { hydrateVenmoHandles(m.venmo_handles || {}); } catch(_e){}
+        // Your own names for connections sync the same way.
+        try { hydrateConnNames(m.conn_names || {}); } catch(_e){}
       } catch(e){ logMsg("WARN","meta load failed: " + e.message); }
       try {
         const sr = await ghGetFile(cfg, "data/splits.json");
@@ -6793,7 +6805,10 @@ function App(){
     registerVenmoPersist((map)=> {
       saveMeta(Object.assign({}, metaRef.current, { venmo_handles: map }));
     });
-    return ()=> registerVenmoPersist(null);
+    registerConnNamesPersist((map)=> {
+      saveMeta(Object.assign({}, metaRef.current, { conn_names: map }));
+    });
+    return ()=> { registerVenmoPersist(null); registerConnNamesPersist(null); };
     // eslint-disable-next-line
   }, []);
   // Saved standalone check splits. Same direct-persistence pattern as lists:
@@ -8355,11 +8370,14 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit }){
   const byId = {}; (restaurants || []).forEach(r => { byId[r.id] = r; });
   const restName = (v)=> { const r = byId[v.restaurant_id]; return r ? r.name : (v.restaurant_name || "Unknown"); };
 
-  const map = new Map();   // lower name -> { key, name, count, last, username, user_id, visits[] }
+  // Key on the linked ACCOUNT where there is one, so renaming someone merges
+  // their whole history under the new name instead of leaving two entries.
+  const map = new Map();   // key -> { key, name, count, last, username, user_id, visits[] }
   (visits || []).forEach(v => (v.companions || []).forEach(p => {
-    const nm = ((p && p.name) || "").trim(); if (!nm) return;
-    const k = nm.toLowerCase();
+    const nm = personDisplay(p).trim(); if (!nm) return;
+    const k = companionKey(p);
     const cur = map.get(k) || { key:k, name:nm, count:0, last:"", username:undefined, user_id:undefined, visits:[] };
+    cur.name = nm;                      // always show what you call them NOW
     cur.count += 1;
     if ((v.date || "") > cur.last) cur.last = v.date || "";
     if (p.username && !cur.username) cur.username = p.username;
@@ -8407,7 +8425,7 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit }){
                 )}
                 {(v.companions || []).length > 1 ? (
                   <div className="tiny faint" style={{marginTop:8}}>
-                    With {v.companions.map(p=> p.name).filter(n => (n||"").toLowerCase() !== selPerson.key).join(", ")}
+                    With {v.companions.filter(p => companionKey(p) !== selPerson.key).map(p => personDisplay(p)).join(", ")}
                   </div>
                 ) : null}
               </div>
@@ -8909,7 +8927,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             <NutriLine n={v.nutrition} />
             {v.notes && <div className="small muted" style={{marginTop:9}}>{v.notes}</div>}
             {(v.companions || []).length ? (
-              <div className="small muted" style={{marginTop:8}}>With {v.companions.map(p=> p.name).join(", ")}</div>
+              <div className="small muted" style={{marginTop:8}}>With {v.companions.map(p => personDisplay(p)).join(", ")}</div>
             ) : null}
             {v.split ? (
               <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
@@ -10513,7 +10531,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <NutriLine n={v.nutrition} />
               {v.notes && <div className="small muted" style={{marginTop:8}}>{v.notes}</div>}
               {(v.companions || []).length ? (
-                <div className="small muted" style={{marginTop:8}}>With {v.companions.map(p=> p.name).join(", ")}</div>
+                <div className="small muted" style={{marginTop:8}}>With {v.companions.map(p => personDisplay(p)).join(", ")}</div>
               ) : null}
               {v.split ? (
                 <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
@@ -12581,8 +12599,8 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const splitRoster = (function(){
     const byKey = new Map();   // lower name -> display name
     const put = (nm)=>{ const s = (nm || "").trim(); if (!s) return; const k = s.toLowerCase(); if (!byKey.has(k)) byKey.set(k, s); };
-    (conns || []).forEach(c => put(c.display_name || c.username));
-    (visits || []).forEach(v => (v.companions || []).forEach(p => put(p && p.name)));
+    (conns || []).forEach(c => put(connLabel(c).primary));
+    (visits || []).forEach(v => (v.companions || []).forEach(p => put(personDisplay(p))));
     return Array.from(byKey.values()).sort((a,b)=> a.localeCompare(b));
   })();
   function nameSuggestions(){
@@ -15504,7 +15522,7 @@ function PeopleTag({ value, onChange, roster }){
       {list.length ? (
         <div className="go-chips" style={{marginBottom:8}}>
           {list.map((p,i)=>(
-            <span key={i} className="go-chip">{p.name}
+            <span key={i} className="go-chip">{personDisplay(p)}
               {p.user_id || p.username ? <span style={{color:"var(--accent)", marginLeft:3}} title="Linked to a MenuCaptain account">@</span> : null}
               <button className="go-chip-x" onClick={()=> onChange(list.filter((_,j)=> j!==i))}>&times;</button>
             </span>
@@ -15574,8 +15592,8 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       byKey.set(k, Object.assign(cur, extra || {}, { name: cur.name || nm,
         handle: cur.handle || extra && extra.handle || venmo[k] || undefined }));
     };
-    (conns || []).forEach(c => put(c.display_name || c.username, { username: c.username || undefined, user_id: c.user_id || c.id || undefined }));
-    (visits || []).forEach(v => (v.companions || []).forEach(p => put(p.name, { username: p.username, user_id: p.user_id })));
+    (conns || []).forEach(c => put(connLabel(c).primary, { username: c.username || undefined, user_id: c.user_id || c.id || undefined }));
+    (visits || []).forEach(v => (v.companions || []).forEach(p => put(personDisplay(p), { username: p.username, user_id: p.user_id })));
     // Connections (linked accounts) sort first, then past-tagged names; each A-Z.
     return Array.from(byKey.values()).sort((a,b)=>
       (Number(!!(b.user_id || b.username)) - Number(!!(a.user_id || a.username)))
@@ -19201,7 +19219,7 @@ function GroupInvitePicker({cfg, code}){
               <div className="small faint" style={{padding:"4px 0 12px"}}>
                 {loadFail
                   ? <>Couldn't load your connections. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
-                  : <>No connections yet. Add some in Settings &rarr; Connections.</>}
+                  : <>No friends yet. Add some in Settings &rarr; Friends.</>}
               </div>
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
               const l = connLabel(c);
@@ -21821,7 +21839,10 @@ async function removeConnection(cfg, id){
 // A connection's display: full display name as the primary line, @handle as the
 // secondary (or @handle alone if there's no display name).
 function connLabel(c){
-  const dn = (c.display_name || "").trim();
+  // Your own name for them wins over their profile name - this is your address
+  // book. Clearing it falls back to their display name, then to the handle.
+  const mine = getConnName(c.user_id || c.id);
+  const dn = mine || (c.display_name || "").trim();
   const at = c.username ? "@" + c.username : "";
   if (dn) return { primary: dn, secondary: at };
   return { primary: at || "Unknown", secondary: "" };
@@ -21836,6 +21857,55 @@ function loadConnFavs(){
 }
 function saveConnFavs(set){
   try { localStorage.setItem("dininglog_fav_connections", JSON.stringify(Array.from(set))); } catch(e){}
+}
+
+// ---- Your own name for a person -------------------------------------------
+// An address-book layer over the system's identities: you can call @ashuttles
+// "Ashley Williams" without touching her account, her handle, or how she
+// appears to anyone else. Keyed by the OTHER person's user_id (stable and
+// unique; a handle can change). SYNCS via the user's meta with a localStorage
+// mirror, exactly like the Venmo handles above.
+let _connNameCache = null;         // {user_id: "Your name for them"}
+let _persistConnNames = null;      // (map) => save into meta; set by App
+function loadConnNames(){
+  if (_connNameCache) return _connNameCache;
+  try { _connNameCache = JSON.parse(localStorage.getItem("mc_conn_names") || "{}") || {}; }
+  catch(e){ _connNameCache = {}; }
+  return _connNameCache;
+}
+function hydrateConnNames(fromMeta){
+  let local = {};
+  try { local = JSON.parse(localStorage.getItem("mc_conn_names") || "{}") || {}; } catch(e){}
+  _connNameCache = Object.assign({}, local, fromMeta || {});
+  try { localStorage.setItem("mc_conn_names", JSON.stringify(_connNameCache)); } catch(e){}
+}
+function registerConnNamesPersist(fn){ _persistConnNames = fn; }
+function getConnName(userId){
+  const k = (userId || "").trim();
+  return k ? (loadConnNames()[k] || "") : "";
+}
+function saveConnName(userId, name){
+  const k = (userId || "").trim();
+  if (!k) return;
+  const nm = (name || "").trim().slice(0, 60);
+  const m = Object.assign({}, loadConnNames());
+  if (nm) m[k] = nm; else delete m[k];
+  _connNameCache = m;
+  try { localStorage.setItem("mc_conn_names", JSON.stringify(m)); } catch(e){}
+  if (_persistConnNames){ try { _persistConnNames(m); } catch(e){} }
+}
+// How a tagged person should READ anywhere in the app. Companions store the
+// name as it was when tagged, so this re-labels past visits too when you know
+// the person by another name now.
+// Identity key for a tagged person: the linked account when there is one, so a
+// rename keeps all their visits together, else the name they were tagged with.
+function companionKey(p){
+  if (p && p.user_id) return "id:" + p.user_id;
+  return ((p && p.name) || "").trim().toLowerCase();
+}
+function personDisplay(p){
+  if (!p) return "";
+  return getConnName(p.user_id) || (p.name || "") || (p.username ? "@" + p.username : "");
 }
 
 // Swipe-to-delete wrapper (touch + mouse via pointer events). Swipe a row LEFT;
@@ -21905,18 +21975,55 @@ function SwipeToDelete({ onDelete, children }){
   );
 }
 
-function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub, fav, onToggleFav, venmoName}){
+function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub, fav, onToggleFav, venmoName, onRenamed}){
   const l = connLabel(c);
   // Venmo @handle for this person, saved with the connection (synced via meta).
   // Auto-fills when they're tagged in a split. Only shown for accepted connections.
   const [vh, setVh]     = useState(()=> venmoName ? getVenmoHandle(venmoName) : "");
   const [vEdit, setVEdit] = useState(false);
   function saveVh(){ saveVenmoHandle(venmoName, vh); setVh((vh||"").trim().replace(/^@/,"")); setVEdit(false); }
+  // Your own name for this person. Only offered on real accounts (needs a
+  // stable user_id to key on), and it never touches their profile.
+  const uid = c.user_id || c.id || "";
+  const [nick, setNick]   = useState(()=> getConnName(uid));
+  const [nEdit, setNEdit] = useState(false);
+  const [nDraft, setNDraft] = useState("");
+  function openNick(){ setNDraft(nick || ""); setNEdit(true); }
+  function saveNick(){
+    const v = (nDraft || "").trim();
+    const oldLabel = connLabel(c).primary;          // what they were called before
+    saveConnName(uid, v);
+    const newLabel = connLabel(c).primary;          // what they are called now
+    // Venmo handles are keyed by the DISPLAYED name, so a rename would orphan
+    // one. Carry it across instead of silently losing it.
+    if (oldLabel && newLabel && oldLabel !== newLabel){
+      const h = getVenmoHandle(oldLabel);
+      if (h && !getVenmoHandle(newLabel)){ saveVenmoHandle(newLabel, h); setVh(h); }
+    }
+    setNick(v); setNEdit(false);
+    if (onRenamed) onRenamed();
+  }
   return (
     <div className="between" style={{padding:"9px 0", borderBottom:"1px solid var(--line-soft)", alignItems:"flex-start"}}>
       <div style={{minWidth:0, flex:1}}>
         <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{l.primary}</div>
         {sub ? <div className="tiny faint">{sub}</div> : (l.secondary ? <div className="tiny faint">{l.secondary}</div> : null)}
+        {uid ? (
+          nEdit ? (
+            <div className="row" style={{gap:6, marginTop:6, alignItems:"center"}}>
+              <ClearInput value={nDraft} placeholder="Name you know them by" autoFocus
+                style={{flex:1, padding:"5px 8px", fontSize:13, minWidth:0}}
+                onChange={e=> setNDraft(e.target.value)}
+                onKeyDown={e=> { if (e.key === "Enter") saveNick(); }} />
+              <button className="btn primary sm" style={{margin:0}} onClick={saveNick}>Save</button>
+            </div>
+          ) : (
+            <button className="tiny" style={{marginTop:4, color:"var(--accent)", background:"none",
+              border:"none", padding:0, cursor:"pointer"}} onClick={openNick}>
+              {nick ? "Your name for them  ·  edit" : "+ Add your name for them"}
+            </button>
+          )
+        ) : null}
         {venmoName ? (
           vEdit ? (
             <div className="row" style={{gap:6, marginTop:6, alignItems:"center"}}>
@@ -21961,6 +22068,7 @@ function ConnectionsScreen({config, profile, onClose, onHome}){
   const [addErr, setAddErr]   = useState("");
   const [busyId, setBusyId]   = useState(null);
   const [favs, setFavs]       = useState(loadConnFavs);
+  const [, setNameTick]       = useState(0);   // bump to re-render after a rename
   function toggleFav(uid){
     setFavs(prev => {
       const next = new Set(prev);
@@ -22008,7 +22116,7 @@ function ConnectionsScreen({config, profile, onClose, onHome}){
     <div className="overlay">
       <div className="ovhead">
         <BackBtn onClick={onClose} />
-        <h2>Connections</h2><HomeBtn onHome={onHome} />
+        <h2>Friends</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
         {noHandle ? (
@@ -22049,13 +22157,14 @@ function ConnectionsScreen({config, profile, onClose, onHome}){
               </>
             ) : null}
 
-            <div className="set-group">Your connections{connections.length ? " (" + connections.length + ")" : ""}</div>
+            <div className="set-group">Your friends{connections.length ? " (" + connections.length + ")" : ""}</div>
             <div className="card">
               {connections.length === 0 ? (
-                <div className="small faint">No connections yet. Add someone by their username above.</div>
+                <div className="small faint">No friends yet. Add someone by their username above.</div>
               ) : sortedConns.map(c => (
                 <ConnRow key={c.id} c={c} busy={busyId===c.id}
                   venmoName={connLabel(c).primary}
+                  onRenamed={()=> setNameTick(t => t + 1)}
                   fav={favs.has(c.user_id)} onToggleFav={()=> toggleFav(c.user_id)}
                   secondaryBtn="Remove" onSecondary={()=> act(removeConnection, c.id)} />
               ))}
@@ -22147,7 +22256,7 @@ function LeaderboardScreen({config, profile, onProfileChange, onClose, onHome}){
           <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
         ) : rows.length === 0 ? (
           <div className="small faint" style={{padding:"4px 2px"}}>
-            No one to rank yet. Connect with friends (Settings &rarr; Connections) and they'll show up here.
+            No one to rank yet. Add friends (Settings &rarr; Friends) and they'll show up here.
           </div>
         ) : (
           <div className="card" style={{padding:"2px 0"}}>
@@ -22427,7 +22536,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
               <div className="small faint" style={{padding:"4px 0 12px"}}>
                 {loadFail
                   ? <>Couldn't load your connections. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
-                  : <>No connections yet. Add some in Settings &rarr; Connections.</>}
+                  : <>No friends yet. Add some in Settings &rarr; Friends.</>}
               </div>
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
               const l = connLabel(c); const on = !!pick[c.user_id];
@@ -22511,7 +22620,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label}){
               <div className="small faint" style={{padding:"4px 0 12px"}}>
                 {loadFail
                   ? <>Couldn't load your connections. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
-                  : <>No connections yet. Add some in Settings &rarr; Connections.</>}
+                  : <>No friends yet. Add some in Settings &rarr; Friends.</>}
               </div>
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
               const l = connLabel(c); const on = !!pick[c.user_id];
@@ -22747,7 +22856,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       <div className="card" style={{cursor:"pointer"}} onClick={onOpenConnections}>
         <div className="between">
           <div>
-            <div style={{fontWeight:600}}>Connections</div>
+            <div style={{fontWeight:600}}>Friends</div>
             <div className="tiny faint" style={{marginTop:3}}>
               {pendingReqs ? (pendingReqs + " pending request" + (pendingReqs > 1 ? "s" : "")) : "Find friends and manage requests"}
             </div>
