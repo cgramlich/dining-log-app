@@ -412,6 +412,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       width:100%; max-width:540px; margin:0 auto; background:var(--bg-2);
       border-radius:20px 20px 0 0; padding:10px 16px calc(20px + env(safe-area-inset-bottom));
       border-top:1px solid var(--line); animation:slideup 0.2s ease;
+      /* Bottom-anchored, so anything taller than the screen clips off the TOP
+         with no way to reach it. Cap the height and scroll instead. */
+      max-height:88vh; max-height:88dvh; overflow-y:auto;
     }
     .sheet .grip{width:38px; height:4px; background:var(--line); border-radius:2px; margin:6px auto 14px;}
     .sheet-item{
@@ -922,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.356.2";
+const APP_VERSION   = "1.357.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1503,7 +1506,9 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
 - **The plus (+) button** - quick actions. **Find places near me** discovers
   spots around you, and **Find a place** searches your places or anywhere on
   Google. Below them are the things you do once you're there: scan or find a
-  menu, log a visit, split the check, or start a group order.
+  menu, log a visit, split the check, or start a group order. **Find friends**
+  is here too, so your connections are always one tap away; if someone has
+  asked to connect, a badge shows the count.
 - **History** - everything you have logged, newest first.
 - **Discover** - the home for Your Year in Food, your Food
   passport, dining companions, your published lists, your saved splits, and any
@@ -5156,6 +5161,9 @@ function Icon({name, size, color}){
     sparkle: <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/>,
     heart:   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
     nodes:   <g><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5L15.4 6.5"/><path d="M8.6 13.5L15.4 17.5"/></g>,
+    // Two figures = friends / connections. Deliberately distinct from `nodes`,
+    // which is the share-network glyph used for group orders.
+    people:  <g><path d="M16.5 20v-1.8a3.7 3.7 0 0 0-3.7-3.7H6.2A3.7 3.7 0 0 0 2.5 18.2V20"/><circle cx="9.5" cy="7.3" r="3.7"/><path d="M21.5 20v-1.8a3.7 3.7 0 0 0-2.8-3.6"/><path d="M15.6 3.9a3.7 3.7 0 0 1 0 7.2"/></g>,
     receipt: <g><path d="M6 3h12v18l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3L6 21Z"/><path d="M9 8h6M9 12h6"/></g>,
     compass: <g><circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2.1 4.7-4.7 2.1 2.1-4.7z"/></g>,
     locate:  <g><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="2.3"/></g>,
@@ -7495,10 +7503,12 @@ function App(){
       {sheet && (
         <ActionSheet
           onClose={()=> setSheet(false)}
+          pendingReqs={pendingReqs}
           onPick={(what)=>{
             setSheet(false);
-            // "nearMe" and "findPlace" are existing overlay types, so every
-            // sheet action maps straight onto its overlay.
+            // Every sheet action is itself an overlay type ("nearMe",
+            // "findPlace", "connections", ...), so this maps straight across.
+            if (what === "connections") setReqSeen(pendingReqs);
             setOverlay({ type:what });
           }} />
       )}
@@ -14404,11 +14414,16 @@ function FeedbackForm({ cfg, onClose }){
   );
 }
 
-function ActionSheet({onClose, onPick}){
-  const Item = ({what, icon, t1, t2})=> (
+function ActionSheet({onClose, onPick, pendingReqs}){
+  const Item = ({what, icon, t1, t2, badge})=> (
     <button type="button" className="sheet-item" onClick={()=> onPick(what)}>
       <span className="ic"><Icon name={icon} size={21} color="var(--accent)" /></span>
-      <div><div className="t1">{t1}</div><div className="t2">{t2}</div></div>
+      <div style={{flex:1, minWidth:0}}><div className="t1">{t1}</div><div className="t2">{t2}</div></div>
+      {badge ? (
+        <span style={{flex:"none", minWidth:20, height:20, padding:"0 6px", borderRadius:10,
+          background:"var(--danger)", color:"#fff", fontSize:11.5, fontWeight:700,
+          display:"flex", alignItems:"center", justifyContent:"center"}}>{badge}</span>
+      ) : null}
     </button>
   );
   return (
@@ -14422,6 +14437,12 @@ function ActionSheet({onClose, onPick}){
         <Item what="logVisit"   icon="plate"   t1="Log a visit"          t2="Record a meal and rate it" />
         <Item what="splitCheck" icon="receipt" t1="Split the check"      t2="Snap the receipt, split by who had what" />
         <Item what="groupStart" icon="nodes"   t1="Start a group order"  t2="Everyone adds what they want" />
+        {/* Connections also lives in Settings, but people look for friends
+            here - and a pending request is worth surfacing on the + button. */}
+        <Item what="connections" icon="people" t1="Find friends"
+          t2={pendingReqs ? ("You have " + pendingReqs + " request" + (pendingReqs > 1 ? "s" : "") + " waiting")
+                          : "Your connections and pending requests"}
+          badge={pendingReqs || 0} />
       </div>
     </div>
   );
