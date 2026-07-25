@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.361.0";
+const APP_VERSION   = "1.362.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1926,11 +1926,16 @@ earned before badges arrived simply shows as already earned, without a fuss.
 ## Friends
 
 MenuCaptain has a light social layer built around your **@handle** (set it in
-Settings, under Your profile). Open **Friends** from Settings to find
-friends by their handle and send or accept requests - once connected, you can
-send a place or a menu straight to a friend from any Share sheet, and things
-friends send you appear under **Shared with you**. Friends are also one tap
-from the **+** button.
+Settings, under Your profile). Open **Friends** - at the top of the
+**Discover** tab, or from the **+** button - to find friends by their handle
+and send or accept requests. Once connected you can send a place, a menu, or a
+visit straight to a friend from any Share sheet, and anything they send you
+appears under **Shared with you**, with a banner on Home so you never miss it.
+
+**Getting paid back.** Add **Your Venmo** to your profile and your friends'
+apps learn it automatically, so when someone splits a check with you they can
+send your share in one tap - no more asking for handles. Only people whose
+requests you have accepted can see it, and you can clear it any time.
 
 **Call people what you call them.** Usernames are rarely how you think of
 someone. On any friend, tap **+ Add your name for them** and type the name you
@@ -7493,6 +7498,8 @@ function App(){
             onOpenPeople={()=> setOverlay({ type:"people" })}
             onOpenLeaderboard={()=> setOverlay({ type:"leaderboard" })}
             onOpenShares={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }} sharesCount={sharesCount}
+            onOpenConnections={()=>{ setReqSeen(pendingReqs); setOverlay({ type:"connections" }); }}
+            pendingReqs={pendingReqs}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
             onLogVisit={()=> setOverlay({ type:"logVisit" })}
             onAddPlace={()=> setOverlay({ type:"addRestaurant" })}
@@ -8485,7 +8492,7 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit }){
 // nag. Earned state is derived the same pure way Settings used to compute it.
 function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
                         onOpenYearInFood, onOpenPassport, onOpenLeaderboard, onOpenPeople,
-                        onOpenShares, sharesCount,
+                        onOpenShares, sharesCount, onOpenConnections, pendingReqs,
                         onScanMenu, onLogVisit, onAddPlace, onPublishList, onOpenMyLists,
                         savedListCount, onShareApp,
                         onOpenSplit, onNewSplit, onDeleteSplit }){
@@ -8503,6 +8510,53 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
     <div>
       {/* Active/open group orders live here now (your activity), off the Places tab. */}
       {cfg ? <ActiveGroupOrders cfg={cfg} /> : null}
+
+      {/* People first: friends and anything waiting from them. This used to be
+          buried in Settings, which reads as configuration, not as your list of
+          friends. */}
+      {(onOpenConnections || onOpenShares) ? (
+        <>
+          <div className="set-group" style={{marginTop:6}}>People</div>
+          {onOpenConnections ? (
+            <div className="yif-entry tap" onClick={onOpenConnections}>
+              <span className="yif-entry-ic"><Icon name="people" size={16} color="var(--accent)" /></span>
+              <span className="yif-entry-tx">
+                <span className="yif-entry-t">Friends</span>
+                <span className="yif-entry-s">
+                  {pendingReqs > 0
+                    ? ("You have " + pendingReqs + " request" + (pendingReqs > 1 ? "s" : "") + " waiting")
+                    : "Find friends, and manage requests"}
+                </span>
+              </span>
+              {pendingReqs > 0 ? (
+                <span style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9, background:"var(--danger)",
+                  color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
+                  justifyContent:"center", flex:"none", marginRight:8}}>{pendingReqs}</span>
+              ) : null}
+              <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+                <Icon name="back" size={15} color="var(--text-faint)" />
+              </span>
+            </div>
+          ) : null}
+      {onOpenShares ? (
+        <div className="yif-entry tap" onClick={onOpenShares}>
+          <span className="yif-entry-ic"><Icon name="share" size={16} color="var(--accent)" /></span>
+          <span className="yif-entry-tx">
+            <span className="yif-entry-t">Shared with you</span>
+            <span className="yif-entry-s">Places, menus, and visits your friends sent</span>
+          </span>
+          {sharesCount > 0 ? (
+            <span style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9, background:"var(--danger)",
+              color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
+              justifyContent:"center", flex:"none", marginRight:8}}>{sharesCount}</span>
+          ) : null}
+          <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+            <Icon name="back" size={15} color="var(--text-faint)" />
+          </span>
+        </div>
+      ) : null}
+        </>
+      ) : null}
 
       <div className="set-group" style={{marginTop:6}}>Your journey</div>
       <div className="yif-entry tap" onClick={onOpenYearInFood}>
@@ -8544,23 +8598,6 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
             <span className="yif-entry-t">Leaderboard</span>
             <span className="yif-entry-s">How you and your friends stack up</span>
           </span>
-          <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
-            <Icon name="back" size={15} color="var(--text-faint)" />
-          </span>
-        </div>
-      ) : null}
-      {onOpenShares ? (
-        <div className="yif-entry tap" onClick={onOpenShares}>
-          <span className="yif-entry-ic"><Icon name="share" size={16} color="var(--accent)" /></span>
-          <span className="yif-entry-tx">
-            <span className="yif-entry-t">Shared with you</span>
-            <span className="yif-entry-s">Places & menus your connections sent</span>
-          </span>
-          {sharesCount > 0 ? (
-            <span style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9, background:"var(--danger)",
-              color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
-              justifyContent:"center", flex:"none", marginRight:8}}>{sharesCount}</span>
-          ) : null}
           <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
             <Icon name="back" size={15} color="var(--text-faint)" />
           </span>
@@ -21705,7 +21742,14 @@ function ProfileCard({config, onProfileChange}){
             <div style={{minWidth:0}}>
               <div style={{fontWeight:600}}>@{current.username}</div>
               {current.display_name ? <div className="tiny faint" style={{marginTop:2}}>{current.display_name}</div> : null}
-              <div className="tiny faint" style={{marginTop:4}}>How friends find and connect with you.</div>
+              {current.venmo_handle ? (
+                <div className="tiny" style={{marginTop:3, color:"#3D95CE"}}>Venmo @{current.venmo_handle}</div>
+              ) : null}
+              <div className="tiny faint" style={{marginTop:4}}>
+                {current.venmo_handle
+                  ? "Friends find you by your username, and settle up with you on Venmo."
+                  : "How friends find and connect with you. Add your Venmo so they can pay you back in one tap."}
+              </div>
             </div>
             <button className="btn ghost sm" onClick={startEdit} title="Edit username" style={{flex:"none"}}>
               <Icon name="edit" size={16} />
@@ -21714,7 +21758,9 @@ function ProfileCard({config, onProfileChange}){
         ) : (
           <>
             <div className="tiny faint" style={{marginBottom:12}}>
-              {hasHandle ? "Edit your username or display name." : "Claim a username so friends can find and connect with you."}
+              {hasHandle
+                ? "Your username is how friends find you; your Venmo is how they settle up with you."
+                : "Claim a username so friends can find and connect with you."}
             </div>
             <label className="fld"><span className="lbl">Username</span>
               <div style={{display:"flex", alignItems:"center", gap:6}}>
