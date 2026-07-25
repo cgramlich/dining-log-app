@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.358.0";
+const APP_VERSION   = "1.359.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1668,7 +1668,7 @@ it with the camera instead.
 
 **Sharing a place or its menus.** Every way to share lives under one **Share**
 button on the place page. Tap it and pick:
-- **Send to a connection** - drop the place and its menu into a friend's "Shared
+- **Send to a friend** - drop the place and its menu into a friend's "Shared
   with you" inbox (in-app, for people you're connected with).
 - **Share a link** - a link anyone can open, no account needed.
 - **Add to the community** - contribute your menu(s) so other diners at
@@ -1967,7 +1967,7 @@ a friend something you like.
 On a place's page, tap the **share** icon at the top to open the Share sheet.
 It offers four ways to share:
 
-- **Send to a connection** - sends the place (with its menu) straight to a
+- **Send to a friend** - sends the place (with its menu) straight to a
   MenuCaptain friend; it appears under their "Shared with you."
 - **Share a link** - a recommendation link anyone can open, app or not: the
   place, its menu to browse, and a few dishes you loved. Signed-in friends can
@@ -2875,7 +2875,7 @@ async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr, 
   const name = (restaurant && restaurant.name) || "this place";
   // A place RECOMMENDATION, not a menu-pick: the recipient browses the place +
   // its menu + a few dishes I love, and can save it or get the app. (The "tap
-  // dishes and send them back" flow lives under Send to a connection instead.)
+  // dishes and send them back" flow lives under Send to a friend instead.)
   const opts = {
     payload: buildPlacePayload(restaurant, combined, lovedNames),
     title: name + " on MenuCaptain",
@@ -7347,13 +7347,7 @@ function App(){
                 const next = visits.map(x => x.id === v.id ? Object.assign({}, x, { loved: !x.loved }) : x);
                 commit({ visits: next }, ["visits"]);
               }}
-              onShareVisit={(v)=>{
-                const rest = restaurantById(v.restaurant_id);
-                const menuList = menus[v.restaurant_id] || [];
-                shareVisit(config, v, rest, menuList,
-                  (b)=>{ if (b) flash("Preparing share link…"); },
-                  (m)=>{ if (m) flash(m); });
-              }}
+              onShareVisit={(v)=> setOverlay({ type:"shareVisitSheet", visit:v })}
               onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
           </>
         )}
@@ -7651,6 +7645,12 @@ function App(){
           onNearMe={()=> setOverlay({ type:"nearMe" })}
           onSpin={()=> setOverlay({ type:"spinPick" })}
           onBrowseUnvisited={()=> setOverlay({ type:"atPlace", mode:"saved", filter:"unvisited" })}
+          onClose={()=> setOverlay(null)} />
+      )}
+      {overlay && overlay.type === "shareVisitSheet" && overlay.visit && (
+        <VisitShareSheet cfg={config} visit={overlay.visit}
+          restaurant={restaurantById(overlay.visit.restaurant_id)}
+          menuList={menus[overlay.visit.restaurant_id] || []}
           onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "connections" && (
@@ -16452,7 +16452,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           return (
             <div style={{margin:"4px 0 14px", display:"flex", flexDirection:"column", gap:8}}>
               <SendVisitToConnection cfg={cfg} visit={shareVisitObj} restaurant={chosenRest}
-                menuList={menuListForVisit} label="Send to a connection" />
+                menuList={menuListForVisit} label="Send to a friend" />
               <button className="btn ghost" disabled={shareBusy}
                 onClick={()=> shareVisit(cfg, shareVisitObj, chosenRest, menuListForVisit, setShareBusy, setShareErr)}>
                 {shareBusy ? <span className="spin" />
@@ -22325,6 +22325,39 @@ async function dismissShare(cfg, id){
 // One "Share" entry point for a place: send to a connection, share a public link,
 // or add your menu(s) to the community library. Opened from the place page and the
 // "Share your menu?" nudge (which jumps straight to the community view).
+// Sharing a visit from a list row: the same two choices the visit page offers -
+// send it to a friend inside MenuCaptain, or hand a link to anyone. The row's
+// icon used to skip straight to the link, so friends were never an option.
+function VisitShareSheet({cfg, visit, restaurant, menuList, onClose}){
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState("");
+  const place = (restaurant && restaurant.name) || (visit && visit.restaurant_name) || "this visit";
+  return (
+    <div className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={e=> e.stopPropagation()}>
+        <div className="grip" />
+        <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:2}}>Share your visit</div>
+        <div className="tiny faint" style={{marginBottom:12}}>{place}</div>
+        <div style={{marginBottom:9}}>
+          <SendVisitToConnection cfg={cfg} visit={visit} restaurant={restaurant}
+            menuList={menuList} label="Send to a friend" />
+        </div>
+        <button className="btn ghost" style={{width:"100%"}} disabled={busy}
+          onClick={()=> shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr)}>
+          {busy ? <span className="spin" />
+            : <span className="row" style={{gap:6, justifyContent:"center"}}>
+                <Icon name="share" size={16} />Share a link with anyone</span>}
+        </button>
+        <div className="tiny faint" style={{marginTop:8}}>
+          Sends the place, the photos, who you were with, and the menu - never your notes or what you ate.
+        </div>
+        {err ? <div className="tiny" style={{marginTop:6, color:"var(--danger)"}}>{err}</div> : null}
+        <button className="btn ghost" style={{width:"100%", marginTop:12}} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
 function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, onShareCard, cardBusy, lovedDishes}){
   const placeId = restaurant && restaurant.google_place_id;
   const [view, setView]         = useState(initialView || "main");   // main | community
@@ -22507,7 +22540,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
             <Icon name="nodes" size={18} color="var(--accent)" />
           </span>
           <span style={{flex:1, minWidth:0}}>
-            <span className="small" style={{fontWeight:600, display:"block"}}>Send to a connection</span>
+            <span className="small" style={{fontWeight:600, display:"block"}}>Send to a friend</span>
             <span className="tiny faint" style={{display:"block", marginTop:2}}>Right into a friend's MenuCaptain</span>
           </span>
           <Icon name="chev" size={15} color="var(--text-faint)" />
@@ -22600,7 +22633,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label}){
     <>
       <button className={"btn ghost" + (label ? "" : " sm")} disabled={busy} onClick={openPicker}>
         <span className="row" style={{gap:6, justifyContent:"center"}}>
-          <Icon name="nodes" size={16} color="var(--accent)" />{label || "Send to a connection"}</span>
+          <Icon name="nodes" size={16} color="var(--accent)" />{label || "Send to a friend"}</span>
       </button>
       {open && (
         <div style={{position:"fixed", inset:0, zIndex:80, background:"rgba(0,0,0,0.55)",
