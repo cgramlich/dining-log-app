@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.362.0";
+const APP_VERSION   = "1.362.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -18186,7 +18186,7 @@ function PublishedVisitLoader({slug}){
   return <PublishedVisit data={data} />;
 }
 
-function PublishedVisit({data}){
+function PublishedVisit({data, onSaved}){
   const home = location.origin + location.pathname;
   const [openMenu, setOpenMenu] = useState(false);
   const [lb, setLb] = useState(-1);          // lightbox photo index, -1 = closed
@@ -18273,6 +18273,7 @@ function PublishedVisit({data}){
                : sections.length ? ((mode === "replace" ? "Replaced the menu on " : "Added the menu to ") + (data.r || "your place") + ".")
                : "You already have this place.");
       logMsg("SHARE","saved shared visit place mode=" + mode);
+      if (onSaved) onSaved();
     } catch(e){ setDupAsk(null); setSaveState("err"); setSaveMsg((e && e.message) || "Could not save."); }
   }
   // "Log my visit here": the recipient was usually THERE, so the natural action
@@ -18352,6 +18353,7 @@ function PublishedVisit({data}){
       setSaveState("saved");
       setSaveMsg("Added " + (data.r || "it") + " to your Want to try list.");
       logMsg("SHARE","added shared visit place to want-to-try");
+      if (onSaved) onSaved();
     } catch(e){ setSaveState("err"); setSaveMsg((e && e.message) || "Could not save."); }
   }
 
@@ -20336,7 +20338,7 @@ function PublishedMenuLoader({slug}){
   return <PublishedMenu data={data} />;
 }
 
-function PublishedMenu({data}){
+function PublishedMenu({data, onSaved}){
   const home = location.origin + location.pathname;
   const isPlace = !!(data && data.k === "p");   // place recommendation (browse) vs menu-pick (send back)
   // picks: "si:ii" -> dish name (object so order-of-tap is stable enough)
@@ -20463,6 +20465,7 @@ function PublishedMenu({data}){
                : mode === "add"     ? ("Added the menu to " + (data.r || "your place") + ".")
                : "Saved to your places.");
       logMsg("SHARE", "saved shared place mode=" + mode);
+      if (onSaved) onSaved();
     } catch(e){ setDupAsk(null); setSaveState("err"); setSaveMsg((e && e.message) || "Could not save."); }
   }
 
@@ -22804,6 +22807,13 @@ function ShareInbox({config, onClose, onHome}){
   async function load(){ setLoadFail(false); try { const d = await getShares(config); setShares((d && d.shares) || []); } catch(e){ setLoadFail(true); } }
   useEffect(()=>{ load(); /* eslint-disable-next-line */ },[]);
   const [note, setNote] = useState("");
+  // Saving a share IS dealing with it: retire the inbox item so the badge
+  // stops nagging. The viewer stays open - you may still want to browse it.
+  async function clearOpened(){
+    const cur = open;
+    if (!cur || !cur.id) return;
+    try { await dismissShare(config, cur.id); await load(); } catch(e){ /* badge will catch up on next load */ }
+  }
   async function remove(id){ setBusyId(id); setNote(""); try { await dismissShare(config, id); await load(); } catch(e){ setNote("Couldn't dismiss that just now - try again."); } finally { setBusyId(null); } }
 
   if (open){
@@ -22814,8 +22824,8 @@ function ShareInbox({config, onClose, onHome}){
             <Icon name="back" size={14} /> Back
           </button>
           {open.kind === "list" ? <PublishedList data={open.payload} />
-            : open.kind === "visit" ? <PublishedVisit data={open.payload} />
-            : <PublishedMenu data={open.payload} />}
+            : open.kind === "visit" ? <PublishedVisit data={open.payload} onSaved={clearOpened} />
+            : <PublishedMenu data={open.payload} onSaved={clearOpened} />}
         </div>
       </div>
     );
