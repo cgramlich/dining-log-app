@@ -922,7 +922,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.356.0";
+const APP_VERSION   = "1.356.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -16401,6 +16401,32 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             onChange={e=>setDate(e.target.value)} />
         </label>
 
+        {/* Sharing a visit you already logged is a top-level action, so it sits
+            right under the place and date rather than below the whole form. */}
+        {existing && (() => {
+          const shareVisitObj = Object.assign({}, existing, {
+            date: date,
+            companions: companions,
+            photos: photoSlots.filter(s => s && s.kind === "existing").map(s => s.path),
+          });
+          const menuListForVisit = (menus && menus[restId]) || [];
+          return (
+            <div style={{margin:"4px 0 14px", display:"flex", flexDirection:"column", gap:8}}>
+              <SendVisitToConnection cfg={cfg} visit={shareVisitObj} restaurant={chosenRest}
+                menuList={menuListForVisit} label="Send to a connection" />
+              <button className="btn ghost" disabled={shareBusy}
+                onClick={()=> shareVisit(cfg, shareVisitObj, chosenRest, menuListForVisit, setShareBusy, setShareErr)}>
+                {shareBusy ? <span className="spin" />
+                  : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="share" size={16} />Share a link</span>}
+              </button>
+              <div className="tiny faint">
+                Sends the place, the photos, who you were with, and the menu - never your notes or what you ate.
+              </div>
+              {shareErr ? <div className="tiny" style={{color:"var(--accent)"}}>{shareErr}</div> : null}
+            </div>
+          );
+        })()}
+
         <div className="fld">
           <span className="lbl">Your rating for this place</span>
           <div className="tiny faint" style={{margin:"-2px 0 6px"}}>
@@ -17065,30 +17091,6 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             {loved ? "Loved this visit" : "Mark this visit loved"}
           </span>
         </button>
-
-        {existing && (() => {
-          const shareVisitObj = Object.assign({}, existing, {
-            date: date,
-            companions: companions,
-            photos: photoSlots.filter(s => s && s.kind === "existing").map(s => s.path),
-          });
-          const menuListForVisit = (menus && menus[restId]) || [];
-          return (
-            <div style={{margin:"4px 0 14px", display:"flex", flexDirection:"column", gap:8}}>
-              <SendVisitToConnection cfg={cfg} visit={shareVisitObj} restaurant={chosenRest}
-                menuList={menuListForVisit} label="Send to a connection" />
-              <button className="btn ghost" disabled={shareBusy}
-                onClick={()=> shareVisit(cfg, shareVisitObj, chosenRest, menuListForVisit, setShareBusy, setShareErr)}>
-                {shareBusy ? <span className="spin" />
-                  : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="share" size={16} />Share a link</span>}
-              </button>
-              <div className="tiny faint">
-                Sends the place, the photos, who you were with, and the menu - never your notes or what you ate.
-              </div>
-              {shareErr ? <div className="tiny" style={{color:"var(--accent)"}}>{shareErr}</div> : null}
-            </div>
-          );
-        })()}
 
         {onDelete && (
           !confirmDel ? (
