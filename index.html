@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.359.0";
+const APP_VERSION   = "1.361.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6429,6 +6429,7 @@ function App(){
   const [profile, setProfile] = useState(null);               // {username, display_name} for greetings/identity
   const [pendingReqs, setPendingReqs] = useState(0);          // incoming connection requests awaiting accept
   const [reqSeen, setReqSeen]         = useState(0);          // request-count the user has dismissed/seen (banner re-shows if it grows)
+  const [sharesSeen, setSharesSeen]   = useState(0);          // same idea for the "shared with you" inbox
   const [sharesCount, setSharesCount] = useState(0);          // items in the "Shared with you" inbox
 
   const toastTimer = useRef(null);
@@ -7310,6 +7311,22 @@ function App(){
             </button>
           </div>
         )}
+        {sharesCount > 0 && sharesCount !== sharesSeen && (
+          <div className="req-banner"
+            onClick={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }}>
+            <span className="req-banner-ic"><Icon name="share" size={18} color="#1b1714" /></span>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontWeight:600}}>
+                {sharesCount} thing{sharesCount > 1 ? "s" : ""} shared with you
+              </div>
+              <div className="tiny" style={{opacity:0.82}}>A friend sent you a place, menu, or visit</div>
+            </div>
+            <button className="req-banner-x" aria-label="Dismiss"
+              onClick={(e)=>{ e.stopPropagation(); setSharesSeen(sharesCount); }}>
+              <Icon name="close" size={15} color="#1b1714" />
+            </button>
+          </div>
+        )}
         {!a2hsDismissed && !isStandalone() && !configComplete(config) && (
           <div style={{marginBottom:13}}>
             <InstallHint onClose={()=>{ try { localStorage.setItem("mc_a2hs_dismissed", "1"); } catch(e){} setA2hsDismissed(true); }} />
@@ -7475,7 +7492,7 @@ function App(){
             onOpenPassport={()=> setOverlay({ type:"passport" })}
             onOpenPeople={()=> setOverlay({ type:"people" })}
             onOpenLeaderboard={()=> setOverlay({ type:"leaderboard" })}
-            onOpenShares={()=> setOverlay({ type:"shares" })} sharesCount={sharesCount}
+            onOpenShares={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }} sharesCount={sharesCount}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
             onLogVisit={()=> setOverlay({ type:"logVisit" })}
             onAddPlace={()=> setOverlay({ type:"addRestaurant" })}
@@ -7513,8 +7530,10 @@ function App(){
         <ActionSheet
           onClose={()=> setSheet(false)}
           pendingReqs={pendingReqs}
+          sharesCount={sharesCount}
           onPick={(what)=>{
             setSheet(false);
+            if (what === "shares") setSharesSeen(sharesCount);
             // Every sheet action is itself an overlay type ("nearMe",
             // "findPlace", "connections", ...), so this maps straight across.
             if (what === "connections") setReqSeen(pendingReqs);
@@ -12480,7 +12499,11 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   const [conns, setConns]         = useState([]);       // accepted connections (for suggestions)
   useEffect(()=>{
     let alive = true;
-    getConnections(config).then(d => { if (alive) setConns((d && d.connections) || []); }).catch(()=>{});
+    getConnections(config).then(d => {
+      if (!alive) return;
+      const list = (d && d.connections) || [];
+      adoptPublishedVenmo(list); setConns(list);
+    }).catch(()=>{});
     return ()=> { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -14432,7 +14455,7 @@ function FeedbackForm({ cfg, onClose }){
   );
 }
 
-function ActionSheet({onClose, onPick, pendingReqs}){
+function ActionSheet({onClose, onPick, pendingReqs, sharesCount}){
   const Item = ({what, icon, t1, t2, badge})=> (
     <button type="button" className="sheet-item" onClick={()=> onPick(what)}>
       <span className="ic"><Icon name={icon} size={21} color="var(--accent)" /></span>
@@ -14457,6 +14480,10 @@ function ActionSheet({onClose, onPick, pendingReqs}){
         <Item what="groupStart" icon="nodes"   t1="Start a group order"  t2="Everyone adds what they want" />
         {/* Connections also lives in Settings, but people look for friends
             here - and a pending request is worth surfacing on the + button. */}
+        <Item what="shares" icon="share" t1="Shared with you"
+          t2={sharesCount ? ("A friend sent you " + sharesCount + " thing" + (sharesCount > 1 ? "s" : ""))
+                          : "Places, menus, and visits from friends"}
+          badge={sharesCount || 0} />
         <Item what="connections" icon="people" t1="Find friends"
           t2={pendingReqs ? ("You have " + pendingReqs + " request" + (pendingReqs > 1 ? "s" : "") + " waiting")
                           : "Your connections and pending requests"}
@@ -15576,7 +15603,11 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   const [conns, setConns] = useState([]);   // accepted connections (for tag autocomplete)
   useEffect(()=>{
     let alive = true;
-    getConnections(cfg).then(d => { if (alive) setConns((d && d.connections) || []); }).catch(()=>{});
+    getConnections(cfg).then(d => {
+      if (!alive) return;
+      const list = (d && d.connections) || [];
+      adoptPublishedVenmo(list); setConns(list);
+    }).catch(()=>{});
     return ()=> { alive = false; };
   // eslint-disable-next-line
   }, []);
@@ -21558,11 +21589,12 @@ async function checkUsername(cfg, username){
   if (!res.ok) throw new Error("check failed");
   return res.json();   // { username, available, reason }
 }
-async function updateMyProfile(cfg, username, displayName){
+async function updateMyProfile(cfg, username, displayName, venmoHandle){
   const res = await fetch(apiBase(cfg) + "/api/profile/me", {
     method:"PUT",
     headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
-    body: JSON.stringify({ username, display_name: displayName || "" }),
+    body: JSON.stringify({ username, display_name: displayName || "",
+                           venmo_handle: (venmoHandle || "").trim().replace(/^@/, "") }),
   });
   const data = await res.json().catch(()=> ({}));
   if (!res.ok) throw new Error((data && data.detail) || "Could not save your profile.");
@@ -21581,9 +21613,10 @@ function profileName(profile){
 
 function ProfileCard({config, onProfileChange}){
   const [loaded, setLoaded]     = useState(false);
-  const [current, setCurrent]   = useState(null);    // server copy {username, display_name}
+  const [current, setCurrent]   = useState(null);    // server copy {username, display_name, venmo_handle}
   const [handle, setHandle]     = useState("");
   const [dname, setDname]       = useState("");
+  const [myVenmo, setMyVenmo]   = useState("");     // your own Venmo, shared with friends
   const [check, setCheck]       = useState(null);    // {available, reason} for the typed handle
   const [checking, setChecking] = useState(false);
   const [busy, setBusy]         = useState(false);
@@ -21599,6 +21632,7 @@ function ProfileCard({config, onProfileChange}){
         const p = await getMyProfile(config);
         if (!alive) return;
         setCurrent(p); setHandle(p.username || ""); setDname(p.display_name || "");
+        setMyVenmo(p.venmo_handle || "");
         if (!p.username) setEditing(true);   // no handle yet -> open the form to claim one
       } catch(e){ if (alive) setErr(e.message); }
       finally { if (alive) setLoaded(true); }
@@ -21626,8 +21660,9 @@ function ProfileCard({config, onProfileChange}){
   async function save(){
     setErr(""); setMsg(""); setBusy(true);
     try {
-      const r = await updateMyProfile(config, handle.trim().toLowerCase(), dname.trim());
-      setCurrent(r); setHandle(r.username || ""); setDname(r.display_name || ""); setCheck(null);
+      const r = await updateMyProfile(config, handle.trim().toLowerCase(), dname.trim(), myVenmo);
+      setCurrent(r); setHandle(r.username || ""); setDname(r.display_name || "");
+      setMyVenmo(r.venmo_handle || ""); setCheck(null);
       setMsg("Saved"); setEditing(false);   // back to read-only display
       onProfileChange && onProfileChange(r);
       logMsg("PROFILE","saved username=" + r.username);
@@ -21637,7 +21672,9 @@ function ProfileCard({config, onProfileChange}){
 
   const h = handle.trim().toLowerCase();
   const isCurrentHandle = !!(current && h === (current.username || "") && h);
-  const unchanged = !!(current && h === (current.username || "") && dname.trim() === (current.display_name || ""));
+  const unchanged = !!(current && h === (current.username || "")
+    && dname.trim() === (current.display_name || "")
+    && (myVenmo || "").trim() === (current.venmo_handle || ""));
   const blocked = !h || checking || (check && !check.available) || unchanged;
 
   let status = null;
@@ -21696,6 +21733,19 @@ function ProfileCard({config, onProfileChange}){
             <label className="fld"><span className="lbl">Display name (optional)</span>
               <ClearInput value={dname} placeholder="e.g. Chris G" maxLength={60}
                 onChange={e=> setDname(e.target.value)} />
+            </label>
+            <label className="fld"><span className="lbl">Your Venmo (optional)</span>
+              <div className="row" style={{gap:6, alignItems:"center"}}>
+                <span style={{color:"var(--text-faint)"}}>@</span>
+                <ClearInput value={myVenmo} placeholder="venmo-username" maxLength={30}
+                  autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                  style={{flex:1, minWidth:0}}
+                  onChange={e=> setMyVenmo(e.target.value.replace(/[^A-Za-z0-9_@-]/g, "").replace(/^@/, ""))} />
+              </div>
+              <div className="tiny faint" style={{marginTop:4}}>
+                Shared with your friends so they can settle up with you in one tap.
+                Only people you have accepted can see it.
+              </div>
             </label>
             <div className="row" style={{gap:8}}>
               <button className="btn primary" onClick={save} disabled={busy || !loaded || blocked}>
@@ -21838,6 +21888,18 @@ async function removeConnection(cfg, id){
 
 // A connection's display: full display name as the primary line, @handle as the
 // secondary (or @handle alone if there's no display name).
+// Friends publish their own Venmo handle on their profile; adopt it for anyone
+// you have not already saved one for, so requesting money just works. Yours
+// always wins - this only ever fills a blank.
+function adoptPublishedVenmo(connections){
+  (connections || []).forEach(c => {
+    const published = (c && c.venmo_handle || "").trim();
+    if (!published) return;
+    const label = connLabel(c).primary;
+    if (label && !getVenmoHandle(label)) saveVenmoHandle(label, published);
+  });
+}
+
 function connLabel(c){
   // Your own name for them wins over their profile name - this is your address
   // book. Clearing it falls back to their display name, then to the handle.
@@ -22079,7 +22141,11 @@ function ConnectionsScreen({config, profile, onClose, onHome}){
   }
 
   async function load(){
-    try { setData(await getConnections(config)); setErr(""); }
+    try {
+      const d = await getConnections(config);
+      adoptPublishedVenmo(d && d.connections);
+      setData(d); setErr("");
+    }
     catch(e){ setErr(e.message); }
     finally { setLoading(false); }
   }
