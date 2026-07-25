@@ -922,7 +922,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.356.1";
+const APP_VERSION   = "1.356.2";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8861,7 +8861,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
               )}
               <span className="row" style={{gap:2, flex:"none", alignItems:"center"}}>
                 {onShareVisit ? (
-                  <button title="Share this visit"
+                  <button title="Share your visit" aria-label="Share your visit"
                     style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
                     onClick={(e)=>{ e.stopPropagation(); onShareVisit(v); }}>
                     <Icon name="share" size={17} color="#80715f" />
@@ -16417,7 +16417,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               <button className="btn ghost" disabled={shareBusy}
                 onClick={()=> shareVisit(cfg, shareVisitObj, chosenRest, menuListForVisit, setShareBusy, setShareErr)}>
                 {shareBusy ? <span className="spin" />
-                  : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="share" size={16} />Share a link</span>}
+                  : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="share" size={16} />Share your visit</span>}
               </button>
               <div className="tiny faint">
                 Sends the place, the photos, who you were with, and the menu - never your notes or what you ate.
