@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.362.1";
+const APP_VERSION   = "1.363.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -7691,7 +7691,13 @@ function App(){
       {overlay && overlay.type === "shares" && (
         <ShareInbox config={config}
           onClose={()=> { setOverlay(null); refreshShares(); }}
-          onHome={()=> { setOverlay(null); refreshShares(); }} />
+          onHome={()=> { setOverlay(null); refreshShares(); }}
+          onLogVisit={(seed)=>{
+            refreshShares();
+            setOverlay({ type:"logVisit", restaurantId: seed.rid,
+              visitSeed: { date: seed.date || "", people: seed.people || [],
+                           photos: seed.photos || [] } });
+          }} />
       )}
 
       {overlay && overlay.type === "groupStartMenu" && (
@@ -18186,7 +18192,7 @@ function PublishedVisitLoader({slug}){
   return <PublishedVisit data={data} />;
 }
 
-function PublishedVisit({data, onSaved}){
+function PublishedVisit({data, onSaved, onLogVisit}){
   const home = location.origin + location.pathname;
   const [openMenu, setOpenMenu] = useState(false);
   const [lb, setLb] = useState(-1);          // lightbox photo index, -1 = closed
@@ -18319,10 +18325,14 @@ function PublishedVisit({data, onSaved}){
           } catch(e){ /* skip this photo */ }
         }
       }
-      try {
-        localStorage.setItem("mc_logvisit_seed", JSON.stringify({
-          rid: rid, name: data.r || "", date: data.dt || "", people: people, photos: importedPhotos }));
-      } catch(e){}
+      const seed = { rid: rid, name: data.r || "", date: data.dt || "",
+                     people: people, photos: importedPhotos };
+      // Opened from inside the app (the "Shared with you" inbox)? Go straight
+      // to the logger. A full reload would throw away the app you are standing
+      // in - the seed hand-off below exists for the PUBLIC link viewer, where
+      // there is no app running yet.
+      if (onLogVisit){ onLogVisit(seed); return; }
+      try { localStorage.setItem("mc_logvisit_seed", JSON.stringify(seed)); } catch(e){}
       location.href = home;   // into the app; it reads the seed and opens the logger
     } catch(e){ setSaveState("err"); setSaveMsg((e && e.message) || "Could not start your visit."); }
   }
@@ -18398,10 +18408,10 @@ function PublishedVisit({data, onSaved}){
                 disabled={saveState === "saving"} onClick={logMyVisit}>
                 {saveState === "saving"
                   ? <span className="spin" />
-                  : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="plus" size={15} color="#1b1714" />Log my visit here</span>}
+                  : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="plus" size={15} color="#1b1714" />I was there - log my visit</span>}
               </button>
               <div className="tiny faint" style={{maxWidth:320}}>
-                <strong>Were you there?</strong> Log your visit (place &amp; date filled in, dishes blank for your own meal).
+                <strong>Were you there too?</strong> This logs it as your own visit - the place, date, photos, and who was there come along, and you add what you ate.
                 {" "}<strong>Not yet?</strong> Add it to Want to try.
               </div>
               <div className="row" style={{gap:8, flexWrap:"wrap", justifyContent:"center"}}>
@@ -22799,7 +22809,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label}){
 
 // "Shared with you" inbox overlay: received places/lists; tap to view (reuses
 // the public viewers, which include "Save to my places"), or dismiss.
-function ShareInbox({config, onClose, onHome}){
+function ShareInbox({config, onClose, onHome, onLogVisit}){
   const [shares, setShares] = useState(null);
   const [open, setOpen]     = useState(null);   // the share being viewed
   const [busyId, setBusyId] = useState(null);
@@ -22824,7 +22834,17 @@ function ShareInbox({config, onClose, onHome}){
             <Icon name="back" size={14} /> Back
           </button>
           {open.kind === "list" ? <PublishedList data={open.payload} />
-            : open.kind === "visit" ? <PublishedVisit data={open.payload} onSaved={clearOpened} />
+            : open.kind === "visit" ? <PublishedVisit data={open.payload} onSaved={clearOpened}
+                onLogVisit={onLogVisit ? (seed)=>{
+                  const from = (open.from || "").trim();
+                  const people = (seed.people || []).slice();
+                  // Whoever sent it was obviously there with you.
+                  if (from && from !== "Someone" && !people.some(n => String(n).trim().toLowerCase() === from.toLowerCase())){
+                    people.unshift(from);
+                  }
+                  clearOpened();
+                  onLogVisit(Object.assign({}, seed, { people: people }));
+                } : null} />
             : <PublishedMenu data={open.payload} onSaved={clearOpened} />}
         </div>
       </div>
