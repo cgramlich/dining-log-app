@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.363.0";
+const APP_VERSION   = "1.364.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6623,6 +6623,10 @@ function App(){
   // Surfaces incoming requests so they're not buried in Settings -> Connections.
   // Loaded on launch + on app resume; also refreshed when the Connections
   // screen closes (after accepting/declining).
+  // Latest visits for the background syncs below: they run from effects that
+  // fire once on launch, so a plain closure would see an empty diary.
+  const visitsRef = useRef(visits);
+  useEffect(()=> { visitsRef.current = visits; }, [visits]);
   function refreshPendingReqs(){
     if (!configComplete(config)) return;
     getConnections(config)
@@ -6635,10 +6639,26 @@ function App(){
       .then(d => setSharesCount(((d && d.shares) || []).length))
       .catch(()=>{});
   }
+  // Remember which shared record a visit belongs to, so re-sharing it reuses
+  // the same table instead of opening a second one.
+  function linkVisitToShared(visitId, svId){
+    if (!visitId || !svId) return;
+    const next = visitsRef.current.map(v => v.id === visitId ? Object.assign({}, v, { sv: svId }) : v);
+    commit({ visits: next }, ["visits"]);
+  }
+  // Pull down whatever the other people on my shared visits have added.
+  function refreshSharedVisits(){
+    if (!configComplete(config)) return;
+    syncSharedVisits(config, visitsRef.current, (patches)=>{
+      const next = visitsRef.current.map(v => patches[v.id] ? Object.assign({}, v, patches[v.id]) : v);
+      commit({ visits: next }, ["visits"]);
+    }).catch(()=>{});
+  }
   useEffect(()=>{
     if (!ready || needSetup || !configComplete(config)) return;
-    refreshPendingReqs(); refreshShares();
-    const onVis = ()=> { if (document.visibilityState === "visible"){ refreshPendingReqs(); refreshShares(); } };
+    refreshPendingReqs(); refreshShares(); refreshSharedVisits();
+    const onVis = ()=> { if (document.visibilityState === "visible"){
+      refreshPendingReqs(); refreshShares(); refreshSharedVisits(); } };
     document.addEventListener("visibilitychange", onVis);
     return ()=> document.removeEventListener("visibilitychange", onVis);
     // eslint-disable-next-line
@@ -6730,7 +6750,7 @@ function App(){
     try { localStorage.removeItem("mc_logvisit_seed"); } catch(e){}
     setOverlay({ type:"logVisit", restaurantId: seed.rid,
       visitSeed: { date: seed.date || "", people: Array.isArray(seed.people) ? seed.people : [],
-        photos: Array.isArray(seed.photos) ? seed.photos : [] } });
+        photos: Array.isArray(seed.photos) ? seed.photos : [], sv: seed.sv || "" } });
   }, [ready, restaurants]);
 
   /* ---- global toast bus: show toast() calls from anywhere ------------- */
@@ -7677,6 +7697,7 @@ function App(){
         <VisitShareSheet cfg={config} visit={overlay.visit}
           restaurant={restaurantById(overlay.visit.restaurant_id)}
           menuList={menus[overlay.visit.restaurant_id] || []}
+          onLinkShared={(svId)=> linkVisitToShared(overlay.visit.id, svId)}
           onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "connections" && (
@@ -7696,7 +7717,7 @@ function App(){
             refreshShares();
             setOverlay({ type:"logVisit", restaurantId: seed.rid,
               visitSeed: { date: seed.date || "", people: seed.people || [],
-                           photos: seed.photos || [] } });
+                           photos: seed.photos || [], sv: seed.sv || "" } });
           }} />
       )}
 
@@ -8071,6 +8092,15 @@ function App(){
                 flash("Photo upload failed - " + err.message);
                 return;  // abort save; user can retry
               }
+            }
+
+            // A visit born from joining stays tied to the shared record, and
+            // tells the shared record which of your visits it is (so photos can
+            // flow both ways from here on).
+            const svId = (overlay.visitSeed && overlay.visitSeed.sv) || (rec && rec.sv) || "";
+            if (svId && rec && !rec.sv) rec.sv = svId;
+            if (svId && rec && rec.id){
+              svPatch(config, svId, { visit_id: rec.id }).catch(()=>{});
             }
 
             let next;
@@ -8991,6 +9021,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             {(v.companions || []).length ? (
               <div className="small muted" style={{marginTop:8}}>With {v.companions.map(p => personDisplay(p)).join(", ")}</div>
             ) : null}
+            {v.sv ? <SharedWith svId={v.sv} /> : null}
             {v.split ? (
               <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
                 merchant={v.restaurant_name} date={v.date}
@@ -16365,7 +16396,9 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   total: receiptTotal != null ? receiptTotal : null };
     }
 
-    const rec = {
+    // Spread `existing` first so fields this form does not edit survive a save -
+    // notably the shared-visit link and the photo keys already pulled from it.
+    const rec = Object.assign({}, existing || {}, {
       id: vid,
       restaurant_id: restId,
       restaurant_name: r ? r.name : "",          // snapshot, survives restaurant deletion
@@ -16380,7 +16413,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       split: splitDraft || null,                 // who-pays-what split, saved with the visit
       companions: companions,                    // people you were with [{name, username?, user_id?, handle?}]
       loved: loved,                              // visit-level "loved" (feeds "Visits I loved")
-    };
+    });
     onSave(rec, { pendingUploads: pendingUploads });
   }
 
@@ -18325,8 +18358,11 @@ function PublishedVisit({data, onSaved, onLogVisit}){
           } catch(e){ /* skip this photo */ }
         }
       }
+      // Joining is the whole point: attach to the shared record so the person
+      // who shared it hears you were there too, and you both keep the album.
+      if (data.sv){ try { await svJoin(myCfg, data.sv, {}); } catch(e){ /* still log it */ } }
       const seed = { rid: rid, name: data.r || "", date: data.dt || "",
-                     people: people, photos: importedPhotos };
+                     people: people, photos: importedPhotos, sv: data.sv || "" };
       // Opened from inside the app (the "Shared with you" inbox)? Go straight
       // to the logger. A full reload would throw away the app you are standing
       // in - the seed hand-off below exists for the PUBLIC link viewer, where
@@ -18411,7 +18447,9 @@ function PublishedVisit({data, onSaved, onLogVisit}){
                   : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="plus" size={15} color="#1b1714" />I was there - log my visit</span>}
               </button>
               <div className="tiny faint" style={{maxWidth:320}}>
-                <strong>Were you there too?</strong> This logs it as your own visit - the place, date, photos, and who was there come along, and you add what you ate.
+                <strong>Were you there too?</strong> You join this visit rather than start a
+                separate one: the place, date, photos, and who was there come along, you add what
+                you ate, and you both keep each other&rsquo;s photos.
                 {" "}<strong>Not yet?</strong> Add it to Want to try.
               </div>
               <div className="row" style={{gap:8, flexWrap:"wrap", justifyContent:"center"}}>
@@ -22024,6 +22062,22 @@ function companionKey(p){
   if (p && p.user_id) return "id:" + p.user_id;
   return ((p && p.name) || "").trim().toLowerCase();
 }
+// A visit two people were at shows the other person by name. This is the whole
+// point of joining rather than logging separately: the record knows you were
+// together, so both diaries say so.
+function SharedWith({ svId }){
+  const others = sharedVisitOthers(svId);
+  if (!others.length) return null;
+  return (
+    <div className="tiny" style={{marginTop:6, color:"var(--accent)"}}>
+      <span className="row" style={{gap:5}}>
+        <Icon name="people" size={13} color="var(--accent)" />
+        Shared visit with {others.join(", ")}
+      </span>
+    </div>
+  );
+}
+
 function personDisplay(p){
   if (!p) return "";
   return getConnName(p.user_id) || (p.name || "") || (p.username ? "@" + p.username : "");
@@ -22426,6 +22480,124 @@ function LeaderboardScreen({config, profile, onProfileChange, onClose, onHome}){
 /* ============================================================
    SHARES (Phase 3): send a place to connections -> their inbox.
    ============================================================ */
+// ---- shared visits ------------------------------------------------------
+// A meal you were BOTH at. Your own visit row stays yours - your dishes, your
+// rating, your notes, what you spent. The shared record holds only the facts
+// you genuinely share: the place, the date, the photos, and who was there. So
+// two people at the same dinner can disagree about the food and both be right.
+async function svCreate(cfg, body){
+  const res = await fetch(apiBase(cfg) + "/api/shared-visits", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify(body || {}),
+  });
+  const d = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((d && d.detail) || "Could not open that shared visit.");
+  return d;   // { id }
+}
+async function svJoin(cfg, sid, body){
+  const res = await fetch(apiBase(cfg) + "/api/shared-visits/" + encodeURIComponent(sid) + "/join", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify(body || {}),
+  });
+  const d = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((d && d.detail) || "Could not join that visit.");
+  return d;
+}
+async function svMine(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/shared-visits/mine", { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("Could not load your shared visits.");
+  return res.json();   // { visits: [...] }
+}
+async function svPatch(cfg, sid, body){
+  const res = await fetch(apiBase(cfg) + "/api/shared-visits/" + encodeURIComponent(sid), {
+    method:"PATCH", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify(body || {}),
+  });
+  const d = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((d && d.detail) || "Could not update that visit.");
+  return d;
+}
+
+// Local mirror so a visit can say who else was there without waiting on the
+// network - same module-cache + localStorage pattern as friend names.
+let _svCache = null;
+function loadSharedVisits(){
+  if (_svCache) return _svCache;
+  try { _svCache = JSON.parse(localStorage.getItem("mc_shared_visits") || "{}") || {}; }
+  catch(e){ _svCache = {}; }
+  return _svCache;
+}
+function sharedVisit(id){ return id ? (loadSharedVisits()[id] || null) : null; }
+function storeSharedVisits(list){
+  const m = {};
+  (list || []).forEach(sv => { if (sv && sv.id) m[sv.id] = sv; });
+  _svCache = m;
+  try { localStorage.setItem("mc_shared_visits", JSON.stringify(m)); } catch(e){}
+  return m;
+}
+// Everyone else on the visit, named the way YOU know them.
+function sharedVisitOthers(id){
+  const sv = sharedVisit(id);
+  if (!sv) return [];
+  return (sv.members || []).filter(m => m && !m.is_me)
+    .map(m => getConnName(m.user_id) || m.name || (m.username ? "@" + m.username : ""))
+    .filter(Boolean);
+}
+
+// Pull the shared visits I'm on and copy in any photos the OTHER people added,
+// so both phones end up holding the same album. Best-effort throughout: a photo
+// that will not copy is skipped, and a dead network changes nothing.
+async function syncSharedVisits(cfg, visits, onVisitsPatched){
+  let list = [];
+  try { const d = await svMine(cfg); list = (d && d.visits) || []; }
+  catch(e){ return; }
+  storeSharedVisits(list);
+  if (!Array.isArray(visits) || !visits.length) return;
+  const byId = {};
+  visits.forEach(v => { if (v && v.id) byId[v.id] = v; });
+  const patches = {};
+  for (let i = 0; i < list.length; i++){
+    const sv = list[i];
+    const mine = byId[sv.my_visit_id];
+    if (!mine) continue;
+    const me = ((sv.members || []).find(m => m && m.is_me) || {}).user_id || "";
+    // Anything under photos/shared/ arrived FROM this record - pushing those
+    // back would just echo. Everything else is a photo I took.
+    const theirs = new Set((sv.photos || []).map(ph => ph && ph.key).filter(Boolean));
+    const push = (mine.photos || []).filter(Boolean)
+      .filter(path => String(path).indexOf("photos/shared/") !== 0)
+      .filter(path => !theirs.has(me + "/" + path));
+    if (push.length){
+      try { await svPatch(cfg, sv.id, { add_photos: push }); }
+      catch(e){ /* they will land on a later sync */ }
+    }
+    const seen = new Set(mine.sv_photo_keys || []);
+    const want = (sv.photos || []).filter(ph => ph && ph.key && ph.by && ph.by !== me && !seen.has(ph.key));
+    if (!want.length) continue;
+    const added = [], keys = [];
+    for (let j = 0; j < want.length; j++){
+      try {
+        const res = await fetch(apiBase(cfg) + "/api/photos/import", {
+          method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+          body: JSON.stringify({ url: want[j].url,
+            path: "photos/shared/" + sv.id + "/" + (j + Date.now() % 100000) + ".jpg" }),
+        });
+        if (!res.ok) continue;
+        const d = await res.json().catch(()=> ({}));
+        if (d && d.path){ added.push(d.path); keys.push(want[j].key); }
+      } catch(e){ /* skip this one */ }
+    }
+    // Record every key we looked at, not just the ones that copied, so a photo
+    // that can never be fetched does not get retried on every single launch.
+    patches[mine.id] = {
+      photos: (mine.photos || []).concat(added),
+      sv_photo_keys: (mine.sv_photo_keys || []).concat(want.map(w => w.key)),
+    };
+    if (added.length) logMsg("SHAREDVISIT", "pulled " + added.length + " photo(s) into " + mine.id);
+  }
+  if (Object.keys(patches).length && onVisitsPatched) onVisitsPatched(patches);
+}
+
 async function sendShare(cfg, toIds, kind, title, payload){
   const res = await fetch(apiBase(cfg) + "/api/shares", {
     method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
@@ -22453,7 +22625,7 @@ async function dismissShare(cfg, id){
 // Sharing a visit from a list row: the same two choices the visit page offers -
 // send it to a friend inside MenuCaptain, or hand a link to anyone. The row's
 // icon used to skip straight to the link, so friends were never an option.
-function VisitShareSheet({cfg, visit, restaurant, menuList, onClose}){
+function VisitShareSheet({cfg, visit, restaurant, menuList, onClose, onLinkShared}){
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState("");
   const place = (restaurant && restaurant.name) || (visit && visit.restaurant_name) || "this visit";
@@ -22465,7 +22637,7 @@ function VisitShareSheet({cfg, visit, restaurant, menuList, onClose}){
         <div className="tiny faint" style={{marginBottom:12}}>{place}</div>
         <div style={{marginBottom:9}}>
           <SendVisitToConnection cfg={cfg} visit={visit} restaurant={restaurant}
-            menuList={menuList} label="Send to a friend" />
+            menuList={menuList} label="Send to a friend" onLinkShared={onLinkShared} />
         </div>
         <button className="btn ghost" style={{width:"100%"}} disabled={busy}
           onClick={()=> shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr)}>
@@ -22726,7 +22898,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
 // Send a VISIT straight to accepted connections (in-app, not a public link).
 // Signs the meal photos, builds the same shareable visit blob, and drops it in
 // each connection's "Shared with you" inbox (kind "visit").
-function SendVisitToConnection({cfg, visit, restaurant, menuList, label}){
+function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkShared}){
   const [open, setOpen]   = useState(false);
   const [conns, setConns] = useState(null);
   const [pick, setPick]   = useState({});
@@ -22747,6 +22919,25 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label}){
     try {
       const photoUrls = await signVisitPhotos(cfg, (visit.photos || []).filter(Boolean));
       const payload = buildVisitPayload(visit, restaurant, menuList || [], photoUrls);
+      // Open (or reuse) the shared record, so anyone who was actually there can
+      // JOIN this visit instead of starting a disconnected one of their own.
+      let svId = (visit && visit.sv) || "";
+      if (!svId){
+        try {
+          const made = await svCreate(cfg, {
+            place_name: place,
+            google_place_id: (restaurant && restaurant.google_place_id) || "",
+            address: (restaurant && restaurant.address) || "",
+            city: (restaurant && restaurant.location) || "",
+            visit_date: (visit && visit.date) || "",
+            photos: ((visit && visit.photos) || []).filter(Boolean),
+            visit_id: (visit && visit.id) || "",
+          });
+          svId = (made && made.id) || "";
+          if (svId && onLinkShared) onLinkShared(svId);
+        } catch(e){ /* the share still sends; it just will not be joinable */ }
+      }
+      if (svId) payload.sv = svId;
       const r = await sendShare(cfg, ids, "visit", place, payload);
       setMsg("Sent to " + (r.sent || 0)); setMsgErr(false);
       setPick({});
@@ -22869,6 +23060,27 @@ function ShareInbox({config, onClose, onHome, onLogVisit}){
             Nothing shared with you yet. When a connection sends you a place or list, it shows up here.
           </div>
         ) : shares.map(s => {
+          // "Joined" is news, not a thing to open: someone you shared a visit
+          // with confirmed they were there too. It reads and clears in one row.
+          if (s.kind === "joined"){
+            const where = (s.payload && s.payload.r) || "your visit";
+            return (
+              <SwipeToDelete key={s.id} onDelete={()=> remove(s.id)}>
+                <div className="card" style={{display:"flex", alignItems:"center", gap:10}}>
+                  <span style={{width:34, height:34, borderRadius:10, flex:"none", display:"flex",
+                        alignItems:"center", justifyContent:"center", background:"rgba(224,118,74,0.12)"}}>
+                    <Icon name="people" size={17} color="var(--accent)" />
+                  </span>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div style={{fontWeight:600}}>{s.title || (s.from + " joined your visit")}</div>
+                    <div className="tiny faint">You were there together, so you will both see each other&rsquo;s photos on it.</div>
+                  </div>
+                  <button className="btn ghost sm" style={{flex:"none"}} disabled={busyId===s.id}
+                    onClick={()=> remove(s.id)}>Got it</button>
+                </div>
+              </SwipeToDelete>
+            );
+          }
           const name = s.title || (s.kind === "list" ? "A list" : s.kind === "visit" ? "A visit" : "A place");
           const kindLabel = s.kind === "list" ? "list" : s.kind === "visit" ? "visit" : "place + menu";
           return (
