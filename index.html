@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.364.0";
+const APP_VERSION   = "1.364.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1945,6 +1945,15 @@ The name follows them everywhere - your friends list, the people you tag on
 visits (including visits you logged before the rename), split-the-check
 suggestions, group-order invites, and Venmo requests. Clear it and they go
 back to their own name.
+
+**A meal you were both at.** Share a visit with someone who was actually there
+and they get an extra choice: **I was there**. That joins your visit rather than
+starting a separate one. The place, the date, and the photos are shared from
+then on, so a photo either of you adds turns up on both phones, and both visits
+read "Shared visit with ..." so you can see at a glance who you were with. What
+you ate, how you rated it, your notes, and what you spent stay yours alone -
+you are welcome to disagree about the food. If you were not there, **Want to
+try** still saves it as a recommendation instead.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
 names build your **dining companions** view in the Discover tab - who you eat
@@ -15674,6 +15683,9 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   const [loved, setLoved] = useState(()=> !!(existing && existing.loved));   // visit-level "loved"
   const [shareBusy, setShareBusy] = useState(false);   // sharing this visit
   const [shareErr, setShareErr]   = useState(null);
+  // Sharing from here can open the shared-visit record. Hold the id until save,
+  // so a second share reuses the same one instead of opening a rival record.
+  const [svLink, setSvLink]       = useState("");
   const [conns, setConns] = useState([]);   // accepted connections (for tag autocomplete)
   useEffect(()=>{
     let alive = true;
@@ -16414,6 +16426,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       companions: companions,                    // people you were with [{name, username?, user_id?, handle?}]
       loved: loved,                              // visit-level "loved" (feeds "Visits I loved")
     });
+    if (svLink && !rec.sv) rec.sv = svLink;      // shared from this form, not yet saved
     onSave(rec, { pendingUploads: pendingUploads });
   }
 
@@ -16554,12 +16567,13 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             date: date,
             companions: companions,
             photos: photoSlots.filter(s => s && s.kind === "existing").map(s => s.path),
+            sv: (existing && existing.sv) || svLink || "",
           });
           const menuListForVisit = (menus && menus[restId]) || [];
           return (
             <div style={{margin:"4px 0 14px", display:"flex", flexDirection:"column", gap:8}}>
               <SendVisitToConnection cfg={cfg} visit={shareVisitObj} restaurant={chosenRest}
-                menuList={menuListForVisit} label="Send to a friend" />
+                menuList={menuListForVisit} label="Send to a friend" onLinkShared={setSvLink} />
               <button className="btn ghost" disabled={shareBusy}
                 onClick={()=> shareVisit(cfg, shareVisitObj, chosenRest, menuListForVisit, setShareBusy, setShareErr)}>
                 {shareBusy ? <span className="spin" />
