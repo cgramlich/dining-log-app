@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.367.0";
+const APP_VERSION   = "1.367.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -18658,16 +18658,22 @@ function PublishedVisit({data, onSaved, onLogVisit}){
           the visit it hijacks the page - so it rides along the bottom edge. */}
       {!canSave ? (
         <>
-          <div style={{height:78}} />
+          <div style={{height:74}} />
           <div style={{position:"fixed", left:0, right:0, bottom:0, zIndex:60,
                background:"var(--bg)", borderTop:"1px solid var(--line)",
-               padding:"10px 14px calc(10px + env(safe-area-inset-bottom))"}}>
+               padding:"9px 14px calc(9px + env(safe-area-inset-bottom))"}}>
             <div style={{maxWidth:600, margin:"0 auto", display:"flex", alignItems:"center", gap:12}}>
-              <div style={{flex:1, minWidth:0}}>
-                <div className="small" style={{fontWeight:600}}>Keep your own dining log</div>
-                <div className="tiny faint">Save this place and log your own visits. Free.</div>
+              {/* One line, clipped rather than wrapped. `.btn` is width:100% by
+                  default, so the button MUST be told to size to its own text or
+                  it takes the whole row and squeezes this to one word per line. */}
+              <div className="small" style={{flex:"1 1 auto", minWidth:0, fontWeight:600,
+                   whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>
+                Keep your own dining log
               </div>
-              <a className="btn primary" style={{flex:"none"}} href={home}>Create account</a>
+              <a className="btn primary" href={home}
+                 style={{width:"auto", flex:"0 0 auto", whiteSpace:"nowrap", padding:"11px 16px"}}>
+                Create account
+              </a>
             </div>
           </div>
         </>
