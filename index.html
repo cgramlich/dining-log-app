@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.365.0";
+const APP_VERSION   = "1.366.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1951,8 +1951,8 @@ and they get an extra choice: **I was there**. That joins your visit rather than
 starting a separate one. The place, the date, and the photos are shared from
 then on, so a photo either of you adds turns up on both phones, and both visits
 read "Shared visit with ..." so you can see at a glance who you were with. What
-you ate, how you rated it, your notes, and what you spent stay yours alone -
-you are welcome to disagree about the food. If you were not there, **Want to
+you ate, your notes, and what you spent stay yours alone, and your ratings stay
+separate - you are welcome to disagree about the food. If you were not there, **Want to
 try** still saves it as a recommendation instead.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
@@ -2990,13 +2990,27 @@ async function signVisitPhotos(cfg, paths){
    builds, which is unacceptable for a link you just handed someone.
    NO private notes and NO dishes travel in the link (see buildVisitPayload).
    setBusy/setErr are optional setters for a spinner / a small note. */
+/* A visit with no meal photos still deserves something to look at, so fall
+   back to the place's OWN saved photo. Deliberately NOT the Google place photo:
+   Google's terms let us DISPLAY those in-app with attribution but not store or
+   re-serve them, and a public share page is exactly the re-serving they forbid.
+   Returns "" whenever there are meal photos already, or nothing to fall back to. */
+async function signVisitHero(cfg, visit, restaurant){
+  if (((visit && visit.photos) || []).filter(Boolean).length) return "";
+  const path = restaurant && restaurant.photo;
+  if (!path) return "";
+  const urls = await signVisitPhotos(cfg, [path]);
+  return urls[0] || "";
+}
+
 async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr){
   if (!visit){ return; }
   if (setBusy) setBusy(true);
   if (setErr) setErr(null);
   try {
     const photoUrls = await signVisitPhotos(cfg, (visit.photos || []).filter(Boolean));
-    const payload = buildVisitPayload(visit, restaurant, menuList, photoUrls);
+    const heroUrl   = await signVisitHero(cfg, visit, restaurant);
+    const payload = buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl);
     let enc     = encodeListPayload(payload);   // same transport as lists/menus
     // The backend page stores the blob (cap 80k), so keep the menu in normal
     // cases; only drop it if we'd blow the backend's limit.
@@ -3128,10 +3142,14 @@ function buildPlacePayload(restaurant, menu, lovedNames){
    (pre-signed by the caller, 30-day), and the place's combined menu (short
    form). DELIBERATELY EXCLUDED: private notes, and what was actually eaten
    (no dishes) - a shared visit invites the recipient to log their own meal,
-   it never exposes the sharer's order or per-dish estimates/ratings. Shape:
-     { k:"v", v:1, r,cu,c,a,gpid,lat,lng, dt, ppl:[names], ph:[urls],
+   it never exposes the sharer's order or per-dish estimates/ratings. The one
+   rating that IS included is the visit's star rating, which is a verdict on the
+   PLACE - the whole point of passing it on, and not the private per-dish detail
+   the exclusions above protect. `hero` is a stand-in image for a visit that has
+   no meal photos of its own. Shape:
+     { k:"v", v:1, r,cu,c,a,gpid,lat,lng, dt, rt, ppl:[names], ph:[urls], hero,
        s:[ { n, i:[ { n,d,p,t } ] } ] } */
-function buildVisitPayload(visit, restaurant, menuList, photoUrls){
+function buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl){
   const usable = (menuList || []).filter(m => m && (m.sections || []).length);
   const combined = usable.length ? (usable.length === 1 ? usable[0] : combineGroupMenus(usable)) : null;
   const sections = (((combined && combined.sections) || []).map(s => ({
@@ -3152,10 +3170,12 @@ function buildVisitPayload(visit, restaurant, menuList, photoUrls){
   if (restaurant && restaurant.lat != null) o.lat = restaurant.lat;
   if (restaurant && restaurant.lng != null) o.lng = restaurant.lng;
   if (visit && visit.date) o.dt = visit.date;
+  if (visit && typeof visit.rating === "number" && visit.rating > 0) o.rt = visit.rating;
   const names = ((visit && visit.companions) || []).map(p => p && p.name).filter(Boolean);
   if (names.length) o.ppl = names.slice(0, 20);
   const ph = (photoUrls || []).filter(Boolean);
   if (ph.length) o.ph = ph.slice(0, 12);
+  else if (heroUrl) o.hero = heroUrl;
   if (sections.length) o.s = sections;
   return o;
 }
@@ -16580,7 +16600,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="share" size={16} />Share your visit</span>}
               </button>
               <div className="tiny faint">
-                Sends the place, the photos, who you were with, and the menu - never your notes or what you ate.
+                Sends the place, your star rating, the photos, who you were with, and the menu - never your notes or what you ate.
               </div>
               {shareErr ? <div className="tiny" style={{color:"var(--accent)"}}>{shareErr}</div> : null}
             </div>
@@ -18425,6 +18445,23 @@ function PublishedVisit({data, onSaved, onLogVisit}){
       <div className="pub-title">{data.r}</div>
       {sub ? <div className="pub-sub">{sub}</div> : null}
       {data.dt ? <div className="pub-sub" style={{marginTop:2}}>{fmtDate(data.dt)}</div> : null}
+      {typeof data.rt === "number" && data.rt > 0 ? (
+        <div style={{textAlign:"center", marginTop:6, letterSpacing:2, color:"var(--accent)", fontSize:17}}>
+          {"★".repeat(Math.round(data.rt))}
+          <span className="tiny faint" style={{letterSpacing:0, marginLeft:6}}>
+            their rating
+          </span>
+        </div>
+      ) : null}
+
+      {/* No meal photos? Lead with the place's own photo so the page opens on
+          something to look at instead of a wall of text. */}
+      {photos.length === 0 && data.hero ? (
+        <div style={{marginTop:14, borderRadius:14, overflow:"hidden"}}>
+          <img src={data.hero} alt="" loading="lazy"
+               style={{width:"100%", display:"block", maxHeight:260, objectFit:"cover"}} />
+        </div>
+      ) : null}
 
       {photos.length > 0 && (
         <div className="visit-photos" style={{justifyContent:"center", marginTop:14, marginBottom:4}}>
@@ -22662,7 +22699,7 @@ function VisitShareSheet({cfg, visit, restaurant, menuList, onClose, onLinkShare
                 <Icon name="share" size={16} />Share a link with anyone</span>}
         </button>
         <div className="tiny faint" style={{marginTop:8}}>
-          Sends the place, the photos, who you were with, and the menu - never your notes or what you ate.
+          Sends the place, your star rating, the photos, who you were with, and the menu - never your notes or what you ate.
         </div>
         {err ? <div className="tiny" style={{marginTop:6, color:"var(--danger)"}}>{err}</div> : null}
         <button className="btn ghost" style={{width:"100%", marginTop:12}} onClick={onClose}>Close</button>
@@ -22934,7 +22971,8 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
     setBusy(true); setMsg("");
     try {
       const photoUrls = await signVisitPhotos(cfg, (visit.photos || []).filter(Boolean));
-      const payload = buildVisitPayload(visit, restaurant, menuList || [], photoUrls);
+      const heroUrl   = await signVisitHero(cfg, visit, restaurant);
+      const payload = buildVisitPayload(visit, restaurant, menuList || [], photoUrls, heroUrl);
       // Open (or reuse) the shared record, so anyone who was actually there can
       // JOIN this visit instead of starting a disconnected one of their own.
       let svId = (visit && visit.sv) || "";
