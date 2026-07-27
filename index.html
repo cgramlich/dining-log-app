@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.364.1";
+const APP_VERSION   = "1.365.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -18241,7 +18241,7 @@ function PublishedVisitLoader({slug}){
 
 function PublishedVisit({data, onSaved, onLogVisit}){
   const home = location.origin + location.pathname;
-  const [openMenu, setOpenMenu] = useState(false);
+  const [openMenu, setOpenMenu] = useState(true);   // the shared menu IS the content; do not bury it
   const [lb, setLb] = useState(-1);          // lightbox photo index, -1 = closed
   const myCfg = loadConfig();
   const canSave = configComplete(myCfg);
@@ -18478,15 +18478,7 @@ function PublishedVisit({data, onSaved, onLogVisit}){
             </div>
           )}
         </div>
-      ) : (
-        <div className="card" style={{marginTop:18, textAlign:"center"}}>
-          <div style={{fontWeight:600, marginBottom:5}}>Keep your own dining log</div>
-          <div className="small muted" style={{marginBottom:12}}>
-            Save this place, log your own visits, and share them back. Free.
-          </div>
-          <a className="btn primary" href={home}>Create your free account</a>
-        </div>
-      )}
+      ) : null}
 
       {dupAsk ? (
         <div style={{position:"fixed", inset:0, zIndex:80, background:"rgba(0,0,0,0.6)",
@@ -18543,6 +18535,16 @@ function PublishedVisit({data, onSaved, onLogVisit}){
           ) : null}
         </div>
       )}
+
+      {!canSave ? (
+        <div className="card" style={{marginTop:22, textAlign:"center"}}>
+          <div style={{fontWeight:600, marginBottom:5}}>Keep your own dining log</div>
+          <div className="small muted" style={{marginBottom:12}}>
+            Save this place, log your own visits, and share them back. Free.
+          </div>
+          <a className="btn primary" href={home}>Create your free account</a>
+        </div>
+      ) : null}
 
       {lb >= 0 && photos[lb] ? (
         <div style={{position:"fixed", inset:0, zIndex:90, background:"rgba(0,0,0,0.92)",
