@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.369.1";
+const APP_VERSION   = "1.370.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3070,6 +3070,13 @@ async function myShareIdentity(cfg){
 function sharerName(data){
   if (!data) return "";
   return (data.byn || "").trim() || (data.by ? "@" + data.by : "");
+}
+/* The warm, short form for greetings and buttons. Falls back to the handle when
+   somebody has not set a display name. */
+function sharerFirst(data){
+  if (!data) return "";
+  const f = firstNameOf(data.byn);
+  return f || (data.by ? "@" + data.by : "");
 }
 function firstNameOf(name){
   return String(name || "").trim().split(/\s+/)[0] || "";
@@ -6816,7 +6823,7 @@ function App(){
       await requestConnection(config, inv.who);
       writeInvite(Object.assign({}, inv, { asked: true }));
       setInvite(readInvite());
-      flash("Request sent to " + inviteName(inv));
+      flash("Request sent to " + inviteFirst(inv));
       runPendingInvite();                       // in case they are already a friend
     } catch(e){
       const m = (e && e.message) || "";
@@ -7596,7 +7603,7 @@ function App(){
               </div>
               <button className="btn primary sm" style={{marginTop:8, width:"auto"}}
                 disabled={inviteBusy} onClick={acceptInvite}>
-                {inviteBusy ? <span className="spin" /> : "Add " + inviteName(invite)}
+                {inviteBusy ? <span className="spin" /> : "Add " + inviteFirst(invite)}
               </button>
             </div>
             <button className="req-banner-x" aria-label="Dismiss" onClick={dismissInvite}>
@@ -7608,7 +7615,7 @@ function App(){
           <div className="req-banner" style={{cursor:"default", opacity:0.9}}>
             <span className="req-banner-ic"><Icon name="clock" size={18} color="#1b1714" /></span>
             <div style={{flex:1, minWidth:0}}>
-              <div style={{fontWeight:600}}>Waiting on {inviteName(invite)}</div>
+              <div style={{fontWeight:600}}>Waiting on {inviteFirst(invite)}</div>
               <div className="tiny" style={{opacity:0.82}}>
                 Their visit {invite.at ? "to " + invite.at + " " : ""}lands here the moment they accept your request.
               </div>
@@ -18908,9 +18915,15 @@ function PublishedVisit({data, onSaved, onLogVisit}){
               {/* One line, clipped rather than wrapped. `.btn` is width:100% by
                   default, so the button MUST be told to size to its own text or
                   it takes the whole row and squeezes this to one word per line. */}
+              {/* Two lines, hard-clamped. One line clipped every phrase worth
+                  saying at 375px; three would start rebuilding the wall this bar
+                  replaced. The button is sized by its own text, so the label
+                  keeps whatever is left. */}
               <div className="small" style={{flex:"1 1 auto", minWidth:0, fontWeight:600,
-                   whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>
-                {sharer ? "Keep your own log, and add " + sharer : "Keep your own dining log"}
+                   lineHeight:1.25, display:"-webkit-box", WebkitLineClamp:2,
+                   WebkitBoxOrient:"vertical", overflow:"hidden"}}>
+                {sharer ? "Remember yours too, and add " + sharerFirst(data)
+                        : "Remember every meal like this one"}
               </div>
               <a className="btn primary" href={signupHref}
                  style={{width:"auto", flex:"0 0 auto", whiteSpace:"nowrap", padding:"11px 16px"}}>
@@ -22917,6 +22930,12 @@ async function svPatch(cfg, sid, body){
 function inviteName(inv){
   if (!inv) return "";
   return (inv.nm || "").trim() || (inv.who ? "@" + inv.who : "someone");
+}
+/* First name for the greeting and the button - "Add Chris", not "Add Chris
+   Gramlich". The full name still shows where there is room to be formal. */
+function inviteFirst(inv){
+  if (!inv) return "";
+  return firstNameOf(inv.nm) || (inv.who ? "@" + inv.who : "someone");
 }
 function readInvite(){
   try { return JSON.parse(localStorage.getItem("mc_invite") || "null"); }
