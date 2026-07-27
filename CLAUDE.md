@@ -5,7 +5,9 @@ Auto-read by Claude Code at session start. Keep it current.
 **Doc currency (see starter spec §5):** keep this file + the architecture doc in step
 with the code in the SAME session you change code. Don't hardcode the version here
 (point to `APP_VERSION` + `/health`); update the doc body when the architecture changes;
-log dated changes in the app's Log folder. Rule: `CG Apps\Forever Apps\forever-apps-starter-spec.md`.
+write a DATED entry in the app's Log folder for EVERY work session:
+`C:\Users\cjgra\Dropbox\My AI\CG Apps\MenuCaptain\MenuCaptain Log\`.
+Rule: `CG Apps\Forever Apps\forever-apps-starter-spec.md` section 5.
 
 ## What this is
 MenuCaptain frontend: a SINGLE-FILE HTML PWA (React via CDN + Babel
