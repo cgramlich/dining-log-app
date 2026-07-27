@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.368.0";
+const APP_VERSION   = "1.369.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1959,6 +1959,14 @@ write sits at the top of the page they open - "loved going to dinner after mass
 with the family". It is the one part written for the reader rather than for you,
 so it leads. This is not the private note on the visit; that one never leaves
 your phone.
+
+**They can connect back to you.** A link you share names your @handle, so
+somebody who reads it and makes an account is offered you as a friend in one
+tap. If the visit is one you were both at, their request also books their place
+at it: the moment you accept, the visit appears in their diary with the date,
+the people, and your photos. Until you accept they see "Waiting on you" and
+nothing happens - being friends is what stops a forwarded link from letting a
+stranger write into your visit.
 
 **Two ratings, clearly labelled.** Your stars rate the PLACE, not that one meal,
 so the page says "their rating of this place" and shows Google's score beside it
@@ -3040,7 +3048,21 @@ async function signVisitHero(cfg, visit, restaurant){
   return urls[0] || "";
 }
 
-async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, note){
+/* The sharer's own @handle, so a stranger who signs up from a shared page can
+   add the person who sent it. Their own public identity and their own choice to
+   publish it - unlike the companions on a visit, whose handles we deliberately
+   strip because they never agreed to be on a public page. */
+let _myHandle = null;
+async function myShareHandle(cfg){
+  if (_myHandle !== null) return _myHandle;
+  try {
+    const me = await getMyProfile(cfg);
+    _myHandle = ((me && me.username) || "").trim();
+  } catch(e){ _myHandle = ""; }
+  return _myHandle;
+}
+
+async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, note, onLinkShared){
   if (!visit){ return; }
   if (setBusy) setBusy(true);
   if (setErr) setErr(null);
@@ -3049,6 +3071,27 @@ async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, not
     const heroUrl   = await signVisitHero(cfg, visit, restaurant);
     const rest      = await fillGoogleRating(cfg, restaurant);
     const payload = buildVisitPayload(visit, rest, menuList, photoUrls, heroUrl, note);
+    // A link recipient should be able to JOIN, same as a friend - so the link
+    // path opens the shared record too. Best-effort: the link still works if it
+    // fails, it just is not joinable.
+    let svId = (visit && visit.sv) || "";
+    if (!svId){
+      try {
+        const made = await svCreate(cfg, {
+          place_name: (rest && rest.name) || (visit && visit.restaurant_name) || "A visit",
+          google_place_id: (rest && rest.google_place_id) || "",
+          address: (rest && rest.address) || "", city: (rest && rest.location) || "",
+          visit_date: (visit && visit.date) || "",
+          photos: ((visit && visit.photos) || []).filter(Boolean),
+          visit_id: (visit && visit.id) || "",
+        });
+        svId = (made && made.id) || "";
+        if (svId && onLinkShared) onLinkShared(svId);
+      } catch(e){ /* shareable, just not joinable */ }
+    }
+    if (svId) payload.sv = svId;
+    const handle = await myShareHandle(cfg);
+    if (handle) payload.by = handle;
     let enc     = encodeListPayload(payload);   // same transport as lists/menus
     // The backend page stores the blob (cap 80k), so keep the menu in normal
     // cases; only drop it if we'd blow the backend's limit.
@@ -3188,7 +3231,8 @@ function buildPlacePayload(restaurant, menu, lovedNames){
    or what was paid. `g` is Google's own score. `hero` is a stand-in image for a
    visit that has no meal photos of its own. `msg` is the sharer's own note to
    the recipients - written at share time, nothing to do with the private visit
-   note, which never leaves the phone. Shape:
+   note, which never leaves the phone. `by` is the sharer's own @handle, so a
+   reader who makes an account can add them back. Shape:
      { k:"v", v:1, r,cu,c,a,gpid,lat,lng, dt, rt, g:{r,n}, ppl:[names],
        ate:[{n,y}], ph:[urls], hero, s:[ { n, i:[ { n,d,p,t } ] } ] } */
 function buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl, note){
@@ -6527,6 +6571,8 @@ function App(){
   const [reqSeen, setReqSeen]         = useState(0);          // request-count the user has dismissed/seen (banner re-shows if it grows)
   const [sharesSeen, setSharesSeen]   = useState(0);          // same idea for the "shared with you" inbox
   const [sharesCount, setSharesCount] = useState(0);          // items in the "Shared with you" inbox
+  const [invite, setInvite]     = useState(()=> { captureInviteFromUrl(); return readInvite(); });
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   const toastTimer = useRef(null);
   const onlineFlushRef = useRef(()=>{});   // Phase 3: latest auto-flush fn for the reconnect listener
@@ -6737,6 +6783,99 @@ function App(){
     const next = visitsRef.current.map(v => v.id === visitId ? Object.assign({}, v, { sv: svId }) : v);
     commit({ visits: next }, ["visits"]);
   }
+  /* An invitation from a shared page runs in two beats, because joining a
+     shared visit requires being friends and a brand new account is nobody's
+     friend yet.
+
+       beat 1  they tap "Add @chris and join" -> we send the connection request
+       beat 2  every launch after, we retry the join; the moment Chris accepts,
+               it goes through and the visit lands on their phone
+
+     Deliberately NOT a relaxed permission: the join guard is what stops a
+     forwarded link from letting a stranger write into someone's visit. */
+  async function acceptInvite(){
+    const inv = readInvite();
+    if (!inv || !inv.who) return;
+    setInviteBusy(true);
+    try {
+      await requestConnection(config, inv.who);
+      writeInvite(Object.assign({}, inv, { asked: true }));
+      setInvite(readInvite());
+      flash("Request sent to @" + inv.who);
+      runPendingInvite();                       // in case they are already a friend
+    } catch(e){
+      const m = (e && e.message) || "";
+      // Already connected? Then there is nothing to ask for - go straight to the visit.
+      if (/already/i.test(m)){
+        writeInvite(Object.assign({}, inv, { asked: true }));
+        setInvite(readInvite());
+        runPendingInvite();
+      } else { flash(m || "Could not send that request"); }
+    } finally { setInviteBusy(false); }
+  }
+  function dismissInvite(){ writeInvite(null); setInvite(null); }
+
+  /* Retry the parked join. A 403 just means they have not accepted yet, so we
+     leave the invitation in place and try again next launch. */
+  async function runPendingInvite(){
+    const inv = readInvite();
+    if (!inv || !inv.asked || !inv.sv) return;
+    let sv;
+    try { sv = await svJoin(config, inv.sv, {}); }
+    catch(e){ return; }                          // not friends yet, or offline
+    writeInvite(null); setInvite(null);
+    try { await materializeSharedVisit(sv); }
+    catch(e){ logMsg("ERROR", "invite visit build failed: " + (e && e.message)); }
+  }
+
+  /* Turn a shared visit into a real visit in MY diary: find or create the
+     place, then log the meal with the shared date, the other people, and their
+     photos copied into my own storage. */
+  async function materializeSharedVisit(sv){
+    if (!sv || !sv.id) return;
+    if (visitsRef.current.some(v => v && v.sv === sv.id)) return;   // already mine
+    const name = (sv.place_name || "").trim();
+    if (!name) return;
+    let rest = restaurants.find(r => r && norm(r.name) === norm(name));
+    let nextRests = restaurants;
+    if (!rest){
+      rest = { id: uid("rest"), name: name, cuisine: "",
+               location: sv.city || "", address: sv.address || "",
+               phone: "", website: "", notes: "", favorite: false,
+               wishlist: false, added_date: todayISO(),
+               google_place_id: sv.google_place_id || undefined };
+      nextRests = [rest].concat(restaurants);
+    }
+    const photos = [];
+    for (let i = 0; i < (sv.photos || []).length; i++){
+      const ph = sv.photos[i];
+      if (!ph || !ph.url) continue;
+      try {
+        const res = await fetch(apiBase(config) + "/api/photos/import", {
+          method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(config)) },
+          body: JSON.stringify({ url: ph.url, path: "photos/shared/" + sv.id + "/" + i + ".jpg" }),
+        });
+        if (!res.ok) continue;
+        const d = await res.json().catch(()=> ({}));
+        if (d && d.path) photos.push(d.path);
+      } catch(e){ /* skip */ }
+    }
+    const visit = {
+      id: uid("visit"), restaurant_id: rest.id, restaurant_name: rest.name,
+      date: sv.visit_date || todayISO(), rating: null, dishes: [], notes: "",
+      photos: photos, receipt: null, nutrition: null, logged_at: Date.now(),
+      split: null, loved: false, sv: sv.id,
+      sv_photo_keys: (sv.photos || []).map(ph => ph && ph.key).filter(Boolean),
+      companions: (sv.members || []).filter(m => m && !m.is_me)
+        .map(m => ({ name: m.name || ("@" + (m.username || "")), username: m.username || undefined,
+                     user_id: m.user_id })),
+    };
+    commit({ visits: [visit].concat(visitsRef.current), restaurants: nextRests },
+           ["visits", "restaurants"]);
+    try { await svPatch(config, sv.id, { visit_id: visit.id }); } catch(e){}
+    flash("Added your visit to " + rest.name);
+  }
+
   // Pull down whatever the other people on my shared visits have added.
   function refreshSharedVisits(){
     if (!configComplete(config)) return;
@@ -6748,8 +6887,9 @@ function App(){
   useEffect(()=>{
     if (!ready || needSetup || !configComplete(config)) return;
     refreshPendingReqs(); refreshShares(); refreshSharedVisits();
+    runPendingInvite();                       // did they accept since last launch?
     const onVis = ()=> { if (document.visibilityState === "visible"){
-      refreshPendingReqs(); refreshShares(); refreshSharedVisits(); } };
+      refreshPendingReqs(); refreshShares(); refreshSharedVisits(); runPendingInvite(); } };
     document.addEventListener("visibilitychange", onVis);
     return ()=> document.removeEventListener("visibilitychange", onVis);
     // eslint-disable-next-line
@@ -7423,6 +7563,42 @@ function App(){
             </div>
             <button className="req-banner-x" aria-label="Dismiss"
               onClick={(e)=>{ e.stopPropagation(); setReqSeen(pendingReqs); }}>
+              <Icon name="close" size={15} color="#1b1714" />
+            </button>
+          </div>
+        )}
+        {invite && invite.who && !invite.asked && (
+          <div className="req-banner" style={{cursor:"default"}}>
+            <span className="req-banner-ic"><Icon name="people" size={18} color="#1b1714" /></span>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontWeight:600}}>
+                @{invite.who} shared {invite.at ? invite.at : "a visit"} with you
+              </div>
+              <div className="tiny" style={{opacity:0.82}}>
+                {invite.sv
+                  ? "Add them as a friend and their visit lands here once they accept."
+                  : "Add them as a friend to swap places, menus, and visits."}
+              </div>
+              <button className="btn primary sm" style={{marginTop:8, width:"auto"}}
+                disabled={inviteBusy} onClick={acceptInvite}>
+                {inviteBusy ? <span className="spin" /> : "Add @" + invite.who}
+              </button>
+            </div>
+            <button className="req-banner-x" aria-label="Dismiss" onClick={dismissInvite}>
+              <Icon name="close" size={15} color="#1b1714" />
+            </button>
+          </div>
+        )}
+        {invite && invite.who && invite.asked && invite.sv && (
+          <div className="req-banner" style={{cursor:"default", opacity:0.9}}>
+            <span className="req-banner-ic"><Icon name="clock" size={18} color="#1b1714" /></span>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontWeight:600}}>Waiting on @{invite.who}</div>
+              <div className="tiny" style={{opacity:0.82}}>
+                Their visit {invite.at ? "to " + invite.at + " " : ""}lands here the moment they accept your request.
+              </div>
+            </div>
+            <button className="req-banner-x" aria-label="Dismiss" onClick={dismissInvite}>
               <Icon name="close" size={15} color="#1b1714" />
             </button>
           </div>
@@ -18326,6 +18502,13 @@ function PublishedVisitLoader({slug}){
 
 function PublishedVisit({data, onSaved, onLogVisit}){
   const home = location.origin + location.pathname;
+  // Carry WHO shared this and WHICH visit into the app, so someone arriving
+  // from here lands with an invitation rather than an empty account.
+  const signupHref = home + (data.by
+    ? "?inv=" + encodeURIComponent(data.by)
+      + (data.sv ? "&sv=" + encodeURIComponent(data.sv) : "")
+      + (data.r ? "&at=" + encodeURIComponent(String(data.r).slice(0, 80)) : "")
+    : "");
   const [shut, setShut] = useState({});   // which menu courses the reader folded away
   const [lb, setLb] = useState(-1);          // lightbox photo index, -1 = closed
   const myCfg = loadConfig();
@@ -18707,9 +18890,9 @@ function PublishedVisit({data, onSaved, onLogVisit}){
                   it takes the whole row and squeezes this to one word per line. */}
               <div className="small" style={{flex:"1 1 auto", minWidth:0, fontWeight:600,
                    whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>
-                Keep your own dining log
+                {data.by ? "Keep your own log, and add @" + data.by : "Keep your own dining log"}
               </div>
-              <a className="btn primary" href={home}
+              <a className="btn primary" href={signupHref}
                  style={{width:"auto", flex:"0 0 auto", whiteSpace:"nowrap", padding:"11px 16px"}}>
                 Create account
               </a>
@@ -22706,6 +22889,37 @@ async function svPatch(cfg, sid, body){
   return d;
 }
 
+/* An invitation picked up from a shared page: who sent it, and which shared
+   visit it was. Parked in localStorage because the reader is about to leave for
+   the signup screen and come back, and the app must still know why they came. */
+function readInvite(){
+  try { return JSON.parse(localStorage.getItem("mc_invite") || "null"); }
+  catch(e){ return null; }
+}
+function writeInvite(inv){
+  try {
+    if (inv) localStorage.setItem("mc_invite", JSON.stringify(inv));
+    else localStorage.removeItem("mc_invite");
+  } catch(e){}
+}
+/* A shared page sends the reader here with ?inv=handle (plus the shared visit
+   id and the place name), and we hold it until they have an account. */
+function captureInviteFromUrl(){
+  let u;
+  try { u = new URL(location.href); } catch(e){ return; }
+  const who = (u.searchParams.get("inv") || "").trim().replace(/^@/, "");
+  if (!who) return;
+  const sv = (u.searchParams.get("sv") || "").trim();
+  const at = (u.searchParams.get("at") || "").trim();
+  const cur = readInvite();
+  // Do not clobber an invite already in flight - its request is already sent.
+  if (!cur || !cur.asked) writeInvite({ who: who, sv: sv, at: at, asked: false });
+  try {
+    u.searchParams.delete("inv"); u.searchParams.delete("sv"); u.searchParams.delete("at");
+    history.replaceState(null, "", u.pathname + (u.search === "?" ? "" : u.search) + u.hash);
+  } catch(e){}
+}
+
 // Local mirror so a visit can say who else was there without waiting on the
 // network - same module-cache + localStorage pattern as friend names.
 let _svCache = null;
@@ -22836,7 +23050,7 @@ function VisitShareSheet({cfg, visit, restaurant, menuList, onClose, onLinkShare
             menuList={menuList} label="Send to a friend" onLinkShared={onLinkShared} note={note} />
         </div>
         <button className="btn ghost" style={{width:"100%"}} disabled={busy}
-          onClick={()=> shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, note)}>
+          onClick={()=> shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, note, onLinkShared)}>
           {busy ? <span className="spin" />
             : <span className="row" style={{gap:6, justifyContent:"center"}}>
                 <Icon name="share" size={16} />Share a link with anyone</span>}
@@ -23136,6 +23350,8 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
         } catch(e){ /* the share still sends; it just will not be joinable */ }
       }
       if (svId) payload.sv = svId;
+      const handle = await myShareHandle(cfg);
+      if (handle) payload.by = handle;
       const r = await sendShare(cfg, ids, "visit", place, payload);
       setMsg("Sent to " + (r.sent || 0)); setMsgErr(false);
       setPick({});
