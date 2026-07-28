@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.371.0";
+const APP_VERSION   = "1.371.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -17777,7 +17777,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       setStep("review");
     } catch(err){
       logMsg("ERROR","Web menu failed: " + err.message);
-      setErrMsg(err.message);
+      setErrMsg(err.message || "Couldn't read that page.");
       setStep("error");
     }
   }
@@ -17816,7 +17816,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       setStep("review");
     } catch(err){
       logMsg("ERROR","Picture menu failed: " + err.message);
-      setErrMsg(err.message); setStep("error");
+      setErrMsg(err.message || "Couldn't read that menu's pictures."); setStep("error");
     }
   }
 
@@ -17855,7 +17855,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       throw new Error("Couldn't find a menu link on their website. Paste the menu page address below, or scan the menu.");
     } catch(err){
       logMsg("SCAN","Find-menu: " + err.message);
-      setErrMsg(err.message); setStep("error");
+      setErrMsg(err.message || "Couldn't look for a menu on that site."); setStep("error");
     }
   }
 
@@ -18201,7 +18201,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           <div>
             <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)"}}>
               <div style={{fontWeight:600,marginBottom:6}}>Something went wrong</div>
-              <div className="small muted">{errMsg}</div>
+              <div className="small muted">
+                {errMsg || "The menu didn't come through, and the app didn't say why. Open Settings, Diagnostics for the last few lines."}
+              </div>
             </div>
             {lastTry ? (
               <button className="btn primary"
