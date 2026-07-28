@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.372.0";
+const APP_VERSION   = "1.373.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3767,7 +3767,7 @@ function getPhotoBlobUrl(cfg, path){
     try {
       const cached = await idbGetBlob(path);
       if (cached){
-        logMsg("IMAGE","Photo from local cache: " + path);
+        /* deliberately not logged: one line per photo buries everything else */
         return URL.createObjectURL(cached);
       }
     } catch(e){ /* fall through to network */ }
@@ -23615,6 +23615,12 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                        onAddLocation, onRenameLocation, onDeleteLocation,
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onFindDuplicates, onFeedback, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
+  const [logFilter,setLogFilter] = useState(false);   // hide the routine chatter
+  // The lines worth reading when something has gone wrong.
+  function logLines(){
+    if (!logFilter) return LOG_BUFFER.slice(-80);
+    return LOG_BUFFER.filter(l => /\[(ERROR|FINDMENU|WEBMENU|SCAN|VISION|SHAREDVISIT)\]/.test(l)).slice(-60);
+  }
   const [theme,setTheme]     = useState(currentTheme());
   const [defTab,setDefTab]   = useState(getDefaultTab);   // which tab the app opens to
   const [showPrint,setShowPrint] = useState(false);   // printable-history overlay
@@ -23998,16 +24004,27 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           </div>
           {showLog && (
             <div style={{marginTop:11}}>
-              <div className="row" style={{justifyContent:"flex-end",marginBottom:8}}>
+              <div className="row" style={{justifyContent:"flex-end",marginBottom:8, gap:8}}>
+                <button className="btn ghost sm" onClick={()=> setLogFilter(f=> !f)}>
+                  {logFilter ? "Show all" : "Only problems"}
+                </button>
+                <button className="btn ghost sm" onClick={async ()=>{
+                  const text = logLines().join("\n");
+                  try { await navigator.clipboard.writeText(text); toast("Log copied"); }
+                  catch(e){
+                    // Clipboard is blocked in some in-app browsers; fall back to
+                    // the share sheet so the log can still get out.
+                    try { await navigator.share({ text: text }); }
+                    catch(_e){ toast("Couldn't copy the log"); }
+                  }
+                }}>Copy</button>
                 <button className="btn ghost sm" onClick={()=> force(x=>x+1)}>Refresh</button>
               </div>
               <div className="tiny faint" style={{marginBottom:8,wordBreak:"break-all"}}>
                 Backend: {apiBase(config)}
               </div>
               <div className="logbox">
-                {LOG_BUFFER.length
-                  ? LOG_BUFFER.slice(-80).join("\n")
-                  : "No log entries yet."}
+                {logLines().length ? logLines().join("\n") : "No log entries yet."}
               </div>
             </div>
           )}
