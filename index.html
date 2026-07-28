@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.373.0";
+const APP_VERSION   = "1.374.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -10357,6 +10357,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const lastVisit = byDate[0] || null;
   const lastVisitDishes = (lastVisit && lastVisit.dishes) ? lastVisit.dishes : [];
   const showPicks = lovedDishes.length > 0 || lastVisitDishes.length > 0;
+  // "Last time" earns its space only by telling you something the loved list
+  // does not. Go once, love the one dish you ordered, and both rows said the
+  // same word twice.
+  const lovedNames = new Set(lovedDishes.map(d => (d.name || "").trim().toLowerCase()));
+  const lastNewDishes = lastVisitDishes.filter(d => !lovedNames.has((d.name || "").trim().toLowerCase()));
 
   // Build a self-contained PNG card and hand it to the iOS share sheet.
   // No link, no repo access - just an image the recipient can keep.
@@ -10524,7 +10529,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         {showPicks && (
           <div className="card picks">
             {lovedDishes.length > 0 && (
-              <div style={{marginBottom: lastVisitDishes.length ? 14 : 0}}>
+              <div style={{marginBottom: lastNewDishes.length ? 14 : 0}}>
                 <div className="picks-head">You've loved these here</div>
                 <div className="chips">
                   {lovedDishes.map((d,i)=>(
@@ -10533,13 +10538,21 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                     </span>
                   ))}
                 </div>
+                {/* Nothing new since last time? Then the date is the only
+                    fact left, so it reads as one quiet line instead of
+                    repeating the chips directly above it. */}
+                {!lastNewDishes.length && lastVisit && lastVisit.date ? (
+                  <div className="tiny faint" style={{marginTop:8}}>
+                    Last visit &middot; {fmtDate(lastVisit.date)}
+                  </div>
+                ) : null}
               </div>
             )}
-            {lastVisitDishes.length > 0 && (
+            {lastNewDishes.length > 0 && (
               <div>
                 <div className="picks-head">Last time &middot; {fmtDate(lastVisit.date)}</div>
                 <div className="chips">
-                  {lastVisitDishes.map((d,i)=>(
+                  {lastNewDishes.map((d,i)=>(
                     <span key={i} className={"chip dish" +
                       dishChipClass(d.verdict)}>
                       {d.name}
