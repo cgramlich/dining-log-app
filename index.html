@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.371.1";
+const APP_VERSION   = "1.372.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -17842,6 +17842,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       });
       const data = await res.json().catch(()=> ({}));
       if (!res.ok) throw new Error(data.detail || "Couldn't look for a menu.");
+      // Record which route the finder picked and why - otherwise a wrong turn
+      // here is invisible from the app and only Railway's logs know.
+      logMsg("FINDMENU", (data.kind || "page") + " " + (data.diag || "no diag"));
       // Several menu PDFs (dinner, drinks, dessert...)? Let the user pick which to
       // add rather than silently taking just the first.
       const pdfs = Array.isArray(data.menu_pdfs) ? data.menu_pdfs : [];
