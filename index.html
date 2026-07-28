@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.375.1";
+const APP_VERSION   = "1.376.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -17813,7 +17813,15 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         method:"POST", headers, body: JSON.stringify({ page: pageUrl, images: images || [] }),
       });
       const data = await res.json().catch(()=> ({}));
-      if (!res.ok) throw new Error(data.detail || "Couldn't read that menu's pictures.");
+      // The backend sends {message, diag} on failure: the message is for the
+      // person, the diag is for whoever has to work out what went wrong.
+      const det = data && data.detail;
+      if (det && det.diag) logMsg("MENUPIC", det.diag);
+      if (data && data.diag) logMsg("MENUPIC", data.diag);
+      if (!res.ok){
+        throw new Error((det && det.message) || (typeof det === "string" ? det : "")
+                        || "Couldn't read that menu's pictures.");
+      }
       const pages = (data.pages || []).filter(pg => pg && pg.b64);
       if (!pages.length) throw new Error("Couldn't read that menu's pictures.");
       logMsg("SCAN","Picture menu: " + pages.length + " page(s) via " + (data.source || "?"));
