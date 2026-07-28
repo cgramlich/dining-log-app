@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.370.0";
+const APP_VERSION   = "1.371.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -17782,6 +17782,44 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     }
   }
 
+  // Some restaurants never publish menu TEXT - they photograph the paper menu,
+  // a page per picture, and post the images. No text extractor will ever read
+  // those, so we pull the pictures down and send them through the SAME scanner
+  // a camera photo goes through.
+  async function runPictures(pageUrl, images){
+    setLastTry({ kind:"pictures", value:pageUrl });
+    setStep("working");
+    try {
+      const headers = await authHeaders(config);
+      headers["Content-Type"] = "application/json";
+      const res = await fetch(apiBase(config) + "/api/menu/pictures", {
+        method:"POST", headers, body: JSON.stringify({ page: pageUrl, images: images || [] }),
+      });
+      const data = await res.json().catch(()=> ({}));
+      if (!res.ok) throw new Error(data.detail || "Couldn't read that menu's pictures.");
+      const pages = (data.pages || []).filter(pg => pg && pg.b64);
+      if (!pages.length) throw new Error("Couldn't read that menu's pictures.");
+      logMsg("SCAN","Picture menu: " + pages.length + " page(s) via " + (data.source || "?"));
+      const dataUrls = pages.map(pg => "data:" + (pg.media_type || "image/jpeg") + ";base64," + pg.b64);
+      const parsed = await digitizeMenu(config, dataUrls);
+      if (!parsed.sections.length){
+        throw new Error("Those pictures didn't read as a menu. Try scanning the menu with your camera instead.");
+      }
+      parsed.captured_date = todayISO();
+      parsed.last_updated  = todayISO();
+      parsed.source        = "web";
+      parsed.source_url    = pageUrl;
+      prefillDestination(parsed);
+      setResult(parsed);
+      const itemCount = parsed.sections.reduce((n,sec)=> n + sec.items.length, 0);
+      logMsg("SCAN","Picture menu read: " + parsed.sections.length + " sections, " + itemCount + " items");
+      setStep("review");
+    } catch(err){
+      logMsg("ERROR","Picture menu failed: " + err.message);
+      setErrMsg(err.message); setStep("error");
+    }
+  }
+
   // Find the menu for the user: crawl the place's website (from Google, or one
   // they typed in) for the menu/order link, then hand it to the same web-pull
   // digitize flow. No website on file is NOT a dead end - it reveals a field to
@@ -17808,6 +17846,10 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       // add rather than silently taking just the first.
       const pdfs = Array.isArray(data.menu_pdfs) ? data.menu_pdfs : [];
       if (pdfs.length > 1){ setFoundMenus(pdfs); setStep("menupick"); return; }
+      // The menu is pictures of paper, not text on a page.
+      if (data.kind === "images" && Array.isArray(data.menu_images) && data.menu_images.length){
+        await runPictures(data.url || site, data.menu_images); return;
+      }
       if (data.found && data.url){ await runUrl(data.url); return; }
       if (data.pdf_url){ await runUrl(data.pdf_url); return; }  // backend reads text-based PDFs now
       throw new Error("Couldn't find a menu link on their website. Paste the menu page address below, or scan the menu.");
