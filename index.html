@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.376.0";
+const APP_VERSION   = "1.377.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1931,6 +1931,13 @@ Settings, under Your profile). Open **Friends** - at the top of the
 and send or accept requests. Once connected you can send a place, a menu, or a
 visit straight to a friend from any Share sheet, and anything they send you
 appears under **Shared with you**, with a banner on Home so you never miss it.
+
+**If someone is a problem.** Every person and every shared item has a &#8942;
+button. **Report** tells us what is wrong and a person reads it. **Block** is
+private: they are never told, they are removed from your friends, they cannot
+send you requests, visits or menus, and anything they share with other diners
+stays hidden from you. Undo it any time under Settings, Blocked people. Community
+menus also hide themselves once several people report them.
 
 **Getting paid back.** Add **Your Venmo** to your profile and your friends'
 apps learn it automatically, so when someone splits a check with you they can
@@ -22437,6 +22444,103 @@ async function getConnections(cfg){
   if (!res.ok) throw new Error("Could not load connections.");
   return res.json();   // {connections, incoming, outgoing}
 }
+/* ---- safety: blocking and reporting ---------------------------------
+   An app that carries other people's content needs a way to say "this is
+   wrong" and a way to make someone go away. Both live here. */
+async function blockUser(cfg, opts){
+  const res = await fetch(apiBase(cfg) + "/api/blocks", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify(opts || {}),
+  });
+  const d = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((d && d.detail) || "Could not block that person.");
+  return d;
+}
+async function unblockUser(cfg, userId){
+  const res = await fetch(apiBase(cfg) + "/api/blocks/" + encodeURIComponent(userId),
+    { method:"DELETE", headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("Could not unblock.");
+  return res.json();
+}
+async function listBlocks(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/blocks", { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("Could not load your blocked list.");
+  return res.json();
+}
+async function reportContent(cfg, body){
+  const res = await fetch(apiBase(cfg) + "/api/report", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify(body || {}),
+  });
+  const d = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((d && d.detail) || "Could not send that report.");
+  return d;
+}
+
+const REPORT_REASONS = [
+  { id:"offensive",     label:"Offensive or abusive" },
+  { id:"spam",          label:"Spam or advertising" },
+  { id:"wrong",         label:"Wrong or out of date" },
+  { id:"impersonation", label:"Pretending to be someone" },
+  { id:"other",         label:"Something else" },
+];
+
+/* One sheet for reporting anything: a person, a shared visit, a community menu.
+   `what` is the human name of the thing, used in the heading. */
+function ReportSheet({cfg, kind, targetId, targetUser, what, onClose}){
+  const [reason, setReason] = useState("");
+  const [note, setNote]     = useState("");
+  const [busy, setBusy]     = useState(false);
+  const [done, setDone]     = useState(false);
+  const [err, setErr]       = useState("");
+  async function send(){
+    if (!reason) { setErr("Pick a reason so we know what to look at."); return; }
+    setBusy(true); setErr("");
+    try {
+      await reportContent(cfg, { kind: kind, target_id: targetId || "",
+                                 target_user: targetUser || "", reason: reason, note: note });
+      setDone(true);
+      setTimeout(()=> { if (onClose) onClose(); }, 1600);
+    } catch(e){ setErr((e && e.message) || "Could not send that report."); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={e=> e.stopPropagation()}>
+        <div className="grip" />
+        {done ? (
+          <div style={{textAlign:"center", padding:"14px 0"}}>
+            <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:6}}>Thank you</div>
+            <div className="small muted">We have it, and we will look at it.</div>
+          </div>
+        ) : (
+          <>
+            <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:2}}>Report this</div>
+            <div className="tiny faint" style={{marginBottom:12}}>{what || "Tell us what is wrong"}</div>
+            {REPORT_REASONS.map(r => (
+              <div key={r.id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+                onClick={()=> { setReason(r.id); setErr(""); }}>
+                <span className="go-check" style={{flex:"none"}}>{reason === r.id ? "\u2713" : ""}</span>
+                <span style={{flex:1}}>{r.label}</span>
+              </div>
+            ))}
+            <label className="fld" style={{marginTop:10}}>
+              <span className="lbl">Anything else? (optional)</span>
+              <textarea className="input" rows={2} maxLength={1000} value={note}
+                onChange={e=> setNote(e.target.value)} placeholder="What should we look at?" />
+            </label>
+            {err ? <div className="tiny" style={{color:"var(--danger)", marginBottom:8}}>{err}</div> : null}
+            <button className="btn primary" style={{width:"100%"}} disabled={busy} onClick={send}>
+              {busy ? <span className="spin" /> : "Send report"}
+            </button>
+            <button className="btn ghost" style={{width:"100%", marginTop:8}} onClick={onClose}>Cancel</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 async function requestConnection(cfg, username){
   const res = await fetch(apiBase(cfg) + "/api/connections/request", {
     method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
@@ -22626,7 +22730,8 @@ function SwipeToDelete({ onDelete, children }){
   );
 }
 
-function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub, fav, onToggleFav, venmoName, onRenamed}){
+function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub, fav, onToggleFav, venmoName, onRenamed, cfg, onBlocked}){
+  const [safety, setSafety] = useState("");    // "" | "menu" | "report"
   const l = connLabel(c);
   // Venmo @handle for this person, saved with the connection (synced via meta).
   // Auto-fills when they're tagged in a split. Only shown for accepted connections.
@@ -22704,7 +22809,46 @@ function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub
         ) : null}
         {primaryBtn ? <button className="btn primary sm" disabled={busy} onClick={onPrimary}>{primaryBtn}</button> : null}
         {secondaryBtn ? <button className="btn ghost sm" disabled={busy} onClick={onSecondary}>{secondaryBtn}</button> : null}
+        {cfg && (c.user_id) ? (
+          <button className="btn ghost sm" aria-label="Block or report"
+            title="Block or report"
+            style={{padding:"4px 9px", margin:0, minWidth:0, fontSize:15,
+                    color:"var(--text-faint)"}}
+            onClick={()=> setSafety("menu")}>&#8942;</button>
+        ) : null}
       </div>
+      {safety === "menu" ? (
+        <div className="sheet-bg" onClick={()=> setSafety("")}>
+          <div className="sheet" onClick={e=> e.stopPropagation()}>
+            <div className="grip" />
+            <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:2}}>
+              {connLabel(c).primary}
+            </div>
+            <div className="tiny faint" style={{marginBottom:12}}>
+              Blocking is private. They are not told, they simply cannot reach you.
+            </div>
+            <button className="btn ghost" style={{width:"100%", marginBottom:8}}
+              onClick={()=> setSafety("report")}>Report this person</button>
+            <button className="btn ghost" style={{width:"100%", marginBottom:8, color:"var(--danger)"}}
+              onClick={async ()=>{
+                if (!window.confirm("Block " + connLabel(c).primary +
+                    "? They will be removed from your friends and will not be able to send you "
+                    + "requests, visits, or menus.")) return;
+                try {
+                  await blockUser(cfg, { user_id: c.user_id });
+                  setSafety("");
+                  toast("Blocked");
+                  if (onBlocked) onBlocked();
+                } catch(e){ toast((e && e.message) || "Could not block"); }
+              }}>Block</button>
+            <button className="btn ghost" style={{width:"100%"}} onClick={()=> setSafety("")}>Cancel</button>
+          </div>
+        </div>
+      ) : null}
+      {safety === "report" ? (
+        <ReportSheet cfg={cfg} kind="user" targetUser={c.user_id}
+          what={connLabel(c).primary} onClose={()=> setSafety("")} />
+      ) : null}
     </div>
   );
 }
@@ -22804,7 +22948,7 @@ function ConnectionsScreen({config, profile, onClose, onHome}){
                 <div className="set-group">Requests ({incoming.length})</div>
                 <div className="card">
                   {incoming.map(c => (
-                    <ConnRow key={c.id} c={c} busy={busyId===c.id}
+                    <ConnRow key={c.id} c={c} busy={busyId===c.id} cfg={config} onBlocked={load}
                       primaryBtn="Accept" onPrimary={()=> act(acceptConnection, c.id)}
                       secondaryBtn="Decline" onSecondary={()=> act(removeConnection, c.id)} />
                   ))}
@@ -22817,7 +22961,7 @@ function ConnectionsScreen({config, profile, onClose, onHome}){
               {connections.length === 0 ? (
                 <div className="small faint">No friends yet. Add someone by their username above.</div>
               ) : sortedConns.map(c => (
-                <ConnRow key={c.id} c={c} busy={busyId===c.id}
+                <ConnRow key={c.id} c={c} busy={busyId===c.id} cfg={config} onBlocked={load}
                   venmoName={connLabel(c).primary}
                   onRenamed={()=> setNameTick(t => t + 1)}
                   fav={favs.has(c.user_id)} onToggleFav={()=> toggleFav(c.user_id)}
@@ -22830,7 +22974,7 @@ function ConnectionsScreen({config, profile, onClose, onHome}){
                 <div className="set-group">Pending</div>
                 <div className="card">
                   {outgoing.map(c => (
-                    <ConnRow key={c.id} c={c} busy={busyId===c.id}
+                    <ConnRow key={c.id} c={c} busy={busyId===c.id} cfg={config} onBlocked={load}
                       sub={"Requested" + (c.username ? " · @" + c.username : "")}
                       secondaryBtn="Cancel" onSecondary={()=> act(removeConnection, c.id)} />
                   ))}
@@ -23535,6 +23679,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
 // "Shared with you" inbox overlay: received places/lists; tap to view (reuses
 // the public viewers, which include "Save to my places"), or dismiss.
 function ShareInbox({config, onClose, onHome, onLogVisit}){
+  const [reporting, setReporting] = useState(null);   // the share being reported
   const [shares, setShares] = useState(null);
   const [open, setOpen]     = useState(null);   // the share being viewed
   const [busyId, setBusyId] = useState(null);
@@ -23582,6 +23727,12 @@ function ShareInbox({config, onClose, onHome, onLogVisit}){
         <h2>Shared with you</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
+        {reporting ? (
+          <ReportSheet cfg={config} kind={reporting.kind === "visit" ? "visit" : "share"}
+            targetId={String(reporting.id)} targetUser={reporting.from_user_id || ""}
+            what={(reporting.title || "This") + " from " + (reporting.from || "a friend")}
+            onClose={()=> setReporting(null)} />
+        ) : null}
         {note ? <div className="tiny" style={{color:"var(--danger)", margin:"0 0 8px"}}>{note}</div> : null}
         {loadFail ? (
           <div className="small" style={{padding:"10px 2px", color:"var(--danger)"}}>
@@ -23626,6 +23777,9 @@ function ShareInbox({config, onClose, onHome, onLogVisit}){
                 </div>
                 <button className="btn primary sm" style={{flex:"none"}} onClick={()=> setOpen(s)}>View</button>
                 <button className="btn ghost sm" style={{flex:"none"}} disabled={busyId===s.id} onClick={()=> remove(s.id)}>Dismiss</button>
+                <button className="btn ghost sm" aria-label="Report this" title="Report this"
+                  style={{flex:"none", padding:"4px 9px", minWidth:0, color:"var(--text-faint)"}}
+                  onClick={()=> setReporting(s)}>&#8942;</button>
               </div>
             </SwipeToDelete>
           );
@@ -23640,6 +23794,12 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                        onAddLocation, onRenameLocation, onDeleteLocation,
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onFindDuplicates, onFeedback, onOpenYearInFood, onOpenPassport}){
   const [showLog,setShowLog] = useState(false);
+  const [showBlocks,setShowBlocks] = useState(false);
+  const [blocks,setBlocks] = useState(null);
+  function loadBlocks(){
+    listBlocks(config).then(d => setBlocks((d && d.blocks) || [])).catch(()=> setBlocks([]));
+  }
+  useEffect(()=>{ if (showBlocks && blocks === null) loadBlocks(); /* eslint-disable-next-line */ }, [showBlocks]);
   const [logFilter,setLogFilter] = useState(false);   // hide the routine chatter
   // The lines worth reading when something has gone wrong.
   function logLines(){
@@ -24019,6 +24179,36 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           </button>
         )}
         {updMsg && <span className="tiny faint">{updMsg}</span>}
+      </div>
+
+      <div className="card" style={{marginTop:12}}>
+        <div className="between" onClick={()=> setShowBlocks(b=>!b)} style={{cursor:"pointer"}}>
+          <div style={{fontWeight:600}}>Blocked people</div>
+          <Chevron open={showBlocks} size={17} color="#80715f" />
+        </div>
+        {showBlocks && (
+          <div style={{marginTop:11}}>
+            <div className="tiny faint" style={{marginBottom:9}}>
+              Blocking is private. They are never told. They cannot send you requests,
+              visits or menus, and their community menus stay hidden from you.
+            </div>
+            {blocks === null ? (
+              <div className="empty" style={{padding:"14px 0"}}><span className="spin" /></div>
+            ) : blocks.length === 0 ? (
+              <div className="small faint">You have not blocked anyone.</div>
+            ) : blocks.map(b => (
+              <div key={b.user_id} className="row" style={{gap:10, padding:"7px 0"}}>
+                <span style={{flex:1, minWidth:0}}>
+                  {b.name || (b.username ? "@" + b.username : "Someone")}
+                </span>
+                <button className="btn ghost sm" style={{flex:"none"}} onClick={async ()=>{
+                  try { await unblockUser(config, b.user_id); setBlocks(null); loadBlocks(); toast("Unblocked"); }
+                  catch(e){ toast("Could not unblock"); }
+                }}>Unblock</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {isOwner(config) && (
