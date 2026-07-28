@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.377.0";
+const APP_VERSION   = "1.377.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6582,6 +6582,16 @@ function App(){
   const [auxLoaded, setAuxLoaded]     = useState(false);   // lists+meta fetched (gates badge eval)
   const [shas, setShas]               = useState({});      // path -> sha
   const [dirty, setDirty]             = useState({});      // logical name -> bool (unpushed)
+  // Synchronous mirror of the sync-engine state above (data + shas + dirty).
+  // commit() and persist() merge from THIS, never from render-closure state:
+  // a handler that commits twice in one frame (log visit + paid-price
+  // backfill) or commits after an await otherwise bases itself on a stale
+  // render - the second write puts pre-save data back in the cache and drops
+  // the first commit's dirty flags, so an offline save can be rolled back by
+  // the next sync. Written synchronously wherever this state is set
+  // (startup cache load, sync, photo uploads, commit).
+  const liveRef = useRef({ restaurants:[], menus:{}, visits:[], locations:[], shas:{}, dirty:{} });
+  function setLive(patch){ liveRef.current = Object.assign({}, liveRef.current, patch); }
 
   // ui
   const [tab, setTab]         = useState(getDefaultTab);
@@ -6951,6 +6961,9 @@ function App(){
     // show cached data instantly, then sync
     const cache = loadCache();
     if (cache){
+      setLive({ restaurants: cache.restaurants || [], menus: cache.menus || {},
+                visits: cache.visits || [], locations: cache.locations || [],
+                shas: cache.shas || {}, dirty: cache.dirty || {} });
       setRestaurants(cache.restaurants || []);
       setMenus(cache.menus || {});
       setVisits(cache.visits || []);
@@ -7207,14 +7220,17 @@ function App(){
 
   /* ---- cache writer ---------------------------------------- */
   function persist(next){
-    // next may contain any of restaurants/menus/visits/locations/shas/dirty
+    // next may contain any of restaurants/menus/visits/locations/shas/dirty.
+    // Gaps fill from liveRef (always current), not render-closure state, so a
+    // persist fired mid-frame or after an await never writes stale data back.
+    const cur = liveRef.current;
     const payload = {
-      restaurants: next.restaurants !== undefined ? next.restaurants : restaurants,
-      menus:       next.menus       !== undefined ? next.menus       : menus,
-      visits:      next.visits      !== undefined ? next.visits      : visits,
-      locations:   next.locations   !== undefined ? next.locations   : locations,
-      shas:        next.shas        !== undefined ? next.shas        : shas,
-      dirty:       next.dirty       !== undefined ? next.dirty       : dirty,
+      restaurants: next.restaurants !== undefined ? next.restaurants : cur.restaurants,
+      menus:       next.menus       !== undefined ? next.menus       : cur.menus,
+      visits:      next.visits      !== undefined ? next.visits      : cur.visits,
+      locations:   next.locations   !== undefined ? next.locations   : cur.locations,
+      shas:        next.shas        !== undefined ? next.shas        : cur.shas,
+      dirty:       next.dirty       !== undefined ? next.dirty       : cur.dirty,
       lastSync:    Date.now(),
     };
     saveCache(payload);
@@ -7227,12 +7243,12 @@ function App(){
     setSync({ status:"busy", msg:"Syncing your data..." });
     logMsg("SYNC","Starting sync");
 
-    const localDirty = (cache && cache.dirty) || dirty;
-    let nextR = (cache && cache.restaurants) || restaurants;
-    let nextM = (cache && cache.menus)       || menus;
-    let nextV = (cache && cache.visits)      || visits;
-    let nextL = (cache && cache.locations)   || locations;
-    let nextShas = Object.assign({}, (cache && cache.shas) || shas);
+    const localDirty = (cache && cache.dirty) || liveRef.current.dirty;
+    let nextR = (cache && cache.restaurants) || liveRef.current.restaurants;
+    let nextM = (cache && cache.menus)       || liveRef.current.menus;
+    let nextV = (cache && cache.visits)      || liveRef.current.visits;
+    let nextL = (cache && cache.locations)   || liveRef.current.locations;
+    let nextShas = Object.assign({}, (cache && cache.shas) || liveRef.current.shas);
     let missing = { restaurants:false, menus:false, visits:false, locations:false };
 
     try {
@@ -7341,9 +7357,10 @@ function App(){
         }
       }
 
+      const cleared = {};
+      setLive({ restaurants:nextR, menus:nextM, visits:nextV, locations:nextL, shas:nextShas, dirty:cleared });
       setRestaurants(nextR); setMenus(nextM); setVisits(nextV); setLocations(nextL);
       setShas(nextShas);
-      const cleared = {};
       setDirty(cleared);
       persist({ restaurants:nextR, menus:nextM, visits:nextV, locations:nextL, shas:nextShas, dirty:cleared });
       setSync({ status:"ok", msg:"" });
@@ -7365,7 +7382,7 @@ function App(){
     // returns: same array shape (rejects on first failure)
     if (!uploads || !uploads.length) return [];
     if (!configComplete(config)) throw new Error("Not configured");
-    const nextShas = Object.assign({}, shas);
+    const nextShas = Object.assign({}, liveRef.current.shas);
     for (const u of uploads){
       const newSha = await ghPutBinaryFile(config, u.path, u.blob, nextShas[u.path]);
       nextShas[u.path] = newSha;
@@ -7374,6 +7391,7 @@ function App(){
       invalidatePhoto(u.path);
       seedPhoto(u.path, u.blob);
     }
+    setLive({ shas:nextShas });
     setShas(nextShas);
     persist({ shas:nextShas });
     return uploads;
@@ -7444,43 +7462,61 @@ function App(){
 
   async function commit(updates, filesToPush){
     // updates: {restaurants?, menus?, visits?, locations?}; filesToPush: [logical names]
-    const nextR = updates.restaurants !== undefined ? updates.restaurants : restaurants;
-    const nextM = updates.menus       !== undefined ? updates.menus       : menus;
-    const nextV = updates.visits      !== undefined ? updates.visits      : visits;
-    const nextL = updates.locations   !== undefined ? updates.locations   : locations;
+    // liveRef is the merge base and is updated SYNCHRONOUSLY, before anything
+    // awaits. Basing this on render-closure state instead meant a second
+    // commit in the same frame (log visit -> paid-price backfill) cached
+    // pre-save data and dropped the first commit's dirty flags - the save
+    // survived on screen but an offline reconnect sync pulled it back out.
+    const base = liveRef.current;
+    const nextR = updates.restaurants !== undefined ? updates.restaurants : base.restaurants;
+    const nextM = updates.menus       !== undefined ? updates.menus       : base.menus;
+    const nextV = updates.visits      !== undefined ? updates.visits      : base.visits;
+    const nextL = updates.locations   !== undefined ? updates.locations   : base.locations;
+    const nextDirty = Object.assign({}, base.dirty);
+    filesToPush.forEach(k => { nextDirty[k] = true; });
+    setLive({ restaurants:nextR, menus:nextM, visits:nextV, locations:nextL, dirty:nextDirty });
     if (updates.restaurants !== undefined) setRestaurants(nextR);
     if (updates.menus       !== undefined) setMenus(nextM);
     if (updates.visits      !== undefined) setVisits(nextV);
     if (updates.locations   !== undefined) setLocations(nextL);
 
     // mark dirty and cache immediately (optimistic, survives offline)
-    const nextDirty = Object.assign({}, dirty);
-    filesToPush.forEach(k => { nextDirty[k] = true; });
     setDirty(nextDirty);
     persist({ restaurants:nextR, menus:nextM, visits:nextV, locations:nextL, dirty:nextDirty });
 
     if (!configComplete(config)){ setSync({status:"err",msg:"Not configured"}); return; }
     setSync({ status:"busy", msg:"Saving..." });
-    const nextShas = Object.assign({}, shas);
-    const stillDirty = Object.assign({}, nextDirty);
     try {
       for (const key of filesToPush){
         const obj = key==="restaurants" ? nextR : key==="menus" ? nextM
                   : key==="visits"      ? nextV : nextL;
+        // shas come from liveRef at put time (a photo upload or an overlapping
+        // commit may have finished while we awaited an earlier file)
+        let newSha;
         try {
-          nextShas[FILES[key]] = await ghPutFile(config, FILES[key], obj, nextShas[FILES[key]]);
+          newSha = await ghPutFile(config, FILES[key], obj, liveRef.current.shas[FILES[key]]);
         } catch(err){
           if (err.conflict){
             logMsg("SYNC","Resolving conflict on " + key + " by refetching sha");
             const fresh = await ghGetFile(config, FILES[key]);
-            nextShas[FILES[key]] = await ghPutFile(config, FILES[key], obj, fresh.sha);
+            newSha = await ghPutFile(config, FILES[key], obj, fresh.sha);
           } else throw err;
         }
-        delete stillDirty[key];
+        const foldShas = Object.assign({}, liveRef.current.shas);
+        foldShas[FILES[key]] = newSha;
+        const foldDirty = Object.assign({}, liveRef.current.dirty);
+        // only mark clean if what we pushed is still the latest local data -
+        // a newer commit may have re-dirtied this key while we awaited, and
+        // its edit has not been pushed yet
+        const liveObj = key==="restaurants" ? liveRef.current.restaurants
+                      : key==="menus"       ? liveRef.current.menus
+                      : key==="visits"      ? liveRef.current.visits : liveRef.current.locations;
+        if (liveObj === obj) delete foldDirty[key];
+        setLive({ shas:foldShas, dirty:foldDirty });
       }
-      setShas(nextShas);
-      setDirty(stillDirty);
-      persist({ restaurants:nextR, menus:nextM, visits:nextV, locations:nextL, shas:nextShas, dirty:stillDirty });
+      setShas(liveRef.current.shas);
+      setDirty(liveRef.current.dirty);
+      persist({});   // everything current lives in liveRef now
       setSync({ status:"ok", msg:"" });
       logMsg("SAVE","Committed: " + filesToPush.join(", "));
     } catch(err){
