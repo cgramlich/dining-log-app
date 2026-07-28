@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.374.0";
+const APP_VERSION   = "1.375.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -17127,15 +17127,17 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           {receiptErr && (
             <div className="small" style={{color:"#e7a99e", marginTop:6}}>{receiptErr}</div>
           )}
-          <div className="lbl" style={{marginTop:14, marginBottom:2}}>Receipts</div>
-          {!receiptSlot && !finalReceiptSlot && (
-            <div className="tiny faint" style={{marginBottom:8, lineHeight:1.45}}>
-              Got one receipt? Most have it all - just <strong>Scan or upload itemized check</strong>
-              {" "}below (it reads your dishes and grabs the total). Only add a
-              {" "}<strong>final / total receipt</strong> if your tip/total is on a separate
-              {" "}slip. The expense attaches the final if you add one, otherwise the itemized.
-            </div>
-          )}
+          <div className="lbl row" style={{marginTop:14, marginBottom:6, gap:8}}>
+            Receipts
+            <InfoDot title="Which receipt?" label="Which one?">
+              <span className="idl">Got one receipt? Use <strong>itemized check</strong> - most
+                have it all, and it reads your dishes and grabs the total.</span>
+              <span className="idl">Only add a <strong>final / total receipt</strong> if the
+                tip and total are on a separate slip.</span>
+              <span className="idl">The expense attaches the final if you added one,
+                otherwise the itemized.</span>
+            </InfoDot>
+          </div>
           {!receiptSlot && (
             <button className="btn ghost sm" style={{width:"100%", marginBottom:8}} disabled={receiptBusy}
               onClick={()=> receiptRef.current && receiptRef.current.click()}>
@@ -17191,7 +17193,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                 {finalReceiptBusy ? "Adding..." : "Scan or upload final / total receipt"}
               </button>
               <div className="tiny faint" style={{marginTop:4}}>
-                The payment slip with tip and total. Scan or upload it - this is the one the expense item attaches.
+                The payment slip with tip and total.
               </div>
             </div>
           )}
@@ -17429,12 +17431,15 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   )}
                 </div>
               ))}
-              <div className="tiny faint" style={{marginTop:2,padding:"0 2px"}}>
-                Tap <strong>Again</strong> for something you'd order again,
-                {" "}<strong>Skip</strong> for something you wouldn't - it's how
-                you remember what's worth getting next time. Your most recent verdict
-                wins, so you can change your mind later, and skipping a dish just keeps
-                it off your loved list. Estimate a dish from a photo, or without one.
+              <div style={{marginTop:4, padding:"0 2px"}}>
+                <InfoDot title="Loved, Again, Skip" label="What these do">
+                  <span className="idl"><strong>Again</strong> is something you'd order
+                    again; <strong>Skip</strong> is something you wouldn't.</span>
+                  <span className="idl">It is how you remember what's worth getting next
+                    time - they build your loved list for this place.</span>
+                  <span className="idl">Your most recent verdict wins, so you can change
+                    your mind on a later visit.</span>
+                </InfoDot>
               </div>
               <DishTotal dishes={dishes} min={1} />
             </div>
@@ -17459,8 +17464,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                 {nutBusy ? "Estimating..." : "Estimate from a photo"}
               </button>
               <div className="tiny faint" style={{marginTop:6}}>
-                Snap your plate and the app estimates calories and macros - just for
-                memory and curiosity.
+                Just for memory and curiosity - no targets, no budgets.
               </div>
             </div>
           )}
