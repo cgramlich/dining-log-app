@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.375.0";
+const APP_VERSION   = "1.375.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -24026,15 +24026,19 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                   {logFilter ? "Show all" : "Only problems"}
                 </button>
                 <button className="btn ghost sm" onClick={async ()=>{
-                  const text = logLines().join("\n");
-                  try { await navigator.clipboard.writeText(text); toast("Log copied"); }
+                  const text = ["MenuCaptain " + APP_VERSION,
+                                "Backend: " + apiBase(config),
+                                "Copied: " + new Date().toISOString(),
+                                "Lines: " + LOG_BUFFER.length, ""]
+                    .concat(LOG_BUFFER).join("\n");
+                  try { await navigator.clipboard.writeText(text); toast("Copied " + LOG_BUFFER.length + " lines"); }
                   catch(e){
                     // Clipboard is blocked in some in-app browsers; fall back to
                     // the share sheet so the log can still get out.
                     try { await navigator.share({ text: text }); }
                     catch(_e){ toast("Couldn't copy the log"); }
                   }
-                }}>Copy</button>
+                }}>Copy all</button>
                 <button className="btn ghost sm" onClick={()=> force(x=>x+1)}>Refresh</button>
               </div>
               <div className="tiny faint" style={{marginBottom:8,wordBreak:"break-all"}}>
