@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.377.1";
+const APP_VERSION   = "1.378.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -10147,7 +10147,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   // library here. Load the community labels once (cheap, no Google cost), and only
   // when the nudge could actually show (Google-linked + a shareable menu + not
   // dismissed) so it doesn't fetch on every place page.
-  const [nudgeCommLabels, setNudgeCommLabels] = useState(null);   // Set of lowercased labels | null = loading
+  // Set of lowercased labels already in the community here. null means "unknown,
+  // go and look" - which is also how a share invalidates it.
+  const [nudgeCommLabels, setNudgeCommLabels] = useState(null);
   useEffect(()=>{
     let alive = true;
     const pid = restaurant && restaurant.google_place_id;
@@ -10753,7 +10755,13 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         {shareSheet ? (
           <ShareSheet cfg={cfg} restaurant={r} menuList={menuList} initialView={shareSheet}
             onShareCard={share} cardBusy={shareBusy} lovedDishes={lovedDishes}
-            onClose={()=> setShareSheet(null)} onShared={dismissShareNudge} />
+            onClose={()=> setShareSheet(null)}
+            onShared={()=> {
+              // Quiet for this visit only, deliberately NOT persisted. Next load,
+              // the label check decides, so a Brunch menu scanned next month
+              // still gets offered instead of being silenced forever.
+              setShareNudgeOff(true);
+            }} />
         ) : null}
 
         <CommunityMenuPanel cfg={cfg} restaurant={r} localMenus={menuList}
@@ -23375,7 +23383,17 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
   const [shareMsg, setShareMsg] = useState("");
   const myMenus = (menuList || []).filter(m => m && (m.sections || []).length
     && m.source !== "community" && m.source !== "shared");
-  const isChecked = (m)=> shareSel[m.menu_id] !== false;
+  function isSharedLabel(m){
+    return (commList || []).some(cm =>
+      (cm.label || "").trim().toLowerCase() === (m.label || "").trim().toLowerCase());
+  }
+  // Tri-state on purpose: undefined means "we have not been told", so fall back
+  // to the sensible default rather than to checked.
+  const isChecked = (m)=> {
+    const v = shareSel[m.menu_id];
+    if (v === true || v === false) return v;
+    return !isSharedLabel(m);
+  };
 
   useEffect(()=>{
     let alive = true;
@@ -23409,6 +23427,10 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
       try { await communityPruneMine(cfg, placeId, myMenus.map(m => m.label || "Main")); } catch(_e){}
       if (onShared){ try { onShared(); } catch(_e){} }
       toast("Shared " + n + " menu" + (n>1?"s":"") + " with other diners - thanks!");
+      // Re-read the library so a reopened sheet reflects what is actually out
+      // there, instead of offering the same menu again.
+      try { const fresh = await communityListMenus(cfg, placeId); setCommList(fresh || []); setShareSel({}); }
+      catch(e){ setCommList(null); }
       onClose && onClose();
     } catch(e){ setShareMsg("Couldn't share right now. Try again."); }
     setShareBusy(false);
@@ -23485,7 +23507,8 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
                   <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
                   <span style={{flex:1, minWidth:0}}>
                     <span className="small" style={{fontWeight:600}}>{m.label || "Menu"}</span>
-                    <span className="tiny faint">{" · " + n + " item" + (n===1?"":"s") + (shared ? " · shared" : "")}</span>
+                    <span className="tiny faint">{" · " + n + " item" + (n===1?"":"s")
+                      + (shared ? (on ? " · already shared, yours will replace it" : " · already shared") : "")}</span>
                   </span>
                 </div>
               );
