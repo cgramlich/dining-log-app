@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.378.0";
+const APP_VERSION   = "1.379.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -15942,6 +15942,35 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
 // { name, username?, user_id?, handle? }. roster feeds autocomplete (your
 // connections first, then names you've tagged before). A name that matches a
 // connection links to that account (shown with an @); otherwise it's just a tag.
+/* People you might be eating with: friends first (they link to an account),
+   then anyone you have tagged on a past visit. Built from whatever is at hand -
+   the local cache means a group order can offer suggestions without three
+   layers of prop threading. */
+function suggestPeople(conns, visits){
+  const byKey = new Map();
+  const put = (name, extra)=>{
+    const nm = (name || "").trim(); if (!nm) return;
+    const k = nm.toLowerCase();
+    const cur = byKey.get(k) || { name: nm };
+    // Only copy values we actually have. A later mention of the same person
+    // carrying {user_id: undefined} would otherwise WIPE the account link set
+    // by an earlier one, and they would sort as a stranger.
+    const known = {};
+    Object.keys(extra || {}).forEach(kk => {
+      const v = extra[kk];
+      if (v !== undefined && v !== null && v !== "") known[kk] = v;
+    });
+    byKey.set(k, Object.assign(cur, known, { name: cur.name || nm }));
+  };
+  (conns || []).forEach(c => put(connLabel(c).primary,
+    { username: c.username || undefined, user_id: c.user_id || c.id || undefined }));
+  (visits || []).forEach(v => (v.companions || []).forEach(pp =>
+    put(personDisplay(pp), { username: pp.username, user_id: pp.user_id })));
+  return Array.from(byKey.values()).sort((a,b)=>
+    (Number(!!(b.user_id || b.username)) - Number(!!(a.user_id || a.username)))
+    || a.name.localeCompare(b.name));
+}
+
 function PeopleTag({ value, onChange, roster }){
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -19947,6 +19976,21 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   const link = code ? (location.origin + location.pathname + "?g=" + code) : "";
   const [rosterInput, setRosterInput] = useState("");
   const [rosterBusy, setRosterBusy]   = useState(false);
+  // Who you might be expecting. Friends come from the server; past companions
+  // come from the cache we already hold, so this costs one cheap call.
+  const [people, setPeople] = useState([]);
+  useEffect(()=>{
+    let alive = true;
+    (async ()=>{
+      let conns = [];
+      try { const d = await getConnections(cfg); conns = (d && d.connections) || []; } catch(e){}
+      let visits = [];
+      try { const c = loadCache(); visits = (c && c.visits) || []; } catch(e){}
+      if (alive) setPeople(suggestPeople(conns, visits));
+    })();
+    return ()=> { alive = false; };
+    // eslint-disable-next-line
+  }, []);
   // Whole-roster replace on every add/remove: optimistic local update, server
   // truth from the response. A failure logs and leaves the prior roster intact.
   async function saveRoster(names){
@@ -20302,12 +20346,45 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                 </div>
               ) : null}
               {!closed ? (
-                <div className="row" style={{gap:8, marginTop: roster.length ? 10 : 0}}>
-                  <ClearInput placeholder="Add who you're expecting (optional)"
-                    value={rosterInput}
-                    onChange={e=> setRosterInput(e.target.value)}
-                    onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); addRosterName(); } }} />
-                  <button className="btn ghost sm" onClick={addRosterName} disabled={rosterBusy || !rosterInput.trim()}>Add</button>
+                <div style={{marginTop: roster.length ? 10 : 0}}>
+                  <div className="row" style={{gap:8}}>
+                    <ClearInput placeholder="Add who you're expecting (optional)"
+                      value={rosterInput}
+                      onChange={e=> setRosterInput(e.target.value)}
+                      onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); addRosterName(); } }} />
+                    <button className="btn ghost sm" onClick={addRosterName} disabled={rosterBusy || !rosterInput.trim()}>Add</button>
+                  </div>
+                  {/* The people you actually eat with, offered instead of typed.
+                      Friends first, then anyone tagged on a past visit. Already
+                      on the list, so they are not offered twice. */}
+                  {(function(){
+                    const q = rosterInput.trim().toLowerCase();
+                    const already = new Set(roster.map(n => groupNorm(n)));
+                    const sugg = people
+                      .filter(pp => !already.has(groupNorm(pp.name)))
+                      .filter(pp => !q || pp.name.toLowerCase().indexOf(q) !== -1
+                                   || (pp.username || "").toLowerCase().indexOf(q) !== -1)
+                      .slice(0, q ? 6 : 8);
+                    if (!sugg.length) return null;
+                    return (
+                      <div className="go-chips" style={{marginTop:8}}>
+                        {sugg.map((pp,i)=>(
+                          <button key={i} className="go-chip" disabled={rosterBusy}
+                            style={{cursor:"pointer"}}
+                            onClick={()=>{
+                              const cur = (data && Array.isArray(data.roster)) ? data.roster : [];
+                              if (cur.some(x => groupNorm(x) === groupNorm(pp.name))) return;
+                              setRosterInput("");
+                              saveRoster(cur.concat([pp.name]));
+                            }}>
+                            + {pp.name}
+                            {pp.user_id || pp.username
+                              ? <span style={{color:"var(--accent)", marginLeft:3}}>@</span> : null}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : null}
               {roster.length ? (
@@ -20468,6 +20545,7 @@ function GroupOrderGuest({code, cfg, profile}){
   const [helpChip, setHelpChip]     = useState(null);   // which chip fired the in-flight ask
   const [helpErr, setHelpErr]       = useState("");
   const [freeText, setFreeText]     = useState("");      // free-form (menu-less) order
+  const [dishQ, setDishQ]     = useState("");      // find a dish by name on a long menu
   const [passed, setPassed]   = useState(false);   // this guest marked themselves "not ordering"
   const [passing, setPassing] = useState(false);   // pass/undo request in flight
   const token = guestToken();
@@ -20558,6 +20636,24 @@ function GroupOrderGuest({code, cfg, profile}){
       setErr(e.message || "Could not send your order.");
     } finally { setSending(false); }
   }
+  // Items of a section that match the search, each carrying its ORIGINAL index
+  // so a pick still keys to the right dish. Name and description both count:
+  // people search for "chicken" as often as for a dish's actual name.
+  function matchItems(sec){
+    const all = (sec && sec.items) || [];
+    const q = dishQ.trim().toLowerCase();
+    const out = [];
+    for (let ii = 0; ii < all.length; ii++){
+      const it = all[ii];
+      if (!q) { out.push({ it: it, ii: ii }); continue; }
+      const hay = ((it && it.name) || "") + " " + ((it && it.description) || "");
+      if (hay.toLowerCase().indexOf(q) !== -1) out.push({ it: it, ii: ii });
+    }
+    return out;
+  }
+  const dishHits = (menu && menu.sections)
+    ? menu.sections.reduce((n, sec)=> n + matchItems(sec).length, 0) : 0;
+
   async function doPass(){
     const nm = name.trim();
     if (!nm){ setErr("Add your name first so the host knows who's passing."); return; }
@@ -20583,6 +20679,16 @@ function GroupOrderGuest({code, cfg, profile}){
       setErr(e.message || "Could not update.");
     } finally { setPassing(false); }
   }
+  // Did the host change this guest's order since they last sent it? Their own
+  // submit clears the flag, so this only ever means "somebody else touched it".
+  const hostEdited = (()=>{
+    if (!data || !Array.isArray(data.picks)) return false;
+    const nm = groupNorm(name.trim());
+    if (!nm) return false;
+    const mine = data.picks.find(p => groupNorm(p.guest_name) === nm);
+    return !!(mine && mine.host_edited_at);
+  })();
+
   // Reflect a pass already recorded on the server (e.g. set on another device):
   // match this guest's row by name once data + name are known.
   useEffect(()=>{
@@ -20664,6 +20770,21 @@ function GroupOrderGuest({code, cfg, profile}){
         </div>
       ) : null}
 
+      {/* The host can fix your order for you. Being told is the difference
+          between a helpful host and finding out when the food arrives. */}
+      {hostEdited && !passed ? (
+        <div style={{margin:"0 0 14px", padding:"10px 14px", borderRadius:12,
+             background:"rgba(224,118,74,0.10)", border:"1px solid rgba(224,118,74,0.35)"}}>
+          <div className="small" style={{fontWeight:600, marginBottom:2}}>
+            The host adjusted your order
+          </div>
+          <div className="tiny faint">
+            What is shown below is what they have for you now. Change it and send
+            again if that is not right.
+          </div>
+        </div>
+      ) : null}
+
       {passed && !closed ? (
         <div style={{margin:"0 0 16px", padding:"10px 14px", borderRadius:12, textAlign:"center",
              background:"var(--surface-2, rgba(255,255,255,0.04))", color:"var(--text-faint)",
@@ -20726,8 +20847,48 @@ function GroupOrderGuest({code, cfg, profile}){
               </>
             )}
           </div>
+          {!passed ? (
+            <div className="row" style={{gap:10, margin:"0 0 12px", alignItems:"center"}}>
+              <div className="tiny faint" style={{flex:1, minWidth:0}}>
+                Pick what you want below, or say you are sitting this one out.
+              </div>
+              <button className="btn ghost sm" style={{flex:"none"}}
+                onClick={doPass} disabled={passing}>
+                {passing ? <span className="spin" /> : "I'm not eating"}
+              </button>
+            </div>
+          ) : null}
+          {/* A guest handed a 200-item menu was left scrolling. Searching also
+              forces every section open, since a hit hiding inside a collapsed
+              course is the same as no hit at all. */}
+          {(menu.sections || []).reduce((n,s)=> n + ((s.items||[]).length), 0) > 12 ? (
+            <div style={{margin:"0 0 10px"}}>
+              <div style={{position:"relative"}}>
+                <input className="input" value={dishQ} onChange={e=> setDishQ(e.target.value)}
+                  placeholder="Find a dish" aria-label="Find a dish" />
+                {dishQ ? (
+                  <button aria-label="Clear" onClick={()=> setDishQ("")}
+                    style={{position:"absolute", right:8, top:"50%", transform:"translateY(-50%)",
+                            background:"none", border:0, color:"var(--text-faint)",
+                            fontSize:18, cursor:"pointer", padding:"0 6px"}}>&times;</button>
+                ) : null}
+              </div>
+              {dishQ.trim() && !dishHits ? (
+                <div className="tiny faint" style={{marginTop:6}}>
+                  Nothing matches &ldquo;{dishQ.trim()}&rdquo;. Clear the search to see the whole menu.
+                </div>
+              ) : dishQ.trim() ? (
+                <div className="tiny faint" style={{marginTop:6}}>
+                  {dishHits} match{dishHits === 1 ? "" : "es"}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {menu.sections.map((s, si)=>{
-            const secOpen = (si in openSec) ? openSec[si] : !collapseDefault;
+            const items = matchItems(s);
+            if (dishQ.trim() && !items.length) return null;
+            const secOpen = dishQ.trim() ? true
+              : ((si in openSec) ? openSec[si] : !collapseDefault);
             const secSel  = Object.keys(picks).filter(k => picks[k] && k.indexOf(si + ":") === 0).length;
             return (
             <div key={si} className="go-gsec">
@@ -20738,7 +20899,8 @@ function GroupOrderGuest({code, cfg, profile}){
                 {secSel ? <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>{secSel} added</span> : null}
                 <Chevron open={secOpen} size={15} />
               </button>
-              {secOpen ? (s.items || []).map((it, ii)=>{
+              {secOpen ? items.map((entry)=>{
+                const it = entry.it, ii = entry.ii;
                 const key = si + ":" + ii;
                 const on  = !!picks[key];
                 return (
@@ -20864,13 +21026,6 @@ function GroupOrderGuest({code, cfg, profile}){
                       + (!freeForm && selected.length ? " (" + selected.length + ")" : "")}
                 </button>
                 {placed ? <div className="tiny faint" style={{textAlign:"center", marginTop:6}}>You have unsent changes.</div> : null}
-                <div style={{textAlign:"center", marginTop:10}}>
-                  <button onClick={doPass} disabled={passing}
-                    style={{background:"none", border:"none", color:"var(--text-faint)",
-                            textDecoration:"underline", cursor:"pointer", fontSize:"0.85em", padding:"4px"}}>
-                    {passing ? "One sec..." : "Not eating? Tap to pass - no thanks, I'm out"}
-                  </button>
-                </div>
               </>
             )}
             {err ? <div className="small" style={{marginTop:8, color:"var(--danger)", textAlign:"center"}}>{err}</div> : null}
