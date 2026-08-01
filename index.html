@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.380.0";
+const APP_VERSION   = "1.381.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -4418,7 +4418,26 @@ function SpendReveal({visits, scope}){
     </div>
   );
   if (scope === "year") return <div style={{textAlign:"center", margin:"4px 0 18px"}}>{inner}</div>;
-  return <div className="card">{inner}</div>;
+  // A whole card for one small word looked orphaned on the place page. Keeping
+  // spend behind a tap is deliberate - money should not be shoved at you - but
+  // the closed state can be a quiet disclosure row rather than an empty box.
+  return (
+    <div style={{margin:"0 0 12px"}}>
+      <button type="button" className="between"
+        style={{width:"100%", background:"none", border:0, padding:"7px 2px",
+                cursor:"pointer", color:"var(--accent)"}}
+        aria-expanded={open} onClick={()=> setOpen(o=>!o)}>
+        <span className="tiny" style={{fontWeight:600}}>Spending</span>
+        <Chevron open={open} size={15} color="var(--accent)" />
+      </button>
+      {open ? (
+        <div className="tiny muted" style={{padding:"0 2px 4px"}}>
+          {detail}
+          <div className="tiny faint" style={{marginTop:3}}>{foot}</div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 // Backfill: write what was actually paid (from a saved visit's dishes) onto the
@@ -17286,6 +17305,111 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               <DishTotal dishes={dishes} min={1} />
             </div>
           )}
+        </div>
+
+        {/* Meal nutrition - estimate from a photo. Sits just below the dishes so
+            the whole-plate estimate is next to what you ordered. Informative &
+            celebratory, never restrictive: no targets, no budgets, no warnings. */}
+        <div className="fld">
+          <span className="lbl">
+            Nutrition <span className="faint" style={{fontWeight:400}}>(estimate from a photo)</span>
+          </span>
+          <input ref={nutFileRef} type="file" accept="image/*"
+            style={{display:"none"}} onChange={onPickNutritionPhoto} />
+
+          {!nutrition && (
+            <div>
+              <button className="btn ghost" disabled={nutBusy}
+                onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
+                {nutBusy ? <span className="spin" /> : <Icon name="sparkle" size={16} />}
+                {nutBusy ? "Estimating..." : "Estimate from a photo"}
+              </button>
+              <div className="tiny faint" style={{marginTop:6}}>
+                Just for memory and curiosity - no targets, no budgets.
+              </div>
+            </div>
+          )}
+
+          {nutErr && <div className="ask-err" style={{marginTop:8}}>{nutErr}</div>}
+
+          {nutrition && (
+            <div className="card nutri">
+              <div className="row between" style={{alignItems:"baseline"}}>
+                <div className="nutri-kcal">
+                  {(nutrition.source==="photo_estimate"||nutrition.source==="menu_estimate") ? "~" : ""}
+                  {nutrition.kcal}<span className="nutri-kcal-u"> cal</span>
+                </div>
+                <div className="row" style={{gap:6,flex:"none"}}>
+                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                    title="Re-estimate from a new photo"
+                    onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
+                    {nutBusy ? <span className="spin" /> : <Icon name="camera" size={15} />}
+                  </button>
+                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                    title={nutEdit ? "Done" : "Edit numbers"}
+                    onClick={()=> nutEdit ? commitNutEdit() : startNutEdit()}>
+                    <Icon name={nutEdit ? "check" : "edit"} size={15} />
+                  </button>
+                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                    title="Remove" onClick={removeNutrition}>
+                    <Icon name="trash" size={15} color="#80715f" />
+                  </button>
+                </div>
+              </div>
+
+              {!nutEdit && (
+                <div className="nutri-macros">
+                  <span><b>{nutrition.protein_g}g</b> protein</span>
+                  <span><b>{nutrition.carbs_g}g</b> carbs</span>
+                  <span><b>{nutrition.fat_g}g</b> fat</span>
+                </div>
+              )}
+
+              {nutEdit && (
+                <div className="nutri-edit">
+                  <label>cal<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.kcal} onChange={e=> setNutNum("kcal", e.target.value)} /></label>
+                  <label>protein (g)<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.protein_g} onChange={e=> setNutNum("protein_g", e.target.value)} /></label>
+                  <label>carbs (g)<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.carbs_g} onChange={e=> setNutNum("carbs_g", e.target.value)} /></label>
+                  <label>fat (g)<input className="input" type="number" inputMode="numeric"
+                    value={nutrition.fat_g} onChange={e=> setNutNum("fat_g", e.target.value)} /></label>
+                  <label className="wide">ingredients
+                    <ClearInput value={nutIngStr}
+                      onChange={e=> setNutIngStr(e.target.value)}
+                      placeholder="comma, separated, list" /></label>
+                </div>
+              )}
+
+              {!nutEdit && nutrition.ingredients && nutrition.ingredients.length > 0 && (
+                <div className="chips" style={{marginTop:10}}>
+                  {nutrition.ingredients.map((ing,i)=> <span key={i} className="chip">{ing}</span>)}
+                </div>
+              )}
+
+              <div className="nutri-foot">
+                {nutrition.source === "manual" ? "Edited by you" : "Estimated from photo"}
+                {nutrition.source !== "manual" && nutrition.confidence
+                  ? " - " + nutrition.confidence + " confidence" : ""}
+              </div>
+              {nutrition.note && !nutEdit && (
+                <div className="tiny faint" style={{marginTop:4}}>{nutrition.note}</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <label className="fld"><span className="lbl">Notes</span>
+          <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
+            placeholder="How was it? Worth returning?" />
+        </label>
+
+        {/* Money last. Splitting a check and photographing receipts is
+            admin; the notes and whether you loved it are the reason anyone
+            logs a visit at all, so admin does not sit between you and them. */}
+        <div className="fld">
+          <span className="lbl">Money</span>
           {splitDraft ? (
             <div style={{marginTop:8}}>
               <VisitSplit split={splitDraft} />
@@ -17525,104 +17649,6 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             </div>
           )}
         </div>
-
-        {/* Meal nutrition - estimate from a photo. Sits just below the dishes so
-            the whole-plate estimate is next to what you ordered. Informative &
-            celebratory, never restrictive: no targets, no budgets, no warnings. */}
-        <div className="fld">
-          <span className="lbl">
-            Nutrition <span className="faint" style={{fontWeight:400}}>(estimate from a photo)</span>
-          </span>
-          <input ref={nutFileRef} type="file" accept="image/*"
-            style={{display:"none"}} onChange={onPickNutritionPhoto} />
-
-          {!nutrition && (
-            <div>
-              <button className="btn ghost" disabled={nutBusy}
-                onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
-                {nutBusy ? <span className="spin" /> : <Icon name="sparkle" size={16} />}
-                {nutBusy ? "Estimating..." : "Estimate from a photo"}
-              </button>
-              <div className="tiny faint" style={{marginTop:6}}>
-                Just for memory and curiosity - no targets, no budgets.
-              </div>
-            </div>
-          )}
-
-          {nutErr && <div className="ask-err" style={{marginTop:8}}>{nutErr}</div>}
-
-          {nutrition && (
-            <div className="card nutri">
-              <div className="row between" style={{alignItems:"baseline"}}>
-                <div className="nutri-kcal">
-                  {(nutrition.source==="photo_estimate"||nutrition.source==="menu_estimate") ? "~" : ""}
-                  {nutrition.kcal}<span className="nutri-kcal-u"> cal</span>
-                </div>
-                <div className="row" style={{gap:6,flex:"none"}}>
-                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-                    title="Re-estimate from a new photo"
-                    onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
-                    {nutBusy ? <span className="spin" /> : <Icon name="camera" size={15} />}
-                  </button>
-                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-                    title={nutEdit ? "Done" : "Edit numbers"}
-                    onClick={()=> nutEdit ? commitNutEdit() : startNutEdit()}>
-                    <Icon name={nutEdit ? "check" : "edit"} size={15} />
-                  </button>
-                  <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-                    title="Remove" onClick={removeNutrition}>
-                    <Icon name="trash" size={15} color="#80715f" />
-                  </button>
-                </div>
-              </div>
-
-              {!nutEdit && (
-                <div className="nutri-macros">
-                  <span><b>{nutrition.protein_g}g</b> protein</span>
-                  <span><b>{nutrition.carbs_g}g</b> carbs</span>
-                  <span><b>{nutrition.fat_g}g</b> fat</span>
-                </div>
-              )}
-
-              {nutEdit && (
-                <div className="nutri-edit">
-                  <label>cal<input className="input" type="number" inputMode="numeric"
-                    value={nutrition.kcal} onChange={e=> setNutNum("kcal", e.target.value)} /></label>
-                  <label>protein (g)<input className="input" type="number" inputMode="numeric"
-                    value={nutrition.protein_g} onChange={e=> setNutNum("protein_g", e.target.value)} /></label>
-                  <label>carbs (g)<input className="input" type="number" inputMode="numeric"
-                    value={nutrition.carbs_g} onChange={e=> setNutNum("carbs_g", e.target.value)} /></label>
-                  <label>fat (g)<input className="input" type="number" inputMode="numeric"
-                    value={nutrition.fat_g} onChange={e=> setNutNum("fat_g", e.target.value)} /></label>
-                  <label className="wide">ingredients
-                    <ClearInput value={nutIngStr}
-                      onChange={e=> setNutIngStr(e.target.value)}
-                      placeholder="comma, separated, list" /></label>
-                </div>
-              )}
-
-              {!nutEdit && nutrition.ingredients && nutrition.ingredients.length > 0 && (
-                <div className="chips" style={{marginTop:10}}>
-                  {nutrition.ingredients.map((ing,i)=> <span key={i} className="chip">{ing}</span>)}
-                </div>
-              )}
-
-              <div className="nutri-foot">
-                {nutrition.source === "manual" ? "Edited by you" : "Estimated from photo"}
-                {nutrition.source !== "manual" && nutrition.confidence
-                  ? " - " + nutrition.confidence + " confidence" : ""}
-              </div>
-              {nutrition.note && !nutEdit && (
-                <div className="tiny faint" style={{marginTop:4}}>{nutrition.note}</div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <label className="fld"><span className="lbl">Notes</span>
-          <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
-            placeholder="How was it? Worth returning?" />
-        </label>
 
         <button type="button" className={"btn" + (loved ? " primary" : " ghost")}
           style={{marginBottom:14}} onClick={()=> setLoved(l => !l)}>
