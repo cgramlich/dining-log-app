@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.379.1";
+const APP_VERSION   = "1.380.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -17088,7 +17088,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             <ClearInput value={dishInput}
               onChange={e=>setDishInput(e.target.value)}
               onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); addDish(dishInput); } }}
-              placeholder="Search the menu or type a dish" />
+              placeholder="Search or type a dish" />
             <button className="btn ghost sm" onClick={()=> addDish(dishInput)}
               style={{flex:"none"}}>Add</button>
             {(()=>{
@@ -17189,6 +17189,103 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               {receiptBusy ? "Reading the check..." : "Edit dishes from the check"}
             </button>
           ) : null}
+          {dishes.length > 0 && (
+            <div style={{marginTop:6}}>
+              <input ref={dishPhotoRef} type="file" accept="image/*"
+                style={{display:"none"}} onChange={onDishPhotoPicked} />
+              {dishes.map((d,i)=>(
+                <div key={i} className="dish-item">
+                  <div className="dish-row">
+                    <span className="dish-row-name"
+                      onClick={()=> setEditDish({ orig:d.name, draft:d.name, err:"" })}
+                      style={{cursor:"pointer"}}>
+                      {d.name}{dishShareLabel(d)}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}</span>
+                    <div className="dish-verdict">
+                      <button
+                        className={"verdict-btn loved" + (d.verdict==="loved" ? " on" : "")}
+                        aria-pressed={d.verdict==="loved"}
+                        onClick={()=> setVerdict(d.name, "loved")}>{"♥ Loved"}</button>
+                      <button
+                        className={"verdict-btn again" + (d.verdict==="again" ? " on" : "")}
+                        aria-pressed={d.verdict==="again"}
+                        onClick={()=> setVerdict(d.name, "again")}>Again</button>
+                      <button
+                        className={"verdict-btn skip" + (d.verdict==="skip" ? " on" : "")}
+                        aria-pressed={d.verdict==="skip"}
+                        onClick={()=> setVerdict(d.name, "skip")}>Skip</button>
+                    </div>
+                    <button className="dish-row-x" aria-label={"Remove " + d.name} onClick={()=> removeDish(d.name)}>
+                      <Icon name="close" size={14} color="#80715f" />
+                    </button>
+                  </div>
+                  {d.note && !noteOpen[d.name] && (
+                    <div className="dish-note-line" onClick={()=> toggleNote(d.name)}>
+                      <Icon name="note" size={12} color="#9aa877" />
+                      <span>{d.note}</span>
+                    </div>
+                  )}
+                  <div className="dish-sub">
+                    {dishNutBusy[d.name] ? (
+                      <span className="dish-cam" style={{cursor:"default"}}>
+                        <span className="spin" />Estimating...
+                      </span>
+                    ) : (d.nutrition && d.nutrition.kcal) ? (
+                      <span className="dish-est">
+                        <Icon name="check" size={13} color="#8fb08a" />
+                        <span className="dish-est-num">~{dishKcalNum(d)} cal</span>
+                        {(dishMacNum(d,"protein_g") || dishMacNum(d,"carbs_g") || dishMacNum(d,"fat_g")) ? (
+                          <span className="dish-est-mac">
+                            {dishMacNum(d,"protein_g")}P / {dishMacNum(d,"carbs_g")}C / {dishMacNum(d,"fat_g")}F
+                          </span>
+                        ) : null}
+                        <button className="dish-redo" onClick={()=> clearDishEstimate(d.name)}>Redo</button>
+                      </span>
+                    ) : (
+                      <>
+                        <button className="dish-cam" onClick={()=> startDishPhoto(d.name)}>
+                          <Icon name="camera" size={13} color="var(--accent)" />Estimate from a photo
+                        </button>
+                        <button className="dish-cam" onClick={()=> estimateDishNoPhoto(d.name)}>
+                          <Icon name="sparkle" size={13} color="var(--accent)" />Estimate without a photo
+                        </button>
+                      </>
+                    )}
+                    <button className="dish-cam" onClick={()=> toggleNote(d.name)}>
+                      <Icon name="note" size={13} color="var(--accent)" />
+                      {d.note ? "Edit note" : "Add a note"}
+                    </button>
+                    {dishNutErr[d.name] && <span className="dish-cam-err">{dishNutErr[d.name]}</span>}
+                  </div>
+                  {noteOpen[d.name] && (
+                    <div style={{marginTop:6}}>
+                      <ClearInput value={d.note || ""} autoFocus
+                        placeholder="e.g. added mushrooms, no onions, well done"
+                        onChange={e=> setDishNote(d.name, e.target.value)}
+                        onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); toggleNote(d.name); } }} />
+                      <div className="row" style={{gap:8, marginTop:6}}>
+                        <button className="btn ghost sm" onClick={()=> toggleNote(d.name)}>Done</button>
+                        {d.note && (
+                          <button className="btn ghost sm"
+                            onClick={()=>{ setDishNote(d.name, ""); toggleNote(d.name); }}>Clear</button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div style={{marginTop:4, padding:"0 2px"}}>
+                <InfoDot title="Loved, Again, Skip" label="What these do">
+                  <span className="idl"><strong>Again</strong> is something you'd order
+                    again; <strong>Skip</strong> is something you wouldn't.</span>
+                  <span className="idl">It is how you remember what's worth getting next
+                    time - they build your loved list for this place.</span>
+                  <span className="idl">Your most recent verdict wins, so you can change
+                    your mind on a later visit.</span>
+                </InfoDot>
+              </div>
+              <DishTotal dishes={dishes} min={1} />
+            </div>
+          )}
           {splitDraft ? (
             <div style={{marginTop:8}}>
               <VisitSplit split={splitDraft} />
@@ -17425,103 +17522,6 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   <button className="btn primary" onClick={confirmReceiptDishes}>Done</button>
                 </div>
               </div>
-            </div>
-          )}
-          {dishes.length > 0 && (
-            <div style={{marginTop:6}}>
-              <input ref={dishPhotoRef} type="file" accept="image/*"
-                style={{display:"none"}} onChange={onDishPhotoPicked} />
-              {dishes.map((d,i)=>(
-                <div key={i} className="dish-item">
-                  <div className="dish-row">
-                    <span className="dish-row-name"
-                      onClick={()=> setEditDish({ orig:d.name, draft:d.name, err:"" })}
-                      style={{cursor:"pointer"}}>
-                      {d.name}{dishShareLabel(d)}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}</span>
-                    <div className="dish-verdict">
-                      <button
-                        className={"verdict-btn loved" + (d.verdict==="loved" ? " on" : "")}
-                        aria-pressed={d.verdict==="loved"}
-                        onClick={()=> setVerdict(d.name, "loved")}>{"♥ Loved"}</button>
-                      <button
-                        className={"verdict-btn again" + (d.verdict==="again" ? " on" : "")}
-                        aria-pressed={d.verdict==="again"}
-                        onClick={()=> setVerdict(d.name, "again")}>Again</button>
-                      <button
-                        className={"verdict-btn skip" + (d.verdict==="skip" ? " on" : "")}
-                        aria-pressed={d.verdict==="skip"}
-                        onClick={()=> setVerdict(d.name, "skip")}>Skip</button>
-                    </div>
-                    <button className="dish-row-x" aria-label={"Remove " + d.name} onClick={()=> removeDish(d.name)}>
-                      <Icon name="close" size={14} color="#80715f" />
-                    </button>
-                  </div>
-                  {d.note && !noteOpen[d.name] && (
-                    <div className="dish-note-line" onClick={()=> toggleNote(d.name)}>
-                      <Icon name="note" size={12} color="#9aa877" />
-                      <span>{d.note}</span>
-                    </div>
-                  )}
-                  <div className="dish-sub">
-                    {dishNutBusy[d.name] ? (
-                      <span className="dish-cam" style={{cursor:"default"}}>
-                        <span className="spin" />Estimating...
-                      </span>
-                    ) : (d.nutrition && d.nutrition.kcal) ? (
-                      <span className="dish-est">
-                        <Icon name="check" size={13} color="#8fb08a" />
-                        <span className="dish-est-num">~{dishKcalNum(d)} cal</span>
-                        {(dishMacNum(d,"protein_g") || dishMacNum(d,"carbs_g") || dishMacNum(d,"fat_g")) ? (
-                          <span className="dish-est-mac">
-                            {dishMacNum(d,"protein_g")}P / {dishMacNum(d,"carbs_g")}C / {dishMacNum(d,"fat_g")}F
-                          </span>
-                        ) : null}
-                        <button className="dish-redo" onClick={()=> clearDishEstimate(d.name)}>Redo</button>
-                      </span>
-                    ) : (
-                      <>
-                        <button className="dish-cam" onClick={()=> startDishPhoto(d.name)}>
-                          <Icon name="camera" size={13} color="var(--accent)" />Estimate from a photo
-                        </button>
-                        <button className="dish-cam" onClick={()=> estimateDishNoPhoto(d.name)}>
-                          <Icon name="sparkle" size={13} color="var(--accent)" />Estimate without a photo
-                        </button>
-                      </>
-                    )}
-                    <button className="dish-cam" onClick={()=> toggleNote(d.name)}>
-                      <Icon name="note" size={13} color="var(--accent)" />
-                      {d.note ? "Edit note" : "Add a note"}
-                    </button>
-                    {dishNutErr[d.name] && <span className="dish-cam-err">{dishNutErr[d.name]}</span>}
-                  </div>
-                  {noteOpen[d.name] && (
-                    <div style={{marginTop:6}}>
-                      <ClearInput value={d.note || ""} autoFocus
-                        placeholder="e.g. added mushrooms, no onions, well done"
-                        onChange={e=> setDishNote(d.name, e.target.value)}
-                        onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); toggleNote(d.name); } }} />
-                      <div className="row" style={{gap:8, marginTop:6}}>
-                        <button className="btn ghost sm" onClick={()=> toggleNote(d.name)}>Done</button>
-                        {d.note && (
-                          <button className="btn ghost sm"
-                            onClick={()=>{ setDishNote(d.name, ""); toggleNote(d.name); }}>Clear</button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-              <div style={{marginTop:4, padding:"0 2px"}}>
-                <InfoDot title="Loved, Again, Skip" label="What these do">
-                  <span className="idl"><strong>Again</strong> is something you'd order
-                    again; <strong>Skip</strong> is something you wouldn't.</span>
-                  <span className="idl">It is how you remember what's worth getting next
-                    time - they build your loved list for this place.</span>
-                  <span className="idl">Your most recent verdict wins, so you can change
-                    your mind on a later visit.</span>
-                </InfoDot>
-              </div>
-              <DishTotal dishes={dishes} min={1} />
             </div>
           )}
         </div>
