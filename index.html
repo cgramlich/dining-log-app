@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.379.0";
+const APP_VERSION   = "1.379.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -23547,6 +23547,7 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
   const isChecked = (m)=> {
     const v = shareSel[m.menu_id];
     if (v === true || v === false) return v;
+    if (commList === null) return false;   // still loading: never assume
     return !isSharedLabel(m);
   };
 
@@ -23648,6 +23649,24 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
             <div className="small muted" style={{marginBottom:12}}>
               Choose the {menuWord} to share so other diners here can skip the scan. Only the menu goes out, never your visits, notes, or ratings.
             </div>
+            {(function(){
+              if (commList === null) return null;
+              const already = myMenus.filter(isSharedLabel).map(m => m.label || "Menu");
+              if (!already.length) return null;
+              const fresh = myMenus.length - already.length;
+              return (
+                <div className="tiny" style={{marginBottom:11, padding:"9px 12px", borderRadius:10,
+                     background:"rgba(127,170,107,0.10)", border:"1px solid rgba(127,170,107,0.30)"}}>
+                  <span style={{fontWeight:600}}>
+                    You have already shared {already.join(" and ")} here.
+                  </span>
+                  {" "}
+                  {fresh > 0
+                    ? "Only what is ticked below gets sent."
+                    : "Tick one again only if you want yours to replace it."}
+                </div>
+              );
+            })()}
             {commList === null ? (
               <div className="empty" style={{padding:"16px 0"}}><span className="spin" /></div>
             ) : !myMenus.length ? (
@@ -23671,7 +23690,9 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
             {shareMsg ? <div className="tiny" style={{marginTop:8, color:"var(--accent)"}}>{shareMsg}</div> : null}
             <div className="row" style={{gap:9, marginTop:14}}>
               <button className="btn ghost" onClick={()=> setView("main")}>Back</button>
-              <button className="btn primary" disabled={shareBusy || !myMenus.some(isChecked)} onClick={shareCommunity}>
+              <button className="btn primary"
+                disabled={shareBusy || commList === null || !myMenus.some(isChecked)}
+                onClick={shareCommunity}>
                 {shareBusy ? <span className="spin" /> : "Share checked menus"}
               </button>
             </div>
