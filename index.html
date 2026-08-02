@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.382.1";
+const APP_VERSION   = "1.383.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -19296,6 +19296,17 @@ async function groupSubmit(cfg, code, name, token, picks){
   }
   return res.json();
 }
+/* Tell the host this person has the order open. Fire and forget: a failed
+   view report must never get in the way of actually ordering. */
+async function groupSeen(cfg, code, token, name){
+  try {
+    await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/seen", {
+      method:"POST", headers:{ "Content-Type":"application/json", ...(cfg ? await authHeaders(cfg) : {}) },
+      body: JSON.stringify({ guest_token: token, guest_name: name || "" }),
+    });
+  } catch(e){ /* silent by design */ }
+}
+
 async function groupPass(cfg, code, name, token, passed){
   // A guest opts out ("not ordering") so the host isn't left waiting. passed=false
   // is the undo (rejoin). Mirrors groupSubmit's auth handling for signed-in guests.
@@ -19939,13 +19950,36 @@ function ActiveGroupOrders({cfg}){
 // drop into any menu view without threading overlay state through the app.
 function GroupOrderButton({cfg, menu, restaurantName}){
   const [show, setShow] = useState(false);
+  const [resume, setResume] = useState(null);   // an open order already running here
+  // Starting a second order for a place that already has one live is a quiet
+  // disaster: your guests hold the old link, their picks land in the old order,
+  // and you sit watching an empty new one. So look first.
+  useEffect(()=>{
+    let alive = true;
+    (async ()=>{
+      try {
+        const list = await groupMine(cfg);
+        if (!alive) return;
+        const here = (Array.isArray(list) ? list : []).find(o =>
+          groupNorm(o.restaurant_name || "") === groupNorm(restaurantName || ""));
+        setResume(here || null);
+      } catch(e){ /* no signal is fine; the button just offers a new order */ }
+    })();
+    return ()=> { alive = false; };
+    // eslint-disable-next-line
+  }, [restaurantName]);
+  const n = resume && (resume.pick_count || resume.picks || 0);
   return (
     <>
       <button className="btn ghost sm" onClick={()=> setShow(true)}
         style={{flex:"none", padding:"6px 12px", margin:"0 0 12px"}}>
-        <span className="row" style={{gap:5}}><Icon name="nodes" size={14} />Group order</span>
+        <span className="row" style={{gap:5}}>
+          <Icon name="nodes" size={14} />
+          {resume ? ("Resume group order" + (n ? "  ·  " + n + " in" : "")) : "Group order"}
+        </span>
       </button>
       {show ? <GroupOrderHost cfg={cfg} menu={menu} restaurantName={restaurantName}
+                resumeCode={resume ? resume.code : undefined}
                 onClose={()=> setShow(false)} /> : null}
     </>
   );
@@ -20275,6 +20309,12 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   const expected  = roster.map(name => ({ name, sub: subByName[groupNorm(name)] || null }));
   const waiting   = expected.filter(r => !r.sub).map(r => r.name);
   const extras    = guests.filter(g => !rosterSet.has(groupNorm(g.guest_name)));
+  // Who has the order open. Matched by name, since that is what the roster
+  // holds; a viewer who never typed a name simply cannot be matched, which is
+  // honest - we only claim to know when we do.
+  const seenNames = new Set(((data && data.views) || [])
+    .map(v => groupNorm(v.guest_name || ""))
+    .filter(Boolean));
   const passedNames = passedGuests.map(g => g.guest_name).filter(Boolean);
   const passedExtras = passedGuests.filter(g => !rosterSet.has(groupNorm(g.guest_name)));
 
@@ -20505,7 +20545,16 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               ) : null}
             </div>
 
-            <div className="go-sec">Who's ordered ({guests.length}){passedGuests.length ? ", " + passedGuests.length + " passed" : ""}</div>
+            <div className="go-sec">
+              Who's ordered ({guests.length}){passedGuests.length ? ", " + passedGuests.length + " passed" : ""}
+              {(function(){
+                // People who opened it and have still not answered. The number
+                // that tells you whether to resend the link or just wait.
+                const answered = new Set(allGuests.map(g => groupNorm(g.guest_name || "")));
+                const lurking = Array.from(seenNames).filter(n => n && !answered.has(n)).length;
+                return lurking ? <span className="tiny faint">{"  \u00b7  " + lurking + " looking"}</span> : null;
+              })()}
+            </div>
             {hasRoster ? (
               <div className="card">
                 {waiting.length ? (
@@ -20525,7 +20574,9 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                           {r.name}
                           {r.sub
                             ? (isPassed ? <span className="go-wait">passed</span> : <span className="go-in">ordered</span>)
-                            : <span className="go-wait">waiting</span>}
+                            : (seenNames.has(groupNorm(r.name))
+                                ? <span className="go-wait" title="They have the order open">opened it</span>
+                                : <span className="go-wait">waiting</span>)}
                         </div>
                         {r.sub ? (isPassed
                           ? <div className="tiny faint">Not ordering</div>
@@ -20799,6 +20850,17 @@ function GroupOrderGuest({code, cfg, profile}){
     const mine = data.picks.find(p => groupNorm(p.guest_name) === nm);
     return !!(mine && mine.host_edited_at);
   })();
+
+  // Let the host know this was opened. Once per mount, and only after the
+  // order really loaded - reporting a view of an order that does not exist
+  // would just be noise on their screen.
+  const seenSent = useRef(false);
+  useEffect(()=>{
+    if (seenSent.current || !data || !code) return;
+    seenSent.current = true;
+    groupSeen(cfg || null, code, token, (name || "").trim());
+    // eslint-disable-next-line
+  }, [data, code]);
 
   // Reflect a pass already recorded on the server (e.g. set on another device):
   // match this guest's row by name once data + name are known.
