@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.381.0";
+const APP_VERSION   = "1.382.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8021,6 +8021,8 @@ function App(){
           <AtPlaceMenuStep restaurant={r} menus={menus}
             onScan={(id)=> setOverlay({ type:"scanMenu", restaurantId:id })}
             onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id })}
+            onOpenMenu={(id, menuId)=> setOverlay({
+              type:"menuDetail", restaurantId:id, menuId:menuId })}
             onLogVisit={(id)=> setOverlay({ type:"logVisit", restaurantId:id,
               returnTo:{ type:"restaurant", id:id } })}
             onClose={()=> setOverlay({ type:"atRestaurant" })}
@@ -10050,16 +10052,20 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
     setPulling(false);
   }
 
-  // Community menus here that you DON'T already have (by label) - the ones worth
-  // pulling. Your own menus are shared from the "Share" button, not here.
+  // Community menus here you do not already have, by label - the ones worth
+  // pulling. Sharing still happens from the Share button, not here.
   const pullable = (list || []).filter(cm => !(localMenus || []).some(m =>
     (m.label || "").trim().toLowerCase() === (cm.label || "").trim().toLowerCase()));
+  // The rest: already yours, whether because you shared them or pulled them.
+  // Showing them is the point - otherwise you cannot see what is out there for
+  // this place, only the gaps.
+  const alreadyHere = (list || []).filter(cm => !pullable.some(p2 => p2.id === cm.id));
 
   return (
     <div className="card" style={{marginBottom:12}}>
       <div className="row between" style={{alignItems:"center", cursor:"pointer"}} onClick={toggleOpen}>
         <span className="small" style={{fontWeight:600}}>
-          <Icon name="nodes" size={14} color="var(--accent)" /> Menus shared by other diners
+          <Icon name="nodes" size={14} color="var(--accent)" /> Menus shared here
         </span>
         {/* Clear disclosure chevron (accent, rotates on open) - the old tiny
             faint text triangle was barely visible. */}
@@ -10111,9 +10117,32 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
                 {pulling ? <span className="spin" /> : "Add to your menus"}
               </button>
             </div>
-          ) : (list !== null && !busy ? (
-            <div className="tiny faint">No menus shared here by other diners yet.</div>
-          ) : null)}
+          ) : null}
+
+          {/* What is already yours. Not actionable, but it is the difference
+              between "nothing here" and "everything here is already yours". */}
+          {alreadyHere.length > 0 ? (
+            <div style={{marginTop: pullable.length ? 14 : 4}}>
+              <div className="tiny faint" style={{marginBottom:6}}>
+                {pullable.length ? "Already yours" : "Everything shared here is already yours"}
+              </div>
+              {alreadyHere.map(cm => (
+                <div key={cm.id} className="row" style={{gap:8, padding:"5px 2px", alignItems:"center"}}>
+                  <span className="small" style={{flex:1, minWidth:0}}>
+                    {cm.label || "Menu"}
+                    <span className="tiny faint">
+                      {"  \u00b7  " + (cm.item_count || 0) + " item" + ((cm.item_count === 1) ? "" : "s")}
+                      {cm.mine ? "  \u00b7  shared by you" : "  \u00b7  you have this"}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {list !== null && !busy && !pullable.length && !alreadyHere.length ? (
+            <div className="tiny faint">No menus shared here yet.</div>
+          ) : null}
         </div>
       )}
     </div>
@@ -11915,10 +11944,12 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
 // Step 2 of the "Already at the restaurant?" flow: the place is known, now
 // encourage grabbing the menu (the key that unlocks the app's features). If a
 // menu is already on file here, offer to open it instead of re-scanning.
-function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onLogVisit, onClose, onHome }){
+function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onOpenMenu, onLogVisit, onClose, onHome }){
   const r = restaurant;
-  const hasMenu = Array.isArray(menus && menus[r.id])
-    && (menus[r.id] || []).some(m => m && (m.sections || []).length);
+  // The menu they would have opened anyway: the first one with anything in it.
+  const bestMenu = (Array.isArray(menus && menus[r.id]) ? menus[r.id] : [])
+    .find(m => m && (m.sections || []).length) || null;
+  const hasMenu = !!bestMenu;
   return (
     <div className="overlay">
       <div className="ovhead">
@@ -11941,7 +11972,8 @@ function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onLogVis
           </div>
           <div style={{marginTop:22}}>
             {hasMenu ? (
-              <button className="btn primary" style={{width:"100%"}} onClick={()=> onOpenRestaurant(r.id)}>
+              <button className="btn primary" style={{width:"100%"}}
+                onClick={()=> (onOpenMenu && bestMenu) ? onOpenMenu(r.id, bestMenu.menu_id) : onOpenRestaurant(r.id)}>
                 <Icon name="book" size={16} />See the menu
               </button>
             ) : (
@@ -16642,6 +16674,19 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       if (e.target) e.target.value = "";
     }
   }
+  // Photos save in the order they sit here, so reordering is a genuine edit,
+  // not just a view preference. The first photo is the one that represents the
+  // visit everywhere else.
+  function movePhotoSlot(from, to){
+    if (from === to) return;
+    setPhotoSlots(list => {
+      if (to < 0 || to >= list.length || from < 0 || from >= list.length) return list;
+      const next = list.slice();
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
   function removePhotoSlot(idx){
     setPhotoSlots(prev => {
       const removed = prev[idx];
@@ -17061,6 +17106,18 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   onClick={(e)=>{ e.stopPropagation(); removePhotoSlot(i); }}>
                   <Icon name="close" size={14} color="#e8dac6" />
                 </button>
+                {i > 0 ? (
+                  <button type="button" aria-label="Move this photo earlier"
+                    title="Move earlier"
+                    style={{position:"absolute", left:4, bottom:4, width:22, height:22,
+                            borderRadius:"50%", background:"rgba(20,17,14,0.85)",
+                            border:"1px solid var(--line)", display:"flex",
+                            alignItems:"center", justifyContent:"center", cursor:"pointer",
+                            WebkitTapHighlightColor:"transparent"}}
+                    onClick={(e)=>{ e.stopPropagation(); movePhotoSlot(i, i - 1); }}>
+                    <Icon name="back" size={13} color="#e8dac6" />
+                  </button>
+                ) : null}
               </div>
             ))}
             {photoSlots.length < MAX_PHOTOS && (
