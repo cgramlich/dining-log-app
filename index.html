@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.383.0";
+const APP_VERSION   = "1.384.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -10282,11 +10282,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         : "Couldn't search Google. Try again.");
     } finally { setLinkBusy(false); }
   }
-  // A menu labeled "Main" pins to the top; everything else keeps its order
-  // (Array.sort is stable, so non-Main menus stay as they were).
-  const menuList = (menus || []).slice().sort((a,b)=>
-    ((((a.label||"").trim().toLowerCase() === "main") ? 0 : 1)
-     - (((b.label||"").trim().toLowerCase() === "main") ? 0 : 1)));
+  const menuList = orderedMenus(menus);
   // Reorder support: "Main" menus stay pinned at the top; everything after them
   // (indices >= menuMainCount) is the reorderable block. Only worth showing the
   // up/down controls when there are 2+ non-Main menus.
@@ -11944,12 +11940,24 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
 // Step 2 of the "Already at the restaurant?" flow: the place is known, now
 // encourage grabbing the menu (the key that unlocks the app's features). If a
 // menu is already on file here, offer to open it instead of re-scanning.
+/* The order menus are presented in: a menu labelled "Main" pins to the top,
+   everything else keeps the order you dragged it into (Array.sort is stable).
+   Shared so "the first menu" means the same thing everywhere. */
+function orderedMenus(list){
+  const isMain = (m)=> ((m && m.label || "").trim().toLowerCase() === "main") ? 0 : 1;
+  return (list || []).slice().sort((a,b)=> isMain(a) - isMain(b));
+}
+
 function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onOpenMenu, onLogVisit, onClose, onHome }){
   const r = restaurant;
-  // The menu they would have opened anyway: the first one with anything in it.
-  const bestMenu = (Array.isArray(menus && menus[r.id]) ? menus[r.id] : [])
-    .find(m => m && (m.sections || []).length) || null;
-  const hasMenu = !!bestMenu;
+  // In the SAME order the place page shows them - otherwise "the first menu"
+  // means one thing here and another there, which is how you end up opening a
+  // drinks list when you asked for the menu.
+  const withItems = orderedMenus(menus && menus[r.id]).filter(m => m && (m.sections || []).length);
+  // Only open a menu directly when there is no doubt about which one. With
+  // several, the honest destination is the list of them.
+  const bestMenu = withItems.length === 1 ? withItems[0] : null;
+  const hasMenu = withItems.length > 0;
   return (
     <div className="overlay">
       <div className="ovhead">
@@ -11974,7 +11982,8 @@ function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onOpenMe
             {hasMenu ? (
               <button className="btn primary" style={{width:"100%"}}
                 onClick={()=> (onOpenMenu && bestMenu) ? onOpenMenu(r.id, bestMenu.menu_id) : onOpenRestaurant(r.id)}>
-                <Icon name="book" size={16} />See the menu
+                <Icon name="book" size={16} />
+                {withItems.length > 1 ? ("See the menus (" + withItems.length + ")") : "See the menu"}
               </button>
             ) : (
               <button className="btn primary" style={{width:"100%"}} onClick={()=> onScan(r.id)}>
@@ -15004,6 +15013,16 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
     return s;
   });
   const [q, setQ]                 = useState("");
+  // Narrowing the pool you spin from. Cities and cuisines are read off your own
+  // places, so the options are always ones that will actually match something.
+  const [favOnly, setFavOnly]     = useState(false);
+  const [cityFilter, setCityFilter] = useState("");
+  const [cuisFilter, setCuisFilter] = useState("");
+  const cityOptions = Array.from(new Set(places.map(r => (r.location || "").trim()).filter(Boolean)))
+    .sort((a,b)=> a.localeCompare(b));
+  const cuisineOptions = Array.from(new Set(places.map(r => (r.cuisine || "").trim()).filter(Boolean)))
+    .sort((a,b)=> a.localeCompare(b));
+  const anyFilter = favOnly || !!cityFilter || !!cuisFilter;
   const [stage, setStage]         = useState("pick");   // "pick" | "wheel"
   const [wheelList, setWheelList] = useState([]);        // frozen set for the wheel
   const [rotation, setRotation]   = useState(0);
@@ -15029,10 +15048,14 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
   }, []);
 
   const ql = q.trim().toLowerCase();
-  const shown = ql
-    ? places.filter(r => ((r.name||"") + " " + (r.location||"") + " " + (r.cuisine||""))
-        .toLowerCase().indexOf(ql) !== -1)
-    : places;
+  const shown = places.filter(r => {
+    if (favOnly && !r.favorite) return false;
+    if (cityFilter && (r.location || "").trim().toLowerCase() !== cityFilter.toLowerCase()) return false;
+    if (cuisFilter && (r.cuisine || "").trim().toLowerCase() !== cuisFilter.toLowerCase()) return false;
+    if (!ql) return true;
+    return ((r.name||"") + " " + (r.location||"") + " " + (r.cuisine||""))
+      .toLowerCase().indexOf(ql) !== -1;
+  });
   const pickedList = places.filter(r => picked[r.id]);
   const count = pickedList.length;
 
@@ -15282,6 +15305,40 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
             <div style={{marginBottom:10}}>
               <SearchBar placeholder="Search your places" value={q} onChange={setQ} />
             </div>
+            {/* Narrow the pool before you spin. Cities and cuisines come from
+                your own places, so every option matches something. */}
+            <div className="row" style={{gap:8, marginBottom:10, flexWrap:"wrap", alignItems:"center"}}>
+              <button style={spchip(favOnly)} onClick={()=> setFavOnly(f => !f)}>
+                {favOnly ? "\u2605 Favorites" : "\u2606 Favorites"}
+              </button>
+              {cityOptions.length > 1 ? (
+                <select className="input" value={cityFilter}
+                  onChange={e=> setCityFilter(e.target.value)}
+                  style={{width:"auto", flex:"none", padding:"7px 10px", fontSize:13}}>
+                  <option value="">Any city</option>
+                  {cityOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : null}
+              {cuisineOptions.length > 1 ? (
+                <select className="input" value={cuisFilter}
+                  onChange={e=> setCuisFilter(e.target.value)}
+                  style={{width:"auto", flex:"none", padding:"7px 10px", fontSize:13}}>
+                  <option value="">Any food</option>
+                  {cuisineOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : null}
+              {anyFilter ? (
+                <button className="btn ghost sm" style={{flex:"none"}}
+                  onClick={()=>{ setFavOnly(false); setCityFilter(""); setCuisFilter(""); }}>
+                  Clear
+                </button>
+              ) : null}
+            </div>
+            {anyFilter && !shown.length ? (
+              <div className="tiny faint" style={{marginBottom:10}}>
+                Nothing matches those filters. Clear one to widen the net.
+              </div>
+            ) : null}
             <div className="row" style={{gap:8, alignItems:"center", marginBottom:6, flexWrap:"wrap"}}>
               <button className="btn ghost sm" onClick={selectAllShown}>Select all</button>
               {wantToTry.length ? (
@@ -20118,6 +20175,17 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   const [editTarget, setEditTarget] = useState(null);        // the pick being host-edited, or null
   const [editItems, setEditItems]   = useState([]);          // working copy of that pick's items
   const [editBusy, setEditBusy]     = useState(false);
+  const [myOrder, setMyOrder]       = useState(false);   // host ordering for themselves
+  const [orderFor, setOrderFor]     = useState(null);    // {name, token} - taking it by phone
+  // Only so the host's own name prefills when they order for themselves; the
+  // order screen works without it, they would just type their name.
+  const [hostProfile, setHostProfile] = useState(null);
+  useEffect(()=>{
+    let alive = true;
+    getMyProfile(cfg).then(pr => { if (alive) setHostProfile(pr); }).catch(()=>{});
+    return ()=> { alive = false; };
+    // eslint-disable-next-line
+  }, []);
   const link = code ? (location.origin + location.pathname + "?g=" + code) : "";
   const [rosterInput, setRosterInput] = useState("");
   const [rosterBusy, setRosterBusy]   = useState(false);
@@ -20315,6 +20383,10 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   const seenNames = new Set(((data && data.views) || [])
     .map(v => groupNorm(v.guest_name || ""))
     .filter(Boolean));
+  // Have I already put my own order in? Matched on my own guest token, which
+  // is what the guest screen submits under on this device.
+  const myToken = guestToken();
+  const myPick = allGuests.find(g => g.guest_token && g.guest_token === myToken) || null;
   const passedNames = passedGuests.map(g => g.guest_name).filter(Boolean);
   const passedExtras = passedGuests.filter(g => !rosterSet.has(groupNorm(g.guest_name)));
 
@@ -20360,6 +20432,31 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
           )
         ) : (
           <>
+            {orderFor ? (
+              <div style={{position:"fixed", inset:0, zIndex:72, background:"var(--bg)", overflowY:"auto"}}>
+                <div style={{maxWidth:600, margin:"0 auto", padding:"14px 16px"}}>
+                  <GroupOrderGuest code={code} cfg={cfg} profile={null}
+                    asName={orderFor.name} asToken={orderFor.token}
+                    onClose={async ()=>{
+                      setOrderFor(null);
+                      try { setData(await groupFetch(cfg, code)); } catch(e){}
+                    }} />
+                </div>
+              </div>
+            ) : null}
+            {myOrder ? (
+              <div style={{position:"fixed", inset:0, zIndex:72, background:"var(--bg)", overflowY:"auto"}}>
+                <div style={{maxWidth:600, margin:"0 auto", padding:"14px 16px"}}>
+                  <GroupOrderGuest code={code} cfg={cfg} profile={hostProfile}
+                    onClose={async ()=>{
+                      setMyOrder(false);
+                      // Pull once rather than waiting for the next poll, so your
+                      // own order is in the consolidated list immediately.
+                      try { setData(await groupFetch(cfg, code)); } catch(e){}
+                    }} />
+                </div>
+              </div>
+            ) : null}
             {editTarget && (
               <div style={{position:"fixed", inset:0, zIndex:70, background:"rgba(0,0,0,0.55)",
                    display:"flex", alignItems:"flex-end", justifyContent:"center"}}
@@ -20545,6 +20642,15 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               ) : null}
             </div>
 
+            {!closed ? (
+              <button className="btn ghost sm" style={{width:"100%", marginBottom:10}}
+                onClick={()=> setMyOrder(true)}>
+                <span className="row" style={{gap:6, justifyContent:"center"}}>
+                  <Icon name="plus" size={15} />
+                  {myPick ? "Change my order" : "Add my own order"}
+                </span>
+              </button>
+            ) : null}
             <div className="go-sec">
               Who's ordered ({guests.length}){passedGuests.length ? ", " + passedGuests.length + " passed" : ""}
               {(function(){
@@ -20577,6 +20683,13 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                             : (seenNames.has(groupNorm(r.name))
                                 ? <span className="go-wait" title="They have the order open">opened it</span>
                                 : <span className="go-wait">waiting</span>)}
+                          {!r.sub && !closed ? (
+                            <button className="btn ghost sm" style={{marginLeft:8, padding:"2px 9px"}}
+                              onClick={()=> setOrderFor({ name: r.name,
+                                token: "host:" + groupNorm(r.name) })}>
+                              Order for them
+                            </button>
+                          ) : null}
                         </div>
                         {r.sub ? (isPassed
                           ? <div className="tiny faint">Not ordering</div>
@@ -20683,13 +20796,16 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
 // Guest screen (no account). Opened by a ?g=<code> link: fetch the menu from
 // the backend, pick with quantity steppers + notes, submit. Re-submitting
 // updates the same order (matched by the device's guest token).
-function GroupOrderGuest({code, cfg, profile}){
+function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
   const home = location.origin + location.pathname;
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [picks, setPicks]     = useState({});     // "si:ii" -> { item, qty, note }
   const [name, setName]       = useState(()=> {
+    // Taking somebody's order for them: their name, exactly as the roster has
+    // it, so it matches the person the host is waiting on.
+    if (asName) return asName;
     const dn = profile && (profile.display_name || "").trim();
     if (dn) return dn.split(/\s+/)[0];            // signed-in invitee: prefill first name
     try { return localStorage.getItem("dininglog_guest_name") || ""; } catch(e){ return ""; }
@@ -20710,7 +20826,10 @@ function GroupOrderGuest({code, cfg, profile}){
   const [dishQ, setDishQ]     = useState("");      // find a dish by name on a long menu
   const [passed, setPassed]   = useState(false);   // this guest marked themselves "not ordering"
   const [passing, setPassing] = useState(false);   // pass/undo request in flight
-  const token = guestToken();
+  // Normally this device's own token. The host taking somebody's order by
+  // phone passes theirs, so it lands on that person's row and can be edited
+  // again later rather than creating a new one each time.
+  const token = asToken || guestToken();
 
   useEffect(()=>{
     let alive = true;
@@ -20908,7 +21027,16 @@ function GroupOrderGuest({code, cfg, profile}){
 
   return (
     <div className="pub-wrap">
-      <div className="pub-kicker">{data && data.host_name ? data.host_name + "'s group order" : "Group order"}</div>
+      {onClose ? (
+        <button className="btn ghost sm" style={{marginBottom:10}} onClick={onClose}>
+          <Icon name="back" size={14} /> Back to the order
+        </button>
+      ) : null}
+      <div className="pub-kicker">
+        {asName ? ("Ordering for " + asName)
+          : onClose ? "Your own order"
+          : (data && data.host_name ? data.host_name + "'s group order" : "Group order")}
+      </div>
       <div className="pub-title">{restName}</div>
       <div className="muted" style={{textAlign:"center", marginBottom:18}}>
         {closed ? "This order is closed."
