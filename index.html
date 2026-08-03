@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.386.1";
+const APP_VERSION   = "1.386.2";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2097,7 +2097,7 @@ just type their order in a single **Your order** box. Same live tally on your
 side, no menu needed.
 
 Tap **Start group
-order** and the app gives you a link. Text it to the table. Each person opens
+order** and the app gives you a link. Send it to your group. Each person opens
 it (no app, no account), sees the menu, taps what they want, sets a **quantity**
 and an optional **note** ("no onions"), enters their name, and taps **Send my
 order**. They can change their order and send again any time.
@@ -20354,8 +20354,9 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   }
   // The people who need to know are already in a thread together - that is
   // where the link came from. Hand them back to it rather than hoping they
-  // still have a tab open.
-  async function tellTheTable(){
+  // still have a tab open. Not "the table": a group order is just as often the
+  // office, or people at home waiting on a pickup run.
+  async function tellTheGroup(){
     const place = (data && data.restaurant_name) || restaurantName || "the restaurant";
     const text = "Order's in at " + place + ". " + link;
     try {
@@ -20554,7 +20555,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
             )}
             {showSetup ? (
             <div className="card">
-              <div className="small muted" style={{marginBottom:8}}>Share this link with the table:</div>
+              <div className="small muted" style={{marginBottom:8}}>Share this link with your group:</div>
               <div className="go-link">{link}</div>
               <div className="row" style={{gap:8, marginTop:10}}>
                 <button className="btn sm" onClick={shareLink}>Share link</button>
@@ -20582,9 +20583,9 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                 </div>
                 {(data && data.placed) ? (
                   <button className="btn primary" style={{width:"100%", marginTop:10}}
-                    onClick={tellTheTable}>
+                    onClick={tellTheGroup}>
                     <span className="row" style={{gap:6, justifyContent:"center"}}>
-                      <Icon name="share" size={15} color="#1b1714" />Tell the table
+                      <Icon name="share" size={15} color="#1b1714" />Tell the group
                     </span>
                   </button>
                 ) : null}
