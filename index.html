@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.384.1";
+const APP_VERSION   = "1.385.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -20190,6 +20190,10 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   const [rosterInput, setRosterInput] = useState("");
   const [rosterBusy, setRosterBusy]   = useState(false);
   const [rosterFocus, setRosterFocus] = useState(false);   // suggestions only while adding
+  // Setup chrome - the link, who you are expecting - matters most before anyone
+  // answers. Once orders are arriving, THAT is what you are watching, so the
+  // setup folds itself away rather than pushing it down the page.
+  const [setupOpen, setSetupOpen]   = useState(null);   // null = decide from state
   // Who you might be expecting. Friends come from the server; past companions
   // come from the cache we already hold, so this costs one cheap call.
   const [people, setPeople] = useState([]);
@@ -20386,6 +20390,9 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
     .filter(Boolean));
   // Have I already put my own order in? Matched on my own guest token, which
   // is what the guest screen submits under on this device.
+  // Has anybody actually responded yet? Before that, setup IS the screen.
+  const anyResponses = allGuests.length > 0;
+  const showSetup = (setupOpen === null) ? !anyResponses : setupOpen;
   const myToken = guestToken();
   const myPick = allGuests.find(g => g.guest_token && g.guest_token === myToken) || null;
   const passedNames = passedGuests.map(g => g.guest_name).filter(Boolean);
@@ -20509,12 +20516,22 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                 </div>
               </div>
             )}
-            {!closed && (
+            {anyResponses ? (
+              <button type="button" className="between"
+                style={{width:"100%", background:"none", border:0, padding:"8px 2px",
+                        cursor:"pointer", color:"var(--accent)", marginBottom:6}}
+                aria-expanded={showSetup} onClick={()=> setSetupOpen(o => !(o === null ? false : o))}>
+                <span className="tiny" style={{fontWeight:600}}>Share the link, who you are expecting</span>
+                <Chevron open={showSetup} size={15} color="var(--accent)" />
+              </button>
+            ) : null}
+            {showSetup && !closed && (
               <div className="small muted" style={{marginBottom:10, textAlign:"center"}}>
                 This order stays open until you close it. Tap <b>Leave open</b> to step away and
                 pick it back up later from <b>Active group orders</b>.
               </div>
             )}
+            {showSetup ? (
             <div className="card">
               <div className="small muted" style={{marginBottom:8}}>Share this link with the table:</div>
               <div className="go-link">{link}</div>
@@ -20524,6 +20541,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               </div>
               {closed ? <div className="tiny faint" style={{marginTop:10}}>This order is closed - guests can no longer add to it.</div> : null}
             </div>
+            ) : null}
 
             {code ? (
               <div className="card">
@@ -20582,6 +20600,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               </div>
             )}
 
+            {showSetup ? (
             <div className="card go-roster">
               <div className="go-roster-head">Who's in on the order?</div>
               {roster.length ? (
@@ -20648,6 +20667,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                 </div>
               ) : null}
             </div>
+            ) : null}
 
             {!closed ? (
               <button className="btn ghost sm" style={{width:"100%", marginBottom:10}}
