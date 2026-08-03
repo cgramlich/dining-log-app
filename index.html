@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.384.0";
+const APP_VERSION   = "1.384.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -20189,6 +20189,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   const link = code ? (location.origin + location.pathname + "?g=" + code) : "";
   const [rosterInput, setRosterInput] = useState("");
   const [rosterBusy, setRosterBusy]   = useState(false);
+  const [rosterFocus, setRosterFocus] = useState(false);   // suggestions only while adding
   // Who you might be expecting. Friends come from the server; past companions
   // come from the cache we already hold, so this costs one cheap call.
   const [people, setPeople] = useState([]);
@@ -20599,20 +20600,26 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                     <ClearInput placeholder="Add who you're expecting (optional)"
                       value={rosterInput}
                       onChange={e=> setRosterInput(e.target.value)}
-                      onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); addRosterName(); } }} />
+                      onFocus={()=> setRosterFocus(true)}
+                      onBlur={()=> setTimeout(()=> setRosterFocus(false), 160)}
+                      onKeyDown={e=> {
+                        if (e.key === "Enter"){ e.preventDefault(); addRosterName(); }
+                        else if (e.key === "Escape"){ e.preventDefault(); setRosterFocus(false); }
+                      }} />
                     <button className="btn ghost sm" onClick={addRosterName} disabled={rosterBusy || !rosterInput.trim()}>Add</button>
                   </div>
                   {/* The people you actually eat with, offered instead of typed.
                       Friends first, then anyone tagged on a past visit. Already
                       on the list, so they are not offered twice. */}
                   {(function(){
+                    if (!rosterFocus && !rosterInput.trim()) return null;
                     const q = rosterInput.trim().toLowerCase();
                     const already = new Set(roster.map(n => groupNorm(n)));
                     const sugg = people
                       .filter(pp => !already.has(groupNorm(pp.name)))
                       .filter(pp => !q || pp.name.toLowerCase().indexOf(q) !== -1
                                    || (pp.username || "").toLowerCase().indexOf(q) !== -1)
-                      .slice(0, q ? 6 : 8);
+                      .slice(0, 6);
                     if (!sugg.length) return null;
                     return (
                       <div className="go-chips" style={{marginTop:8}}>
@@ -20635,9 +20642,9 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                   })()}
                 </div>
               ) : null}
-              {roster.length ? (
+              {!roster.length ? (
                 <div className="tiny faint" style={{marginTop:8}}>
-                  Names match what each person types when they order.
+                  Optional. Names match what each person types when they order.
                 </div>
               ) : null}
             </div>
