@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.386.0";
+const APP_VERSION   = "1.386.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -20540,7 +20540,9 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                 style={{width:"100%", background:"none", border:0, padding:"8px 2px",
                         cursor:"pointer", color:"var(--accent)", marginBottom:6}}
                 aria-expanded={showSetup} onClick={()=> setSetupOpen(o => !(o === null ? false : o))}>
-                <span className="tiny" style={{fontWeight:600}}>Share the link, who you are expecting</span>
+                <span className="tiny" style={{fontWeight:600}}>
+                  {showSetup ? "Hide sharing and guests" : "Sharing and guests"}
+                </span>
                 <Chevron open={showSetup} size={15} color="var(--accent)" />
               </button>
             ) : null}
@@ -20589,7 +20591,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               </div>
             ) : null}
 
-            {!closed && code ? <GroupInvitePicker cfg={cfg} code={code} /> : null}
+            {showSetup && !closed && code ? <GroupInvitePicker cfg={cfg} code={code} /> : null}
 
             {!closed && (allMenus || []).length > 1 && (
               <button className="btn ghost sm" style={{marginBottom:2}} onClick={openMenuEdit}>
