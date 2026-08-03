@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.385.0";
+const APP_VERSION   = "1.386.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -20352,6 +20352,25 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
     }
     onClose();
   }
+  // The people who need to know are already in a thread together - that is
+  // where the link came from. Hand them back to it rather than hoping they
+  // still have a tab open.
+  async function tellTheTable(){
+    const place = (data && data.restaurant_name) || restaurantName || "the restaurant";
+    const text = "Order's in at " + place + ". " + link;
+    try {
+      if (navigator.share){ await navigator.share({ text: text }); return; }
+      await navigator.clipboard.writeText(text);
+      toast("Message copied - paste it to the group");
+    } catch(e){
+      // A cancelled share sheet is not a failure; only say something if we
+      // genuinely could not hand the message over.
+      if (e && e.name === "AbortError") return;
+      try { await navigator.clipboard.writeText(text); toast("Message copied - paste it to the group"); }
+      catch(_e){ toast("Couldn't share that"); }
+    }
+  }
+
   async function togglePlaced(){
     if (!code) return;
     const next = !(data && data.placed);
@@ -20559,6 +20578,14 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                     {placedBusy ? <span className="spin" /> : ((data && data.placed) ? "Undo" : "Mark as placed")}
                   </button>
                 </div>
+                {(data && data.placed) ? (
+                  <button className="btn primary" style={{width:"100%", marginTop:10}}
+                    onClick={tellTheTable}>
+                    <span className="row" style={{gap:6, justifyContent:"center"}}>
+                      <Icon name="share" size={15} color="#1b1714" />Tell the table
+                    </span>
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
