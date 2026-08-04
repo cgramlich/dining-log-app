@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.388.0";
+const APP_VERSION   = "1.389.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -18185,6 +18185,12 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     setStep("working");
     try {
       const fetched = await fetchMenuText(config, u);
+      // A PDF with no readable text layer: the server photographed its pages so
+      // they can go through the scanner instead of being refused.
+      if (fetched.pages && fetched.pages.length){
+        await digestMenuPages(fetched.pages, fetched.final_url || u, fetched.source || "pdf-render");
+        return;
+      }
       const parsed  = await digitizeMenuFromText(config, fetched.text);
       attachWebImages(parsed, fetched.images);   // restaurant's own dish photos
       if (!parsed.sections.length){
@@ -18206,6 +18212,29 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       setErrMsg(err.message || "Couldn't read that page.");
       setStep("error");
     }
+  }
+
+  // Menu pages that arrived as IMAGES - either pictures posted on a web page,
+  // or a PDF with no readable text that the server photographed for us. From
+  // here on it is the same job as a camera scan, so it is the same code.
+  async function digestMenuPages(rawPages, sourceUrl, how){
+    const pages = (rawPages || []).filter(pg => pg && pg.b64);
+    if (!pages.length) throw new Error("Couldn't read that menu's pictures.");
+    logMsg("SCAN","Menu pages: " + pages.length + " via " + how);
+    const dataUrls = pages.map(pg => "data:" + (pg.media_type || "image/jpeg") + ";base64," + pg.b64);
+    const parsed = await digitizeMenu(config, dataUrls);
+    if (!parsed.sections.length){
+      throw new Error("Those pages didn't read as a menu. Try scanning the menu with your camera instead.");
+    }
+    parsed.captured_date = todayISO();
+    parsed.last_updated  = todayISO();
+    parsed.source        = "web";
+    parsed.source_url    = sourceUrl;
+    prefillDestination(parsed);
+    setResult(parsed);
+    const itemCount = parsed.sections.reduce((n,sec)=> n + sec.items.length, 0);
+    logMsg("SCAN","Menu pages read: " + parsed.sections.length + " sections, " + itemCount + " items");
+    setStep("review");
   }
 
   // Some restaurants never publish menu TEXT - they photograph the paper menu,
@@ -18231,23 +18260,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         throw new Error((det && det.message) || (typeof det === "string" ? det : "")
                         || "Couldn't read that menu's pictures.");
       }
-      const pages = (data.pages || []).filter(pg => pg && pg.b64);
-      if (!pages.length) throw new Error("Couldn't read that menu's pictures.");
-      logMsg("SCAN","Picture menu: " + pages.length + " page(s) via " + (data.source || "?"));
-      const dataUrls = pages.map(pg => "data:" + (pg.media_type || "image/jpeg") + ";base64," + pg.b64);
-      const parsed = await digitizeMenu(config, dataUrls);
-      if (!parsed.sections.length){
-        throw new Error("Those pictures didn't read as a menu. Try scanning the menu with your camera instead.");
-      }
-      parsed.captured_date = todayISO();
-      parsed.last_updated  = todayISO();
-      parsed.source        = "web";
-      parsed.source_url    = pageUrl;
-      prefillDestination(parsed);
-      setResult(parsed);
-      const itemCount = parsed.sections.reduce((n,sec)=> n + sec.items.length, 0);
-      logMsg("SCAN","Picture menu read: " + parsed.sections.length + " sections, " + itemCount + " items");
-      setStep("review");
+      await digestMenuPages(data.pages, pageUrl, data.source || "?");
     } catch(err){
       logMsg("ERROR","Picture menu failed: " + err.message);
       setErrMsg(err.message || "Couldn't read that menu's pictures."); setStep("error");
