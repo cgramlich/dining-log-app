@@ -925,7 +925,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.387.0";
+const APP_VERSION   = "1.388.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2363,15 +2363,51 @@ const FILES = {                                     // logical name -> repo path
 
 /* ---- diagnostic log buffer -----------------------------------
    iPhone Safari has no easy console, so we keep an in-app log
-   that is viewable under Settings > Diagnostics. ASCII only. */
-const LOG_BUFFER = [];
+   that is viewable under Settings > Diagnostics. ASCII only.
+
+   It SURVIVES a relaunch. An in-memory log can only ever show you failures you
+   have not reopened the app since, which excludes most of the ones worth
+   reading about - you hit an error, you close the app, and by the time anyone
+   thinks to look the evidence is gone. On iOS it is worse: a backgrounded PWA
+   can be torn down without ever being closed. */
+const LOG_KEY = "mc_log";
+const LOG_MAX = 240;
+const LOG_BUFFER = (function(){
+  try {
+    const prior = JSON.parse(localStorage.getItem(LOG_KEY) || "[]");
+    if (Array.isArray(prior) && prior.length){
+      const when = new Date().toTimeString().slice(0,8);
+      return prior.slice(-LOG_MAX)
+                  .concat(["[" + when + "] [SESSION] --- app relaunched here ---"]);
+    }
+  } catch(e){ /* unreadable or private mode - start fresh */ }
+  return [];
+})();
+// Writing on every line would touch storage dozens of times during one sync,
+// so batch it. Also flush when the page hides, because a backgrounded PWA may
+// never get another timer.
+let _logTimer = null;
+function _logFlush(){
+  if (_logTimer != null){ clearTimeout(_logTimer); _logTimer = null; }
+  try { localStorage.setItem(LOG_KEY, JSON.stringify(LOG_BUFFER)); }
+  catch(e){ /* quota or private mode - the in-memory log still works */ }
+}
+function logClear(){
+  LOG_BUFFER.length = 0;
+  try { localStorage.removeItem(LOG_KEY); } catch(e){}
+}
 function logMsg(tag, msg){
   const stamp = new Date().toTimeString().slice(0,8);
   const line  = "[" + stamp + "] [" + tag + "] " + msg;
   LOG_BUFFER.push(line);
-  if (LOG_BUFFER.length > 240) LOG_BUFFER.shift();
+  if (LOG_BUFFER.length > LOG_MAX) LOG_BUFFER.shift();
   try { console.log(line); } catch(e){ /* ignore */ }
+  if (_logTimer == null) _logTimer = setTimeout(_logFlush, 1500);
 }
+try {
+  document.addEventListener("visibilitychange", function(){ if (document.hidden) _logFlush(); });
+  window.addEventListener("pagehide", _logFlush);
+} catch(e){}
 
 /* Global toast bus: lets any code show the app's in-app toast without threading
    a flash() prop everywhere - used to replace jarring native alert()s. The App
@@ -4345,7 +4381,33 @@ function _mergeMenus(a, b){
 // the page has no real menu (so the caller can say "scan it instead"). A menu
 // too big to read in one pass (output hits the token cap) is split in half and
 // each part digitized, then merged - so long chain menus come through whole.
+// Beyond this, one response cannot hold the answer. The JSON this schema
+// produces runs about 1:1 with the source text, so ~8k chars of menu is
+// already ~2.5k tokens of output; a 14k-char PDF menu is closer to 5k, which
+// is minutes of generation on a connection that has nothing to show for it.
+const MENU_TEXT_ONE_PASS = 8000;
+
+// Halve the text, digitize both halves, merge. The two calls are independent,
+// so run them together rather than end to end - four sequential chunks is
+// slower than the single call this exists to replace.
+async function _splitDigest(cfg, menuText, depth, why){
+  const mid = _menuSplitPoint(menuText);
+  logMsg("SCAN", "Menu split (" + why + "): " + menuText.length + " chars, depth " + (depth + 1));
+  const [a, b] = await Promise.all([
+    digitizeMenuFromText(cfg, menuText.slice(0, mid), depth + 1),
+    digitizeMenuFromText(cfg, menuText.slice(mid), depth + 1),
+  ]);
+  return _mergeMenus(a, b);
+}
+
 async function digitizeMenuFromText(cfg, menuText, _depth){
+  // Waiting for the model to hit its own ceiling only finds out that the menu
+  // was too big AFTER a long call that may not survive the wait. Size is known
+  // up front, so act on it up front.
+  const _d = _depth || 0;
+  if (_d < 4 && menuText.length > MENU_TEXT_ONE_PASS){
+    return await _splitDigest(cfg, menuText, _d, "too big for one pass");
+  }
   const prompt =
     "You are a menu digitization assistant. The TEXT below was extracted from a "+
     "restaurant web page. Pull the COMPLETE food/drink menu out of it into "+
@@ -4394,15 +4456,10 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
   }
   const json = await res.json();
   if (json.stop_reason === "max_tokens"){
-    // Big menu: split the text, digitize each part, and merge - so an enormous
-    // chain menu still comes through whole instead of failing.
-    const depth = _depth || 0;
-    if (depth < 4 && menuText.length > 3000){
-      const mid = _menuSplitPoint(menuText);
-      logMsg("SCAN", "Menu too big in one pass - splitting (depth " + (depth + 1) + ", " + menuText.length + " chars)");
-      const a = await digitizeMenuFromText(cfg, menuText.slice(0, mid), depth + 1);
-      const b = await digitizeMenuFromText(cfg, menuText.slice(mid), depth + 1);
-      return _mergeMenus(a, b);
+    // Still the backstop: text under the size limit can still be dense enough
+    // to run out of room (a page of one-line items with long descriptions).
+    if (_d < 4 && menuText.length > 3000){
+      return await _splitDigest(cfg, menuText, _d, "hit the token ceiling");
     }
     throw new Error("That menu page was too large to read in one pass. Try a link to a single menu section.");
   }
@@ -24494,7 +24551,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
   // The lines worth reading when something has gone wrong.
   function logLines(){
     if (!logFilter) return LOG_BUFFER.slice(-80);
-    return LOG_BUFFER.filter(l => /\[(ERROR|FINDMENU|WEBMENU|SCAN|VISION|SHAREDVISIT)\]/.test(l)).slice(-60);
+    return LOG_BUFFER.filter(l => /\[(ERROR|FINDMENU|WEBMENU|SCAN|VISION|SHAREDVISIT|SESSION)\]/.test(l)).slice(-60);
   }
   const [theme,setTheme]     = useState(currentTheme());
   const [defTab,setDefTab]   = useState(getDefaultTab);   // which tab the app opens to
@@ -24568,6 +24625,9 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
   };
   return (
     <div>
+      <div className="tiny faint" style={{textAlign:"center", padding:"2px 0 10px"}}>
+        MenuCaptain v{APP_VERSION}
+      </div>
       {usage ? (
         <>
           <div className="set-group" style={{marginTop:6}}>Your plan</div>
@@ -24927,6 +24987,10 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                   }
                 }}>Copy all</button>
                 <button className="btn ghost sm" onClick={()=> force(x=>x+1)}>Refresh</button>
+                <button className="btn ghost sm"
+                  onClick={()=>{ logClear(); logMsg("SESSION","--- log cleared ---"); force(x=>x+1); }}>
+                  Clear
+                </button>
               </div>
               <div className="tiny faint" style={{marginBottom:8,wordBreak:"break-all"}}>
                 Backend: {apiBase(config)}
@@ -24966,9 +25030,6 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
         )}
       </div>
 
-      <div className="tiny faint" style={{textAlign:"center",padding:"8px 0 4px"}}>
-        MenuCaptain v{APP_VERSION}
-      </div>
     </div>
   );
 }
