@@ -440,8 +440,12 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .msec-head .ct{font-size:12px; color:var(--text-faint);}
     .mitem{padding:9px 2px 11px; border-top:1px dashed var(--line-soft);}
     .mitem .ihead{display:flex; justify-content:space-between; gap:12px; align-items:baseline;}
-    .mitem .inm{font-weight:500; font-size:15px;}
-    .mitem .ipr{color:var(--amber); font-size:13.5px; white-space:nowrap; font-variant-numeric:tabular-nums;}
+    .mitem .inm{font-weight:500; font-size:15px; flex:1 1 auto; min-width:0;}
+    .mitem .ipr{color:var(--amber); font-size:13.5px; white-space:nowrap; font-variant-numeric:tabular-nums; flex:0 0 auto;}
+    /* A price that is really a small table gets its own full-width line
+       instead of fighting the dish name for the row. */
+    .iprl{color:var(--amber); font-size:13px; line-height:1.5; margin-top:4px;
+          font-variant-numeric:tabular-nums; overflow-wrap:anywhere;}
     .mitem .ipr.paid{color:var(--text-faint); font-weight:400; font-style:italic;}
     .mitem .idesc{font-size:13px; color:var(--text-dim); margin-top:3px; line-height:1.45;}
 
@@ -881,8 +885,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       border:1.5px solid rgba(224,123,79,0.55); margin-top:1px; }
     .pub-mitem.on .pub-mitem-tick{ background:var(--accent); color:#1b1714; border-color:var(--accent); }
     .pub-mitem-head{ display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
-    .pub-mitem-head .inm{ font-size:15px; color:var(--text); font-weight:500; }
-    .pub-mitem-head .ipr{ font-size:13px; color:var(--text-dim); white-space:nowrap; }
+    .pub-mitem-head .inm{ font-size:15px; color:var(--text); font-weight:500; flex:1 1 auto; min-width:0; }
+    .pub-mitem-head .ipr{ font-size:13px; color:var(--text-dim); white-space:nowrap; flex:0 0 auto; }
+    .pub-mitem .iprl{ font-size:12.5px; color:var(--text-dim); margin-top:3px;
+                      line-height:1.45; overflow-wrap:anywhere; }
     .pub-mitem .idesc{ font-size:12.5px; color:var(--text-faint); margin-top:3px; line-height:1.4; }
     /* special-instructions note that appears under a picked dish */
     .pub-note{ display:block; width:100%; margin:-2px 0 8px; padding:9px 11px;
@@ -925,7 +931,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.389.0";
+const APP_VERSION   = "1.391.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -4496,6 +4502,11 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
 
 // Small money formatter for dish prices: "$14" for whole dollars,
 // "$14.50" otherwise. Returns "" for missing/invalid values.
+// True for a price string that is really a little table - a pizza across
+// three crusts and three sizes, say. Those belong on their own line; a normal
+// "$12.95" stays on the name's row where it reads as a price should.
+function isWidePrice(p){ return String(p || "").length > 26; }
+
 function fmtPrice(p){
   const n = Number(p);
   if (!isFinite(n) || n <= 0) return "";
@@ -11894,12 +11905,14 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                   ) : (
                     <span className="inm">{it.name}</span>
                   )}
-                  {it.price
+                  {it.price && !isWidePrice(it.price)
                     ? <span className="ipr">{it.price}</span>
-                    : (it.paid && it.paid.amount
+                    : (!it.price && it.paid && it.paid.amount
                         ? <span className="ipr paid">paid {fmtPrice(it.paid.amount)}</span>
                         : null)}
                 </div>
+                {it.price && isWidePrice(it.price)
+                  ? <div className="iprl">{it.price}</div> : null}
                 {it.description && <div className="idesc">{it.description}</div>}
                 {!editTags && it.tags && it.tags.length > 0 && (
                   <div className="chips" style={{marginTop:6}}>
@@ -12120,7 +12133,7 @@ function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onOpenMe
           <div className="muted" style={{marginTop:12}}>
             {hasMenu
               ? "There's already a menu on file here. Open it for Help me order, calorie estimates, and the rest."
-              : "Scan the menu and everything opens up: Help me order, calorie estimates, group ordering, and your own dining memory."}
+              : "Photograph it, paste a link, or let the app find it on their site. Then everything opens up: Help me order, calorie estimates, group ordering, and your own dining memory."}
           </div>
           <div style={{marginTop:22}}>
             {hasMenu ? (
@@ -12130,8 +12143,12 @@ function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onOpenMe
                 {withItems.length > 1 ? ("See the menus (" + withItems.length + ")") : "See the menu"}
               </button>
             ) : (
+              // Names what you GET, not one of the four ways to get it - the
+              // destination offers photograph, find-on-their-site, paste a
+              // link, and pull a community menu. "Scan" undersold three of
+              // them, and the camera icon undersold all four.
               <button className="btn primary" style={{width:"100%"}} onClick={()=> onScan(r.id)}>
-                <Icon name="camera" size={16} />Scan the menu
+                <Icon name="plus" size={16} />Get the menu
               </button>
             )}
             {onLogVisit ? (
@@ -19378,8 +19395,9 @@ function PublishedVisit({data, onSaved, onLogVisit}){
                       <div style={{flex:1, minWidth:0}}>
                         <div className="pub-mitem-head">
                           <span className="inm">{it.n}</span>
-                          {it.p ? <span className="ipr">{it.p}</span> : null}
+                          {it.p && !isWidePrice(it.p) ? <span className="ipr">{it.p}</span> : null}
                         </div>
+                        {it.p && isWidePrice(it.p) ? <div className="iprl">{it.p}</div> : null}
                         {it.d ? <div className="idesc">{it.d}</div> : null}
                         {it.t && it.t.length > 0 && (
                           <div className="chips" style={{marginTop:6}}>
@@ -21814,8 +21832,9 @@ function PublishedMenu({data, onSaved}){
                     <div style={{flex:1, minWidth:0}}>
                       <div className="pub-mitem-head">
                         <span className="inm">{it.n}</span>
-                        {it.p ? <span className="ipr">{it.p}</span> : null}
+                        {it.p && !isWidePrice(it.p) ? <span className="ipr">{it.p}</span> : null}
                       </div>
+                      {it.p && isWidePrice(it.p) ? <div className="iprl">{it.p}</div> : null}
                       {it.d ? <div className="idesc">{it.d}</div> : null}
                       {it.t && it.t.length > 0 && (
                         <div className="chips" style={{marginTop:6}}>
@@ -21835,8 +21854,9 @@ function PublishedMenu({data, onSaved}){
                   <div style={{flex:1, minWidth:0}}>
                     <div className="pub-mitem-head">
                       <span className="inm">{it.n}</span>
-                      {it.p ? <span className="ipr">{it.p}</span> : null}
+                      {it.p && !isWidePrice(it.p) ? <span className="ipr">{it.p}</span> : null}
                     </div>
+                    {it.p && isWidePrice(it.p) ? <div className="iprl">{it.p}</div> : null}
                     {it.d ? <div className="idesc">{it.d}</div> : null}
                     {it.t && it.t.length > 0 && (
                       <div className="chips" style={{marginTop:6}}>
