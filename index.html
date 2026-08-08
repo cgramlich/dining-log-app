@@ -931,7 +931,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.391.0";
+const APP_VERSION   = "1.392.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -4239,6 +4239,11 @@ async function digitizeMenu(cfg, dataUrls){
     "Rules:\n"+
     "- price: a string exactly as printed (e.g. \"$12.95\", \"6.25 ea / 2 for 11.50\", "+
     "\"MP\"); empty string if none.\n"+
+    "- A menu may price ONE dish across several sizes or styles in a grid. Keep "+
+    "every number attached to its own label so no price is ambiguous, e.g. "+
+    "\"Deep Dish 10in 31.55, 12in 38.75, 14in 46.35 | Thin Crust 12in 26.45, "+
+    "14in 33.25\". NEVER return a bare run of numbers whose sizes cannot be told "+
+    "apart.\n"+
     "- description: the ingredient or description line; empty string if none.\n"+
     "- tags: apply any of \"gluten-free\",\"vegetarian\",\"vegan\",\"spicy\",\"raw\". "+
     "Tag when EITHER the menu marks it (a 'gf'/'(v)'/'(ve)' symbol or a legend) OR the "+
@@ -4428,6 +4433,11 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
     '"tags":[string],"notes":string,"calories":number or null}]}]}\n\n'+
     "Rules:\n"+
     "- price: a string exactly as written (e.g. \"$12.95\", \"MP\"); empty string if none.\n"+
+    "- A menu may price ONE dish across several sizes or styles in a grid. Keep "+
+    "every number attached to its own label so no price is ambiguous, e.g. "+
+    "\"Deep Dish 10in 31.55, 12in 38.75, 14in 46.35 | Thin Crust 12in 26.45, "+
+    "14in 33.25\". NEVER return a bare run of numbers whose sizes cannot be told "+
+    "apart.\n"+
     "- description: the ingredient/description line; empty string if none.\n"+
     "- tags: apply any of \"gluten-free\",\"vegetarian\",\"vegan\",\"spicy\",\"raw\" only when "+
     "the text marks it OR the dish is clearly unambiguous; if you tag \"vegan\" also add "+
