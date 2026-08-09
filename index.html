@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.395.0";
+const APP_VERSION   = "1.396.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8758,8 +8758,14 @@ function App(){
               newRestMenus = existingForRest.map(m =>
                 m.menu_id === replacement.menu_id ? replacement : m);
             } else {
-              // append all - works for single (1 menu) or split (N menus)
-              newRestMenus = existingForRest.concat(menusToSave);
+              // Append - but a menu carrying an id that is already here
+              // REPLACES it. That is how "this place already has a Main"
+              // resolves to a refresh instead of a second Main.
+              const incoming = new Map(menusToSave.map(m => [m.menu_id, m]));
+              const had = new Set(existingForRest.map(m => m.menu_id));
+              newRestMenus = existingForRest
+                .map(m => incoming.get(m.menu_id) || m)
+                .concat(menusToSave.filter(m => !had.has(m.menu_id)));
             }
             const nextM = Object.assign({}, menus, { [restId]:newRestMenus });
             commit({ restaurants:nextR, menus:nextM },
@@ -18190,6 +18196,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [lastTry,setLastTry]   = useState(null);        // {kind:"url"|"find", value} - powers Try again on the error screen
   const [foundMenus,setFoundMenus] = useState([]);      // multiple menus found by "Find the menu" -> pick which to add
   const [addedUrls,setAddedUrls]   = useState([]);      // which of foundMenus are already saved this session (the add-another loop)
+  // "replace" (a same-named menu here is the same menu, refreshed) or "both".
+  const [dupMode,setDupMode]   = useState("replace");
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
   // Website of the destination place (if linked to Google) - enables "Find the menu for me".
@@ -18459,6 +18467,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       logMsg("SCAN","Creating new restaurant '" + nm + "' for scanned menu");
     }
 
+    // A same-named menu being refreshed counts as a replace for the toast and
+    // for where we land afterwards, even though it did not come in as a re-scan.
     const isReplace = !!presetMenu;
     const sections  = result.sections || [];
 
@@ -18492,7 +18502,10 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         groups.get(key).sections.push(s);
       });
       menusToSave = Array.from(groups.values()).map(g => ({
-        menu_id:       uid("menu"),
+        // Same rule per destination: a section sent to a name that already
+        // exists refreshes that menu rather than making a twin.
+        menu_id:       ((dupMode === "replace") && existingWithLabel(g.label))
+                         ? existingWithLabel(g.label).menu_id : uid("menu"),
         label:         g.label,
         restaurant_id: targetRestId,
         captured_date: result.captured_date,
@@ -18502,10 +18515,13 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         raw_text:      "",
       }));
     } else {
-      // "one menu" mode (or single-section): one menu containing all sections
+      // "one menu" mode (or single-section): one menu containing all sections.
+      // Reusing an existing menu's id turns this save into a refresh of it.
+      const lbl  = (label || "").trim() || "Menu";
+      const dupe = (dupMode === "replace") ? existingWithLabel(lbl) : null;
       menusToSave = [{
-        menu_id:       uid("menu"),
-        label:         (label || "").trim() || "Menu",
+        menu_id:       dupe ? dupe.menu_id : uid("menu"),
+        label:         lbl,
         restaurant_id: targetRestId,
         captured_date: result.captured_date,
         last_updated:  todayISO(),
@@ -18537,6 +18553,22 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       setLabel(""); setUrlInput("");
       setStep("menupick");
     }
+  }
+
+  // Menus already saved at the place this scan is heading for, by lowercased
+  // name. Empty for a brand-new place, and irrelevant to a re-scan (that
+  // already targets one menu by id).
+  const existingByLabel = (function(){
+    const m = new Map();
+    if (presetMenu || !restId) return m;
+    ((menus || {})[restId] || []).forEach(x => {
+      const k = ((x && x.label) || "").trim().toLowerCase();
+      if (k && !m.has(k)) m.set(k, x);
+    });
+    return m;
+  })();
+  function existingWithLabel(lbl){
+    return existingByLabel.get(((lbl || "").trim().toLowerCase())) || null;
   }
 
   // ---- review-step helpers ----
@@ -18882,6 +18914,27 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 )}
                 {!presetMenu && !(label || "").trim() ? (
                   <div className="tiny faint" style={{marginTop:6}}>Give this menu a name (e.g. Main) to save.</div>
+                ) : null}
+                {/* A name already in use almost always means "here is a fresher
+                    copy of that menu" - so refresh it by default, and say so
+                    before Save rather than quietly leaving two of them. */}
+                {!presetMenu && existingWithLabel(label) ? (
+                  <div className="card" style={{marginTop:10, padding:"10px 12px",
+                       border:"1px solid rgba(224,118,74,0.35)"}}>
+                    <div className="small" style={{marginBottom:8}}>
+                      There is already a menu called <strong>{existingWithLabel(label).label}</strong> here.
+                    </div>
+                    <label className="row" style={{gap:9, alignItems:"flex-start", marginBottom:6}}>
+                      <input type="radio" checked={dupMode === "replace"}
+                        onChange={()=> setDupMode("replace")} style={{marginTop:3}} />
+                      <span className="small"><strong>Replace it</strong> with this scan.</span>
+                    </label>
+                    <label className="row" style={{gap:9, alignItems:"flex-start"}}>
+                      <input type="radio" checked={dupMode === "both"}
+                        onChange={()=> setDupMode("both")} style={{marginTop:3}} />
+                      <span className="small"><strong>Keep both</strong> - you will have two menus with this name.</span>
+                    </label>
+                  </div>
                 ) : null}
               </label>
             )}
