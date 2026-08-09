@@ -931,7 +931,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.392.0";
+const APP_VERSION   = "1.393.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -16958,25 +16958,43 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     });
   }
 
-  // multi-menu picker: build [{label, sections:[{name,items}]}] groups.
-  // Dedup item names within each menu (so an ingredient that appears in
-  // two sections of the same menu only renders once - first occurrence wins).
-  // Cross-menu duplicates are kept so e.g. a dessert and a main with the
-  // same name can both be tapped independently.
+  // multi-menu picker: build [{label, sections:[{name, items:[{label,value}]}]}].
+  // Dedup runs WITHIN a section only. It used to run across the whole menu,
+  // which quietly deleted real dishes: a pancake house lists "Signature Berry
+  // Bliss" under pancakes, waffles, french toast AND crepes - four different
+  // dishes sharing one name - and only the first survived. Within one section a
+  // repeat really is a repeat, so that dedup stays.
   const menusForRest = menus[restId] || [];
   const menuGroups = menusForRest.map(m => {
-    const seen = new Set();
+    // Which names live in more than one section? Those are ambiguous on their
+    // own, so they carry their section into the visit - you want the diary to
+    // know whether you had the waffle or the crepe.
+    const whereSeen = new Map();          // lower name -> Set of section names
+    (m.sections || []).forEach(s => {
+      (s.items || []).forEach(it => {
+        const k = (it.name || "").trim().toLowerCase();
+        if (!k) return;
+        if (!whereSeen.has(k)) whereSeen.set(k, new Set());
+        whereSeen.get(k).add(s.name || "");
+      });
+    });
     const sectionGroups = [];
     (m.sections || []).forEach(s => {
+      const sName = s.name || "";
+      const seen = new Set();             // per SECTION, not per menu
       const items = [];
       (s.items || []).forEach(it => {
-        const key = (it.name || "").trim().toLowerCase();
+        const raw = (it.name || "").trim();
+        const key = raw.toLowerCase();
         if (!key || seen.has(key)) return;
         seen.add(key);
-        items.push(it.name);
+        const ambiguous = sName && (whereSeen.get(key) || new Set()).size > 1;
+        // label is what the chip shows (the section heading is right above it,
+        // so no need to repeat it); value is what gets logged.
+        items.push({ label: raw, value: ambiguous ? (raw + " (" + sName + ")") : raw });
       });
       if (items.length > 0){
-        sectionGroups.push({ name:s.name || "", items:items });
+        sectionGroups.push({ name:sName, items:items });
       }
     });
     const total = sectionGroups.reduce((n,s)=> n + s.items.length, 0);
@@ -16985,18 +17003,27 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   const dishNames = dishes.map(d => d.name);
 
   // Restaurant menu item names - grounds receipt OCR's "menu_match" so receipt
-  // shorthand maps to real dishes. Shared by BOTH the "What you had" scan and the
-  // split's own scan. NB: menuGroups' section items are already name STRINGS.
+  // shorthand maps to real dishes. Taken RAW from the menus, never from the
+  // picker: a check prints "BERRY BLISS", not "Berry Bliss (Belgian Waffles)".
   const menuNames = [];
+  (menusForRest || []).forEach(m => (m.sections || []).forEach(s =>
+    (s.items || []).forEach(it => {
+      const n = (it.name || "").trim();
+      if (n) menuNames.push(n);
+    })));
+
+  // What the type-ahead offers. These DO carry the section, because a
+  // suggestion list has no heading above it to tell four Berry Blisses apart.
+  const menuPickNames = [];
   (menuGroups || []).forEach(g => (g.sections || []).forEach(s =>
-    (s.items || []).forEach(nm => { if (nm) menuNames.push(nm); })));
+    (s.items || []).forEach(it => { if (it && it.value) menuPickNames.push(it.value); })));
 
   // Autocomplete pool for "What you had": this place's menu items + any dish
   // you've logged before (so it works even without a digitized menu). Deduped,
   // menu items first. When nothing matches, typing + Add just creates the item.
   const dishPool = (function(){
     const seen = new Map();   // lower -> display
-    menuNames.forEach(n => { const k = n.toLowerCase(); if (!seen.has(k)) seen.set(k, n); });
+    menuPickNames.forEach(n => { const k = n.toLowerCase(); if (!seen.has(k)) seen.set(k, n); });
     (visits || []).forEach(v => (v.dishes || []).forEach(d => {
       if (d && d.name){ const k = d.name.toLowerCase(); if (!seen.has(k)) seen.set(k, d.name); } }));
     return Array.from(seen.values());
@@ -17441,11 +17468,18 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             <button className="btn ghost sm" onClick={()=> addDish(dishInput)}
               style={{flex:"none"}}>Add</button>
             {(()=>{
-              const dq = dishInput.trim().toLowerCase();
-              if (!dq) return null;
+              const raw = dishInput.trim();
+              if (!raw) return null;
+              const dq = raw.toLowerCase();
               const sugg = dishPool.filter(n => n.toLowerCase().indexOf(dq) !== -1
                 && dishNames.indexOf(n) === -1).slice(0, 8);
-              if (!sugg.length) return null;
+              // You have always been able to log something that is not on the
+              // menu - a special, an off-menu ask - by typing it and pressing
+              // Add. Nothing said so: with no matches the list just vanished,
+              // which reads as "cannot add" rather than "hit Add".
+              const known = dishPool.some(n => n.toLowerCase() === dq);
+              const onVisit = dishNames.indexOf(raw) !== -1;
+              if (!sugg.length && (known || onVisit)) return null;
               return (
                 <div className="card" style={{position:"absolute", top:"100%", left:0, right:0, zIndex:6,
                      marginTop:4, maxHeight:220, overflowY:"auto", padding:"4px 0"}}>
@@ -17453,6 +17487,16 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                     <div key={i} className="pick-row" style={{padding:"9px 14px"}}
                       onClick={()=> addDish(n)}>{n}</div>
                   ))}
+                  {(!known && !onVisit) ? (
+                    <div className="pick-row" style={{padding:"9px 14px"}}
+                      onClick={()=> addDish(raw)}>
+                      <span style={{color:"var(--accent)", fontWeight:600}}>Add</span>
+                      <span> "{raw}"</span>
+                      <div className="tiny faint" style={{marginTop:2}}>
+                        {sugg.length ? "Not on the menu" : "Not on the menu - a special, perhaps"}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               );
             })()}
@@ -17500,13 +17544,13 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                         <div className="section-subhead">{s.name || "Other"}</div>
                       )}
                       <div className="chips">
-                        {s.items.map((n,i)=>(
+                        {s.items.map((it,i)=>(
                           <span key={i}
                             className={"chip pick" +
-                              (dishNames.indexOf(n)!==-1 ? " on" : "")}
-                            onClick={()=> dishNames.indexOf(n)!==-1
-                              ? removeDish(n) : addDish(n)}>
-                            {n}
+                              (dishNames.indexOf(it.value)!==-1 ? " on" : "")}
+                            onClick={()=> dishNames.indexOf(it.value)!==-1
+                              ? removeDish(it.value) : addDish(it.value)}>
+                            {it.label}
                           </span>
                         ))}
                       </div>
