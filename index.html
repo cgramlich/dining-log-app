@@ -931,7 +931,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.393.0";
+const APP_VERSION   = "1.394.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6445,6 +6445,8 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
                         <div className="small" style={{fontWeight:600}}>{c.name}</div>
                         {cz ? <div className="tiny" style={{marginTop:2, color:"var(--accent)"}}>{cz}</div> : null}
                         {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+                        {/* Closed now, or closed for a while - always shown, never a filter. */}
+                        <div style={{marginTop:2}}><PlaceStatus place={c} size={11.5} /></div>
                       </div>
                       <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
                         color: saved ? "var(--text-faint)" : "var(--accent)"}}>
@@ -10006,6 +10008,8 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
                     <div style={{flex:1, minWidth:0}}>
                       <div className="small" style={{fontWeight:600}}>{c.name}</div>
                       {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+                      {/* Closed now, or closed for a while - always shown, never a filter. */}
+                      <div style={{marginTop:2}}><PlaceStatus place={c} size={11.5} /></div>
                     </div>
                     <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
                       color: saved ? "var(--text-faint)" : "var(--accent)"}}>
@@ -12115,6 +12119,28 @@ function orderedMenus(list){
   return (list || []).slice().sort((a,b)=> isMain(a) - isMain(b));
 }
 
+/* A Google place's trading status. THREE different things wear the word
+   "closed" and they mean opposite things for planning:
+     - open_now false          -> shut at this hour, back tomorrow. Quiet.
+     - CLOSED_TEMPORARILY      -> the business has stopped for a while. Loud:
+                                  this one should change your plans.
+     - CLOSED_PERMANENTLY      -> filtered out upstream; never rendered.
+   Never hides a place. You often want somewhere now to visit later. */
+function PlaceStatus({ place, size }){
+  const p = place || {};
+  const fs = size || 12.5;
+  if (p.business_status === "CLOSED_TEMPORARILY"){
+    return (
+      <span className="row" style={{gap:3, color:"var(--danger)", fontWeight:600, fontSize:fs}}>
+        <Icon name="clock" size={fs} color="var(--danger)" />Temporarily closed
+      </span>
+    );
+  }
+  if (p.open_now === true)  return <span style={{color:"var(--accent)", fontSize:fs}}>Open</span>;
+  if (p.open_now === false) return <span className="faint" style={{fontSize:fs}}>Closed now</span>;
+  return null;                       // hours unknown - say nothing rather than guess
+}
+
 function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onOpenMenu, onLogVisit, onClose, onHome }){
   const r = restaurant;
   // In the SAME order the place page shows them - otherwise "the first menu"
@@ -12312,6 +12338,8 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
             <div style={{flex:1, minWidth:0}}>
               <div className="small" style={{fontWeight:600}}>{c.name}</div>
               {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+              {/* Closed now, or closed for a while - always shown, never a filter. */}
+              <div style={{marginTop:2}}><PlaceStatus place={c} size={11.5} /></div>
             </div>
             <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
               color: savedHit ? "var(--text-faint)" : "var(--accent)"}}>{savedHit ? "Saved · Open" : "+ Add"}</span>
@@ -14543,7 +14571,14 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
     const moodObj = activeMood ? (NEARME_MOODS.find(m => m.key === activeMood) || null) : null;
     setPickErr(null); setPickBusy(true);
     try {
-      const cand = shown.slice(0, 15).map(p => ({
+      // The one place a closed spot should be held back: everywhere else the
+      // app is showing you options and you decide, but here it decides. Only
+      // narrow to open ones when some are open - late at night, a pick from
+      // the shut ones still beats no pick at all.
+      const openNow = shown.filter(p => p.open_now !== false
+        && p.business_status !== "CLOSED_TEMPORARILY");
+      const pool = openNow.length ? openNow : shown;
+      const cand = pool.slice(0, 15).map(p => ({
         name: p.name,
         cuisine: cuisineFromType(p.primary_type, p.types) || "",
         rating: (typeof p.rating === "number") ? p.rating : null,
@@ -14950,8 +14985,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
                         </span>
                       )}
                       {p._dist != null && <span className="faint">{fmtMiles(p._dist)}</span>}
-                      {p.open_now === true  && <span style={{color:"var(--accent)"}}>Open</span>}
-                      {p.open_now === false && <span className="faint">Closed</span>}
+                      <PlaceStatus place={p} />
                       {haveMenus.has(p.place_id) && (
                         <span className="row" style={{gap:3, color:"var(--accent)", fontWeight:600}}>
                           <Icon name="book" size={12} color="var(--accent)" />Menu
@@ -15010,8 +15044,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
                           {detail.rating}{detail.rating_count != null ? " (" + detail.rating_count + ")" : ""}
                         </span>
                       )}
-                      {detail.open_now === true  && <span style={{color:"var(--accent)"}}>Open now</span>}
-                      {detail.open_now === false && <span className="faint">Closed now</span>}
+                      <PlaceStatus place={detail} size={13} />
                     </div>
                     {detail.address && <div style={{color:"var(--text-dim)", marginBottom:8}}>{detail.address}</div>}
                     <div className="row" style={{gap:14, flexWrap:"wrap"}}>
@@ -16061,6 +16094,8 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
                       <div style={{flex:1, minWidth:0}}>
                         <div>{c.name}</div>
                         {c.address ? <div className="tiny faint">{c.address}</div> : null}
+                        {/* Closed now, or closed for a while - always shown, never a filter. */}
+                        <div style={{marginTop:2}}><PlaceStatus place={c} size={11.5} /></div>
                       </div>
                       <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>Use</span>
                     </div>
@@ -17284,6 +17319,8 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                       <div style={{flex:1, minWidth:0}}>
                         <div>{c.name}</div>
                         {c.address ? <div className="tiny faint">{c.address}</div> : null}
+                        {/* Closed now, or closed for a while - always shown, never a filter. */}
+                        <div style={{marginTop:2}}><PlaceStatus place={c} size={11.5} /></div>
                       </div>
                       <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>Add</span>
                     </div>
