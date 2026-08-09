@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.396.0";
+const APP_VERSION   = "1.397.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1592,6 +1592,16 @@ bakeries), and flip **Open now** if you only want places open right now. Tap
 **Search nearby** and the results come back as a list, nearest first - each with
 its rating, price, distance, and whether it is open.
 
+**Open, closed, and closed for a while.** Anywhere the app lists a place from
+Google it now says how it is trading. **Closed** just means shut at this hour -
+worth ignoring if you are planning Saturday, which is why a closed place is
+never hidden from a list. **Temporarily closed** is different and is shown in
+red: the restaurant itself has stopped for a stretch, so it is not somewhere to
+plan around. Open and closed are worked out from the restaurant's own posted
+hours in its own local time, so they stay right no matter how long ago the
+place's details were fetched. The one place a closed spot is held back is
+**Can't decide?**, because that one picks for you.
+
 Tap any place to see its details - address, hours, phone, website, a link to
 Google Maps, and a short blurb. From there, **Add to my places** saves it
 straight into your restaurants, already filled in (name, cuisine, address,
@@ -1656,6 +1666,11 @@ with a fresh version - photograph it again or pull it from a link - and you
 can delete a menu you no longer want from inside it. Refreshing replaces the
 old copy in place (no duplicate), so any estimates saved on the old items are
 not carried over.
+
+**Adding a menu that already exists.** If you go in through **Get the menu**
+rather than Refresh and give it a name the place already uses, the review screen
+says so and asks which you meant: **Replace it** (the usual answer - a matching
+name almost always means a fresher copy of the same menu) or **Keep both**.
 
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, each
@@ -1749,6 +1764,16 @@ open it and tap any item to add it. Adding a dish by tapping it from the menu is
 the better habit - it makes the rest of the features line up correctly (see the
 photo estimate below).
 
+**Something not on the menu.** A special, an off-menu ask, a dish the scan
+missed - type it and the list offers **Add "whatever you typed"**. It goes on
+the visit like any other dish.
+
+**Two dishes with the same name.** Some places list one dish under several
+headings - a pancake house might have the same berry special as a pancake, a
+waffle, french toast and a crepe. Those are different dishes, so the app keeps
+all of them and tags each with its section, like *Signature Berry Bliss (Belgian
+Waffles)*, so your log records the one you actually ate.
+
 **Loved, Again, or Skip.** Each dish has three buttons. Tap **Loved** for a
 standout you adored, **Again** for something solid you would order again, or
 **Skip** for something you would not. This is the heart of the app - it is how
@@ -1831,6 +1856,11 @@ numbers for the meal. You can edit any estimate by hand if you know the real
 figures.
 
 **Photos and notes.** Attach photos of the visit and jot down any notes.
+
+**Which photo leads.** The first photo is the **Cover** - the one that heads the
+visit, and the one somebody sees first when you share it. Every other photo has
+a **Make cover** button, so putting the right one in front is a single tap. This
+works on a visit you saved months ago, not just a new one.
 
 -----
 
@@ -1925,13 +1955,13 @@ app awards as you use it. They are milestones, not a scoreboard: there is nothin
 to chase and nothing you can lose. A badge you have earned shows in full color
 with a note of what you did; one you have not earned yet sits quietly greyed
 out with a hint of how to get it. Next to each badge is a quiet button that
-opens the thing it is about - tap **Scan a menu** beside First Scan, **Publish a
+opens the thing it is about - tap **Add a menu** beside First Menu, **Publish a
 list** beside First List, and so on - so a badge doubles as a shortcut, never a
 nag.
 
 The starting set:
 
-- **First Scan** - scan your first menu.
+- **First Menu** - save your first menu, scanned or found.
 - **Ten Visits** - log ten visits.
 - **Five Cities** - eat in five different cities.
 - **First List** - publish a list.
@@ -2970,7 +3000,7 @@ async function publishAndShareMenu(cfg, restaurant, menu, setBusy, setErr, opts)
 async function publishAndSharePlace(cfg, restaurant, menuList, setBusy, setErr, lovedNames){
   const usable = (menuList || []).filter(m => m && (m.sections || []).length);
   if (!usable.length){
-    if (setErr) setErr("Scan a menu for this place first, then you can share it.");
+    if (setErr) setErr("Add a menu for this place first, then you can share it.");
     return;
   }
   const combined = usable.length === 1 ? usable[0] : combineGroupMenus(usable);
@@ -6240,9 +6270,11 @@ function applyUpdate(version){
 // heart in "Share the Love" renders as an SVG Icon, never an emoji character.
 // ---------------------------------------------------------------------------
 const BADGES = [
-  { id:"first-scan",  name:"First Scan",  icon:"camera",
-    earnedText:"You scanned your first menu.",
-    lockedText:"Scan a menu to earn this." },
+  // Earned by any menu existing, by any of the four routes - so it cannot
+  // claim you scanned one. The id stays "first-scan": it is persisted.
+  { id:"first-scan",  name:"First Menu",  icon:"book",
+    earnedText:"Your first menu is saved.",
+    lockedText:"Add a menu to earn this." },
   { id:"ten-visits",  name:"Ten Visits",  icon:"book",
     earnedText:"Ten visits logged.",
     lockedText:"Log ten visits." },
@@ -9086,7 +9118,7 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
   const earnedIds = earnedBadgeIds({ restaurants, visits, menus, lists, meta });
   // Badge id -> its doorway action. Keep labels matching the real entry points.
   const ACTIONS = {
-    "first-scan":  { label:"Scan a menu",    on:onScanMenu },
+    "first-scan":  { label:"Add a menu",     on:onScanMenu },
     "ten-visits":  { label:"Log a visit",    on:onLogVisit },
     "five-cities": { label:"Log a visit",    on:onLogVisit },
     "first-list":  { label:"Publish a list", on:onPublishList },
@@ -9380,7 +9412,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
         </div>
         <div style={{display:"flex", flexDirection:"column", gap:10, maxWidth:280, margin:"0 auto"}}>
           {onLogVisit && <button className="btn primary" onClick={onLogVisit}>Log a meal</button>}
-          {onScanMenu && <button className="btn ghost" onClick={onScanMenu}>Scan a menu</button>}
+          {onScanMenu && <button className="btn ghost" onClick={onScanMenu}>Add a menu</button>}
           {onAddPlace && <button className="btn ghost" onClick={onAddPlace}>Add a place</button>}
         </div>
         <div className="tiny faint" style={{marginTop:16, maxWidth:300, marginLeft:"auto", marginRight:"auto"}}>
@@ -9824,7 +9856,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
             {onScanMenu && (
               <button className="btn ghost" onClick={onScanMenu}>
                 <span className="row" style={{gap:6, justifyContent:"center"}}>
-                  <Icon name="camera" size={16} color="var(--accent)" />Scan a menu</span>
+                  <Icon name="plus" size={16} color="var(--accent)" />Add a menu</span>
               </button>
             )}
             {onAddPlace && (
@@ -17633,7 +17665,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                 if (window.confirm("Opening the scanner closes this visit form - anything you've entered here will be lost. Continue?")) onScanMenu(restId);
               }}>
                 <span className="row" style={{gap:6, justifyContent:"center"}}>
-                  <Icon name="camera" size={15} color="var(--accent)" />Scan a menu for this place</span>
+                  <Icon name="plus" size={15} color="var(--accent)" />Add a menu for this place</span>
               </button>
             </div>
           )}
@@ -20222,7 +20254,7 @@ function GroupOrderStart({cfg, restaurant, menus, onClose}){
         <div className="ovbody">
           <div className="empty" style={{padding:"40px 0"}}>
             <div className="big">No menu yet</div>
-            <div>Scan a menu for {restaurantName || "this place"} to order from it - or start a quick order where everyone just types what they want.</div>
+            <div>Add a menu for {restaurantName || "this place"} to order from it - or start a quick order where everyone just types what they want.</div>
             <button className="btn primary" style={{marginTop:16}} onClick={()=> setQuick(true)}>
               Start a quick order
             </button>
