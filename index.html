@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.397.0";
+const APP_VERSION   = "1.398.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6329,7 +6329,7 @@ function earnedBadgeIds({restaurants, visits, menus, lists, meta}){
    search box auto-focuses so the extra tap in from Home costs nothing.
    ============================================================ */
 function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRestaurant,
-                         onNearMe, onSpin, onBrowseUnvisited, onClose }){
+                         onNearMe, onSpin, onBrowseUnvisited, onStartVote, onClose }){
   const [q, setQ]             = useState("");
   const [city, setCity]       = useState("");       // optional: search another city (skips the near-me bias)
   const [adding, setAdding]   = useState(null);     // place_id being added+enriched from a Google result
@@ -6545,6 +6545,18 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
               <div className="tiny faint">Let MenuCaptain pick one of your places for you.</div>
             </div>
             <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Spin ›</span>
+          </div>
+        ) : null}
+
+        {!ql && onStartVote ? (
+          <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
+            onClick={onStartVote}>
+            <Icon name="people" size={20} color="var(--accent)" />
+            <div style={{flex:1, minWidth:0}}>
+              <div className="small" style={{fontWeight:600}}>Eating with people?</div>
+              <div className="tiny faint">Send a vote and let everyone pick where.</div>
+            </div>
+            <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Vote ›</span>
           </div>
         ) : null}
       </div>
@@ -8143,6 +8155,20 @@ function App(){
       )}
 
       {/* overlays */}
+      {overlay && overlay.type === "voteStart" && (
+        <VoteStart
+          cfg={config} profile={profile}
+          restaurants={restaurants} visits={visits}
+          onStarted={(code)=> setOverlay({ type:"voteHost", code:code })}
+          onClose={()=> setOverlay(null)} />
+      )}
+      {overlay && overlay.type === "voteHost" && (
+        <VoteHost
+          code={overlay.code} cfg={config} profile={profile}
+          restaurants={restaurants}
+          onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+          onClose={()=> setOverlay(null)} />
+      )}
       {overlay && overlay.type === "spinPick" && (
         <SpinPicker
           restaurants={restaurants}
@@ -8267,6 +8293,7 @@ function App(){
           onNearMe={()=> setOverlay({ type:"nearMe" })}
           onSpin={()=> setOverlay({ type:"spinPick" })}
           onBrowseUnvisited={()=> setOverlay({ type:"atPlace", mode:"saved", filter:"unvisited" })}
+          onStartVote={()=> setOverlay({ type:"voteStart" })}
           onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "shareVisitSheet" && overlay.visit && (
@@ -19716,6 +19743,44 @@ async function groupCreate(cfg, menu, restaurantName){
   if (!res.ok) throw new Error("create failed: " + res.status);
   return res.json();                                  // { code, expires_at }
 }
+
+/* ---- where shall we eat: the group vote ---------------------------------
+   Same session as a group order (code, host, expiry, link-in guests with no
+   account); the payload is a ballot instead of a menu. */
+async function voteCreate(cfg, candidates, minutes, title){
+  const res = await fetch(apiBase(cfg) + "/api/group/vote/create", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ candidates: candidates, minutes: minutes || 30, title: title || "" }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(data.detail || ("Could not start the vote (" + res.status + ")"));
+  return data;                                        // { code, closes_at }
+}
+async function voteBallot(cfg, code, name, token, approved){
+  const headers = { "Content-Type":"application/json" };
+  if (cfg) { try { Object.assign(headers, await authHeaders(cfg)); } catch(e){} }
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/ballot", {
+    method:"POST", headers,
+    body: JSON.stringify({ guest_name:name, guest_token:token, approved:approved || [] }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(data.detail || "Could not save your vote.");
+  return data;
+}
+/* Minutes left, as something a person would say. */
+function voteTimeLeft(closesAt){
+  if (!closesAt) return "";
+  const ms = new Date(closesAt).getTime() - Date.now();
+  if (!isFinite(ms) || ms <= 0) return "closed";
+  const mins = Math.round(ms / 60000);
+  if (mins < 1)  return "less than a minute left";
+  if (mins === 1) return "1 minute left";
+  if (mins < 60) return mins + " minutes left";
+  const hrs = Math.round(mins / 60);
+  return hrs === 1 ? "about an hour left" : ("about " + hrs + " hours left");
+}
+
 async function groupFetch(cfg, code){
   // Host calls pass cfg (sends auth -> server returns the roster); guests pass
   // null (no auth -> roster omitted). Guarded: authHeaders() requires a cfg.
@@ -21236,6 +21301,365 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
 // Guest screen (no account). Opened by a ?g=<code> link: fetch the menu from
 // the backend, pick with quantity steppers + notes, submit. Re-submitting
 // updates the same order (matched by the device's guest token).
+
+
+/* Start a vote: shortlist a few of your own places, pick how long people get,
+   share one link. Deliberately capped at a handful - a ballot of twelve is
+   worse than no vote, because people disengage and nothing wins clearly. */
+function VoteStart({cfg, profile, restaurants, visits, onClose, onStarted}){
+  const MAX = 5;
+  const [chosen,setChosen] = useState([]);         // restaurant ids, in tap order
+  const [q,setQ]           = useState("");
+  const [mins,setMins]     = useState(30);
+  const [note,setNote]     = useState("");
+  const [busy,setBusy]     = useState(false);
+  const [err,setErr]       = useState("");
+
+  // Favourites first, then the rest by name - the same ordering the spinner
+  // and the places list use, so the shortlist feels like the same app.
+  const pool = (function(){
+    const qq = q.trim().toLowerCase();
+    const all = (restaurants || []).filter(r => r && r.name);
+    const hit = qq
+      ? all.filter(r => ((r.name || "") + " " + (r.cuisine || "") + " " + (r.location || ""))
+          .toLowerCase().indexOf(qq) !== -1)
+      : all;
+    return hit.slice().sort((a,b)=>
+      (Number(!!b.favorite) - Number(!!a.favorite)) ||
+      (a.name || "").localeCompare(b.name || "")).slice(0, 60);
+  })();
+
+  function toggle(id){
+    setErr("");
+    setChosen(c => c.indexOf(id) !== -1 ? c.filter(x => x !== id)
+      : (c.length >= MAX ? c : c.concat([id])));
+  }
+
+  async function start(){
+    if (chosen.length < 2){ setErr("Put at least two places on the ballot."); return; }
+    setBusy(true); setErr("");
+    try {
+      const cands = chosen.map(id => {
+        const r = (restaurants || []).find(x => x.id === id) || {};
+        return { id: id, name: r.name || "A place",
+                 place_id: r.google_place_id || null,
+                 cuisine: r.cuisine || null, city: r.location || null };
+      });
+      const res = await voteCreate(cfg, cands, mins, note.trim());
+      onStarted(res.code);
+    } catch(e){ setErr(e.message || "Could not start the vote."); }
+    setBusy(false);
+  }
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose} aria-label="Back"><Icon name="back" size={20} /></button>
+        <h2>Where shall we eat?</h2>
+      </div>
+      <div className="ovbody">
+        <div style={{maxWidth:560, margin:"0 auto"}}>
+          <div className="muted" style={{marginBottom:12}}>
+            Put a few places up and send one link. Everyone ticks the ones they
+            would be happy with - no app, no account - and the place most people
+            can live with wins.
+          </div>
+
+          <label className="fld"><span className="lbl">On the ballot ({chosen.length} of {MAX})</span>
+            <ClearInput value={q} onChange={e=>setQ(e.target.value)}
+              placeholder="Search your places" />
+          </label>
+          {chosen.length >= MAX ? (
+            <div className="tiny faint" style={{marginBottom:8}}>
+              That is enough to choose between. Untick one to swap it out.
+            </div>
+          ) : null}
+
+          <div className="chips" style={{marginBottom:14}}>
+            {pool.map(r => {
+              const on = chosen.indexOf(r.id) !== -1;
+              return (
+                <span key={r.id} className={"chip pick" + (on ? " on" : "")}
+                  onClick={()=> toggle(r.id)}>
+                  {r.favorite ? "\u2665 " : ""}{r.name}
+                </span>
+              );
+            })}
+            {!pool.length ? <div className="tiny faint">No places match that.</div> : null}
+          </div>
+
+          <label className="fld"><span className="lbl">How long do people have?</span>
+            <div className="chips">
+              {[15,30,60,180].map(m => (
+                <span key={m} className={"chip pick" + (mins === m ? " on" : "")}
+                  onClick={()=> setMins(m)}>
+                  {m < 60 ? (m + " min") : (m === 60 ? "1 hour" : (m/60) + " hours")}
+                </span>
+              ))}
+            </div>
+          </label>
+          <div className="tiny faint" style={{marginTop:-4, marginBottom:12}}>
+            After that, votes are closed and the result is in. You can close it early.
+          </div>
+
+          <label className="fld"><span className="lbl">Anything to say? (optional)</span>
+            <ClearInput value={note} onChange={e=>setNote(e.target.value)}
+              placeholder="e.g. somewhere quick, we have the 7pm show" />
+          </label>
+
+          {err ? <div className="small" style={{color:"var(--danger)", marginBottom:10}}>{err}</div> : null}
+          <button className="btn primary" style={{width:"100%"}} disabled={busy} onClick={start}>
+            {busy ? <span className="spin" /> : "Start the vote"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* The host's view once it is running: the share link on top, the ballot below
+   (the host votes too), and the result when it closes. */
+function VoteHost({code, cfg, profile, restaurants, onClose, onOpenRestaurant}){
+  const link = location.origin + location.pathname + "?v=" + encodeURIComponent(code);
+  const [copied,setCopied] = useState(false);
+
+  async function share(){
+    const text = "Where shall we eat? Tick what works for you: " + link;
+    if (!(await nativeShare({ title:"Where shall we eat?", text: text }))){
+      try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(()=> setCopied(false), 1500); }
+      catch(e){}
+    }
+  }
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose} aria-label="Back"><Icon name="back" size={20} /></button>
+        <h2>Where shall we eat?</h2>
+      </div>
+      <div className="ovbody" style={{paddingBottom:0}}>
+        <div style={{maxWidth:560, margin:"0 auto"}}>
+          <button className="btn primary" style={{width:"100%"}} onClick={share}>
+            <span className="row" style={{gap:6, justifyContent:"center"}}>
+              <Icon name="share" size={15} color="#1b1714" />Send the vote to your group
+            </span>
+          </button>
+          <div className="tiny faint" style={{marginTop:8, textAlign:"center"}}>
+            {copied ? "Link copied - paste it to the group" : "They open it in a browser. No app, no account."}
+          </div>
+        </div>
+      </div>
+      <GroupVoteView code={code} cfg={cfg} profile={profile} onClose={onClose}
+        onWinner={(w)=>{
+          // Land on the place. From there it is log a visit, start a group
+          // order, or open the menu - the vote does not presume which.
+          const hit = (restaurants || []).find(r => r.id === w.id)
+                   || (restaurants || []).find(r => w.place_id && r.google_place_id === w.place_id);
+          if (hit && onOpenRestaurant) onOpenRestaurant(hit.id);
+          else onClose();
+        }} />
+    </div>
+  );
+}
+
+/* The ballot. One screen for everyone: guests tick and submit, the host does
+   that too plus gets Share and Close. The running tally is deliberately NOT
+   here - see the backend note. You learn who has voted, never what they chose,
+   until it closes. */
+function GroupVoteView({code, cfg, profile, onClose, onWinner}){
+  const [data,setData]   = useState(null);
+  const [err,setErr]     = useState("");
+  const [name,setName]   = useState(()=> {
+    const dn = profile && (profile.display_name || "").trim();
+    if (dn) return dn.split(/\s+/)[0];
+    try { return localStorage.getItem("dininglog_guest_name") || ""; } catch(e){ return ""; }
+  });
+  const [approved,setApproved] = useState([]);
+  const [busy,setBusy]   = useState(false);
+  const [sent,setSent]   = useState(false);
+  const [closing,setClosing] = useState(false);
+  const [tick,setTick]   = useState(0);
+  const token = guestToken();
+
+  async function load(){
+    try {
+      const d = await groupFetch(cfg, code);
+      if (!d){ setErr("That vote link is not valid."); return; }
+      setData(d);
+      const mine = (d.ballots || []).find(b => b.guest_token === token);
+      if (mine){ setApproved(mine.approved || []); setSent(true); }
+    } catch(e){ setErr("Could not load the vote."); }
+  }
+  useEffect(()=>{ load(); }, [code]);
+  // A countdown that is wrong is worse than none: re-tick every 30s, and
+  // re-fetch so a deadline that passes flips the screen to the result.
+  useEffect(()=>{
+    const t = setInterval(()=>{ setTick(x=>x+1); load(); }, 30000);
+    return ()=> clearInterval(t);
+  }, [code]);   // eslint-disable-line
+
+  const isShut = !!(data && data.status === "closed");
+
+  function toggle(id){
+    if (isShut) return;
+    setApproved(a => a.indexOf(id) !== -1 ? a.filter(x => x !== id) : a.concat([id]));
+  }
+  async function send(){
+    const nm = (name || "").trim();
+    if (!nm){ setErr("Add your name so the host knows who voted."); return; }
+    setBusy(true); setErr("");
+    try {
+      try { localStorage.setItem("dininglog_guest_name", nm); } catch(e){}
+      await voteBallot(cfg, code, nm, token, approved);
+      setSent(true);
+      await load();
+    } catch(e){ setErr(e.message || "Could not save your vote."); }
+    setBusy(false);
+  }
+  async function closeNow(){
+    setClosing(true);
+    try { await groupClose(cfg, code); await load(); }
+    catch(e){ setErr("Could not close the vote."); }
+    setClosing(false);
+  }
+
+  if (err && !data) return <div className="ovbody"><div className="empty"><div className="big">{err}</div></div></div>;
+  if (!data) return <div className="ovbody"><Loader /></div>;
+
+  const cands = data.candidates || [];
+  const most  = (data.results && data.results.length) ? data.results[0].approvals : 0;
+
+  return (
+    <div className="ovbody">
+      <div style={{maxWidth:560, margin:"0 auto"}}>
+        <div className="pub-kicker">
+          {data.host_name ? data.host_name + " is asking" : "Where shall we eat?"}
+        </div>
+        <div style={{fontFamily:"'Fraunces',serif", fontSize:24, fontWeight:600, lineHeight:1.15, marginTop:6}}>
+          {isShut ? "The votes are in" : "Where shall we eat?"}
+        </div>
+        {data.title ? <div className="muted" style={{marginTop:8}}>{data.title}</div> : null}
+
+        {!isShut ? (
+          <div className="tiny faint" style={{marginTop:10}}>
+            Tick everywhere you would be happy to go - as many as you like.
+            {data.closes_at ? "  " + voteTimeLeft(data.closes_at) + "." : ""}
+          </div>
+        ) : null}
+
+        {/* ---- the ballot / the result ---- */}
+        <div style={{marginTop:14}}>
+          {(isShut ? (data.results || []) : cands).map((c,i)=>{
+            const id = c.id;
+            const on = approved.indexOf(id) !== -1;
+            const won = isShut && data.winner && data.winner.id === id;
+            const pct = (isShut && most > 0) ? Math.round((c.approvals / most) * 100) : 0;
+            return (
+              <div key={id || i}
+                className={"pick-row" + (!isShut && on ? " on" : "")}
+                style={{padding:"12px 14px", display:"flex", gap:10, alignItems:"center",
+                        position:"relative", overflow:"hidden",
+                        cursor: isShut ? "default" : "pointer",
+                        border: won ? "1px solid var(--accent)" : undefined,
+                        borderRadius: won ? 10 : undefined}}
+                onClick={()=> toggle(id)}>
+                {isShut ? (
+                  <div style={{position:"absolute", left:0, top:0, bottom:0, width:pct + "%",
+                               background:"rgba(224,118,74,0.13)"}} />
+                ) : null}
+                {!isShut ? (
+                  <div style={{width:22, height:22, borderRadius:6, flex:"none",
+                       border:"1px solid " + (on ? "var(--accent)" : "var(--line)"),
+                       background: on ? "var(--accent)" : "transparent",
+                       display:"flex", alignItems:"center", justifyContent:"center"}}>
+                    {on ? <Icon name="check" size={14} color="#1b1714" /> : null}
+                  </div>
+                ) : null}
+                <div style={{flex:1, minWidth:0, position:"relative"}}>
+                  <div style={{fontWeight:600}}>{c.name}{won ? "  " : ""}
+                    {won ? <span className="tiny" style={{color:"var(--accent)", fontWeight:700}}>WINNER</span> : null}
+                  </div>
+                  {(c.cuisine || c.city) ? (
+                    <div className="tiny faint">{[c.cuisine, c.city].filter(Boolean).join("  ·  ")}</div>
+                  ) : null}
+                </div>
+                {isShut ? (
+                  <div className="tiny" style={{flex:"none", fontWeight:700, position:"relative",
+                       color: won ? "var(--accent)" : "var(--text-dim)"}}>
+                    {c.approvals}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ---- who has voted (never what they chose, until it shuts) ---- */}
+        <div className="tiny faint" style={{marginTop:12}}>
+          {data.voted === 0
+            ? "Nobody has voted yet."
+            : (data.voted + (data.voted === 1 ? " person has voted" : " people have voted") +
+               ((data.voters || []).length
+                 ? ": " + (data.voters || []).map(v => v.guest_name).filter(Boolean).join(", ")
+                 : ""))}
+          {!isShut ? "  Nobody sees the tally until it closes." : ""}
+        </div>
+
+        {/* ---- your ballot ---- */}
+        {!isShut ? (
+          <div style={{marginTop:14}}>
+            <label className="fld"><span className="lbl">Your name</span>
+              <ClearInput value={name} onChange={e=>setName(e.target.value)}
+                placeholder="So the host knows who voted" />
+            </label>
+            {err ? <div className="small" style={{color:"var(--danger)", marginBottom:8}}>{err}</div> : null}
+            <button className="btn primary" style={{width:"100%"}} disabled={busy} onClick={send}>
+              {busy ? <span className="spin" /> : (sent ? "Update my vote" : "Send my vote")}
+            </button>
+            {sent ? (
+              <div className="tiny faint" style={{marginTop:8, textAlign:"center"}}>
+                Vote saved. Change it any time before it closes.
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* ---- the result leads somewhere ---- */}
+        {isShut && data.winner && onWinner ? (
+          <div style={{marginTop:16}}>
+            <button className="btn primary" style={{width:"100%"}}
+              onClick={()=> onWinner(data.winner)}>
+              Open {data.winner.name}
+            </button>
+            <div className="tiny faint" style={{marginTop:8, textAlign:"center"}}>
+              Log the visit from there, or start a group order if you are eating in.
+            </div>
+          </div>
+        ) : null}
+        {isShut && !data.winner && (data.tied || []).length ? (
+          <div className="card" style={{marginTop:16, padding:"12px 14px"}}>
+            <div className="small" style={{fontWeight:600, marginBottom:4}}>It is a tie</div>
+            <div className="tiny faint">{(data.tied || []).join("  ·  ")} - somebody will have to call it.</div>
+          </div>
+        ) : null}
+
+        {/* ---- host controls ---- */}
+        {cfg && onClose ? (
+          <div style={{marginTop:18, borderTop:"1px solid var(--line-soft)", paddingTop:14}}>
+            {!isShut ? (
+              <button className="btn" style={{width:"100%", marginBottom:8}}
+                disabled={closing} onClick={closeNow}>
+                {closing ? <span className="spin" /> : "Close voting now"}
+              </button>
+            ) : null}
+            <button className="btn ghost" style={{width:"100%"}} onClick={onClose}>Done</button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
   const home = location.origin + location.pathname;
   const [data, setData]       = useState(null);
@@ -25785,6 +26209,12 @@ class ErrorBoundary extends React.Component {
     const gm = (location.search || "").match(/[?&]g=([A-Za-z0-9]+)/);
     if (gm) groupCode = gm[1];
   } catch(e){ groupCode = null; }
+  // Vote links (?v=<code>) render the ballot - same shell, no account either.
+  let voteCode = null;
+  try {
+    const vm2 = (location.search || "").match(/[?&]v=([A-Za-z0-9]+)/);
+    if (vm2) voteCode = vm2[1];
+  } catch(e){ voteCode = null; }
   // Password-reset links land here with a recovery session in the hash.
   let recovery = null;
   try {
@@ -25812,6 +26242,8 @@ class ErrorBoundary extends React.Component {
        : publishedMenu ? <PublishedMenu data={publishedMenu} />
        : visitSlug ? <PublishedVisitLoader slug={visitSlug} />
        : publishedVisit ? <PublishedVisit data={publishedVisit} />
+       : voteCode ? <div className="overlay"><div className="ovhead"><h2>Where shall we eat?</h2></div>
+                      <GroupVoteView code={voteCode} cfg={null} profile={null} /></div>
        : groupCode ? <GroupOrderGuest code={groupCode} />
        : <App />}
     </ErrorBoundary>);
