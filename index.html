@@ -557,6 +557,19 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     .photo-slot:active{ background:var(--surface-2); border-color:var(--accent); }
     .photo-slot .ic{ display:block; margin-bottom:3px; }
+    /* Which photo leads. The first one SAYS it is the cover (a state, so not a
+       button); the others OFFER to become it (an action, so a button). */
+    .photo-cover{ position:absolute; left:0; right:0; bottom:0; height:18px;
+                  background:rgba(20,17,14,0.82); color:var(--accent);
+                  font-size:9.5px; font-weight:700; letter-spacing:0.09em;
+                  text-transform:uppercase; display:flex; align-items:center;
+                  justify-content:center; pointer-events:none; }
+    .photo-makecover{ position:absolute; left:0; right:0; bottom:0; height:18px;
+                      background:rgba(20,17,14,0.82); color:#e8dac6; border:0;
+                      font-size:9.5px; font-weight:600; letter-spacing:0.03em;
+                      display:flex; align-items:center; justify-content:center;
+                      cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    .photo-makecover:active{ color:var(--accent); }
     .photo-remove{
       position:absolute; top:4px; right:4px; width:22px; height:22px;
       border-radius:50%; background:rgba(20,17,14,0.85);
@@ -931,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.394.0";
+const APP_VERSION   = "1.395.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -17426,6 +17439,11 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             style={{display:"none"}} onChange={onVisitPhotoFiles} />
           <input ref={photoCamRef} type="file" accept="image/*" capture="environment"
             style={{display:"none"}} onChange={onVisitPhotoFiles} />
+          {photoSlots.length > 1 ? (
+            <div className="tiny faint" style={{marginTop:8}}>
+              The cover leads this visit, and it is the photo people see first when you share it.
+            </div>
+          ) : null}
           <div className="visit-photos">
             {photoSlots.map((s, i) => (
               <div key={i} className="visit-photo tap"
@@ -17443,18 +17461,21 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   onClick={(e)=>{ e.stopPropagation(); removePhotoSlot(i); }}>
                   <Icon name="close" size={14} color="#e8dac6" />
                 </button>
-                {i > 0 ? (
-                  <button type="button" aria-label="Move this photo earlier"
-                    title="Move earlier"
-                    style={{position:"absolute", left:4, bottom:4, width:22, height:22,
-                            borderRadius:"50%", background:"rgba(20,17,14,0.85)",
-                            border:"1px solid var(--line)", display:"flex",
-                            alignItems:"center", justifyContent:"center", cursor:"pointer",
-                            WebkitTapHighlightColor:"transparent"}}
-                    onClick={(e)=>{ e.stopPropagation(); movePhotoSlot(i, i - 1); }}>
-                    <Icon name="back" size={13} color="#e8dac6" />
-                  </button>
-                ) : null}
+                {/* The first photo is the one that leads the visit and the one a
+                    shared page opens with, so say so - and let any other photo
+                    take its place in a single tap. */}
+                {i === 0
+                  ? (photoSlots.length > 1
+                      ? <div className="photo-cover">Cover</div>
+                      : null)
+                  : (
+                    <button type="button" className="photo-makecover"
+                      aria-label={"Make photo " + (i + 1) + " the cover"}
+                      title="Make this the cover photo"
+                      onClick={(e)=>{ e.stopPropagation(); movePhotoSlot(i, 0); }}>
+                      Make cover
+                    </button>
+                  )}
               </div>
             ))}
             {photoSlots.length < MAX_PHOTOS && (
