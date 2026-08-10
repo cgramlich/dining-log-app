@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.398.0";
+const APP_VERSION   = "1.399.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1303,6 +1303,23 @@ async function placesPhoto(cfg, name, maxwidth){
     throw err;
   }
   return data;   // { url }
+}
+
+/* Places that are fair to everyone arriving from several zips. Ranked on the
+   WORST single journey, so the answer leans toward whoever would otherwise
+   travel furthest - and every result carries its per-person distances, because
+   being able to SHOW the group it was even-handed is half the point. */
+async function placesMidpoint(cfg, zips, opts){
+  const headers = await authHeaders(cfg);
+  headers["Content-Type"] = "application/json";
+  const res = await fetch(apiBase(cfg) + "/api/places/midpoint", {
+    method:"POST", headers,
+    body: JSON.stringify({ zips: zips || [], open_now: !!(opts && opts.openNow),
+                           included_types: (opts && opts.types) || null }),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(data.detail || "Could not find a middle ground.");
+  return data;
 }
 
 async function placesSearchText(cfg, body){
@@ -8167,6 +8184,7 @@ function App(){
           code={overlay.code} cfg={config} profile={profile}
           restaurants={restaurants}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
+          onAddPlace={(prefill)=> setOverlay({ type:"addRestaurant", prefill:prefill })}
           onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "spinPick" && (
@@ -21308,7 +21326,14 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
    worse than no vote, because people disengage and nothing wins clearly. */
 function VoteStart({cfg, profile, restaurants, visits, onClose, onStarted}){
   const MAX = 5;
-  const [chosen,setChosen] = useState([]);         // restaurant ids, in tap order
+  // Candidate objects, not ids: the ballot can mix your saved places with
+  // somewhere fair that nobody has saved yet.
+  const [chosen,setChosen] = useState([]);         // [{id,name,place_id,cuisine,city}]
+  const [zips,setZips]     = useState("");
+  const [midBusy,setMidBusy] = useState(false);
+  const [mid,setMid]       = useState(null);       // midpoint response
+  const [midErr,setMidErr] = useState("");
+  const [midOpen,setMidOpen] = useState(false);
   const [q,setQ]           = useState("");
   const [mins,setMins]     = useState(30);
   const [note,setNote]     = useState("");
@@ -21329,23 +21354,36 @@ function VoteStart({cfg, profile, restaurants, visits, onClose, onStarted}){
       (a.name || "").localeCompare(b.name || "")).slice(0, 60);
   })();
 
-  function toggle(id){
+  function has(id){ return chosen.some(c => c.id === id); }
+  function toggleCand(cand){
     setErr("");
-    setChosen(c => c.indexOf(id) !== -1 ? c.filter(x => x !== id)
-      : (c.length >= MAX ? c : c.concat([id])));
+    setChosen(c => c.some(x => x.id === cand.id)
+      ? c.filter(x => x.id !== cand.id)
+      : (c.length >= MAX ? c : c.concat([cand])));
+  }
+  function toggleSaved(r){
+    toggleCand({ id: r.id, name: r.name || "A place",
+                 place_id: r.google_place_id || null,
+                 cuisine: r.cuisine || null, city: r.location || null });
+  }
+
+  async function findMiddle(){
+    const list = (zips || "").split(/[^0-9]+/).filter(z => z.length === 5);
+    if (list.length < 2){ setMidErr("Give at least two zip codes - one per person or per household."); return; }
+    setMidBusy(true); setMidErr(""); setMid(null);
+    try {
+      const d = await placesMidpoint(cfg, list, {});
+      setMid(d);
+      if (!(d.places || []).length) setMidErr("Nothing came back between those. Try a wider spread of zips.");
+    } catch(e){ setMidErr(e.message || "Could not find a middle ground."); }
+    setMidBusy(false);
   }
 
   async function start(){
     if (chosen.length < 2){ setErr("Put at least two places on the ballot."); return; }
     setBusy(true); setErr("");
     try {
-      const cands = chosen.map(id => {
-        const r = (restaurants || []).find(x => x.id === id) || {};
-        return { id: id, name: r.name || "A place",
-                 place_id: r.google_place_id || null,
-                 cuisine: r.cuisine || null, city: r.location || null };
-      });
-      const res = await voteCreate(cfg, cands, mins, note.trim());
+      const res = await voteCreate(cfg, chosen, mins, note.trim());
       onStarted(res.code);
     } catch(e){ setErr(e.message || "Could not start the vote."); }
     setBusy(false);
@@ -21376,16 +21414,90 @@ function VoteStart({cfg, profile, restaurants, visits, onClose, onStarted}){
           ) : null}
 
           <div className="chips" style={{marginBottom:14}}>
-            {pool.map(r => {
-              const on = chosen.indexOf(r.id) !== -1;
-              return (
-                <span key={r.id} className={"chip pick" + (on ? " on" : "")}
-                  onClick={()=> toggle(r.id)}>
-                  {r.favorite ? "\u2665 " : ""}{r.name}
-                </span>
-              );
-            })}
+            {pool.map(r => (
+              <span key={r.id} className={"chip pick" + (has(r.id) ? " on" : "")}
+                onClick={()=> toggleSaved(r)}>
+                {r.favorite ? "\u2665 " : ""}{r.name}
+              </span>
+            ))}
             {!pool.length ? <div className="tiny faint">No places match that.</div> : null}
+          </div>
+
+          {/* Second way to fill the ballot: somewhere fair to everybody. */}
+          <div className="card" style={{padding:"12px 14px", marginBottom:14}}>
+            <div className="row between tap" style={{cursor:"pointer"}}
+              onClick={()=> setMidOpen(v => !v)}>
+              <div>
+                <div className="small" style={{fontWeight:600}}>Coming from different places?</div>
+                <div className="tiny faint">Find somewhere that is fair to everyone.</div>
+              </div>
+              <span style={{display:"inline-flex", transition:"transform 0.15s ease",
+                    transform: midOpen ? "none" : "rotate(-90deg)"}}>
+                <Icon name="chevd" size={16} color="var(--accent)" />
+              </span>
+            </div>
+            {midOpen ? (
+              <div style={{marginTop:10}}>
+                <ClearInput value={zips} onChange={e=>setZips(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="Zip codes, e.g. 75201, 78006, 76102" />
+                <div className="tiny faint" style={{marginTop:6, marginBottom:8}}>
+                  One per person or household. Straight-line distance, so it can
+                  be off where a river or bay is in the way.
+                </div>
+                <button className="btn" style={{width:"100%"}} disabled={midBusy} onClick={findMiddle}>
+                  {midBusy ? <span className="spin" /> : "Find somewhere fair"}
+                </button>
+                {midErr ? <div className="small" style={{color:"var(--danger)", marginTop:8}}>{midErr}</div> : null}
+
+                {mid && (mid.unknown_zips || []).length ? (
+                  <div className="tiny faint" style={{marginTop:8}}>
+                    Did not recognise: {(mid.unknown_zips || []).join(", ")}
+                  </div>
+                ) : null}
+                {mid && mid.thin ? (
+                  <div className="tiny" style={{marginTop:8, color:"var(--accent)"}}>
+                    You are spread over {Math.round(mid.spread_miles)} miles, so there is no
+                    truly convenient middle. These are the fairest of what is there.
+                  </div>
+                ) : null}
+
+                {mid && (mid.places || []).length ? (
+                  <div style={{marginTop:10}}>
+                    {(mid.places || []).slice(0, 8).map(pl => {
+                      const cid = "g:" + (pl.place_id || pl.name);
+                      const on = has(cid);
+                      return (
+                        <div key={cid} className={"pick-row" + (on ? " on" : "")}
+                          style={{padding:"10px 12px", display:"flex", gap:10, alignItems:"flex-start",
+                                  cursor:"pointer"}}
+                          onClick={()=> toggleCand({ id: cid, name: pl.name,
+                                     place_id: pl.place_id || null,
+                                     cuisine: cuisineFromType(pl.primary_type, pl.types) || null,
+                                     city: null })}>
+                          <div style={{flex:1, minWidth:0}}>
+                            <div className="small" style={{fontWeight:600}}>{pl.name}</div>
+                            <div className="tiny faint">
+                              {pl.rating != null ? pl.rating + "\u2605  ·  " : ""}
+                              furthest {pl.worst_miles} mi
+                            </div>
+                            {/* The per-person legs are the point: it can be SHOWN to be fair. */}
+                            <div className="tiny faint" style={{marginTop:2}}>
+                              {(pl.legs || []).map(l => l.zip + " " + l.miles + "mi").join("   ")}
+                            </div>
+                            <div style={{marginTop:2}}><PlaceStatus place={pl} size={11} /></div>
+                          </div>
+                          <span className="tiny" style={{flex:"none", fontWeight:600,
+                                color: on ? "var(--text-faint)" : "var(--accent)"}}>
+                            {on ? "On the ballot" : "+ Add"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <label className="fld"><span className="lbl">How long do people have?</span>
@@ -21419,7 +21531,7 @@ function VoteStart({cfg, profile, restaurants, visits, onClose, onStarted}){
 
 /* The host's view once it is running: the share link on top, the ballot below
    (the host votes too), and the result when it closes. */
-function VoteHost({code, cfg, profile, restaurants, onClose, onOpenRestaurant}){
+function VoteHost({code, cfg, profile, restaurants, onClose, onOpenRestaurant, onAddPlace}){
   const link = location.origin + location.pathname + "?v=" + encodeURIComponent(code);
   const [copied,setCopied] = useState(false);
 
@@ -21456,6 +21568,7 @@ function VoteHost({code, cfg, profile, restaurants, onClose, onOpenRestaurant}){
           const hit = (restaurants || []).find(r => r.id === w.id)
                    || (restaurants || []).find(r => w.place_id && r.google_place_id === w.place_id);
           if (hit && onOpenRestaurant) onOpenRestaurant(hit.id);
+          else if (onAddPlace) onAddPlace({ name: w.name || "", google_place_id: w.place_id || null });
           else onClose();
         }} />
     </div>
