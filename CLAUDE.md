@@ -97,3 +97,45 @@ Cowork-sandbox-only issue and does NOT apply to Claude Code.
   `C:\Users\cjgra\Dropbox\My AI\CG Apps\MenuCaptain\MenuCaptain Architecture & Design\app-architecture-playbook.md`
 - Dev-loop handoff:
   `C:\Users\cjgra\Dropbox\My AI\CG Apps\MenuCaptain\MenuCaptain Architecture & Design\cowork-dev-loop-handoff-2026-06-18.md`
+
+## Code readability (part of "done", not polish)
+
+Full standard: `Dropbox\My AI\CG Apps\Forever Apps\CODE-READABILITY-STANDARD.md`
+(Chris's directive, 2026-08-10). Read it before a large change.
+
+Code here must be readable by three people who were not in the room: an auditor,
+a compliance reviewer, and a developer joining cold. The operative rules:
+
+- **Comment the WHY and the RULE, never the WHAT.** The test: if the comment
+  would still be true after someone rewrote the implementation, keep it; if it
+  narrates the current lines, delete it.
+- **State every business rule in plain English beside the code enforcing it**,
+  with its source and date. In this app that means the free-tier meter, the
+  Places budget and circuit breaker, Stripe tier gating, and the group-order
+  and vote permission model. A reviewer must be able to READ the rule, not
+  infer it from the logic.
+- **Record the road not taken** on a non-obvious decision, so a later session
+  does not "fix" something deliberate.
+- **A trap gets a WARNING comment** where somebody would trip over it.
+- Files open with an orientation block; long files carry banner sections.
+- Explicit over clever. Delete dead code; never comment it out.
+
+**The opposite failure is just as real.** Not a comment per line, not code
+restated in English, not ceremonial docblocks, not commit-message prose. Noise
+buries the one comment that mattered and teaches readers to skip all of them.
+This standard raises the bar on WHY, not on volume.
+
+## Pre-push audit (read-only here, run it before a store build)
+
+```
+python "C:\Users\cjgra\portfolio-audit\portfolio_audit.py" --repo "<this repo>"
+```
+
+Changes nothing; takes about 0.2s. Notably B2 checks that every routed or
+aliased model prefix-matches an `AI_PRICES` key with no duplicates - the fault
+that took PriorityCaptain's AI relay down and that this repo also had (fixed in
+backend 0.111.0).
+
+The git hook is deliberately NOT installed in the MenuCaptain repos and the
+installer refuses them by name. If the gate is ever wrong, fix the checker -
+`--no-verify` is against Chris's standing rule.
