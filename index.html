@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.402.0";
+const APP_VERSION   = "1.403.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -20830,7 +20830,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   // office, or people at home waiting on a pickup run.
   async function tellTheGroup(){
     const place = (data && data.restaurant_name) || restaurantName || "the restaurant";
-    const text = "Order's in at " + place + ". " + link;
+    const text = "The order is in at " + place + ". " + link;
     // A cancelled sheet is not a failure, which nativeShare already accounts
     // for; only reach for the clipboard when there is no sheet at all.
     if (await nativeShare({ text: text })) return;
@@ -21218,7 +21218,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                   <div className="go-waiting">Still waiting on: {waiting.join(", ")}</div>
                 ) : (
                   <div className="tiny faint" style={{padding:"2px 10px 8px"}}>
-                    {passedNames.length ? "Everyone's responded - you're good to place it." : "Everyone on your list has ordered."}
+                    {passedNames.length ? "Everyone has responded - you are good to place it." : "Everyone on your list has ordered."}
                   </div>
                 )}
                 {expected.map((r,i)=>{
@@ -21280,7 +21280,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               </div>
             ) : (guests.length === 0 && passedGuests.length === 0) ? (
               <div className="card small muted" style={{textAlign:"center"}}>
-                Nobody's ordered yet. Share the link above and watch them come in.
+                Nobody has ordered yet. Share the link above and watch them come in.
               </div>
             ) : (
               <div className="card">
