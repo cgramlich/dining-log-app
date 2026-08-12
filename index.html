@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.401.0";
+const APP_VERSION   = "1.402.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -21112,7 +21112,8 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               {!closed ? (
                 <div style={{marginTop: roster.length ? 10 : 0}}>
                   <div className="row" style={{gap:8}}>
-                    <ClearInput placeholder="Add who you're expecting (optional)"
+                    <ClearInput id="go-roster-add"
+                      placeholder="Add who you're expecting (optional)"
                       value={rosterInput}
                       onChange={e=> setRosterInput(e.target.value)}
                       onFocus={()=> setRosterFocus(true)}
@@ -21174,15 +21175,42 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                 </span>
               </button>
             ) : null}
-            <div className="go-sec">
-              Who's ordered ({guests.length}){passedGuests.length ? ", " + passedGuests.length + " passed" : ""}
-              {(function(){
-                // People who opened it and have still not answered. The number
-                // that tells you whether to resend the link or just wait.
-                const answered = new Set(allGuests.map(g => groupNorm(g.guest_name || "")));
-                const lurking = Array.from(seenNames).filter(n => n && !answered.has(n)).length;
-                return lurking ? <span className="tiny faint">{"  \u00b7  " + lurking + " looking"}</span> : null;
-              })()}
+            {/* Adding somebody is an ONGOING action, not setup - but the roster
+                lives inside the "Sharing and guests" fold, which collapses as
+                soon as the first person responds. So the moment you realise
+                someone is missing was the moment the control vanished. The
+                roster stays folded (those chips are what made this screen feel
+                cluttered); the ACTION moves here, where you are already looking. */}
+            <div className="go-sec" style={{display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10}}>
+              <span>
+                Who's ordered ({guests.length}){passedGuests.length ? ", " + passedGuests.length + " passed" : ""}
+                {(function(){
+                  // People who opened it and have still not answered. The number
+                  // that tells you whether to resend the link or just wait.
+                  const answered = new Set(allGuests.map(g => groupNorm(g.guest_name || "")));
+                  const lurking = Array.from(seenNames).filter(n => n && !answered.has(n)).length;
+                  return lurking ? <span className="tiny faint">{"  \u00b7  " + lurking + " looking"}</span> : null;
+                })()}
+              </span>
+              {!closed ? (
+                <button type="button" className="tiny"
+                  style={{background:"none", border:0, padding:"0 2px", cursor:"pointer",
+                          color:"var(--accent)", fontWeight:600, flex:"none",
+                          WebkitTapHighlightColor:"transparent"}}
+                  onClick={()=>{
+                    setSetupOpen(true);
+                    setRosterFocus(true);
+                    // Let the panel render before reaching for the field.
+                    setTimeout(()=>{
+                      try {
+                        const el = document.getElementById("go-roster-add");
+                        if (el){ el.scrollIntoView({behavior:"smooth", block:"center"}); el.focus(); }
+                      } catch(e){}
+                    }, 60);
+                  }}>
+                  + Add someone
+                </button>
+              ) : null}
             </div>
             {hasRoster ? (
               <div className="card">
@@ -21842,7 +21870,7 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
   const freeForm = !!data && !hasMenu;
   // Quick order WITH host-typed options: tappable choices AND the free-text box.
   const quickOpts = !!(menu && menu.quick_options);
-  const hasOrder = (!!selected.length) || ((freeForm || quickOpts) && !!freeText.trim());
+  const hasOrder = (!!selected.length) || !!freeText.trim();
 
   function toggle(si, ii, item, section){
     const key = si + ":" + ii;
@@ -21875,11 +21903,14 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
       list = [{ item:t, qty:1, note:"" }];
     } else {
       list = selected.map(s => ({ item:s.item, section:s.section || "", qty:s.qty || 1, note:(s.note || "").trim() }));
-      // Quick options: whatever they wrote in the free box rides along too.
-      const extra = quickOpts ? freeText.trim() : "";
+      // Whatever they wrote in the free box rides along too - a special, or
+      // an off-menu ask. Not just for quick orders: a printed menu is exactly
+      // where the thing you want is missing.
+      const extra = freeText.trim();
       if (extra) list.push({ item:extra, qty:1, note:"" });
       if (!list.length){
-        setErr(quickOpts ? "Tap an option or write your order first." : "Pick at least one item first.");
+        setErr(quickOpts ? "Tap an option or write your order first."
+                         : "Pick a dish, or write in what you want.");
         return;
       }
     }
@@ -22221,14 +22252,18 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
 
           {/* Quick options: the write-your-own box sits BELOW the tappable
               options - options first, custom second. Same freeText state. */}
-          {quickOpts ? (
+          {(quickOpts || !freeForm) ? (
             <div className="card" style={{margin:"12px 0"}}>
-              <div className="lbl" style={{marginBottom:6}}>Want something not listed?</div>
+              <div className="lbl" style={{marginBottom:6}}>
+                {quickOpts ? "Want something not listed?" : "Ordering a special, or something not on the menu?"}
+              </div>
               <textarea className="input" rows={2}
-                placeholder="Write it in your own words - it's sent along with anything you tapped."
+                placeholder={quickOpts
+                  ? "Write it in your own words - it's sent along with anything you tapped."
+                  : "Write it in - the soup of the day, an off-menu ask, whatever the server recited."}
                 value={freeText} onChange={e=>{ setFreeText(e.target.value); setSent(false); }} />
               <div className="tiny faint" style={{marginTop:6}}>
-                Optional - tap from the options above, write your own, or both.
+                Optional - {quickOpts ? "tap from the options above" : "tap dishes above"}, write your own, or both.
               </div>
             </div>
           ) : null}
