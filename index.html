@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.400.0";
+const APP_VERSION   = "1.401.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -21597,11 +21597,17 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
   async function load(){
     try {
       const d = await groupFetch(cfg, code);
-      if (!d){ setErr("That vote link is not valid."); return; }
+      if (!d){ setErr("That vote link is not valid - it may have expired."); return; }
       setData(d);
+      if (d.diag) logMsg("VOTE", "loaded with a problem: " + d.diag);
       const mine = (d.ballots || []).find(b => b.guest_token === token);
       if (mine){ setApproved(mine.approved || []); setSent(true); }
-    } catch(e){ setErr("Could not load the vote."); }
+      setErr("");
+    } catch(e){
+      const why = (e && e.message) || "unknown";
+      logMsg("ERROR", "Vote load failed (" + code + "): " + why);
+      setErr("Could not load the vote - " + why);
+    }
   }
   useEffect(()=>{ load(); }, [code]);
   // A countdown that is wrong is worse than none: re-tick every 30s, and
