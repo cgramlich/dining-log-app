@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.399.0";
+const APP_VERSION   = "1.400.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6529,6 +6529,17 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
           <div className="home-section" style={{margin:"14px 2px 8px"}}>Not sure where to go?</div>
         ) : null}
 
+        {!ql && onStartVote ? (
+          <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
+            onClick={onStartVote}>
+            <Icon name="people" size={20} color="var(--accent)" />
+            <div style={{flex:1, minWidth:0}}>
+              <div className="small" style={{fontWeight:600}}>Eating with people?</div>
+              <div className="tiny faint">Send a vote and let everyone pick where.</div>
+            </div>
+            <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Vote ›</span>
+          </div>
+        ) : null}
         {!ql && onNearMe ? (
           <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
             onClick={onNearMe}>
@@ -6565,17 +6576,6 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
           </div>
         ) : null}
 
-        {!ql && onStartVote ? (
-          <div className="card tap" style={{marginBottom:16, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
-            onClick={onStartVote}>
-            <Icon name="people" size={20} color="var(--accent)" />
-            <div style={{flex:1, minWidth:0}}>
-              <div className="small" style={{fontWeight:600}}>Eating with people?</div>
-              <div className="tiny faint">Send a vote and let everyone pick where.</div>
-            </div>
-            <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>Vote ›</span>
-          </div>
-        ) : null}
       </div>
     </div>
   );
