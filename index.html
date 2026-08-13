@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.403.0";
+const APP_VERSION   = "1.404.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1177,6 +1177,46 @@ function apiBase(cfg){
    .detail so the caller can map the backend's distinct conditions (402 Pro-gate
    vs 402 cap, 503 breaker, 502 upstream) to specific copy. Mirrors the shape of
    startCheckout()/openBillingPortal() above. */
+
+/* ---- one place, several branches ---------------------------------------
+   A chain shares a menu and your dish memory; only the address, phone and
+   Google listing differ. Keeping it as ONE saved place is what preserves
+   "Your usuals here" - split it into two and that row, the one you use at the
+   table, splits with it. */
+
+/* Every Google listing this place answers to: its own, plus each branch. */
+function placeGoogleIds(r){
+  const out = [];
+  if (r && r.google_place_id) out.push(r.google_place_id);
+  ((r && r.branches) || []).forEach(b => { if (b && b.google_place_id) out.push(b.google_place_id); });
+  return out;
+}
+/* Does this saved place cover that Google listing, at ANY of its branches? */
+function placeCoversGoogleId(r, placeId){
+  return !!placeId && placeGoogleIds(r).indexOf(placeId) !== -1;
+}
+/* Find the saved place for a Google listing, branches included. */
+function findPlaceByGoogleId(restaurants, placeId){
+  if (!placeId) return null;
+  return (restaurants || []).find(r => placeCoversGoogleId(r, placeId)) || null;
+}
+/* Branches as one list for a picker, the main record first. A place with no
+   extra branches returns an empty list, and callers skip the picker. */
+function branchList(r){
+  if (!r) return [];
+  const extra = (r.branches || []).filter(b => b && (b.label || "").trim());
+  if (!extra.length) return [];
+  return [{ id:"main", label: (r.branch_label || "").trim() || r.location || "Main",
+            address: r.address || "", google_place_id: r.google_place_id || null }]
+    .concat(extra.map(b => ({ id: b.id, label: (b.label || "").trim(),
+                              address: b.address || "",
+                              google_place_id: b.google_place_id || null })));
+}
+/* Which branch a Google listing is, so the at-restaurant flow can say so. */
+function branchForGoogleId(r, placeId){
+  return branchList(r).find(b => b.google_place_id && b.google_place_id === placeId) || null;
+}
+
 async function placesNearby(cfg, body){
   const headers = await authHeaders(cfg);
   headers["Content-Type"] = "application/json";
@@ -1233,7 +1273,7 @@ function findExistingPlace(restaurants, c){
   if (!c) return null;
   const rs = restaurants || [];
   if (c.place_id){
-    const h = rs.find(r => r && r.google_place_id && r.google_place_id === c.place_id);
+    const h = findPlaceByGoogleId(rs, c.place_id);
     if (h) return { place:h, hard:true };
   }
   const cn = normPlaceName(c.name);
@@ -6495,7 +6535,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
               <div className="card" style={{marginTop:8, padding:"4px 0"}}>
                 <div className="small muted" style={{padding:"6px 14px"}}>From Google</div>
                 {gResults.map((c,i)=>{
-                  const saved = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
+                  const saved = findPlaceByGoogleId(restaurants, c.place_id);
                   const cz = cuisineFromType(c.primary_type, c.types);
                   const isAdding = adding && adding === c.place_id;
                   return (
@@ -8689,6 +8729,21 @@ function App(){
             commit({ restaurants: next }, ["restaurants"]);
             flash("Added " + (rec.name || "place"));
           }}
+          onAddBranch={(rid, label)=>{
+            // A branch is a LOCATION of an existing place, never a new place:
+            // the menu and the dish memory must stay in one record.
+            const next = (restaurants || []).map(r => {
+              if (r.id !== rid) return r;
+              const have = (r.branches || []);
+              if (have.some(b => (b.label || "").trim().toLowerCase() === label.toLowerCase())) return r;
+              return Object.assign({}, r, {
+                branches: have.concat([{ id: uid("branch"), label: label,
+                                         address: "", google_place_id: null }]),
+              });
+            });
+            commit({ restaurants: next }, ["restaurants"]);
+            flash("Added the " + label + " location");
+          }}
           presetRestaurantId={overlay.restaurantId}
           existing={overlay.type==="editVisit" ? overlay.visit : null}
           seedFromSplit={overlay.seedFromSplit || null}
@@ -9602,9 +9657,14 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             <div className="between">
               {r && onOpenRestaurant ? (
                 <div className="place-name" style={{cursor:"pointer", color:"var(--accent)"}}
-                  onClick={(e)=>{ e.stopPropagation(); onOpenRestaurant(r.id); }}>{r.name}</div>
+                  onClick={(e)=>{ e.stopPropagation(); onOpenRestaurant(r.id); }}>
+                  {r.name}{v.branch ? <span className="tiny faint">{"  ·  " + v.branch}</span> : null}
+                </div>
               ) : (
-                <div className="place-name">{r ? r.name : (v.restaurant_name || "Unknown")}</div>
+                <div className="place-name">
+                  {r ? r.name : (v.restaurant_name || "Unknown")}
+                  {v.branch ? <span className="tiny faint">{"  ·  " + v.branch}</span> : null}
+                </div>
               )}
               <span className="row" style={{gap:2, flex:"none", alignItems:"center"}}>
                 {onShareVisit ? (
@@ -10096,7 +10156,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
               {gResults.map((c,i)=>{
                 // Already in your places? (matched by Google place_id) Offer Open
                 // instead of silently creating a duplicate.
-                const saved = c.place_id && restaurants.find(r => r.google_place_id === c.place_id);
+                const saved = findPlaceByGoogleId(restaurants, c.place_id);
                 return (
                   <div key={i} className="pick-row"
                     style={{padding:"10px 14px", display:"flex", alignItems:"flex-start", gap:8, cursor:"pointer"}}
@@ -12427,7 +12487,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
     <div className="card" style={{marginTop:8, padding:"4px 0"}}>
       <div className="small muted" style={{padding:"6px 14px"}}>{gMode==="nearby" ? "Places near you" : "From Google"}</div>
       {gResults.map((c,i)=>{
-        const savedHit = c.place_id && (restaurants || []).find(r => r.google_place_id === c.place_id);
+        const savedHit = findPlaceByGoogleId(restaurants, c.place_id);
         return (
           <div key={i} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"flex-start", cursor:"pointer"}}
             onClick={()=> { if (savedHit){ toast("You already have this place"); onOpenRestaurant(savedHit.id); } else pickGoogle(c); }}>
@@ -14718,14 +14778,14 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
   function normName(s){ return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
   function hardMatch(placeId){
     if (!placeId) return null;
-    return restaurants.find(r => r.google_place_id && r.google_place_id === placeId) || null;
+    return findPlaceByGoogleId(restaurants, placeId);
   }
   function softMatch(p){
     if (!p) return null;
     const pn = normName(p.name);
     if (!pn) return null;
     return restaurants.find(r => {
-      if (r.google_place_id && r.google_place_id === p.place_id) return false;  // that's a hard match
+      if (placeCoversGoogleId(r, p.place_id)) return false;   // hard match, any branch
       const rn = normName(r.name);
       if (!rn) return false;
       const nameClose = rn === pn || rn.indexOf(pn) >= 0 || pn.indexOf(rn) >= 0;
@@ -16464,7 +16524,7 @@ function PeopleTag({ value, onChange, roster }){
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, onScanMenu, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit, onUpgrade}){
+function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, onScanMenu, onAddBranch, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit, onUpgrade}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [companions, setCompanions] = useState(()=> {
     if (existing && Array.isArray(existing.companions)) return existing.companions;
@@ -16831,6 +16891,12 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     }
     return [];
   });
+  // Which branch of a multi-location place this visit was at. Stored as the
+  // LABEL, not an id: it is what shows in the diary and the CSV export, and it
+  // still reads correctly if the branch is later renamed or removed.
+  const [branch,setBranch] = useState(()=> (existing && existing.branch) || "");
+  const [branchAdding,setBranchAdding] = useState(false);
+  const [branchNew,setBranchNew] = useState("");
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoLightbox, setPhotoLightbox] = useState(null);  // {paths, index} | null
   const photoFileRef = useRef(null);
@@ -17280,6 +17346,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       nutrition: nutrition || null,              // meal-photo estimate (or null)
       logged_at: existing ? existing.logged_at : Date.now(),
       split: splitDraft || null,                 // who-pays-what split, saved with the visit
+      branch: (branch || "").trim() || null,     // which location, when a place has several
       companions: companions,                    // people you were with [{name, username?, user_id?, handle?}]
       loved: loved,                              // visit-level "loved" (feeds "Visits I loved")
     });
@@ -17590,6 +17657,68 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             </div>
           )}
         </div>
+
+        {/* A chain shares its menu and your dish memory, so it stays ONE saved
+            place - splitting it would split "Your usuals here", which is the row
+            you use at the table. What differs is which building you were in, so
+            that rides on the VISIT. Only appears once a place has more than one
+            location, and a new one is added from right here, because standing in
+            the unfamiliar branch is when you find out it exists. */}
+        {restId ? (function(){
+          const rHere = (restaurants || []).find(x => x.id === restId);
+          if (!rHere) return null;
+          const list = branchList(rHere);
+          if (!list.length && !branchAdding) {
+            return (
+              <div className="fld">
+                <span className="lbl">Location</span>
+                <div className="tiny faint" style={{marginBottom:6}}>
+                  Same name, different building? Add the one you were at and both keep
+                  the one menu and the same dish memory.
+                </div>
+                <button type="button" className="btn ghost sm" style={{width:"100%"}}
+                  onClick={()=> setBranchAdding(true)}>
+                  <span className="row" style={{gap:6, justifyContent:"center"}}>
+                    <Icon name="pin" size={14} color="var(--accent)" />Another {rHere.name} location
+                  </span>
+                </button>
+              </div>
+            );
+          }
+          return (
+            <div className="fld">
+              <span className="lbl">Which {rHere.name}?</span>
+              <div className="chips" style={{marginTop:4}}>
+                {list.map(b => (
+                  <span key={b.id} className={"chip pick" + (branch === b.label ? " on" : "")}
+                    onClick={()=> setBranch(branch === b.label ? "" : b.label)}>
+                    {b.label}
+                  </span>
+                ))}
+                {!branchAdding ? (
+                  <span className="chip pick" onClick={()=> setBranchAdding(true)}>+ Another</span>
+                ) : null}
+              </div>
+              {branchAdding ? (
+                <div className="row" style={{gap:8, marginTop:8}}>
+                  <ClearInput value={branchNew} autoFocus
+                    onChange={e=> setBranchNew(e.target.value)}
+                    placeholder="e.g. Uptown, Plano, Airport" />
+                  <button type="button" className="btn ghost sm" style={{flex:"none"}}
+                    disabled={!branchNew.trim()}
+                    onClick={()=>{
+                      const lbl = branchNew.trim();
+                      if (!lbl) return;
+                      // The place gains the branch; the visit records it.
+                      if (onAddBranch) onAddBranch(rHere.id, lbl);
+                      setBranch(lbl);
+                      setBranchNew(""); setBranchAdding(false);
+                    }}>Add</button>
+                </div>
+              ) : null}
+            </div>
+          );
+        })() : null}
 
         <div className="fld">
           <span className="lbl">Who was with you?</span>
@@ -21594,7 +21723,7 @@ function VoteHost({code, cfg, profile, restaurants, onClose, onOpenRestaurant, o
           // Land on the place. From there it is log a visit, start a group
           // order, or open the menu - the vote does not presume which.
           const hit = (restaurants || []).find(r => r.id === w.id)
-                   || (restaurants || []).find(r => w.place_id && r.google_place_id === w.place_id);
+                   || findPlaceByGoogleId(restaurants, w.place_id);
           if (hit && onOpenRestaurant) onOpenRestaurant(hit.id);
           else if (onAddPlace) onAddPlace({ name: w.name || "", google_place_id: w.place_id || null });
           else onClose();
