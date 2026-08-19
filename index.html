@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.404.0";
+const APP_VERSION   = "1.405.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -17218,11 +17218,27 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   // Autocomplete pool for "What you had": this place's menu items + any dish
   // you've logged before (so it works even without a digitized menu). Deduped,
   // menu items first. When nothing matches, typing + Add just creates the item.
+  // Autocomplete for "What you had", scoped to THIS place: its menu first,
+  // then dishes you have had here before.
+  //
+  // It used to pull dishes from EVERY visit you have ever logged, which meant
+  // typing "Caber" at one restaurant offered five cabernets you drank at five
+  // others. The intent was a fallback for a place with no digitized menu - so
+  // that is all it is now: the whole-history pool is added ONLY when this place
+  // has no menu, where something imperfect beats an empty list.
   const dishPool = (function(){
     const seen = new Map();   // lower -> display
-    menuPickNames.forEach(n => { const k = n.toLowerCase(); if (!seen.has(k)) seen.set(k, n); });
-    (visits || []).forEach(v => (v.dishes || []).forEach(d => {
-      if (d && d.name){ const k = d.name.toLowerCase(); if (!seen.has(k)) seen.set(k, d.name); } }));
+    const add = n => { const k = (n || "").trim().toLowerCase();
+                       if (k && !seen.has(k)) seen.set(k, n); };
+    menuPickNames.forEach(add);
+    (visits || []).forEach(v => {
+      if (!v || v.restaurant_id !== restId) return;
+      (v.dishes || []).forEach(d => { if (d && d.name) add(d.name); });
+    });
+    if (!menuPickNames.length){
+      (visits || []).forEach(v => (v.dishes || []).forEach(d => {
+        if (d && d.name) add(d.name); }));
+    }
     return Array.from(seen.values());
   })();
 
