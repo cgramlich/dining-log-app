@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.406.0";
+const APP_VERSION   = "1.407.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8216,12 +8216,12 @@ function App(){
         <VoteStart
           cfg={config} profile={profile}
           restaurants={restaurants} visits={visits}
-          onStarted={(code)=> setOverlay({ type:"voteHost", code:code })}
+          onStarted={(code, shareUrl)=> setOverlay({ type:"voteHost", code:code, shareUrl:shareUrl })}
           onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "voteHost" && (
         <VoteHost
-          code={overlay.code} cfg={config} profile={profile}
+          code={overlay.code} shareUrl={overlay.shareUrl} cfg={config} profile={profile}
           restaurants={restaurants}
           onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
           onAddPlace={(prefill)=> setOverlay({ type:"addRestaurant", prefill:prefill })}
@@ -21558,7 +21558,7 @@ function VoteStart({cfg, profile, restaurants, visits, onClose, onStarted}){
     setBusy(true); setErr("");
     try {
       const res = await voteCreate(cfg, chosen, mins, note.trim());
-      onStarted(res.code);
+      onStarted(res.code, res.share_url || "");
     } catch(e){ setErr(e.message || "Could not start the vote."); }
     setBusy(false);
   }
@@ -21577,24 +21577,70 @@ function VoteStart({cfg, profile, restaurants, visits, onClose, onStarted}){
             can live with wins.
           </div>
 
-          <label className="fld"><span className="lbl">On the ballot ({chosen.length} of {MAX})</span>
-            <ClearInput value={q} onChange={e=>setQ(e.target.value)}
-              placeholder="Search your places" />
-          </label>
-          {chosen.length >= MAX ? (
-            <div className="tiny faint" style={{marginBottom:8}}>
-              That is enough to choose between. Untick one to swap it out.
+          {/* What you have picked, pinned. The ballot is the thing being built,
+              so it stays visible instead of being something you hunt for by
+              scanning sixty chips for the highlighted ones. */}
+          <div className="card" style={{padding:"12px 14px", marginBottom:12}}>
+            <div className="between" style={{marginBottom: chosen.length ? 8 : 0}}>
+              <span className="lbl" style={{margin:0}}>On the ballot</span>
+              <span className="tiny faint">{chosen.length} of {MAX}</span>
             </div>
-          ) : null}
+            {chosen.length ? (
+              <div className="chips">
+                {chosen.map(c => (
+                  <span key={c.id} className="chip on" style={{cursor:"pointer"}}
+                    onClick={()=> toggleCand(c)}>
+                    {c.name}
+                    <span style={{marginLeft:6, opacity:0.7}}>{"\u00d7"}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="tiny faint">
+                Pick two to five places below, or find somewhere fair to everyone.
+              </div>
+            )}
+            {chosen.length >= MAX ? (
+              <div className="tiny faint" style={{marginTop:8}}>
+                That is enough to choose between - a longer ballot splits the vote
+                and nothing wins clearly. Remove one to swap it out.
+              </div>
+            ) : null}
+          </div>
 
-          <div className="chips" style={{marginBottom:14}}>
-            {pool.map(r => (
-              <span key={r.id} className={"chip pick" + (has(r.id) ? " on" : "")}
-                onClick={()=> toggleSaved(r)}>
-                {r.favorite ? "\u2665 " : ""}{r.name}
-              </span>
-            ))}
-            {!pool.length ? <div className="tiny faint">No places match that.</div> : null}
+          <ClearInput value={q} onChange={e=>setQ(e.target.value)}
+            placeholder="Search your places" />
+
+          {/* A LIST, not chips. Sixty chips wrap into an unreadable block; rows
+              give each place its own line and room for what it is and where. */}
+          <div style={{marginTop:8, marginBottom:14, maxHeight:320, overflowY:"auto",
+                       border:"1px solid var(--line-soft)", borderRadius:10}}>
+            {pool.map(r => {
+              const on = has(r.id);
+              const full = !on && chosen.length >= MAX;
+              const sub = [r.cuisine, r.location].filter(Boolean).join("  \u00b7  ");
+              return (
+                <div key={r.id} className={"pick-row" + (on ? " on" : "")}
+                  style={{padding:"10px 12px", display:"flex", gap:10, alignItems:"center",
+                          cursor: full ? "default" : "pointer", opacity: full ? 0.45 : 1}}
+                  onClick={()=> { if (!full) toggleSaved(r); }}>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div className="small" style={{fontWeight:600}}>
+                      {r.favorite ? <span style={{color:"var(--accent)"}}>{"\u2665 "}</span> : null}
+                      {r.name}
+                    </div>
+                    {sub ? <div className="tiny faint" style={{marginTop:2}}>{sub}</div> : null}
+                  </div>
+                  <span className="tiny" style={{flex:"none", fontWeight:600,
+                        color: on ? "var(--text-faint)" : "var(--accent)"}}>
+                    {on ? "On the ballot" : (full ? "" : "+ Add")}
+                  </span>
+                </div>
+              );
+            })}
+            {!pool.length ? (
+              <div className="tiny faint" style={{padding:"12px 14px"}}>No places match that.</div>
+            ) : null}
           </div>
 
           {/* Second way to fill the ballot: somewhere fair to everybody. */}
@@ -21705,8 +21751,8 @@ function VoteStart({cfg, profile, restaurants, visits, onClose, onStarted}){
 
 /* The host's view once it is running: the share link on top, the ballot below
    (the host votes too), and the result when it closes. */
-function VoteHost({code, cfg, profile, restaurants, onClose, onOpenRestaurant, onAddPlace}){
-  const link = location.origin + location.pathname + "?v=" + encodeURIComponent(code);
+function VoteHost({code, shareUrl, cfg, profile, restaurants, onClose, onOpenRestaurant, onAddPlace}){
+  const link = shareUrl || (location.origin + location.pathname + "?v=" + encodeURIComponent(code));
   const [copied,setCopied] = useState(false);
 
   async function share(){
