@@ -944,7 +944,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.408.0";
+const APP_VERSION   = "1.409.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -14027,17 +14027,27 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
               </label>
             </div>
             <label className="fld" style={{marginTop:12,marginBottom:0}}>
-              <span className="lbl">
-                Total
-                {overriding && (
-                  <a href="#" style={{color:"var(--accent)",marginLeft:8,fontWeight:400}}
-                     onClick={(e)=>{ e.preventDefault(); setRtotal(""); }}>auto</a>
-                )}
-              </span>
+              <span className="lbl">Total</span>
               <ClearInput value={overriding ? rtotal : computedGrandStr}
                 placeholder="0.00" inputMode="decimal"
                 onChange={e=> setRtotal(e.target.value)} />
             </label>
+            {/* The total on screen is a figure you entered or scanned, and the
+                items plus tax and tip say something else. Editing the tip and
+                seeing nothing move is the confusing case this exists for. */}
+            {overriding && Math.abs(overrideCents - computedGrandCents) >= 1 && computedGrandCents > 0 ? (
+              <div className="card" style={{margin:"8px 0 0", padding:"10px 12px",
+                   border:"1px solid rgba(224,118,74,0.35)"}}>
+                <div className="small" style={{marginBottom:8}}>
+                  Splitting the total shown. The items, tax and tip add up to{" "}
+                  <strong>{money(computedGrandCents)}</strong>.
+                </div>
+                <button type="button" className="btn ghost sm" style={{width:"100%"}}
+                  onClick={()=> setRtotal("")}>
+                  Use {money(computedGrandCents)} instead
+                </button>
+              </div>
+            ) : null}
             {looksDoubled && (
               <div className="card" style={{margin:"10px 0 0", padding:"10px 12px",
                    border:"1px solid rgba(217,96,78,0.5)", background:"rgba(217,96,78,0.10)"}}>
