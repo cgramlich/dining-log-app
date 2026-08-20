@@ -357,7 +357,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 
     /* ---- forms ---- */
     label.fld{display:block; margin-bottom:14px;}
-    label.fld .lbl{
+    /* Scoped to `label.fld` this silently skipped every heading built as a div,
+       which was most of them - a whole screen of labels rendering as body text.
+       The rule is about what a label IS, not which tag it happens to sit in. */
+    .fld .lbl{
       display:block; font-size:12px; letter-spacing:0.07em; text-transform:uppercase;
       color:var(--text-faint); margin-bottom:6px;
     }
@@ -474,6 +477,27 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       line-height:1.2;
     }
     /* Section subheader inside the visit-form chip picker, between section's chips */
+    /* ---- form section headers ----
+       A long form needs two typographic tiers or the eye has nothing to hold.
+       .sechd = which SECTION you are in; .lbl = which FIELD you are filling.
+       The accent sliver is the scan anchor: flicking a thumb down the page you
+       see where Money starts without reading a word. Hairline + top padding
+       supply the grouping, so related controls sit visibly together. */
+    .sechd{
+      display:flex; align-items:center; gap:9px;
+      margin:24px 0 9px; padding-top:17px;
+      border-top:1px solid var(--line-soft);
+      font-size:15px; font-weight:650; color:var(--text); letter-spacing:0.01em;
+    }
+    .sechd::before{
+      content:""; flex:none; width:3px; height:15px;
+      border-radius:2px; background:var(--accent);
+    }
+    /* First header in a form has nothing above it to be divided from. */
+    .sechd.first{ border-top:none; padding-top:2px; margin-top:4px; }
+    /* Counts and asides ride along without competing with the section name. */
+    .sechd .faint{ font-size:13px; letter-spacing:0; }
+
     .section-subhead{
       font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase;
       color:var(--text-faint); font-weight:600;
@@ -944,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.409.0";
+const APP_VERSION   = "1.410.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -17565,7 +17589,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         })()}
 
         <div className="fld">
-          <span className="lbl">Your rating for this place</span>
+          <span className="sechd first">Your rating for this place</span>
           <div className="tiny faint" style={{margin:"-2px 0 6px"}}>
             Rates the place, not just this visit - it keeps your latest.
           </div>
@@ -17617,7 +17641,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             Two ways in: the camera tile opens the camera directly (capture);
             the library tile picks existing photos. */}
         <div className="fld">
-          <span className="lbl">
+          <span className="sechd">
             Photos <span className="faint" style={{fontWeight:400}}>
               ({photoSlots.length} / {MAX_PHOTOS})
             </span>
@@ -17708,7 +17732,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           if (!list.length && !branchAdding) {
             return (
               <div className="fld">
-                <span className="lbl">Location</span>
+                <span className="sechd">Location</span>
                 <div className="tiny faint" style={{marginBottom:6}}>
                   Same name, different building? Add the one you were at and both keep
                   the one menu and the same dish memory.
@@ -17758,7 +17782,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         })() : null}
 
         <div className="fld">
-          <span className="lbl">Who was with you?</span>
+          <span className="sechd">Who was with you?</span>
           <div className="tiny faint" style={{margin:"4px 0 8px"}}>
             Tag the people you dined with. Names you've used before (and your connections) autocomplete.
           </div>
@@ -17766,7 +17790,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         </div>
 
         <div className="fld">
-          <span className="lbl">What you had</span>
+          <span className="sechd">What you had</span>
           <div className="row" style={{gap:8, position:"relative"}}>
             <ClearInput value={dishInput}
               onChange={e=>setDishInput(e.target.value)}
@@ -17992,7 +18016,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             the whole-plate estimate is next to what you ordered. Informative &
             celebratory, never restrictive: no targets, no budgets, no warnings. */}
         <div className="fld">
-          <span className="lbl">
+          <span className="sechd">
             Nutrition <span className="faint" style={{fontWeight:400}}>(estimate from a photo)</span>
           </span>
           <input ref={nutFileRef} type="file" accept="image/*"
@@ -18081,7 +18105,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           )}
         </div>
 
-        <label className="fld"><span className="lbl">Notes</span>
+        <label className="fld"><span className="sechd">Notes</span>
           <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
             placeholder="How was it? Worth returning?" />
         </label>
@@ -18090,7 +18114,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             admin; the notes and whether you loved it are the reason anyone
             logs a visit at all, so admin does not sit between you and them. */}
         <div className="fld">
-          <span className="lbl">Money</span>
+          <span className="sechd">Money</span>
           {splitDraft ? (
             <div style={{marginTop:8}}>
               <VisitSplit split={splitDraft} />
@@ -18109,7 +18133,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           {receiptErr && (
             <div className="small" style={{color:"#e7a99e", marginTop:6}}>{receiptErr}</div>
           )}
-          <div className="lbl row" style={{marginTop:14, marginBottom:6, gap:8}}>
+          <div className="sechd">
             Receipts
             <InfoDot title="Which receipt?" label="Which one?">
               <span className="idl">Got one receipt? Use <strong>itemized check</strong> - most
