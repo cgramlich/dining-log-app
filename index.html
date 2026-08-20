@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.411.0";
+const APP_VERSION   = "1.412.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -11456,40 +11456,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
       </div>
       {expenseVisit && (
         <ExpenseSheet
-          data={(()=>{
-            const v = expenseVisit;
-            const sp = v.split || null;
-            const usingSplit = !!(sp && Array.isArray(sp.items) && sp.items.length);
-            const items = usingSplit
-              ? sp.items.map(it => ({ name: it.name, price: Number(it.price) || 0 }))
-              : (v.dishes || []).filter(d => parsePrice(d.price)).map(d => ({ name: d.name, price: parsePrice(d.price) }));
-            const itemsSub = items.reduce((a,it)=> a + (it.price || 0), 0);
-            const rt = (v.receipt && v.receipt.total) || 0;
-            // Keep TOTAL consistent with the items it's prorated against, or the
-            // gross/net math is wrong: for a split use its grand (derived from the
-            // same line items); for plain dishes use the scanned total only when the
-            // logged items plausibly ARE the whole check (<= ~50% over for tax+tip),
-            // otherwise they're just your picks so use their subtotal.
-            const total = usingSplit
-              ? ((typeof sp.grand === "number" && sp.grand > 0) ? sp.grand : (rt || itemsSub))
-              : ((itemsSub > 0 && rt >= itemsSub && rt <= itemsSub * 1.5) ? rt : (itemsSub || rt));
-            // tax in dollars from the saved split (for the optional itemized
-            // tax/gratuity breakout); null when there's no split to read it from.
-            const spTax = (()=>{
-              if (!sp || sp.tax == null) return null;
-              const t = Number(sp.tax) || 0;
-              if (sp.taxMode === "%"){ const subC = (sp.lines || []).reduce((a,l)=> a + (Number(l.price)||0), 0); return subC * t / 100; }
-              return t;
-            })();
-            return { date: v.date, merchant: (r && r.name) || v.restaurant_name || "Restaurant",
-              city: (r && (r.city || r.location)) || "", items: items, total: total,
-              tax: spTax,
-              people: (sp && sp.people) || [],
-              receipts: [
-                (v.receipt && v.receipt.photo) ? { key:"itemized", label:"Itemized check", path:v.receipt.photo } : null,
-                (v.receipt && v.receipt.final_photo) ? { key:"final", label:"Final receipt", path:v.receipt.final_photo } : null,
-              ].filter(Boolean) };
-          })()}
+          data={expenseDataForVisit(expenseVisit, r)}
           cfg={cfg}
           onUpgrade={onUpgrade}
           onHome={onHome}
@@ -12881,6 +12848,43 @@ function loadScriptOnce(src){
 // { date, merchant, city, items:[{name,price}], total, people:[{name}], receipts:[...] }.
 // Tick items to EXCLUDE (e.g. alcohol that isn't reimbursable); the amount and a
 // prorated share of tax/tip recompute, and the excluded items are listed.
+/* A logged visit in the shape ExpenseSheet expects. Shared by the restaurant
+   screen and the visit form so the gross/net reasoning below lives in exactly
+   one place. Works whether or not the visit was ever split. */
+function expenseDataForVisit(v, r){
+  const sp = v.split || null;
+  const usingSplit = !!(sp && Array.isArray(sp.items) && sp.items.length);
+  const items = usingSplit
+    ? sp.items.map(it => ({ name: it.name, price: Number(it.price) || 0 }))
+    : (v.dishes || []).filter(d => parsePrice(d.price)).map(d => ({ name: d.name, price: parsePrice(d.price) }));
+  const itemsSub = items.reduce((a,it)=> a + (it.price || 0), 0);
+  const rt = (v.receipt && v.receipt.total) || 0;
+  // Keep TOTAL consistent with the items it's prorated against, or the
+  // gross/net math is wrong: for a split use its grand (derived from the
+  // same line items); for plain dishes use the scanned total only when the
+  // logged items plausibly ARE the whole check (<= ~50% over for tax+tip),
+  // otherwise they're just your picks so use their subtotal.
+  const total = usingSplit
+    ? ((typeof sp.grand === "number" && sp.grand > 0) ? sp.grand : (rt || itemsSub))
+    : ((itemsSub > 0 && rt >= itemsSub && rt <= itemsSub * 1.5) ? rt : (itemsSub || rt));
+  // tax in dollars from the saved split (for the optional itemized
+  // tax/gratuity breakout); null when there's no split to read it from.
+  const spTax = (()=>{
+    if (!sp || sp.tax == null) return null;
+    const t = Number(sp.tax) || 0;
+    if (sp.taxMode === "%"){ const subC = (sp.lines || []).reduce((a,l)=> a + (Number(l.price)||0), 0); return subC * t / 100; }
+    return t;
+  })();
+  return { date: v.date, merchant: (r && r.name) || v.restaurant_name || "Restaurant",
+    city: (r && (r.city || r.location)) || "", items: items, total: total,
+    tax: spTax,
+    people: (sp && sp.people) || [],
+    receipts: [
+      (v.receipt && v.receipt.photo) ? { key:"itemized", label:"Itemized check", path:v.receipt.photo } : null,
+      (v.receipt && v.receipt.final_photo) ? { key:"final", label:"Final receipt", path:v.receipt.final_photo } : null,
+    ].filter(Boolean) };
+}
+
 function ExpenseSheet({data, cfg, onClose, onUpgrade, onHome}){
   // Pro gate: expensing is a Pro feature. Resolve tier on open; fail OPEN (treat
   // an unreachable billing check as allowed) so a billing hiccup never traps a
@@ -16570,6 +16574,7 @@ function PeopleTag({ value, onChange, roster }){
    ============================================================ */
 function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, onScanMenu, onAddBranch, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit, onUpgrade}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
+  const [expOpen, setExpOpen] = useState(false);               // expense sheet over this visit
   const [companions, setCompanions] = useState(()=> {
     if (existing && Array.isArray(existing.companions)) return existing.companions;
     // New visit logged from a check split: pre-fill who was at the table.
@@ -18130,10 +18135,21 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
               onClick={()=> setSplitOpen(true)}>Split the check</button>
           )}
+          {/* Nothing to claim on a draft that was never saved. */}
+          {existing && existing.id ? (
+            <button className="btn ghost sm" style={{marginTop:8, width:"100%"}}
+              onClick={()=> setExpOpen(true)}>Expense this visit</button>
+          ) : null}
+          {expOpen && existing ? (
+            <ExpenseSheet
+              data={expenseDataForVisit(existing, (restaurants || []).find(x => x.id === restId))}
+              cfg={cfg} onUpgrade={onUpgrade}
+              onClose={()=> setExpOpen(false)} />
+          ) : null}
           {receiptErr && (
             <div className="small" style={{color:"#e7a99e", marginTop:6}}>{receiptErr}</div>
           )}
-          <div className="sechd">
+          <div className="lbl row" style={{marginTop:16, marginBottom:6, gap:8}}>
             Receipts
             <InfoDot title="Which receipt?" label="Which one?">
               <span className="idl">Got one receipt? Use <strong>itemized check</strong> - most
