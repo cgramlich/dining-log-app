@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.410.0";
+const APP_VERSION   = "1.411.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -21861,7 +21861,13 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
   async function load(){
     try {
       const d = await groupFetch(cfg, code);
-      if (!d){ setErr("That vote link is not valid - it may have expired."); return; }
+      if (!d){
+        // The throw path logs; this one returned cleanly with nothing, so it
+        // logged nothing at all and left no way to tell WHICH code failed.
+        logMsg("VOTE", "no vote found for code " + code);
+        setErr("No vote found for this link. It may have finished and been cleared, or the link may have been cut short in the message.");
+        return;
+      }
       setData(d);
       if (d.diag) logMsg("VOTE", "loaded with a problem: " + d.diag);
       const mine = (d.ballots || []).find(b => b.guest_token === token);
@@ -21906,7 +21912,21 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
     setClosing(false);
   }
 
-  if (err && !data) return <div className="ovbody"><div className="empty"><div className="big">{err}</div></div></div>;
+  if (err && !data) return (
+    <div className="ovbody">
+      <div className="empty">
+        <div className="big">{err}</div>
+        <div className="row" style={{gap:10, justifyContent:"center", marginTop:18, flexWrap:"wrap"}}>
+          <button className="btn ghost sm" onClick={()=>{ setErr(""); load(); }}>Try again</button>
+          {/* Drops the ?v= code, so a refresh lands in the app rather than
+              back on this same message. */}
+          <a className="btn primary sm" href={location.origin + location.pathname}>
+            Open MenuCaptain
+          </a>
+        </div>
+      </div>
+    </div>
+  );
   if (!data) return <div className="ovbody"><Loader /></div>;
 
   const cands = data.candidates || [];
