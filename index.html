@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.414.0";
+const APP_VERSION   = "1.415.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -19992,6 +19992,78 @@ async function voteBallot(cfg, code, name, token, approved){
   if (!res.ok) throw new Error(data.detail || "Could not save your vote.");
   return data;
 }
+/* Records that a device belongs to a person. Only ever called from an explicit
+   confirmation by the owner - there is no inference path on either side. */
+async function guestIdentify(cfg, body){
+  const headers = { "Content-Type":"application/json" };
+  if (cfg) { try { Object.assign(headers, await authHeaders(cfg)); } catch(e){} }
+  const res = await fetch(apiBase(cfg) + "/api/guest/identify", {
+    method:"POST", headers, body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(data.detail || "Could not save who that is.");
+  return data;
+}
+
+/* Asks the host who an unrecognised guest is, one at a time.
+
+   Deliberately skippable and deliberately not clever. It offers no default and
+   makes no guess from the typed name: two Marks is ordinary, and a wrong link
+   files somebody's dinner under the wrong person permanently with nothing on
+   screen to say it happened. Saying nothing is always better than guessing. */
+function GuestIdentityPrompt({cfg, unknown, onDone}){
+  const [i, setI]       = useState(0);
+  const [who, setWho]   = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState("");
+  const list = unknown || [];
+  const cur  = list[i];
+  if (!cur) return null;
+
+  function next(){
+    setWho(""); setErr("");
+    if (i + 1 >= list.length){ onDone && onDone(); } else { setI(i + 1); }
+  }
+  async function save(){
+    const nm = (who || "").trim();
+    if (!nm){ setErr("Type who this is, or skip."); return; }
+    setBusy(true); setErr("");
+    try {
+      await guestIdentify(cfg, { guest_token: cur.guest_token, person_label: nm,
+                                 seen_as: cur.seen_as || "", stable: true });
+      next();
+    } catch(e){ setErr(e.message || "Could not save who that is."); }
+    setBusy(false);
+  }
+
+  return (
+    <div className="card" style={{marginTop:12, border:"1px solid var(--line)"}}>
+      <div className="lbl" style={{marginBottom:6}}>Who voted?</div>
+      <div className="small" style={{marginBottom:10}}>
+        {cur.was
+          ? <span>Someone voted as <strong>{cur.seen_as || "no name"}</strong> from a
+              phone you had saved as <strong>{cur.was}</strong>. If it is a shared
+              phone, say who this one is.</span>
+          : <span>Someone voted as <strong>{cur.seen_as || "no name"}</strong> and you
+              have not said who that is yet. Naming them lets MenuCaptain remember
+              what they order.</span>}
+      </div>
+      <ClearInput value={who} onChange={e=>setWho(e.target.value)}
+        placeholder="Their name" />
+      {err ? <div className="small" style={{color:"#e7a99e", marginTop:6}}>{err}</div> : null}
+      <div className="row" style={{gap:9, marginTop:10}}>
+        <button className="btn ghost sm" onClick={next} disabled={busy}>Skip</button>
+        <button className="btn primary sm" onClick={save} disabled={busy}>
+          {busy ? <span className="spin" /> : "Save"}
+        </button>
+      </div>
+      {list.length > 1 ? (
+        <div className="tiny faint" style={{marginTop:8}}>{i + 1} of {list.length}</div>
+      ) : null}
+    </div>
+  );
+}
+
 /* Minutes left, as something a person would say. */
 function voteTimeLeft(closesAt){
   if (!closesAt) return "";
@@ -21893,6 +21965,7 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
   const [sent,setSent]   = useState(false);
   const [closing,setClosing] = useState(false);
   const [tick,setTick]   = useState(0);
+  const [idDone,setIdDone] = useState(false);   // guest-identity prompt answered or skipped
   const token = guestToken();
 
   async function load(){
@@ -22051,6 +22124,16 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
                  : ""))}
           {!isShut ? "  Nobody sees the tally until it closes." : ""}
         </div>
+
+        {/* Host only - the backend sends guest_identity to nobody else. Sits
+            under the voter list because that is where an unfamiliar name is
+            read, and the question is about a name you just saw. Dismissed for
+            this view once answered or skipped, so it never nags. */}
+        {!idDone && data.guest_identity && (data.guest_identity.unknown || []).length ? (
+          <GuestIdentityPrompt cfg={cfg}
+            unknown={data.guest_identity.unknown}
+            onDone={()=> setIdDone(true)} />
+        ) : null}
 
         {/* ---- your ballot ---- */}
         {!isShut ? (
