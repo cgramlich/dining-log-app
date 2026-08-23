@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.418.0";
+const APP_VERSION   = "1.419.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -10491,6 +10491,45 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
   );
 }
 
+/* What YOU keep ordering at one place, from your own logged visits.
+
+   No endpoint and no network: visits are already on the device, so this is
+   instant and works offline. Ranked the same way as a guest's history - how
+   often first, recency only breaking ties - because "I get this every time" is
+   a far stronger statement than "I had it once, recently".
+
+   Returns [] rather than a single lonely dish: one visit is a record, not a
+   habit, and calling it your usual would be a claim the data cannot support. */
+function myUsualAt(visits, restId, limit){
+  if (!restId) return [];
+  const byName = new Map();
+  let visitCount = 0;
+  (visits || []).forEach(v => {
+    if (!v || v.restaurant_id !== restId) return;
+    visitCount++;
+    const when = v.date || "";
+    // Once per visit per dish: ordering two of the same thing for the table
+    // should not read as a stronger habit than coming back for it twice.
+    const seenHere = new Set();
+    (v.dishes || []).forEach(d => {
+      const nm = (d && d.name || "").trim();
+      if (!nm) return;
+      const k = nm.toLowerCase();
+      if (seenHere.has(k)) return;
+      seenHere.add(k);
+      const e = byName.get(k) || { name: nm, count: 0, last: "" };
+      e.count += 1;
+      if (when > e.last) e.last = when;
+      byName.set(k, e);
+    });
+  });
+  if (visitCount < 2) return [];
+  const out = Array.from(byName.values()).filter(e => e.count > 1);
+  out.sort((a,b)=> (a.last < b.last ? 1 : a.last > b.last ? -1 : 0));
+  out.sort((a,b)=> b.count - a.count);
+  return out.slice(0, limit || 3);
+}
+
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onRescanMenu, onOpenVisit,
                            onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onToggleVisitLoved, onUpgrade, onHome}){
@@ -11101,6 +11140,27 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             </div>
           </div>
         )}
+
+        {/* Your own habit at this place, above the menu because it answers the
+            question you came with. Only appears once there is a repeat to
+            report - see myUsualAt. */}
+        {(function(){
+          const usual = myUsualAt(visits, r.id, 3);
+          if (!usual.length) return null;
+          return (
+            <div className="card" style={{marginTop:14, padding:"12px 14px"}}>
+              <div className="lbl" style={{marginBottom:6}}>You usually get</div>
+              <div className="chips">
+                {usual.map(u => (
+                  <span key={u.name} className="chip">
+                    {u.name}
+                    <span className="faint" style={{marginLeft:6}}>{u.count}x</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* MENUS section - a clear, full-width header + divider line so it reads as
             its own section instead of blurring into the place details above. */}
