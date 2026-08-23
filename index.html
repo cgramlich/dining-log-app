@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.420.0";
+const APP_VERSION   = "1.421.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6910,7 +6910,7 @@ function DuplicatesView({ restaurants, visits, menus, onClose, onHome, onMerge }
   );
 }
 
-function App(){
+function App({openShare}){
   const [config, setConfig]     = useState(() => loadConfig());
   const [ready, setReady]       = useState(false);
   const [needSetup, setNeedSetup] = useState(false);
@@ -6941,6 +6941,14 @@ function App(){
   const [tab, setTab]         = useState(getDefaultTab);
   const [a2hsDismissed, setA2hsDismissed] = useState(()=>{ try { return localStorage.getItem("mc_a2hs_dismissed") === "1"; } catch(e){ return false; } });
   const [overlay, setOverlay] = useState(null);            // {type, ...}
+  // A share link this device can open in-app (see the router at the bottom).
+  // Runs once: re-opening it after the reader closed it would trap them.
+  useEffect(()=>{
+    if (openShare && openShare.kind === "visit"){
+      setOverlay({ type:"sharedVisit", slug: openShare.slug, data: openShare.data });
+    }
+  // eslint-disable-next-line
+  }, []);
   const [sheet, setSheet]     = useState(false);
   const [sync, setSync]       = useState({ status:"idle", msg:"" });
   const [toast, setToast]     = useState("");
@@ -8266,6 +8274,20 @@ function App(){
           onAddPlace={(prefill)=> setOverlay({ type:"addRestaurant", prefill:prefill })}
           onUpgrade={IS_NATIVE ? null : ()=>{ setOverlay(null); setTab("settings"); }}
           onClose={()=> setOverlay(null)} />
+      )}
+      {overlay && overlay.type === "sharedVisit" && (
+        <div className="overlay">
+          <div className="ovhead">
+            <button className="x" onClick={()=> setOverlay(null)}>Back</button>
+            <h2>Shared visit</h2>
+            <span style={{width:54}} />
+          </div>
+          <div className="ovbody">
+            {overlay.data
+              ? <PublishedVisit data={overlay.data} />
+              : <PublishedVisitLoader slug={overlay.slug} />}
+          </div>
+        </div>
       )}
       {overlay && overlay.type === "feedback" && (
         <FeedbackForm cfg={config} onClose={()=> setOverlay(null)} />
@@ -26944,6 +26966,17 @@ class ErrorBoundary extends React.Component {
       history.replaceState(null, "", location.pathname + location.search);
     }
   } catch(e){ recovery = null; }
+  // Does this device already have an account? PublishedVisit asks the same
+  // question synchronously for its Save button, so there is no await here and
+  // no flash of the wrong screen. A stale or expired session is fine: App
+  // handles that itself, and the share is still open behind the sign-in.
+  let inAppShare = null;
+  try {
+    if (configComplete(loadConfig()) && (visitSlug || publishedVisit)){
+      inAppShare = { kind:"visit", slug: visitSlug || null, data: publishedVisit || null };
+    }
+  } catch(e){ inAppShare = null; }
+
   const root = ReactDOM.createRoot(document.getElementById("root"));
   root.render(
     <ErrorBoundary>
@@ -26953,6 +26986,7 @@ class ErrorBoundary extends React.Component {
        : published ? <PublishedList data={published} />
        : menuSlug ? <PublishedMenuLoader slug={menuSlug} />
        : publishedMenu ? <PublishedMenu data={publishedMenu} />
+       : inAppShare ? <App openShare={inAppShare} />
        : visitSlug ? <PublishedVisitLoader slug={visitSlug} />
        : publishedVisit ? <PublishedVisit data={publishedVisit} />
        : voteCode ? <div className="overlay"><div className="ovhead"><h2>Where shall we eat?</h2></div>
