@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.415.0";
+const APP_VERSION   = "1.416.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6975,25 +6975,12 @@ function App(){
   }
   function flashUndo(msg, action){ flashAction(msg, "Undo", action); }
 
-  // ---- community menu helpers (used by share-after-scan + pull-on-add) ----
-  async function shareMenusToCommunity(place, menusArr){
-    if (!place || !place.google_place_id) return 0;
-    let n = 0;
-    for (let i = 0; i < (menusArr || []).length; i++){
-      const m = menusArr[i];
-      if (!m || !((m.sections || []).length)) continue;
-      try {
-        await communityShareMenu(config, {
-          place_id: place.google_place_id,
-          place_name: place.name || "",
-          label: m.label || "Main",
-          menu: { sections: sanitizeMenuForShare(m.sections) },
-        });
-        n++;
-      } catch(e){ /* skip a menu that fails; others still go */ }
-    }
-    return n;
-  }
+  // ---- community menu helpers (pull-on-add) ----
+  // shareMenusToCommunity lived here to serve the share-after-scan toast. That
+  // toast is gone (the restaurant page's "Share your menu?" card covers the
+  // same moment and can say what gets shared), and ShareSheet publishes through
+  // communityShareMenu itself, so this had no callers left. Removed rather than
+  // left lying around for someone to wire back up beside the sheet's own path.
   async function pullAllCommunityMenus(rid, placeId){
     let list;
     try { list = await communityListMenus(config, placeId); } catch(e){ return 0; }
@@ -8951,16 +8938,12 @@ function App(){
             const savedPlace = newRestaurant || restaurantById(restId);
             const baseMsg = isReplace ? "Menu replaced"
               : (menusToSave.length > 1 ? menusToSave.length + " menus saved" : "Menu saved");
-            // If the place is linked to Google, offer to contribute the scan to the
-            // community right here (opt-in, one tap) so seeding is part of the flow.
-            if (savedPlace && savedPlace.google_place_id){
-              flashAction(baseMsg, "Share with other diners", async ()=>{
-                const n = await shareMenusToCommunity(savedPlace, menusToSave);
-                flash(n ? ("Shared " + n + " menu" + (n>1?"s":"") + " - thanks!") : "Couldn't share right now.");
-              });
-            } else {
-              flash(baseMsg);
-            }
+            // Deliberately no share offer here. The restaurant page already
+            // shows the "Share your menu?" card for exactly this case, and a
+            // three-second toast is the wrong place to decide to publish
+            // something - it cannot say what gets shared, and it is gone
+            // before you have finished reading it.
+            flash(baseMsg);
           }} />
       )}
 
@@ -10642,6 +10625,13 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     } finally { setLinkBusy(false); }
   }
   const menuList = orderedMenus(menus);
+  // Is the "Share your menu?" card showing? The header's Share button hides
+  // while it is, so the page never offers the same thing twice at once.
+  const shareNudgeUp = !!(restaurant && restaurant.google_place_id && !shareNudgeOff
+    && nudgeCommLabels
+    && menuList.some(m => m && (m.sections||[]).length
+         && m.source !== "community" && m.source !== "shared"
+         && !nudgeCommLabels.has((m.label||"").trim().toLowerCase())));
   // Reorder support: "Main" menus stay pinned at the top; everything after them
   // (indices >= menuMainCount) is the reorderable block. Only worth showing the
   // up/down controls when there are 2+ non-Main menus.
@@ -11123,7 +11113,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                 : null}
             </div>
             <div className="row" style={{gap:8, flex:"none"}}>
-              {menuList.length >= 1 && (
+              {menuList.length >= 1 && !shareNudgeUp && (
                 <button className="btn ghost sm" onClick={()=> setShareSheet("main")}
                   style={{flex:"none",padding:"6px 12px",margin:0}}
                   title="Share the menu - to a connection, a link, or the community">
@@ -11138,9 +11128,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           </div>
         </div>
 
-        {r.google_place_id && !shareNudgeOff && nudgeCommLabels
-          && menuList.some(m => m && (m.sections||[]).length && m.source !== "community" && m.source !== "shared"
-               && !nudgeCommLabels.has((m.label||"").trim().toLowerCase())) ? (
+        {shareNudgeUp ? (
           <div className="card" style={{marginBottom:12, display:"flex", gap:10, alignItems:"center",
                background:"rgba(127,170,107,0.10)", border:"1px solid rgba(127,170,107,0.35)"}}>
             <Icon name="nodes" size={18} color="var(--accent)" />
