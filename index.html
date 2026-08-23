@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.419.0";
+const APP_VERSION   = "1.420.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -11141,6 +11141,20 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           </div>
         )}
 
+        {/* Why this place is worth going. Sits above the practical stuff
+            because it is the part somebody arriving cold wants first, and it
+            is what makes a shared visit read as more than a receipt. */}
+        {(r.story || "").trim() ? (
+          <div className="card" style={{marginTop:14, padding:"13px 15px"}}>
+            <div className="lbl" style={{marginBottom:7}}>About this place</div>
+            {/* Pasted text arrives with its own paragraphs; keeping them costs
+                nothing and reads far better than one run-on block. */}
+            <div className="small" style={{whiteSpace:"pre-wrap", lineHeight:1.5}}>
+              {r.story.trim()}
+            </div>
+          </div>
+        ) : null}
+
         {/* Your own habit at this place, above the menu because it answers the
             question you came with. Only appears once there is a repeat to
             report - see myUsualAt. */}
@@ -16020,6 +16034,12 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
   const [phone,setPhone]       = useState(seed ? (seed.phone || "") : "");
   const [website,setWebsite]   = useState(seed ? (seed.website || "") : "");
   const [notes,setNotes]       = useState(seed ? (seed.notes || "") : "");
+  // Separate from notes on purpose. The two get read at different moments -
+  // hours before you set off, the story while you are sitting there or when
+  // you share the visit - and one box made both worse at their job. Notes was
+  // also the field the Google enrich WRITES to ("Hours: ..."), which would
+  // have overwritten anything interesting you had typed.
+  const [story,setStory]       = useState(seed ? (seed.story || "") : "");
   const [fav,setFav]           = useState(existing ? !!existing.favorite : false);
   const [wishlist,setWishlist] = useState(existing ? !!existing.wishlist : false);   // "want to try" (haven't been)
 
@@ -16265,7 +16285,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
       name:name.trim(), cuisine:cuisine.trim(),
       location: finalLoc,
       address:address.trim(), phone:phone.trim(), website:website.trim(),
-      notes:notes.trim(), favorite:fav, wishlist:wishlist,
+      notes:notes.trim(), story:story.trim(), favorite:fav, wishlist:wishlist,
       photo: finalPhotoPath,
       added_date: existing ? existing.added_date : todayISO(),
       // map coordinates (geo is pre-seeded from existing, so edits keep the pin)
@@ -16472,7 +16492,14 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
             placeholder="example.com" /></label>
         <label className="fld"><span className="lbl">Notes</span>
           <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
-            placeholder="Hours, reservation policy, anything worth remembering" /></label>
+            placeholder="Hours, parking, reservation policy" /></label>
+        <label className="fld"><span className="lbl">About this place</span>
+          <textarea className="input" value={story} onChange={e=>setStory(e.target.value)}
+            style={{minHeight:100}}
+            placeholder="What makes it worth going? The history, the dish it is known for, who cooks there. Paste something you read." /></label>
+        <div className="tiny faint" style={{margin:"-8px 0 14px"}}>
+          Shown on the place and carried into a visit you share. Private until then.
+        </div>
         <div className="card between" onClick={()=> setWishlist(w=>!w)} style={{cursor:"pointer"}}>
           <span>Want to try (haven't been yet)</span>
           <span className={"fav" + (wishlist?" on":"")}>
