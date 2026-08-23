@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.417.0";
+const APP_VERSION   = "1.418.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -20004,24 +20004,55 @@ function GuestIdentityPrompt({cfg, unknown, onDone}){
   const [who, setWho]   = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState("");
+  const [conns, setConns] = useState([]);
+  useEffect(()=>{
+    let alive = true;
+    getConnections(cfg).then(d => { if (alive) setConns((d && d.connections) || []); })
+                       .catch(()=>{});
+    return ()=> { alive = false; };
+  // eslint-disable-next-line
+  }, []);
   const list = unknown || [];
   const cur  = list[i];
+
+  // Connections whose name looks like the one they typed come first. This only
+  // ORDERS the options - nothing is preselected and nothing is submitted for
+  // you. A near-match is a hint about where to look, never an answer.
+  const suggested = (function(){
+    if (!cur) return [];
+    const typed = (cur.seen_as || "").trim().toLowerCase();
+    const scored = (conns || []).map(c => {
+      const nm = (connLabel(c).primary || "").trim();
+      const low = nm.toLowerCase();
+      const hit = typed && (low === typed || low.split(/\s+/)[0] === typed
+                            || low.indexOf(typed) === 0);
+      return { id: c.user_id || c.id, name: nm, hit: !!hit };
+    }).filter(c => c.id && c.name);
+    scored.sort((a,b)=> (b.hit ? 1 : 0) - (a.hit ? 1 : 0));
+    return scored.slice(0, 6);
+  })();
+
   if (!cur) return null;
 
   function next(){
     setWho(""); setErr("");
     if (i + 1 >= list.length){ onDone && onDone(); } else { setI(i + 1); }
   }
-  async function save(){
-    const nm = (who || "").trim();
-    if (!nm){ setErr("Type who this is, or skip."); return; }
+  // body carries EITHER person_user_id or person_label - the backend rejects
+  // both and rejects neither, so the choice is made once, here.
+  async function commit(body){
     setBusy(true); setErr("");
     try {
-      await guestIdentify(cfg, { guest_token: cur.guest_token, person_label: nm,
-                                 seen_as: cur.seen_as || "", stable: true });
+      await guestIdentify(cfg, Object.assign(
+        { guest_token: cur.guest_token, seen_as: cur.seen_as || "", stable: true }, body));
       next();
     } catch(e){ setErr(e.message || "Could not save who that is."); }
     setBusy(false);
+  }
+  async function save(){
+    const nm = (who || "").trim();
+    if (!nm){ setErr("Pick a connection, or type who this is."); return; }
+    await commit({ person_label: nm });
   }
 
   return (
@@ -20036,8 +20067,21 @@ function GuestIdentityPrompt({cfg, unknown, onDone}){
               have not said who that is yet. Naming them lets MenuCaptain remember
               what they order.</span>}
       </div>
+      {/* A connection is the stronger link: it survives a new phone and ties
+          into the account, where a typed label is just a name in your own
+          notebook. Offered first for that reason. */}
+      {suggested.length ? (
+        <div className="chips" style={{marginBottom:9}}>
+          {suggested.map(c => (
+            <span key={c.id} className="chip pick" style={{cursor: busy ? "default" : "pointer"}}
+              onClick={()=> { if (!busy) commit({ person_user_id: c.id }); }}>
+              {c.name}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <ClearInput value={who} onChange={e=>setWho(e.target.value)}
-        placeholder="Their name" />
+        placeholder={suggested.length ? "Or type a name" : "Their name"} />
       {err ? <div className="small" style={{color:"#e7a99e", marginTop:6}}>{err}</div> : null}
       <div className="row" style={{gap:9, marginTop:10}}>
         <button className="btn ghost sm" onClick={next} disabled={busy}>Skip</button>
