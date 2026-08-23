@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.416.0";
+const APP_VERSION   = "1.417.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -20052,6 +20052,57 @@ function GuestIdentityPrompt({cfg, unknown, onDone}){
   );
 }
 
+/* What a guest has ordered with you before. Host-authed; the backend only ever
+   searches orders you hosted. */
+async function guestHistory(cfg, opts){
+  const q = new URLSearchParams();
+  if (opts.token) q.set("guest_token", opts.token);
+  if (opts.name) q.set("name", opts.name);
+  if (opts.restaurantName) q.set("restaurant_name", opts.restaurantName);
+  const headers = {};
+  if (cfg) { try { Object.assign(headers, await authHeaders(cfg)); } catch(e){} }
+  const res = await fetch(apiBase(cfg) + "/api/guest/history?" + q.toString(), { headers });
+  if (!res.ok) return null;
+  return res.json().catch(()=> null);
+}
+
+/* "Usually gets the ribeye." Shown beside somebody you are still waiting on, so
+   ordering for them is a recall rather than a guess.
+
+   Says WHERE the knowledge came from. "Usually orders here" and "has ordered
+   elsewhere" are different strengths of claim, and a suggestion that overstates
+   what it knows is worse than none - you would order it for them. Renders
+   nothing at all when there is no history, rather than a hedge. */
+function UsualOrder({cfg, token, name, restaurantName}){
+  const [d, setD] = useState(null);
+  useEffect(()=>{
+    let alive = true;
+    guestHistory(cfg, { token: token, name: name, restaurantName: restaurantName })
+      .then(r => { if (alive) setD(r || null); })
+      .catch(()=>{});
+    return ()=> { alive = false; };
+  }, [token, name, restaurantName]);
+
+  if (!d) return null;
+  const here = (d.here || []).slice(0, 3);
+  const away = (d.elsewhere || []).slice(0, 3);
+  const list = here.length ? here : away;
+  if (!list.length) return null;
+
+  const names = list.map(e => e.name).join(", ");
+  // A repeat order is a much stronger signal than a single one, so say which.
+  const top = list[0];
+  const strong = top && top.count > 1;
+  return (
+    <div className="tiny faint" style={{marginTop:3}}>
+      {here.length
+        ? <span>Usually orders here: <span style={{color:"var(--text-muted)"}}>{names}</span></span>
+        : <span>Has ordered elsewhere: <span style={{color:"var(--text-muted)"}}>{names}</span></span>}
+      {strong ? <span> ({top.name} {top.count} times)</span> : null}
+    </div>
+  );
+}
+
 /* Minutes left, as something a person would say. */
 function voteTimeLeft(closesAt){
   if (!closesAt) return "";
@@ -21532,6 +21583,12 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                         {r.sub ? (isPassed
                           ? <div className="tiny faint">Not ordering</div>
                           : <div className="tiny muted">{picksLine(r.sub.picks)}</div>) : null}
+                        {/* Only while waiting: once they have ordered, what
+                            they actually chose is on screen and a reminder of
+                            their usual is just noise. */}
+                        {!r.sub && !closed ? (
+                          <UsualOrder cfg={cfg} name={r.name} restaurantName={restaurantName} />
+                        ) : null}
                       </div>
                       {r.sub && !isPassed ? cardCtls(r.sub) : null}
                     </div>
