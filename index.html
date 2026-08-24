@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.422.0";
+const APP_VERSION   = "1.423.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -10022,8 +10022,22 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   // Location filter chips come ONLY from the Settings master list (the curated
   // set). A place can still have any free-text city, but it won't get a chip
   // until that city is added in Settings - it just lives under "All".
-  const cityChips = Array.from(new Set(locations || []))
-    .sort((a,b)=> a.localeCompare(b));
+  // Cities from the curated list AND from the places themselves. Adding a
+  // place from Google sets its location automatically (`c.city ||
+  // cityFromAddress(c.address)`), but `locations` only ever grew when somebody
+  // TYPED one - so a town you had eaten in five times, filed correctly on every
+  // record, produced no chip and could not be filtered by. Cuisine already
+  // reads from the records this way; cities were the odd one out.
+  const cityChips = (function(){
+    const seen = new Map();   // lower-cased -> display casing
+    const put = c => {
+      const v = (c || "").trim();
+      if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+    };
+    (locations || []).forEach(put);
+    (restaurants || []).forEach(r => put(r && r.location));
+    return Array.from(seen.values()).sort((a,b)=> a.localeCompare(b));
+  })();
 
   // Cuisines actually in use, cleaned the same way Near me cleans Google types
   // ("italian_restaurant"/"italian"/"Italian" all collapse to one "Italian"
@@ -10049,7 +10063,12 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       : restaurants.filter(r => r.location === filter);
   const visible = cuisineFilter === "All"
     ? byCity
-    : byCity.filter(r => normalizeCuisine(r.cuisine).toLowerCase() === cuisineFilter.toLowerCase());
+    : cuisineFilter === "(no cuisine)"
+      // Answers "why is this place not under Mexican?". Without it a place with
+      // no cuisine is filtered out by every chip and there is no way to find
+      // it, so the gap is invisible and nothing prompts you to fill it in.
+      ? byCity.filter(r => !normalizeCuisine(r.cuisine))
+      : byCity.filter(r => normalizeCuisine(r.cuisine).toLowerCase() === cuisineFilter.toLowerCase());
 
   const q = query.trim().toLowerCase();
   const searchedRaw = q ? visible.filter(r =>
@@ -10291,6 +10310,12 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
                 <span key={c} className={"chip pick" + (cuisineFilter === c ? " on" : "")}
                   onClick={()=> setCuisineFilter(c)}>{c}</span>
               ))}
+              {/* Mirrors the existing "No location" chip. Only offered when
+                  there is something to find. */}
+              {restaurants.some(r => !normalizeCuisine(r.cuisine)) && (
+                <span className={"chip pick" + (cuisineFilter === "(no cuisine)" ? " on" : "")}
+                  onClick={()=> setCuisineFilter("(no cuisine)")}>No cuisine</span>
+              )}
             </div>
           )}
 
