@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.421.0";
+const APP_VERSION   = "1.422.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -20434,6 +20434,28 @@ async function groupSetRoster(cfg, code, names){
 }
 // Normalize a name for matching roster <-> submitters (case/space-insensitive).
 function groupNorm(s){ return (s || "").trim().toLowerCase(); }
+/* Might these two names be one person? Used ONLY to raise the question.
+
+   The roster holds whatever the host typed ("Baker") and a guest submits
+   whatever they typed ("Baker Trent"). Matching is exact, so the same person
+   appeared twice: still waiting in one place, already ordered in another.
+
+   Deliberately narrow. It fires when one name is plainly contained in the
+   other at a word boundary, and not on a loose resemblance - the answer to
+   this question gets acted on, so a wide net produces confident nonsense.
+   Nothing merges without a tap. */
+function likelySamePerson(a, b){
+  const x = groupNorm(a), y = groupNorm(b);
+  if (!x || !y || x === y) return false;
+  const xw = x.split(/\s+/), yw = y.split(/\s+/);
+  // "Baker" against "Baker Trent" - a lone first name matching the other's.
+  if (xw.length === 1 && yw.length > 1 && yw[0] === x) return true;
+  if (yw.length === 1 && xw.length > 1 && xw[0] === y) return true;
+  // "Baker T" against "Baker Trent" - same first name, same next initial.
+  if (xw.length > 1 && yw.length > 1 && xw[0] === yw[0]
+      && xw[1].charAt(0) === yw[1].charAt(0)) return true;
+  return false;
+}
 // One-line summary of picks: "2x Toast, 1x Pollo (no onions)".
 function picksLine(picks){
   return (picks || []).map(p => (p.qty > 1 ? p.qty + "x " : "") + pickLabel(p) + (p.note ? " (" + p.note + ")" : "")).join(", ");
@@ -21174,6 +21196,26 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   }, []);
   // Whole-roster replace on every add/remove: optimistic local update, server
   // truth from the response. A failure logs and leaves the prior roster intact.
+  /* "Baker" on the roster and "Baker Trent" who ordered are the same person.
+     Renames the roster entry to the name they actually used, which makes the
+     existing exact match succeed - they move out of "waiting" and out of
+     "also ordered" in one go, with no special-casing anywhere downstream.
+
+     Also records the device as that person, because the host just told us
+     something true and worth keeping: next time, no question. */
+  async function mergeRosterName(oldName, sub){
+    const full = (sub && sub.guest_name || "").trim();
+    if (!full) return;
+    await saveRoster((roster || []).map(n => groupNorm(n) === groupNorm(oldName) ? full : n));
+    if (sub.guest_token && !String(sub.guest_token).startsWith("host:")){
+      // Best effort. Failing to remember must not undo the merge the host can
+      // already see on screen.
+      try {
+        await guestIdentify(cfg, { guest_token: sub.guest_token, person_label: full,
+                                   seen_as: sub.guest_name || "", stable: true });
+      } catch(e){ logMsg("IDENTITY", "merge link failed: " + ((e && e.message) || "?")); }
+    }
+  }
   async function saveRoster(names){
     if (!code) return;
     setRosterBusy(true);
@@ -21736,6 +21778,24 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                         {r.sub ? (isPassed
                           ? <div className="tiny faint">Not ordering</div>
                           : <div className="tiny muted">{picksLine(r.sub.picks)}</div>) : null}
+                        {/* Somebody already ordered under a name that looks
+                            like this one. Ask before assuming - two Bakers at
+                            one table is not far-fetched. */}
+                        {!r.sub && !closed ? (function(){
+                          const twin = (extras || []).find(g => likelySamePerson(r.name, g.guest_name));
+                          if (!twin) return null;
+                          return (
+                            <div className="tiny" style={{marginTop:5}}>
+                              <span className="faint">Is this </span>
+                              <strong>{twin.guest_name}</strong>
+                              <span className="faint">, who already ordered? </span>
+                              <a href="#" style={{color:"var(--accent)"}}
+                                 onClick={(e)=>{ e.preventDefault(); mergeRosterName(r.name, twin); }}>
+                                Yes, same person
+                              </a>
+                            </div>
+                          );
+                        })() : null}
                         {/* Only while waiting: once they have ordered, what
                             they actually chose is on screen and a reminder of
                             their usual is just noise. */}
