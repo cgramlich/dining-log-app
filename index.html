@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.426.0";
+const APP_VERSION   = "1.427.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -21202,6 +21202,10 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   const [confirmClose, setConfirmClose] = useState(false);   // gate the finalizing "Close order"
   const [placedBusy, setPlacedBusy] = useState(false);       // "Mark as placed" in flight
   const [menuEditOpen, setMenuEditOpen] = useState(false);   // "Edit menus" sheet (change which menus the order uses)
+  // Just LOOKING at the menu. The only way to see it used to be to start
+  // ordering - fine when you are ordering, useless when somebody at the table
+  // asks what they do and you are the one holding the phone.
+  const [menuPeek, setMenuPeek] = useState(false);
   const [menuPick, setMenuPick]   = useState({});
   const [menuBusy, setMenuBusy]   = useState(false);
   function openMenuEdit(){
@@ -21541,6 +21545,31 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                 </div>
               </div>
             ) : null}
+            {menuPeek ? (
+              <div style={{position:"fixed", inset:0, zIndex:72, background:"var(--bg)", overflowY:"auto"}}>
+                <div style={{maxWidth:600, margin:"0 auto", padding:"14px 16px"}}>
+                  <div className="row between" style={{alignItems:"center", marginBottom:12}}>
+                    <button className="x" onClick={()=> setMenuPeek(false)}>Back</button>
+                    <div style={{fontFamily:"'Fraunces',serif", fontSize:19, fontWeight:600}}>
+                      {restaurantName || (data && data.restaurant_name) || "Menu"}
+                    </div>
+                    <span style={{width:54}} />
+                  </div>
+                  {/* The same reader the rest of the app uses - it renders
+                      read-only when the editing callbacks are absent, so this
+                      is reuse rather than a second menu renderer to keep in
+                      step. */}
+                  <MenuView menu={data.menu_snapshot} cfg={cfg}
+                    restaurantName={restaurantName || (data && data.restaurant_name) || ""} />
+                  {!closed ? (
+                    <button className="btn primary" style={{width:"100%", margin:"14px 0 24px"}}
+                      onClick={()=> { setMenuPeek(false); setMyOrder(true); }}>
+                      {myPick ? "Change my order" : "Add my own order"}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             {myOrder ? (
               <div style={{position:"fixed", inset:0, zIndex:72, background:"var(--bg)", overflowY:"auto"}}>
                 <div style={{maxWidth:600, margin:"0 auto", padding:"14px 16px"}}>
@@ -21769,6 +21798,22 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
             </div>
             ) : null}
 
+            {/* Reading the menu is not the same job as ordering from it, so it
+                gets its own way in - and stays available after the order
+                closes, when you may still want to know what a dish was. */}
+            {/* quick_options is a menu-less "want anything?" run - it carries a
+                snapshot but nothing worth reading, which is why the share copy
+                already excludes it the same way. */}
+            {(data && data.menu_snapshot && Array.isArray(data.menu_snapshot.sections)
+              && data.menu_snapshot.sections.length && !data.menu_snapshot.quick_options) ? (
+              <button className="btn ghost sm" style={{width:"100%", marginBottom:10}}
+                onClick={()=> setMenuPeek(true)}>
+                <span className="row" style={{gap:6, justifyContent:"center"}}>
+                  <Icon name="book" size={15} />
+                  See the menu
+                </span>
+              </button>
+            ) : null}
             {!closed ? (
               <button className="btn ghost sm" style={{width:"100%", marginBottom:10}}
                 onClick={()=> setMyOrder(true)}>
