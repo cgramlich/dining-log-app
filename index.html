@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.425.0";
+const APP_VERSION   = "1.426.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -20481,6 +20481,28 @@ async function groupSetRoster(cfg, code, names){
   return res.json();
 }
 // Normalize a name for matching roster <-> submitters (case/space-insensitive).
+/* Vote codes known to be gone. localStorage, not sessionStorage: the whole
+   point is to outlive a relaunch, because a relaunch is when the stale code
+   comes back. Capped and FIFO - this is a small blocklist, not a record. */
+const DEAD_VOTES_KEY = "mc_dead_votes";
+function deadVotes(){
+  try {
+    const v = JSON.parse(localStorage.getItem(DEAD_VOTES_KEY) || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch(e){ return []; }
+}
+function isDeadVote(code){
+  return !!code && deadVotes().indexOf(code) !== -1;
+}
+function markVoteDead(code){
+  if (!code) return;
+  try {
+    const list = deadVotes().filter(c => c !== code);
+    list.push(code);
+    localStorage.setItem(DEAD_VOTES_KEY, JSON.stringify(list.slice(-25)));
+  } catch(e){}
+}
+
 function groupNorm(s){ return (s || "").trim().toLowerCase(); }
 /* Might these two names be one person? Used ONLY to raise the question.
 
@@ -22288,8 +22310,11 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
         // now and the url iOS resumes is the clean one. `code` stays in props,
         // so Try again still retries the same vote.
         try { history.replaceState(null, "", location.pathname); } catch(e){}
-        // Gone for good, so stop restoring it on refresh.
+        // Gone for good. sessionStorage handles this tab; the dead list
+        // handles every future launch, including the ones where iOS hands the
+        // app the old url again.
         try { sessionStorage.removeItem("mc_open_vote"); } catch(e){}
+        markVoteDead(code);
         setErr("No vote found for this link. It may have finished and been cleared, or the link may have been cut short in the message.");
         return;
       }
@@ -27085,6 +27110,12 @@ class ErrorBoundary extends React.Component {
     if (configComplete(loadConfig())){
       if (visitSlug || publishedVisit){
         inAppShare = { kind:"visit", slug: visitSlug || null, data: publishedVisit || null };
+      } else if (voteCode && isDeadVote(voteCode)){
+        // Seen this one die already. Whoever handed us the url - the OS, a
+        // bookmark, a replayed redirect - the answer does not change, so go
+        // straight to the app rather than showing the same dead end again.
+        try { history.replaceState(null, "", location.pathname); } catch(e){}
+        try { sessionStorage.removeItem("mc_open_vote"); } catch(e){}
       } else if (voteCode){
         inAppShare = { kind:"vote", code: voteCode };
         // Strip it NOW, before the first render and regardless of whether the
