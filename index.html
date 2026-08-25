@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.423.0";
+const APP_VERSION   = "1.424.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6946,6 +6946,8 @@ function App({openShare}){
   useEffect(()=>{
     if (openShare && openShare.kind === "visit"){
       setOverlay({ type:"sharedVisit", slug: openShare.slug, data: openShare.data });
+    } else if (openShare && openShare.kind === "vote"){
+      setOverlay({ type:"voteGuest", code: openShare.code });
     }
   // eslint-disable-next-line
   }, []);
@@ -8241,6 +8243,19 @@ function App({openShare}){
       )}
 
       {/* overlays */}
+      {overlay && overlay.type === "voteGuest" && (
+        <div className="overlay">
+          <div className="ovhead">
+            <button className="x" onClick={()=> setOverlay(null)}>Back</button>
+            <h2>Where shall we eat?</h2>
+            <span style={{width:54}} />
+          </div>
+          <div className="ovbody">
+            <GroupVoteView code={overlay.code} cfg={config} profile={profile}
+              onClose={()=> setOverlay(null)} />
+          </div>
+        </div>
+      )}
       {overlay && overlay.type === "voteStart" && (
         <VoteStart
           cfg={config} profile={profile}
@@ -27057,8 +27072,17 @@ class ErrorBoundary extends React.Component {
   // handles that itself, and the share is still open behind the sign-in.
   let inAppShare = null;
   try {
-    if (configComplete(loadConfig()) && (visitSlug || publishedVisit)){
-      inAppShare = { kind:"visit", slug: visitSlug || null, data: publishedVisit || null };
+    if (configComplete(loadConfig())){
+      if (visitSlug || publishedVisit){
+        inAppShare = { kind:"visit", slug: visitSlug || null, data: publishedVisit || null };
+      } else if (voteCode){
+        inAppShare = { kind:"vote", code: voteCode };
+        // Strip it NOW, before the first render and regardless of whether the
+        // vote turns out to be alive. While the code sits in the address it is
+        // what a relaunch, a restore or a reload comes back to - which is how
+        // a dead vote held the whole app hostage.
+        try { history.replaceState(null, "", location.pathname); } catch(e){}
+      }
     }
   } catch(e){ inAppShare = null; }
 
@@ -27072,6 +27096,7 @@ class ErrorBoundary extends React.Component {
        : menuSlug ? <PublishedMenuLoader slug={menuSlug} />
        : publishedMenu ? <PublishedMenu data={publishedMenu} />
        : inAppShare ? <App openShare={inAppShare} />
+       /* voteCode below still serves guests with no account - unchanged. */
        : visitSlug ? <PublishedVisitLoader slug={visitSlug} />
        : publishedVisit ? <PublishedVisit data={publishedVisit} />
        : voteCode ? <div className="overlay"><div className="ovhead"><h2>Where shall we eat?</h2></div>
