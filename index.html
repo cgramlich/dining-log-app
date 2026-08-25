@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.424.0";
+const APP_VERSION   = "1.425.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8246,13 +8246,21 @@ function App({openShare}){
       {overlay && overlay.type === "voteGuest" && (
         <div className="overlay">
           <div className="ovhead">
-            <button className="x" onClick={()=> setOverlay(null)}>Back</button>
+            <button className="x" onClick={()=> {
+              try { sessionStorage.removeItem("mc_open_vote"); } catch(e){}
+              setOverlay(null);
+            }}>Back</button>
             <h2>Where shall we eat?</h2>
             <span style={{width:54}} />
           </div>
           <div className="ovbody">
             <GroupVoteView code={overlay.code} cfg={config} profile={profile}
-              onClose={()=> setOverlay(null)} />
+              onClose={()=> {
+                // Closing it deliberately means you are done with it; do not
+                // reopen it behind their back on the next refresh.
+                try { sessionStorage.removeItem("mc_open_vote"); } catch(e){}
+                setOverlay(null);
+              }} />
           </div>
         </div>
       )}
@@ -22280,6 +22288,8 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
         // now and the url iOS resumes is the clean one. `code` stays in props,
         // so Try again still retries the same vote.
         try { history.replaceState(null, "", location.pathname); } catch(e){}
+        // Gone for good, so stop restoring it on refresh.
+        try { sessionStorage.removeItem("mc_open_vote"); } catch(e){}
         setErr("No vote found for this link. It may have finished and been cleared, or the link may have been cut short in the message.");
         return;
       }
@@ -27082,6 +27092,17 @@ class ErrorBoundary extends React.Component {
         // what a relaunch, a restore or a reload comes back to - which is how
         // a dead vote held the whole app hostage.
         try { history.replaceState(null, "", location.pathname); } catch(e){}
+        // Remember it somewhere that does NOT decide what the app loads, so a
+        // refresh keeps your place in a live vote without the code being able
+        // to hold the app again. sessionStorage dies with the tab, so a fresh
+        // launch never resurrects it, and the vote screen clears it the moment
+        // the vote turns out to be gone.
+        try { sessionStorage.setItem("mc_open_vote", voteCode); } catch(e){}
+      } else {
+        try {
+          const held = sessionStorage.getItem("mc_open_vote");
+          if (held) inAppShare = { kind:"vote", code: held };
+        } catch(e){}
       }
     }
   } catch(e){ inAppShare = null; }
