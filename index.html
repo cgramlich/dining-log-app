@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.429.0";
+const APP_VERSION   = "1.430.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -18000,6 +18000,36 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
 
         <div className="fld">
           <span className="sechd">What you had</span>
+          {/* Catches the wrong-box slip, on existing visits as well as new
+              ones, because the check runs on what is stored rather than on
+              what was just typed. */}
+          {(function(){
+            const people = new Set((companions || [])
+              .map(p => ((p && p.name) || "").trim().toLowerCase()).filter(Boolean));
+            const clash = (dishes || []).filter(d =>
+              people.has(((d && d.name) || "").trim().toLowerCase()));
+            if (!clash.length) return null;
+            return (
+              <div className="card" style={{margin:"0 0 10px", padding:"11px 13px",
+                   border:"1px solid rgba(224,118,74,0.35)"}}>
+                <div className="small" style={{marginBottom:8}}>
+                  {clash.length === 1
+                    ? <span><strong>{clash[0].name}</strong> is listed as a dish and also as
+                        someone you were with. The name and dish boxes sit next to each
+                        other - was this meant to be a dish?</span>
+                    : <span>{clash.map(d => d.name).join(", ")} are listed as dishes and also
+                        as people you were with. Were those meant to be dishes?</span>}
+                </div>
+                <button type="button" className="btn ghost sm" style={{width:"100%"}}
+                  onClick={()=> setDishes(ds => ds.filter(d =>
+                    !people.has(((d && d.name) || "").trim().toLowerCase())))}>
+                  {clash.length === 1
+                    ? "Remove " + clash[0].name + " from the dishes"
+                    : "Remove them from the dishes"}
+                </button>
+              </div>
+            );
+          })()}
           <div className="row" style={{gap:8, position:"relative"}}>
             <ClearInput value={dishInput}
               onChange={e=>setDishInput(e.target.value)}
