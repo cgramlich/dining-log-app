@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.428.0";
+const APP_VERSION   = "1.429.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3944,21 +3944,38 @@ async function ghGetRawFile(cfg, path){
   return await imgRes.blob();
 }
 
+/* Generous, because a photo on a phone connection is genuinely slow - but
+   finite, because "no limit" means "hangs for ever" the one time it stalls. */
+const PHOTO_UPLOAD_TIMEOUT_MS = 60000;
 async function ghPutBinaryFile(cfg, path, blob, sha){
   // Track B: upload a photo to the backend (Supabase Storage). sha unused.
   const b64 = await blobToBase64(blob);
   const url = apiBase(cfg) + "/api/photos";
   logMsg("API","PUT photo " + path + " (" + Math.round(blob.size/1024) + " KB)");
+  // fetch has no timeout of its own: on a stalled connection it waits for
+  // ever, which is indistinguishable from a frozen app. A photo is a big
+  // upload on a phone, so the ceiling is generous - but it is a ceiling.
+  const ctl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+  const timer = ctl ? setTimeout(()=> ctl.abort(), PHOTO_UPLOAD_TIMEOUT_MS) : null;
   let res;
   try {
     res = await fetch(url, {
       method:"POST",
       headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
       body:JSON.stringify({ path:path, image_base64:b64 }),
+      signal: ctl ? ctl.signal : undefined,
     });
   } catch(err){
-    logMsg("ERROR","Backend photo upload network failure: " + err.message);
-    throw new Error("Network error reaching the server");
+    const aborted = (err && (err.name === "AbortError" || (ctl && ctl.signal.aborted)));
+    logMsg("ERROR", "Backend photo upload " + (aborted ? "timed out" : "network failure")
+                    + ": " + ((err && err.message) || "?"));
+    throw new Error(aborted
+      ? ("That photo took more than " + Math.round(PHOTO_UPLOAD_TIMEOUT_MS/1000)
+         + " seconds to upload - the connection is probably too weak. It is saved on "
+         + "your phone; try again on better signal.")
+      : "Network error reaching the server");
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   if (!res.ok){
     const txt = await res.text().catch(()=> "");
@@ -7719,13 +7736,17 @@ function App({openShare}){
      then folds the new SHAs into the shas state map and persists
      them to localStorage. Photo files live alongside the JSON files
      in the same private repo, so they share the same auth path. */
-  async function uploadPhotoBatch(uploads){
+  async function uploadPhotoBatch(uploads, onProgress){
     // uploads: array of { path, blob }
     // returns: same array shape (rejects on first failure)
     if (!uploads || !uploads.length) return [];
     if (!configComplete(config)) throw new Error("Not configured");
     const nextShas = Object.assign({}, liveRef.current.shas);
+    let done = 0;
     for (const u of uploads){
+      // Before, not after: the wait happens during this photo, so that is when
+      // its number should be on screen.
+      if (onProgress) onProgress(++done, uploads.length);
       const newSha = await ghPutBinaryFile(config, u.path, u.blob, nextShas[u.path]);
       nextShas[u.path] = newSha;
       // bust any stale cache entry and seed the new bytes so the UI
@@ -8827,7 +8848,7 @@ function App({openShare}){
             // doesn't reference paths that don't exist in the repo yet.
             if (pendingUploads.length){
               try {
-                await uploadPhotoBatch(pendingUploads);
+                await uploadPhotoBatch(pendingUploads, extras && extras.onProgress);
                 logMsg("SAVE","Uploaded " + pendingUploads.length + " visit photo(s)");
               } catch(err){
                 logMsg("ERROR","Visit photo upload failed: " + err.message);
@@ -16721,6 +16742,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [expOpen, setExpOpen] = useState(false);               // expense sheet over this visit
   const [saving, setSaving] = useState(false);                 // save in flight
+  const [saveStep, setSaveStep] = useState("");                // "Photo 2 of 5"
   const [saveWhy, setSaveWhy] = useState("");                  // why Save did nothing
   const [companions, setCompanions] = useState(()=> {
     if (existing && Array.isArray(existing.companions)) return existing.companions;
@@ -17576,13 +17598,15 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     // is genuinely slow. Hold the busy state across it and surface anything it
     // throws, rather than leaving a screen that looks like the tap missed.
     setSaving(true);
+    setSaveStep(pendingUploads.length ? "Photo 1 of " + pendingUploads.length : "");
     try {
-      await onSave(rec, { pendingUploads: pendingUploads });
+      await onSave(rec, { pendingUploads: pendingUploads,
+        onProgress: (i, n)=> setSaveStep("Photo " + i + " of " + n) });
     } catch(err){
       const why = (err && err.message) || "no reason given";
       logMsg("ERROR", "Visit save failed: " + why);
       setSaveWhy("Could not save this visit - " + why);
-      setSaving(false);
+      setSaving(false); setSaveStep("");
       return;
     }
     // Deliberately not cleared on success: the form is closing, and clearing it
@@ -17633,7 +17657,9 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         <h2>{existing ? "Edit visit" : "Log a visit"}</h2>
         <button className="x" onClick={submit} disabled={saving}
           style={{color:restId?"var(--accent)":"var(--text-faint)"}}>
-          {saving ? <span className="row" style={{gap:6}}><span className="spin" />Saving</span> : "Save"}
+          {saving
+            ? <span className="row" style={{gap:6}}><span className="spin" />{saveStep || "Saving"}</span>
+            : "Save"}
         </button>
       </div>
       {/* Directly under the header, because that is where you were looking
