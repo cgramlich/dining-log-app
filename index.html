@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.430.0";
+const APP_VERSION   = "1.431.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -11223,8 +11223,14 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <div style={{marginTop:14}}>
             <div className="divider-label" style={{margin:"0 0 8px"}}>Photos from your visits</div>
             <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
+              {/* The per-visit photos below this strip have always opened the
+                  lightbox; this one did not, which made it look like a
+                  decoration rather than something you could look at. Opens the
+                  WHOLE strip so you can swipe the place's photos in one go,
+                  not just the one you happened to tap. */}
               {visitPhotos.slice(0, 12).map((p, i) => (
-                <div key={i} className="visit-photo">
+                <div key={i} className="visit-photo tap"
+                  onClick={()=> setLightbox({ paths: visitPhotos.slice(0, 12), index: i })}>
                   <PhotoImg cfg={cfg} path={p} />
                 </div>
               ))}
