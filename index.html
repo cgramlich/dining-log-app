@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.431.0";
+const APP_VERSION   = "1.432.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -25888,8 +25888,11 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
   const [msgErr, setMsgErr]     = useState(false);
   const [loadFail, setLoadFail] = useState(false);
   const favSet = loadConnFavs();   // favorite connections float to the top
+  // A place is worth sending with or without a menu: the name, city, address
+  // and your rating are the useful part, and the recipient can scan the menu
+  // themselves. Hiding this control on menu-less places left the OS share
+  // sheet as the only option, which sends a link rather than the place.
   const hasMenu = (menuList || []).some(m => m && (m.sections || []).length);
-  if (!hasMenu) return null;   // need a menu to share the place
   async function openPicker(){
     setOpen(true); setMsg(""); setMsgErr(false); setLoadFail(false);
     if (conns === null){ try { const d = await getConnections(cfg); setConns(d.connections || []); } catch(e){ setLoadFail(true); } }
@@ -25898,7 +25901,11 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
     const ids = Object.keys(pick).filter(k => pick[k]);
     if (!ids.length) return;
     const usable = (menuList || []).filter(m => m && (m.sections || []).length);
-    const combined = usable.length === 1 ? usable[0] : combineGroupMenus(usable);
+    // No menu -> no sections. buildMenuPayload handles a null menu and the
+    // reader defaults sections to []. Do NOT hand combineGroupMenus an empty
+    // list; it is written to merge menus, not to invent one.
+    const combined = !usable.length ? null
+      : (usable.length === 1 ? usable[0] : combineGroupMenus(usable));
     const payload = buildMenuPayload(restaurant, combined);
     setBusy(true); setMsg("");
     try {
@@ -25942,7 +25949,11 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
                onClick={(e)=> e.stopPropagation()}>
             <div style={{fontWeight:600, marginBottom:4}}>Send {restaurant.name} to&hellip;</div>
             <div className="small muted" style={{marginBottom:10}}>
-              They'll get the place + its menu in their "Shared with you" inbox.
+              {/* Say which of the two they are actually getting, so nobody
+                  expects a menu that was never there to send. */}
+              {hasMenu
+                ? "They will get the place and its menu in their “Shared with you” inbox."
+                : "They will get the place in their “Shared with you” inbox. You have no menu saved here yet, so there is none to send."}
             </div>
             {conns === null ? (
               <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
