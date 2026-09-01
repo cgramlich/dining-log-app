@@ -1,6 +1,6 @@
 # MenuCaptain — HANDOFF
 
-**True as of 2026-08-28.** Read this before changing anything. It says what is true *now* and
+**True as of 2026-09-01.** Read this before changing anything. It says what is true *now* and
 why — not what happened (git has that). Companion: `BRIEFING.md` (deck-ready, leaves the
 machine). When the two disagree, **this file is right**.
 
@@ -18,13 +18,13 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-08-28
+## Current state — 2026-09-01
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.430.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.119.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.430.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.433.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.120.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.433.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -196,6 +196,39 @@ anything — so editing tax or tip moves nothing on screen. Rather than silently
 is often *right*), the app shows the disagreement and offers the computed figure as one labelled
 tap. **Do not make this auto-correct.**
 
+### The share funnel — what it measures and what it refuses to (2026-09-01)
+
+The share card is the **only** surface in the app that reaches somebody without an account.
+"Send to a friend" is not one: it delivers into "Shared with you" and needs an accepted
+connection both ways, so both parties already have accounts by construction. Two share paths,
+two jobs — do not conflate them.
+
+**The fix that mattered was one line.** The signup button on a shared place page pointed at the
+bare homepage, so the recommendation was discarded at the exact moment somebody converted; their
+first screen was an empty app rather than the restaurant a friend sent them. It now stores the
+page URL and returns them there after signup, with "Add to my places" live.
+
+**Rejected: applying the place automatically after auth.** `doSave` lives inside
+`PublishedMenu`, and extracting it would be real surgery in a 1.1 MB file for a marginal gain —
+and nothing should be silently written into an account made ten seconds ago. A return plus one
+tap gets the same outcome and leaves the choice with the user.
+
+The return target is **one-shot and expires after an hour**. A target found days later is not a
+returning visitor; it is a stale redirect that yanks somebody out of whatever they were doing.
+
+**`share_events` records no user id, no IP, no user agent, no referrer.** These readers have no
+account and agreed to nothing, so "how many" is the only defensible question. It is a table
+rather than a counter because "opened 40 times, saved twice" and "opened twice, saved twice" are
+very different products and a counter cannot separate them afterwards.
+
+**`POST /api/share/event` is unauthenticated on purpose.** Requiring auth would count only the
+half of the funnel that already converted. Both fields are closed vocabularies and the slug is
+stripped, so the worst an abuser gets is an inflated count on a page they already had.
+
+**Recording never raises.** Instrumentation must not be able to break the thing it measures. Note
+the consequence: a `200` from `/api/share/event` does **not** prove the row was written. To
+verify the write path, query the table.
+
 ### Models and pricing (2026-08, standing)
 
 All six AI tasks run on **`claude-sonnet-5`**. `AI_PRICES` in `main.py` **is the allow-list** —
@@ -259,6 +292,11 @@ the same treatment.
   shares were fixed.
 
 **Parked, with reasoning:**
+- "Saved by N people" reported back to the sender. Proposed alongside the funnel work and
+  deferred: it needs a per-slug count surfaced in the UI, and it is the weakest of the four
+  ideas until the funnel numbers show anyone is opening these links at all.
+- The share card render is mostly empty black above and below the content band — right for a
+  9:16 story, wasteful in a text message. Cosmetic, ten minutes, unscheduled.
 - On Edit visit, "Add a name `[Add]`" sits directly above "Search or type a dish `[Add]`" — two
   identical-looking rows. This produced a real bug (a person saved as a dish). 1.430.0 *detects*
   the collision and offers to fix it, but the underlying adjacency is untouched. The real fix is
