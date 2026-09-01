@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.432.0";
+const APP_VERSION   = "1.433.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3012,6 +3012,50 @@ async function publishListPage(cfg, payload, encoded){
    Returns the short URL, or null so callers fall back to the long ?menu=
    link (which always works). Calories are intentionally NOT in the payload -
    a shared menu is just the restaurant's menu, never private estimates. */
+/* ---- share funnel ----------------------------------------------------
+   Four steps: a share is created, a link is opened, a place is saved, an
+   account is made. Opens are counted by the backend when it serves the page;
+   the other three happen here. Fire-and-forget - a number is never worth
+   failing a user action for. */
+const AFTER_SIGNUP_KEY = "mc_after_signup";
+const AFTER_SIGNUP_MAX_AGE_MS = 60 * 60 * 1000;   // an hour
+
+function shareSlugFromUrl(){
+  try {
+    const m = (location.search || "").match(/[?&]ms=([A-Za-z0-9]+)/);
+    return m ? m[1] : "";
+  } catch(e){ return ""; }
+}
+function shareEvent(kind, slug, event){
+  if (!slug) return;
+  try {
+    fetch(apiBase(null) + "/api/share/event", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: kind, slug: slug, event: event }),
+      keepalive: true,   // survives the navigation that often follows
+    }).catch(()=>{});
+  } catch(e){}
+}
+/* Where to put somebody back after they make an account. Stamped, because a
+   return target found days later is not a returning visitor - it is a stale
+   redirect that would yank them out of whatever they were actually doing. */
+function rememberAfterSignup(href){
+  try {
+    localStorage.setItem(AFTER_SIGNUP_KEY, JSON.stringify({ href: href, at: Date.now() }));
+  } catch(e){}
+}
+function takeAfterSignup(){
+  try {
+    const raw = localStorage.getItem(AFTER_SIGNUP_KEY);
+    if (!raw) return "";
+    localStorage.removeItem(AFTER_SIGNUP_KEY);   // one shot, always consumed
+    const o = JSON.parse(raw);
+    if (!o || !o.href || !o.at) return "";
+    if (Date.now() - o.at > AFTER_SIGNUP_MAX_AGE_MS) return "";
+    return o.href;
+  } catch(e){ return ""; }
+}
+
 async function publishMenuPage(cfg, payload, encoded){
   try {
     const sections = (payload && payload.s) || [];
@@ -3035,6 +3079,11 @@ async function publishMenuPage(cfg, payload, encoded){
       return null;
     }
     logMsg("PUBLISH", (data.created ? "Menu page created: " : "Menu page reused: ") + data.url);
+    // The slug is the last path segment of the short url.
+    try {
+      const sl = String(data.url).split("/").filter(Boolean).pop();
+      shareEvent("place", sl, "created");
+    } catch(e){}
     return data.url;
   } catch(e){
     logMsg("PUBLISH","Menu publish error: " + e.message + " - using long link");
@@ -7001,6 +7050,27 @@ function App({openShare}){
     undoTimer.current = setTimeout(()=> setUndo(null), 6000);
   }
   function flashUndo(msg, action){ flashAction(msg, "Undo", action); }
+
+  /* Somebody made an account from a shared place page. Put them back on it -
+     "Add to my places" is live for them there now, so their first act in the
+     app is keeping the thing their friend recommended rather than staring at
+     an empty home screen.
+
+     Safe to run unconditionally: the return target is only ever written by the
+     signup button on a published page, which is shown ONLY to a viewer with no
+     account, and takeAfterSignup() consumes it on read. An existing user can
+     never have one waiting. */
+  useEffect(()=>{
+    if (!configComplete(config)) return;
+    const back = takeAfterSignup();
+    if (!back) return;
+    shareEvent("place", (function(){
+      try { const mm = String(back).match(/[?&]ms=([A-Za-z0-9]+)/); return mm ? mm[1] : ""; }
+      catch(e){ return ""; }
+    })(), "signup");
+    logMsg("SHARE", "returning to the shared place after signup");
+    try { location.href = back; } catch(e){}
+  }, [configComplete(config)]);   // eslint-disable-line
 
   // ---- community menu helpers (pull-on-add) ----
   // shareMenusToCommunity lived here to serve the share-after-scan toast. That
@@ -23369,6 +23439,7 @@ function PublishedMenu({data, onSaved}){
                : mode === "add"     ? ("Added the menu to " + (data.r || "your place") + ".")
                : "Saved to your places.");
       logMsg("SHARE", "saved shared place mode=" + mode);
+      shareEvent("place", shareSlugFromUrl(), "saved");
       if (onSaved) onSaved();
     } catch(e){ setDupAsk(null); setSaveState("err"); setSaveMsg((e && e.message) || "Could not save."); }
   }
@@ -23392,7 +23463,12 @@ function PublishedMenu({data, onSaved}){
         <div className="pub-cta" style={{marginBottom:16}}>
           <div className="pub-cta-title">Keep your own food memory</div>
           <div className="pub-cta-sub">More than a memory - MenuCaptain helps you order, run group orders, split the check, and track the spend. Free to start, private to you.</div>
-          <a className="btn primary" href={home} style={{textDecoration:"none"}}>Create your free account</a>
+          {/* Was href={home}, which threw the recommendation away at the exact
+              moment somebody converted - their first screen was an empty app
+              rather than the place their friend sent them. Remember where they
+              were and put them back afterwards, with Add to my places live. */}
+          <a className="btn primary" href={home} style={{textDecoration:"none"}}
+            onClick={()=> rememberAfterSignup(location.href)}>Create your free account</a>
         </div>
       ) : null}
 
