@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.435.0";
+const APP_VERSION   = "1.436.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -7463,6 +7463,27 @@ function App({openShare}){
   }, []);
 
   /* ---- push deep-links: route a tapped notification to its screen ------ */
+  /* Deep link from an email. Push notifications reach the same overlays via
+     mc-push-nav; a link in an inbox cannot fire an event, so it says where it
+     wants to go in the URL instead.
+
+     The parameter is stripped immediately. Anything left in the address bar is
+     what iOS hands back on the next launch of an installed app, and a
+     notification link that reopens its overlay for ever is the trap the vote
+     codes taught us about. */
+  useEffect(()=>{
+    let want = "";
+    try {
+      const om = (location.search || "").match(/[?&]open=([a-z]+)/);
+      if (om) want = om[1];
+    } catch(e){}
+    if (!want) return;
+    try { history.replaceState(null, "", location.pathname); } catch(e){}
+    if (want === "shares"){ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }
+    else if (want === "connections"){ setOverlay({ type:"connections" }); }
+  // eslint-disable-next-line
+  }, []);
+
   useEffect(()=>{
     function onNav(e){
       const t = (e.detail && e.detail.type) || "";
