@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.433.0";
+const APP_VERSION   = "1.434.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -23313,6 +23313,33 @@ function PublishedMenuLoader({slug}){
   return <PublishedMenu data={data} />;
 }
 
+/* The one bridge from a shared page into the app. A single component because
+   this markup was starting to exist in two places, and a CTA that drifts is a
+   CTA where one copy quietly loses the thing that carries the place across
+   signup - which had already happened once. */
+function SignupBridge({ home, compact }){
+  const go = ()=> rememberAfterSignup(location.href);
+  return (
+    <div className="pub-cta" style={compact ? {margin:"4px 0 14px"} : null}>
+      <div className="pub-cta-title">Keep your own food memory</div>
+      <div className="pub-cta-sub">
+        MenuCaptain remembers the places you go and the dishes you loved. Free to start,
+        private to you.
+      </div>
+      <a className="btn primary" href={home} style={{textDecoration:"none"}}
+        onClick={go}>Create your free account</a>
+      {/* Opening a share in a browser rather than the installed app leaves no
+          config behind, so somebody who already HAS MenuCaptain looks exactly
+          like a stranger here. Without this they are told to make a second
+          account to save a menu they were sent. */}
+      <div className="tiny" style={{marginTop:10}}>
+        <span className="faint">Already have MenuCaptain? </span>
+        <a href={home} style={{color:"var(--accent)"}} onClick={go}>Sign in to save it</a>
+      </div>
+    </div>
+  );
+}
+
 function PublishedMenu({data, onSaved}){
   const home = location.origin + location.pathname;
   const isPlace = !!(data && data.k === "p");   // place recommendation (browse) vs menu-pick (send back)
@@ -23457,20 +23484,10 @@ function PublishedMenu({data, onSaved}){
           : "Tap the dishes you'd like, then send your picks back."}
       </div>
 
-      {/* No-account viewer: put the signup bridge UP TOP too, before the items -
-          some menus are very long and the bottom CTA would never be seen. */}
-      {!canSave ? (
-        <div className="pub-cta" style={{marginBottom:16}}>
-          <div className="pub-cta-title">Keep your own food memory</div>
-          <div className="pub-cta-sub">More than a memory - MenuCaptain helps you order, run group orders, split the check, and track the spend. Free to start, private to you.</div>
-          {/* Was href={home}, which threw the recommendation away at the exact
-              moment somebody converted - their first screen was an empty app
-              rather than the place their friend sent them. Remember where they
-              were and put them back afterwards, with Add to my places live. */}
-          <a className="btn primary" href={home} style={{textDecoration:"none"}}
-            onClick={()=> rememberAfterSignup(location.href)}>Create your free account</a>
-        </div>
-      ) : null}
+      {/* Nothing is asked of the reader here. This page is a recommendation
+          from somebody they know; the menu has to come first. The signup
+          bridge now sits after the first section (see below) and again at the
+          end - both after they have had what they came for. */}
 
       {canSave ? (
         <div style={{textAlign:"center", marginBottom:14}}>
@@ -23521,7 +23538,14 @@ function PublishedMenu({data, onSaved}){
 
       <div className="pub-menu">
         {data.s.map((s,si)=>(
-          <div key={si} className="pub-msec">
+          <React.Fragment key={si}>
+          {/* After the first section, and only when there is more menu below -
+              on a two-section menu the bottom CTA is already in view and two
+              asks in one screen is nagging. */}
+          {si === 1 && !canSave && data.s.length > 2 ? (
+            <SignupBridge home={home} compact />
+          ) : null}
+          <div className="pub-msec">
             {s.n ? (
               <button type="button" className="pub-msec-head" aria-expanded={open[si] !== false}
                 style={{width:"100%", textAlign:"left"}}
@@ -23583,15 +23607,16 @@ function PublishedMenu({data, onSaved}){
               );
             })}
           </div>
+          </React.Fragment>
         ))}
       </div>
 
-      {/* bridge into signup - the same CTA the promo and lists use */}
-      <div className="pub-cta">
-        <div className="pub-cta-title">Keep your own food memory</div>
-        <div className="pub-cta-sub">MenuCaptain remembers the places you go and the dishes you loved. Free to start, private to you.</div>
-        <a className="btn primary" href={home} style={{textDecoration:"none"}}>Create your free account</a>
-      </div>
+      {/* Bridge into signup. Two fixes here, both of which mattered more than
+          where the card sits: it used to render for SIGNED-IN readers as well,
+          pitching an account to somebody who has one; and it never called
+          rememberAfterSignup, so the whole deferred-place fix was riding on
+          the top button alone and would have vanished with it. */}
+      {!canSave ? <SignupBridge home={home} /> : null}
 
       <div className="pub-foot">
         <div className="tiny faint">Made with MenuCaptain</div>
