@@ -968,7 +968,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.434.0";
+const APP_VERSION   = "1.435.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -23330,11 +23330,20 @@ function SignupBridge({ home, compact }){
         onClick={go}>Create your free account</a>
       {/* Opening a share in a browser rather than the installed app leaves no
           config behind, so somebody who already HAS MenuCaptain looks exactly
-          like a stranger here. Without this they are told to make a second
-          account to save a menu they were sent. */}
+          like a stranger here - iOS gives an installed web app its own storage,
+          separate from Safari.
+
+          Say that plainly. Without the explanation this reads as "prove who you
+          are again", and the honest position is the opposite: their account is
+          fine, this browser has simply never met them, and signing in here is
+          a one-off that every future link will benefit from. */}
       <div className="tiny" style={{marginTop:10}}>
         <span className="faint">Already have MenuCaptain? </span>
         <a href={home} style={{color:"var(--accent)"}} onClick={go}>Sign in to save it</a>
+        <div className="faint" style={{marginTop:3}}>
+          Links open in your browser, which does not share the app's sign-in. Once here
+          and it will remember you.
+        </div>
       </div>
     </div>
   );
