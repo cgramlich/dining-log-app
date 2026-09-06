@@ -384,8 +384,25 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
       padding:6px 0; font-size:10.5px; letter-spacing:0.04em; text-transform:uppercase;
       color:var(--text-faint);
+      position:relative;              /* for the active marker below */
     }
-    .nav button.on{color:var(--text);}
+    /* The active tab used to differ only by going from faint grey to slightly
+       less faint, at 10.5px, directly beside a large filled accent button. The
+       result was a bar whose loudest element was the ADD action - which is not
+       a place you can be - while the one thing it should answer, where am I,
+       was invisible.
+
+       Accent means "this one" everywhere else in the app, so it means it here.
+       Icons take currentColor, so they follow without being told. */
+    .nav button.on{ color:var(--accent); font-weight:600; }
+    .nav button.on::before{
+      content:""; position:absolute; top:0; left:50%; transform:translateX(-50%);
+      width:22px; height:2.5px; border-radius:0 0 3px 3px; background:var(--accent);
+    }
+    /* The add button never carries `.on` - it is an action, not a place you
+       can be - so it cannot pick up the marker above. Stated here rather than
+       enforced with a rule, because a rule that can never match is a rule
+       somebody later has to work out the purpose of. */
     .nav .navicon{width:23px; height:23px;}
     .nav .add{
       background:var(--accent); color:#1b1714; width:46px; height:46px;
@@ -976,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.442.0";
+const APP_VERSION   = "1.443.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
