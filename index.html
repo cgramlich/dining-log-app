@@ -976,7 +976,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.441.0";
+const APP_VERSION   = "1.442.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -18280,7 +18280,19 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           {photoBusy && (
             <div className="tiny faint" style={{marginTop:6}}>Preparing photo&hellip;</div>
           )}
-          {!photoBusy && photoSlots.some(s => s.kind === "pending") && (
+          {/* Once Save is running this line was still promising a future
+              upload - "3 new photos will upload when you tap Save" sitting
+              under three photos that were uploading right then, while the only
+              sign of progress was a small spinner in the far corner. Two
+              statements, contradicting each other, and the reassuring one was
+              wrong. Report the upload here, where the photos are. */}
+          {!photoBusy && saving && saveStep ? (
+            <div className="tiny" style={{marginTop:6, color:"var(--accent)"}}>
+              <span className="spin" style={{marginRight:6}} />
+              Uploading {saveStep.toLowerCase()}. Keep this screen open.
+            </div>
+          ) : null}
+          {!photoBusy && !saving && photoSlots.some(s => s.kind === "pending") && (
             <div className="tiny faint" style={{marginTop:6}}>
               {photoSlots.filter(s => s.kind === "pending").length} new photo(s) will
               upload when you tap Save.
