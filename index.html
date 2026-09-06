@@ -976,7 +976,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.437.0";
+const APP_VERSION   = "1.438.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -12507,10 +12507,25 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                       </div>
                       {(canEstimate || canAddPhoto) && (
                         <div className="iest" style={{marginTop:4, gap:14}}>
+                          {/* Once an estimate exists this row used to read
+                              "New estimate from your photo", which named the
+                              side effect instead of the act. Somebody who has
+                              just estimated from the description and wants to
+                              add the picture they actually took sees three
+                              controls about ESTIMATES and concludes the photo
+                              option is gone. It never went anywhere - it is
+                              this button. Say what it does. */}
                           {canAddPhoto && (
                             <button className="dish-redo" disabled={itemBusy[key]}
-                              onClick={()=> addItemPhoto(i, oj)}>
-                              {itemBusy[key] ? "Working..." : "New estimate from your photo"}</button>
+                              onClick={()=> addItemPhoto(i, oj)}
+                              title="Add your own photo of this dish - it also re-estimates from what is actually on the plate">
+                              {itemBusy[key] ? "Working..." : (
+                                <span className="row" style={{gap:5, display:"inline-flex",
+                                      alignItems:"center", verticalAlign:"middle"}}>
+                                  <Icon name="camera" size={12} color="var(--accent)" />
+                                  {it.photo ? "Replace your photo" : "Add your photo"}
+                                </span>
+                              )}</button>
                           )}
                           {canEstimate && it.web_image && (
                             <button className="dish-redo" disabled={itemBusy[key]}
