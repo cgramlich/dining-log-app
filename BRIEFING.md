@@ -1,6 +1,6 @@
 # MenuCaptain — BRIEFING
 
-**Deck-ready. Written to leave the machine.** Accurate as of 2026-08-28. Derived from
+**Deck-ready. Written to leave the machine.** Accurate as of 2026-09-06. Derived from
 `HANDOFF.md`; if a figure differs, the handoff is right and this is stale.
 
 Every person and restaurant named in this file is **fabricated** and labelled as such. No real
@@ -36,14 +36,15 @@ rather than technical.
 
 | Figure | Value | As of |
 |---|---|---|
-| Web app | v1.430.0, live | 2026-08-28 |
-| Backend | v0.119.0, live | 2026-08-28 |
-| Front end | a single HTML file, ~1.38 MB, no build step | 2026-08-28 |
-| Backend | ~7,500 lines of Python (FastAPI) | 2026-08-28 |
+| Web app | v1.444.0, live | 2026-09-06 |
+| Backend | v0.121.0, live | 2026-09-06 |
+| Front end | a single HTML file, ~1.41 MB, no build step | 2026-09-06 |
+| Backend | ~7,600 lines of Python (FastAPI) | 2026-09-06 |
 | Free tier | 75 AI calls + 15 Discovery lookups, lifetime | current |
 | Pro | $2.99/month or $19.99/year | current, live in Stripe |
 | Cost of a fully-consumed free tier | ~$2.30 per user | modelled |
 | AI model, all six tasks | Claude Sonnet 5 | since 2026-08 |
+| Versions shipped in the fortnight to 2026-09-06 | 40+, each from real use | 2026-09-06 |
 
 **The free tier is priced as customer acquisition cost, not as a trial.** A user who exhausts it
 entirely costs about $2.30. That is a deliberate, bounded number — the tier is metered by *spend*
@@ -91,6 +92,38 @@ products in this space make the opposite trade.
 
 ---
 
+## The strategic angle: the knowledge nobody can license
+
+Worth leading with for an investor audience, because it emerged from a piece of
+due diligence rather than a brainstorm.
+
+We investigated pulling restaurant insight from review platforms and social
+chatter. **Every source blocks the useful part**, and not by accident - a review
+corpus is the platform's moat, so all of them forbid deriving a lasting insight
+from it. Google's terms permit no caching of review content at all. Yelp caps
+storage at 24 hours, bars building a derived database, and restricts its
+analysis exception to non-commercial use. Foursquare forbids storing, merging or
+building derived datasets. Reddit requires a negotiated commercial licence in
+the five figures annually and has blocked unauthenticated access outright.
+
+The conclusion redirected the product. **The valuable knowledge about a
+restaurant is the part that was never written down**: the signature dish the
+menu does not flag, the drink the regulars order by name, the thing they will
+make if you know to ask. It cannot be scraped because it is not online, cannot
+be licensed because nobody owns it, and cannot be bought by a competitor for the
+same reasons.
+
+MenuCaptain now captures both, attached to the dish rather than buried in a
+review: a **signature** mark on a menu item, and **off-menu items** held against
+the place. Every entry is dated and can be confirmed, because a tip that has
+gone stale sends somebody to ask a bartender for something that no longer
+exists.
+
+This is the rare feature that is worth something with a single user. Most social
+features need a crowd; one good tip about one bar does not.
+
+---
+
 ## What deserves a picture
 
 - **Before / after of the core loop.** A photographed paper menu on one side; the same menu as
@@ -101,6 +134,9 @@ products in this space make the opposite trade.
   unbounded time-based trial. Makes the unit-economics argument visually in one beat.
 - **The "refuses to guess" moment.** A single UI card asking "is this the same person?" with the
   two names side by side. Small, human, and carries the whole design philosophy.
+- **The knowledge that is not online.** A menu row with a signature mark beside it, and a
+  "Not on the menu" card holding a drink you would only hear about from a regular. Makes the
+  moat argument without a word of explanation.
 - **Architecture, if the audience is technical.** One HTML file → GitHub Pages; FastAPI on
   Railway; Postgres with row-level security on and no policies, so only the backend can read.
 
