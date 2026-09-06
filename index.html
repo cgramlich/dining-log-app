@@ -498,6 +498,14 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     /* Counts and asides ride along without competing with the section name. */
     .sechd .faint{ font-size:13px; letter-spacing:0; }
 
+    /* The signature line under a dish name. Quiet - it is an annotation on the
+       dish, not a competing headline - but accent-coloured so it is findable
+       when thumbing a long menu. */
+    .isig{
+      display:flex; align-items:center; gap:5px;
+      margin:3px 0 1px; font-size:12.5px; color:var(--accent);
+      letter-spacing:0.01em;
+    }
     .section-subhead{
       font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase;
       color:var(--text-faint); font-weight:600;
@@ -968,7 +976,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.436.0";
+const APP_VERSION   = "1.437.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8601,6 +8609,13 @@ function App({openShare}){
             const next = restaurants.map(x => x.id === overlay.id ? Object.assign({}, x, patch) : x);
             commit({ restaurants: next }, ["restaurants"]);
           }}
+          onSaveOffMenu={(next)=>{
+            // Off-menu items belong to the PLACE - a bar with three menus has
+            // one set of things that are on none of them.
+            const nx = restaurants.map(x => x.id === overlay.id
+              ? Object.assign({}, x, { offmenu: next }) : x);
+            commit({ restaurants: nx }, ["restaurants"]);
+          }}
           onAddMenu={()=> setOverlay({ type:"scanMenu", restaurantId:overlay.id })}
           onImportCommunityMenus={(newMenus)=>{
             const cur = menus[overlay.id] || [];
@@ -8762,6 +8777,23 @@ function App({openShare}){
                 sidx !== si ? s : Object.assign({}, s, {
                   items: s.items.map((it, iidx) =>
                     iidx !== ii ? it : Object.assign({}, it, { tags:tags })),
+                }));
+              return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
+            });
+            commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
+          }}
+          onSaveItemSig={(si, ii, on)=>{
+            // Mark the dish this place is known for. Same section+item
+            // addressing as the tag editor above; kept OUT of `tags` because
+            // tags feed the dietary filter and a signature is not a diet.
+            const rid = overlay.restaurantId, mid = overlay.menuId;
+            const list = menus[rid] || [];
+            const nextList = list.map(m => {
+              if (m.menu_id !== mid) return m;
+              const sections = (m.sections || []).map((s, sidx) =>
+                sidx !== si ? s : Object.assign({}, s, {
+                  items: s.items.map((it, iidx) =>
+                    iidx !== ii ? it : Object.assign({}, it, { sig: !!on })),
                 }));
               return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
             });
@@ -10712,9 +10744,98 @@ function myUsualAt(visits, restId, limit){
   return out.slice(0, limit || 3);
 }
 
+/* The things you can order here that are not on any menu.
+
+   Deliberately blank-slate rather than hidden when empty: an empty box that
+   says what belongs in it is how somebody learns the feature exists, and this
+   is knowledge the app can only get by being asked for it. */
+function OffMenuCard({ place, onSave }){
+  const list = Array.isArray(place && place.offmenu) ? place.offmenu : [];
+  const [open, setOpen]   = useState(false);
+  const [name, setName]   = useState("");
+  const [price, setPrice] = useState("");
+  const [note, setNote]   = useState("");
+  if (!onSave) return null;
+
+  function add(){
+    const nm = (name || "").trim();
+    if (!nm) return;
+    onSave(list.concat([{
+      name: nm,
+      price: (price || "").trim() || null,
+      note: (note || "").trim() || null,
+      at: todayISO(),          // dated, so a stale tip can be recognised as one
+    }]));
+    setName(""); setPrice(""); setNote(""); setOpen(false);
+  }
+  function drop(i){ onSave(list.filter((_, k) => k !== i)); }
+  function confirmStill(i){
+    onSave(list.map((x, k) => k !== i ? x : Object.assign({}, x, { at: todayISO() })));
+  }
+
+  return (
+    <div className="card" style={{marginTop:14, padding:"14px 15px"}}>
+      <div className="between" style={{alignItems:"center", marginBottom: list.length ? 10 : 6}}>
+        <span className="lbl" style={{margin:0}}>Not on the menu</span>
+        <button className="btn ghost sm" style={{flex:"none", padding:"4px 11px"}}
+          onClick={()=> setOpen(o => !o)}>{open ? "Cancel" : "+ Add"}</button>
+      </div>
+
+      {list.length ? (
+        <div style={{display:"grid", gap:9}}>
+          {list.map((x, i)=>{
+            // Six months without confirmation is not proof it is gone, so this
+            // nudges rather than hides. Deleting stays the reader's call.
+            const stale = !x.at || ((Date.now() - new Date(x.at).getTime()) > 1000*60*60*24*180);
+            return (
+              <div key={i} style={{borderTop: i ? "1px solid var(--line-soft)" : "none",
+                   paddingTop: i ? 9 : 0}}>
+                <div className="between" style={{alignItems:"baseline", gap:8}}>
+                  <span className="small" style={{fontWeight:600}}>{x.name}</span>
+                  {x.price ? <span className="tiny faint">{x.price}</span> : null}
+                </div>
+                {x.note ? <div className="tiny muted" style={{marginTop:2}}>{x.note}</div> : null}
+                <div className="tiny faint" style={{marginTop:4}}>
+                  {stale
+                    ? <span>Added {x.at || "a while ago"} - still true? </span>
+                    : <span>Added {x.at}. </span>}
+                  <a href="#" style={{color:"var(--accent)"}}
+                     onClick={(e)=>{ e.preventDefault(); confirmStill(i); }}>Still true</a>
+                  {"  ·  "}
+                  <a href="#" style={{color:"var(--text-faint)"}}
+                     onClick={(e)=>{ e.preventDefault(); drop(i); }}>Remove</a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="tiny faint">
+          The drink the locals order by name, the dish they will make if you ask.
+          The things you would never learn from the menu.
+        </div>
+      )}
+
+      {open ? (
+        <div style={{marginTop:12, display:"grid", gap:8}}>
+          <ClearInput value={name} onChange={e=>setName(e.target.value)}
+            placeholder="What is it called?" />
+          <ClearInput value={price} onChange={e=>setPrice(e.target.value)}
+            placeholder="Price, if you know it (optional)" />
+          <ClearInput value={note} onChange={e=>setNote(e.target.value)}
+            placeholder="How to ask for it, or why it matters (optional)" />
+          <button className="btn primary sm" onClick={add} disabled={!name.trim()}>
+            Add to this place
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onRescanMenu, onOpenVisit,
-                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onToggleVisitLoved, onUpgrade, onHome}){
+                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onSaveOffMenu, onAddPhotos, onToggleVisitLoved, onUpgrade, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [lightbox, setLightbox]     = useState(null);   // {paths, index} | null
   const [addPhotoFor, setAddPhotoFor] = useState(null); // visit awaiting a card-level photo add
@@ -11460,6 +11581,8 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           </div>
         )}
 
+        <OffMenuCard place={r} onSave={onSaveOffMenu} />
+
         {!dietFilter && menuList.length === 1 && (() => {
           // A lone menu shows as a compact card (same as multi-menu places),
           // tappable to open the full menu page - rather than dumping every
@@ -11799,7 +11922,7 @@ function AiText({ text }){
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSaveItemTags, onRenameItem, onHome}){
+function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSaveItemTags, onSaveItemSig, onRenameItem, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
@@ -12129,6 +12252,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           onSaveItemNutrition={onSaveItemNutrition}
           onSaveItemPhoto={onSaveItemPhoto}
           onSaveItemTags={onSaveItemTags}
+          onSaveItemSig={onSaveItemSig}
           onRenameItem={onRenameItem} />
         <div style={{height:20}} />
       </div>
@@ -12139,7 +12263,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onRenameItem}){
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onRenameItem}){
   const [open, setOpen]   = useState(()=> {
     const o = {}; (menu.sections||[]).forEach((s,i)=> { o[i] = i < 2; }); return o;
   });
@@ -12332,6 +12456,15 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                         ? <span className="ipr paid">paid {fmtPrice(it.paid.amount)}</span>
                         : null)}
                 </div>
+                {/* Sits directly under the name, before the description, because
+                    it changes how you read everything below it. */}
+                {it.sig ? (
+                  <div className="isig">
+                    <Icon name="star" size={12} color="var(--accent)" />
+                    <span>{typeof it.sig === "string" && it.sig.trim()
+                      ? it.sig.trim() : "What they are known for"}</span>
+                  </div>
+                ) : null}
                 {it.price && isWidePrice(it.price)
                   ? <div className="iprl">{it.price}</div> : null}
                 {it.description && <div className="idesc">{it.description}</div>}
@@ -12340,6 +12473,14 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                     {it.tags.map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
                   </div>
                 )}
+                {editTags && onSaveItemSig ? (
+                  <div className="chips" style={{marginTop:6, gap:6}}>
+                    <span className={"chip pick" + (it.sig ? " on" : "")}
+                      onClick={()=> onSaveItemSig(i, oj, !it.sig)}>
+                      {it.sig ? "★ " : "☆ "}Signature
+                    </span>
+                  </div>
+                ) : null}
                 {editTags && onSaveItemTags && (
                   <div className="chips" style={{marginTop:6, gap:6}}>
                     {[["vegan","Vegan"],["vegetarian","Vegetarian"],["gluten-free","Gluten-free"]].map(([tag,label])=>{
@@ -17551,6 +17692,12 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     const add = n => { const k = (n || "").trim().toLowerCase();
                        if (k && !seen.has(k)) seen.set(k, n); };
     menuPickNames.forEach(add);
+    // Things you can order here that are not printed anywhere. They belong in
+    // the pool for the same reason the menu does: you can actually order them.
+    // Without this you would learn about the off-menu drink, then have to type
+    // its name from memory every time you had it.
+    const rHere = (restaurants || []).find(x => x.id === restId);
+    ((rHere && rHere.offmenu) || []).forEach(x => { if (x && x.name) add(x.name); });
     (visits || []).forEach(v => {
       if (!v || v.restaurant_id !== restId) return;
       (v.dishes || []).forEach(d => { if (d && d.name) add(d.name); });
