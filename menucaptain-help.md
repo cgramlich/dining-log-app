@@ -111,6 +111,34 @@ so you can tell them apart from real ones.
 
 -----
 
+## What only the locals know
+
+Two kinds of thing a menu will not tell you, and both live where you need them.
+
+**Signature dishes.** A menu lists forty things and does not say which one
+people actually come for. On any menu, tap **Edit names & tags** and you can
+mark a dish as a **Signature**. It then shows a star and a line under the dish
+name wherever that menu appears, so the thing this place is known for is obvious
+at the moment you are choosing rather than after you have ordered.
+
+**Off the menu.** The drink the regulars ask for by name. The dish they will
+make if you know to ask. On a restaurant page, under the menus, there is a
+**Not on the menu** card - tap **+ Add**, give it a name, and optionally a price
+and a note on how to ask for it or why it matters.
+
+These live on the *place*, not on one menu, because a bar with a food menu, a
+brunch menu and a drinks list has one set of things that are on none of them.
+They also join the dish suggestions when you log a visit, so once you have
+learned about something you never have to type its name from memory again.
+
+Each one is dated and carries a **Still true** link. Tap it when you confirm the
+thing still exists; after about six months without confirmation the app says so.
+This matters more here than anywhere else in the app - a tip that has gone stale
+sends somebody to ask a bartender, out loud, for something that no longer
+exists.
+
+-----
+
 ## Help me order
 
 On any digitized menu you can ask a plain-English question - things like
@@ -124,6 +152,29 @@ on the menu or estimated - the answers factor those in too, so a question like
 for “best value” or “something cheap” and it weighs what dishes cost, leaning on
 the real prices it has learned from your scanned checks. It stays easygoing about
 it: the numbers inform the suggestion, they are never treated as a budget or a rule.
+
+-----
+
+## Marking a dish from the menu
+
+You do not have to open the visit form to record what you ordered. On any menu,
+under each dish, there is **I had this**.
+
+Tap it and you get an optional comment box and three buttons: **I ordered this**,
+**Have again**, and **Not again**. No photo is needed, and none is asked for -
+this is for the very common case where you ordered something, had a view about
+it, and either forgot to take a picture or had already started eating.
+
+The dish goes onto today's visit at that restaurant. If you have not logged
+anything there today, one is started for you with just that dish on it - your
+rating and notes stay empty, so the record says only what is actually known. Tap
+it again later and it edits what is there rather than listing the dish twice;
+the row shows **Had it today** with your comment so you can see what you have
+already marked without leaving the menu.
+
+**Have again** and **Not again** are worth the extra tap. That verdict is what
+"Help me order" and "You usually get" are both built from, so recording it at
+the table is worth far more than trying to remember it later.
 
 -----
 
@@ -196,7 +247,15 @@ add up as you log - a number for memory, never a budget.
 numbers for the meal. You can edit any estimate by hand if you know the real
 figures.
 
-**Photos and notes.** Attach photos of the visit and jot down any notes.
+**Photos and notes.** Attach photos of the visit and jot down any notes. The
+first photo is the **cover** - it leads the visit, and it is the one people see
+first when you share it. Tap any photo to open it full screen.
+
+**Photos on a single dish.** Separate from the visit photos, each dish has its
+own **Add a photo** - up to three, purely as pictures, with no estimate
+involved. Use it for the plate itself when the visit photos are of the table and
+the people. If you *do* estimate calories from a photo, that picture is kept on
+the dish too rather than being used and discarded.
 
 -----
 
@@ -405,6 +464,36 @@ each line to whoever ordered it, and spreads tax and tip across everyone - so
 the per-person amounts add up to the actual check. Anything it can’t match to a
 person is split evenly and labeled. Before the bill arrives it shows an estimate
 from menu prices (before tax), and you can switch to an even split any time.
+
+-----
+
+## Where shall we eat?
+
+The other half of eating together: deciding. From the **+** button, choose
+**Where shall we eat?**, pick two to five of your places, and send the link to
+whoever is coming.
+
+It is an **approval vote**, not a poll. Everyone ticks *every* place they would
+be happy to go to, not just their favourite, so the winner is the place most
+people can live with rather than the one that scraped a plurality while half the
+group quietly hated it. Nobody needs the app or an account to vote.
+
+**Nobody sees the tally while it runs**, on purpose - if people could watch it,
+late voters would follow the leader and one early tick would steer dinner. The
+result appears when the vote closes, which happens on its own after the time you
+set, or when you tap to close it early.
+
+**Fair to everyone, not convenient for you.** If you are not all starting from
+the same place, you can enter everyone's postcodes and the app will suggest
+places that split the travel, rather than the ones nearest whoever happened to
+be organising.
+
+If somebody votes under a name you do not recognise, the app asks you once who
+it was and remembers the answer. It never guesses - two people called Mark at
+one table is ordinary, and a wrong guess would quietly file somebody's dinner
+under the wrong person for good.
+
+-----
 
 ## Splitting a check (no group needed)
 

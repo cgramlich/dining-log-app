@@ -1,6 +1,6 @@
 # MenuCaptain — HANDOFF
 
-**True as of 2026-09-01.** Read this before changing anything. It says what is true *now* and
+**True as of 2026-09-06.** Read this before changing anything. It says what is true *now* and
 why — not what happened (git has that). Companion: `BRIEFING.md` (deck-ready, leaves the
 machine). When the two disagree, **this file is right**.
 
@@ -18,13 +18,13 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-09-01
+## Current state — 2026-09-06
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.433.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.120.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.433.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.444.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.121.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.444.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -229,6 +229,76 @@ stripped, so the worst an abuser gets is an inflated count on a page they alread
 the consequence: a `200` from `/api/share/event` does **not** prove the row was written. To
 verify the write path, query the table.
 
+### A dead vote code must be checked for EVERYONE (2026-09-06)
+
+Five attempts. The first four were each a real fix in a place the reported
+failure never reached, and the reason is worth keeping.
+
+`isDeadVote` was nested inside `if (configComplete(loadConfig()))`. A link tapped
+from Messages opens in Safari, which has no MenuCaptain config, so the whole
+block was skipped and the dead-code list was never consulted - while sitting in
+that same browser's storage, correctly populated, because `markVoteDead` runs on
+both paths. The answer was always there; only the question was missing.
+
+**The diagnostic that finally settled it was a screenshot with no Back button.**
+The in-app overlay has one; the standalone guest ballot does not. That told us
+which of the two paths was actually running, which four rounds of reasoning had
+not. When a fix "doesn't work", establish which code path the user is on before
+writing another one.
+
+### Signature is not a tag; off-menu is not a menu (2026-09-06)
+
+Two shapes of local knowledge, deliberately stored apart from the obvious place.
+
+**`sig` sits beside the menu item, not in `tags`.** Tags drive the dietary
+filter, so a signature in there would appear as a chip next to "gluten-free" -
+wrong as a filter and wrong as a label.
+
+**Off-menu items live on the PLACE (`r.offmenu`), not on a menu.** A bar with a
+main menu, a brunch menu and a drinks list has one set of things that are on
+none of them. They join `dishPool` so a thing you learned about can be logged
+without retyping it, and each entry is dated with a "Still true" tap because
+this is the type where being wrong is most expensive: a stale tip sends somebody
+to ask a bartender, out loud, for something that no longer exists.
+
+**Not built, deliberately: the community pool.** Same data model, so it is an
+addition later rather than a rewrite. Building moderation, reporting, staleness
+and abuse handling for public commentary about real businesses helps nobody
+while there is no crowd to fill it.
+
+### "I had this" starts today's visit (2026-09-06)
+
+Marking a dish from the menu writes it to today's visit at that place, creating
+the visit if there is not one. That is not a side effect to be nervous about:
+you are sitting in the restaurant reading its menu saying you ordered something,
+which is what a visit is. Rating and notes stay empty so the record claims only
+what is known, and a dish already listed has its note updated rather than being
+added twice.
+
+### Dish photos go through the one upload path (2026-09-06)
+
+Pending dish photos resolve at save exactly like visit photos and receipts -
+existing paths pass through, pending blobs get a stable path and join the same
+`pendingUploads` queue. One mechanism, so the 60-second timeout and the
+"Photo 1 of 3" progress apply to them for free and there is no second uploader
+to keep in step.
+
+**UI state is kept off the dish object.** A half-resized blob with an object URL
+is not saved data; paths are written only at save, so a failed save leaves
+nothing pointing at files that were never uploaded.
+
+### The email CTA is a link again (2026-09-03, reversing 2026-08)
+
+It was turned into an instruction ("Open MenuCaptain on your phone to see it")
+because on iOS a web link cannot open an installed home-screen app. That
+reasoning was correct and the result was still wrong: the email became a dead
+end with nothing to press.
+
+It is a button again, with the two changes that make that defensible: it points
+at the thing (`?open=shares`) rather than the front door, and the caveat is
+stated rather than solved by deleting the button. **A link with a caveat beats
+no link.**
+
 ### Models and pricing (2026-08, standing)
 
 All six AI tasks run on **`claude-sonnet-5`**. `AI_PRICES` in `main.py` **is the allow-list** —
@@ -270,6 +340,18 @@ work.
 correct and irrelevant here. Anything the app puts in the address bar can come back on the next
 launch, and `replaceState` cannot prevent it. Design for "this URL will be handed to me again".
 
+**Controls named after their mechanism disappear.** Three instances so far, all
+reported as "the feature is gone" when it never moved: the `auto` link on the
+split screen, "New estimate from your photo" (which is how you add a photo), and
+a nav bar whose only styled element was the ADD action. Name a control by what
+the person gets, not by what the code does - and be especially careful with any
+control that CHANGES LABEL between states, which is where all three hid.
+
+**Free-text notes keep being put in single-line inputs.** Four found: the
+off-menu note, the "how was it" comment, the vote note, and the dish note. A
+comment you cannot read back while typing it is not worth having typed. If a
+field can hold a sentence, it is a textarea.
+
 **`fetch` has no timeout of its own.** Photo upload hung indefinitely on a weak connection until
 an `AbortController` was added (60s per photo). Any new network call that a user waits on needs
 the same treatment.
@@ -288,6 +370,10 @@ the same treatment.
 - `?g=` group-order links can park the installed app exactly like `?v=` used to. The same fix
   applies; it was left because the right in-app destination for a group order is a product
   decision, not a mechanical copy of the vote one.
+- Signature marks and off-menu items are NOT carried on shared menus or shared place pages yet.
+  A friend who opens your shared place sees the menu without them, which is most of what would
+  make it worth sending.
+- `menucaptain-help.md` lags the app - see below.
 - Menu and list share links still route to the public viewer for signed-in users. Only *visit*
   shares were fixed.
 
