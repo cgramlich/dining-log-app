@@ -976,7 +976,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.438.0";
+const APP_VERSION   = "1.439.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -27549,17 +27549,27 @@ class ErrorBoundary extends React.Component {
   // question synchronously for its Save button, so there is no await here and
   // no flash of the wrong screen. A stale or expired session is fine: App
   // handles that itself, and the share is still open behind the sign-in.
+  /* A vote code we have already watched die is dropped for EVERYONE, before
+     any other routing decision.
+
+     This check used to live inside the account branch below, which meant it
+     only ran for a browser that already had MenuCaptain set up. A link tapped
+     from Messages opens in Safari, which has no config, so the check was
+     skipped and the router fell through to the standalone guest ballot - the
+     same dead end, on every single launch, while the dead-code list sat in
+     that browser's storage unread. markVoteDead() runs on both paths, so the
+     answer was always there; only the question was missing. */
+  if (voteCode && isDeadVote(voteCode)){
+    try { history.replaceState(null, "", location.pathname); } catch(e){}
+    try { sessionStorage.removeItem("mc_open_vote"); } catch(e){}
+    voteCode = null;   // downstream now behaves as though there were no vote at all
+  }
+
   let inAppShare = null;
   try {
     if (configComplete(loadConfig())){
       if (visitSlug || publishedVisit){
         inAppShare = { kind:"visit", slug: visitSlug || null, data: publishedVisit || null };
-      } else if (voteCode && isDeadVote(voteCode)){
-        // Seen this one die already. Whoever handed us the url - the OS, a
-        // bookmark, a replayed redirect - the answer does not change, so go
-        // straight to the app rather than showing the same dead end again.
-        try { history.replaceState(null, "", location.pathname); } catch(e){}
-        try { sessionStorage.removeItem("mc_open_vote"); } catch(e){}
       } else if (voteCode){
         inAppShare = { kind:"vote", code: voteCode };
         // Strip it NOW, before the first render and regardless of whether the
