@@ -976,7 +976,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.440.0";
+const APP_VERSION   = "1.441.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -10858,7 +10858,8 @@ function OffMenuCard({ place, onSave }){
             placeholder="What is it called?" />
           <ClearInput value={price} onChange={e=>setPrice(e.target.value)}
             placeholder="Price, if you know it (optional)" />
-          <ClearInput value={note} onChange={e=>setNote(e.target.value)}
+          <textarea className="input" value={note} onChange={e=>setNote(e.target.value)}
+            style={{minHeight:70, lineHeight:1.5}}
             placeholder="How to ask for it, or why it matters (optional)" />
           <button className="btn primary sm" onClick={add} disabled={!name.trim()}>
             Add to this place
@@ -12531,7 +12532,9 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                       </div>
                       {isOpen ? (
                         <div style={{marginTop:7, display:"grid", gap:7}}>
-                          <ClearInput value={hadNote} onChange={e=>setHadNote(e.target.value)}
+                          <textarea className="input" value={hadNote}
+                            onChange={e=>setHadNote(e.target.value)}
+                            style={{minHeight:56, lineHeight:1.45}}
                             placeholder="How was it? (optional)" />
                           <div className="row" style={{gap:7, flexWrap:"wrap"}}>
                             <button className="btn primary sm"
@@ -22707,7 +22710,11 @@ function VoteStart({cfg, profile, restaurants, visits, onClose, onStarted}){
           </div>
 
           <label className="fld"><span className="lbl">Anything to say? (optional)</span>
-            <ClearInput value={note} onChange={e=>setNote(e.target.value)}
+            {/* Same class of field as the other free-text notes: a sentence
+                or two, not a label. A single line scrolls what you typed out
+                of sight while you are still typing it. */}
+            <textarea className="input" value={note} onChange={e=>setNote(e.target.value)}
+              style={{minHeight:56, lineHeight:1.45}}
               placeholder="e.g. somewhere quick, we have the 7pm show" />
           </label>
 
