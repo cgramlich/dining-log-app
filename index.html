@@ -976,7 +976,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.439.0";
+const APP_VERSION   = "1.440.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8782,6 +8782,42 @@ function App({openShare}){
             });
             commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
           }}
+          onHadThis={(name, note, verdict)=>{
+            const rid = overlay.restaurantId;
+            const nm = (name || "").trim();
+            if (!rid || !nm) return;
+            const rec = restaurantById(rid);
+            const today = todayISO();
+            const mine = visits.find(v => v && v.restaurant_id === rid && v.date === today);
+
+            if (mine){
+              // Already eating here today - add to that visit, or update the
+              // note on a dish already listed rather than listing it twice.
+              const has = (mine.dishes || []).some(d => d && groupNorm(d.name) === groupNorm(nm));
+              const dishes = has
+                ? mine.dishes.map(d => (d && groupNorm(d.name) === groupNorm(nm))
+                    ? Object.assign({}, d, { note: note || d.note || "",
+                                             verdict: verdict !== undefined ? verdict : d.verdict })
+                    : d)
+                : (mine.dishes || []).concat([{ name:nm, note:note || "", verdict:verdict || null }]);
+              const next = visits.map(v => v.id === mine.id ? Object.assign({}, v, { dishes:dishes }) : v);
+              commit({ visits: next }, ["visits"]);
+              flash(has ? ("Updated " + nm) : ("Added " + nm + " to today"));
+              return;
+            }
+
+            // Nothing logged here today yet. Start the visit - rating and notes
+            // stay empty on purpose, so the record says exactly what is known:
+            // you were here, and you had this.
+            const visit = {
+              id: uid("visit"), restaurant_id: rid,
+              restaurant_name: (rec && rec.name) || "",
+              date: today, rating: null, notes: "",
+              dishes: [{ name:nm, note:note || "", verdict:verdict || null }],
+            };
+            commit({ visits: [visit].concat(visits) }, ["visits"]);
+            flash("Started today's visit with " + nm);
+          }}
           onSaveItemSig={(si, ii, on)=>{
             // Mark the dish this place is known for. Same section+item
             // addressing as the tag editor above; kept OUT of `tags` because
@@ -11922,7 +11958,7 @@ function AiText({ text }){
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSaveItemTags, onSaveItemSig, onRenameItem, onHome}){
+function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
@@ -12253,6 +12289,17 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           onSaveItemPhoto={onSaveItemPhoto}
           onSaveItemTags={onSaveItemTags}
           onSaveItemSig={onSaveItemSig}
+          onHadThis={onHadThis}
+          hadToday={(function(){
+            const t = todayISO(), out = {};
+            (visits || []).forEach(v => {
+              if (!v || v.date !== t) return;
+              (v.dishes || []).forEach(d => {
+                if (d && d.name) out[d.name.trim().toLowerCase()] = d;
+              });
+            });
+            return out;
+          })()}
           onRenameItem={onRenameItem} />
         <div style={{height:20}} />
       </div>
@@ -12263,7 +12310,10 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onRenameItem}){
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem}){
+  // Which item's "I had this" panel is open, and what is typed in it.
+  const [hadOpen, setHadOpen] = useState(null);   // "si:ii" | null
+  const [hadNote, setHadNote] = useState("");
   const [open, setOpen]   = useState(()=> {
     const o = {}; (menu.sections||[]).forEach((s,i)=> { o[i] = i < 2; }); return o;
   });
@@ -12456,6 +12506,54 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                         ? <span className="ipr paid">paid {fmtPrice(it.paid.amount)}</span>
                         : null)}
                 </div>
+                {/* Ordering something and having an opinion about it is the
+                    commonest thing that happens at a table, and until now the
+                    only route to recording it was the visit form. Every other
+                    control on this row is about photos or calorie estimates,
+                    which is why it read as impossible without a picture. */}
+                {onHadThis ? (function(){
+                  const hk  = i + ":" + oj;
+                  const had = (hadToday || {})[(it.name || "").trim().toLowerCase()];
+                  const isOpen = hadOpen === hk;
+                  return (
+                    <div style={{marginTop:4}}>
+                      <div className="row" style={{gap:12, alignItems:"center"}}>
+                        <button className="dish-redo"
+                          onClick={()=>{
+                            if (isOpen){ setHadOpen(null); return; }
+                            setHadNote((had && had.note) || "");
+                            setHadOpen(hk);
+                          }}>
+                          {had
+                            ? ("✓ Had it today" + (had.note ? " - " + had.note : ""))
+                            : "I had this"}
+                        </button>
+                      </div>
+                      {isOpen ? (
+                        <div style={{marginTop:7, display:"grid", gap:7}}>
+                          <ClearInput value={hadNote} onChange={e=>setHadNote(e.target.value)}
+                            placeholder="How was it? (optional)" />
+                          <div className="row" style={{gap:7, flexWrap:"wrap"}}>
+                            <button className="btn primary sm"
+                              onClick={()=>{ onHadThis(it.name, hadNote, undefined);
+                                             setHadOpen(null); }}>
+                              {had ? "Save" : "I ordered this"}
+                            </button>
+                            {/* The verdict is the thing "Help me order" and
+                                "You usually get" are built from, so it is worth
+                                one tap here rather than a trip to the visit. */}
+                            <button className="btn ghost sm"
+                              onClick={()=>{ onHadThis(it.name, hadNote, "again");
+                                             setHadOpen(null); }}>Have again</button>
+                            <button className="btn ghost sm"
+                              onClick={()=>{ onHadThis(it.name, hadNote, "skip");
+                                             setHadOpen(null); }}>Not again</button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })() : null}
                 {/* Sits directly under the name, before the description, because
                     it changes how you read everything below it. */}
                 {it.sig ? (
