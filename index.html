@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.443.0";
+const APP_VERSION   = "1.444.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -17113,6 +17113,51 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [expOpen, setExpOpen] = useState(false);               // expense sheet over this visit
   const [saving, setSaving] = useState(false);                 // save in flight
+  // dish name (lowercased) -> [{kind:"existing", path} | {kind:"pending", blob, previewUrl}]
+  const MAX_DISH_PHOTOS = 3;
+  const [dishPics, setDishPics] = useState(()=>{
+    const out = {};
+    ((existing && existing.dishes) || []).forEach(d => {
+      const list = (d && Array.isArray(d.photos) ? d.photos : []).filter(Boolean);
+      if (d && d.name && list.length){
+        out[d.name.trim().toLowerCase()] = list.map(pth => ({ kind:"existing", path:pth }));
+      }
+    });
+    return out;
+  });
+  const dishPicRef = useRef(null);
+  const pendingDishPicFor = useRef(null);
+  function dishPicsFor(name){ return dishPics[(name || "").trim().toLowerCase()] || []; }
+  function startDishPics(name){
+    pendingDishPicFor.current = name;
+    if (dishPicRef.current){ dishPicRef.current.value = ""; dishPicRef.current.click(); }
+  }
+  async function onDishPicsPicked(e){
+    const files = Array.from(e.target.files || []);
+    const name = pendingDishPicFor.current;
+    pendingDishPicFor.current = null;
+    if (e.target) e.target.value = "";
+    if (!files.length || !name) return;
+    const key = name.trim().toLowerCase();
+    const room = Math.max(0, MAX_DISH_PHOTOS - dishPicsFor(name).length);
+    if (!room) return;
+    try {
+      for (const f of files.slice(0, room)){
+        const blob = await resizeImageToBlob(f, 1200, 0.86);
+        const url  = URL.createObjectURL(blob);
+        setDishPics(prev => Object.assign({}, prev,
+          { [key]: (prev[key] || []).concat([{ kind:"pending", blob:blob, previewUrl:url }]) }));
+      }
+    } catch(err){
+      logMsg("ERROR", "Dish photo resize failed: " + err.message);
+      toast("Could not load that photo: " + err.message);
+    }
+  }
+  function dropDishPic(name, idx){
+    const key = (name || "").trim().toLowerCase();
+    setDishPics(prev => Object.assign({}, prev,
+      { [key]: (prev[key] || []).filter((_, i) => i !== idx) }));
+  }
   const [saveStep, setSaveStep] = useState("");                // "Photo 2 of 5"
   const [saveWhy, setSaveWhy] = useState("");                  // why Save did nothing
   const [companions, setCompanions] = useState(()=> {
@@ -17576,6 +17621,19 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         "d" + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
       if (onPropagateDishNutrition) onPropagateDishNutrition(match, est, photoPath, blob);
     }
+    // Only a dish that matches a MENU ITEM got a stored path, so photographing
+    // something typed by hand or ordered off-menu used the picture for the
+    // estimate and then dropped it. Keep it as a dish photo: somebody who just
+    // photographed their dinner did not mean to throw the photo away.
+    if (!photoPath && blob){
+      const key = (dishName || "").trim().toLowerCase();
+      setDishPics(prev => {
+        const cur = prev[key] || [];
+        if (cur.length >= MAX_DISH_PHOTOS) return prev;
+        return Object.assign({}, prev,
+          { [key]: cur.concat([{ kind:"pending", blob:blob, previewUrl:URL.createObjectURL(blob) }]) });
+      });
+    }
     setDishes(d => d.map(x => x.name === dishName
       ? Object.assign({}, x, { nutrition:est, photo:photoPath }) : x));
   }
@@ -17930,6 +17988,22 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       }
     });
 
+    // Dish photos resolve exactly like the visit photos above: existing paths
+    // pass through, pending blobs get a stable path and join the same upload
+    // queue. One mechanism, so there is no second one to drift.
+    const dishPhotoPaths = {};
+    Object.keys(dishPics).forEach(key => {
+      const out = [];
+      (dishPics[key] || []).forEach(sl => {
+        if (sl.kind === "existing"){ out.push(sl.path); return; }
+        const dpid = "d" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+        const dpath = "photos/dishes/" + vid + "_" + dpid + ".jpg";
+        out.push(dpath);
+        pendingUploads.push({ path: dpath, blob: sl.blob });
+      });
+      dishPhotoPaths[key] = out;
+    });
+
     // Receipt: pending blob gets its own stable path under photos/receipts/
     // (kept OUT of the photos array so it never appears in the photo strip
     // or the Food passport - it is revealed via the Show receipt link).
@@ -17959,7 +18033,16 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       restaurant_name: r ? r.name : "",          // snapshot, survives restaurant deletion
       date: date || todayISO(),
       rating: rating,
-      dishes: dishes,
+      // Each dish carries whichever photos were attached to it. Written here
+      // rather than into `dishes` state, so a save that fails leaves no paths
+      // pointing at files that were never uploaded.
+      dishes: dishes.map(d => {
+        const pics = dishPhotoPaths[(d.name || "").trim().toLowerCase()];
+        if (!pics) return d;
+        const next = Object.assign({}, d);
+        if (pics.length) next.photos = pics; else delete next.photos;
+        return next;
+      }),
       notes: notes.trim(),
       photos: finalPaths,
       receipt: receipt,                          // {photo, total} or null
@@ -18234,6 +18317,8 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           </span>
           <input ref={photoFileRef} type="file" accept="image/*" multiple
             style={{display:"none"}} onChange={onVisitPhotoFiles} />
+          <input ref={dishPicRef} type="file" accept="image/*" multiple
+            style={{display:"none"}} onChange={onDishPicsPicked} />
           <input ref={photoCamRef} type="file" accept="image/*" capture="environment"
             style={{display:"none"}} onChange={onVisitPhotoFiles} />
           {photoSlots.length > 1 ? (
@@ -18606,14 +18691,45 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                       <Icon name="note" size={13} color="var(--accent)" />
                       {d.note ? "Edit note" : "Add a note"}
                     </button>
+                    {/* A photo of the plate, kept as a photo. The camera
+                        controls above this one are about calorie estimates and
+                        discard the image unless the dish matched a menu item -
+                        which is not what somebody photographing their dinner
+                        expects to happen to it. */}
+                    {dishPicsFor(d.name).length < MAX_DISH_PHOTOS ? (
+                      <button className="dish-cam" onClick={()=> startDishPics(d.name)}>
+                        <Icon name="image" size={13} color="var(--accent)" />
+                        {dishPicsFor(d.name).length ? "Add another photo" : "Add a photo"}
+                      </button>
+                    ) : null}
                     {dishNutErr[d.name] && <span className="dish-cam-err">{dishNutErr[d.name]}</span>}
                   </div>
+                  {dishPicsFor(d.name).length ? (
+                    <div className="row" style={{gap:7, marginTop:7, flexWrap:"wrap"}}>
+                      {dishPicsFor(d.name).map((sl, pi)=>(
+                        <div key={pi} style={{position:"relative", width:60, height:60,
+                             borderRadius:9, overflow:"hidden", border:"1px solid var(--line)"}}>
+                          {sl.kind === "pending"
+                            ? <img src={sl.previewUrl} alt="" style={{width:"100%", height:"100%",
+                                   objectFit:"cover", display:"block"}} />
+                            : <PhotoImg cfg={cfg} path={sl.path} />}
+                          <button className="x" aria-label="Remove photo"
+                            style={{position:"absolute", top:2, right:2, width:20, height:20,
+                                    padding:0, borderRadius:"50%", background:"rgba(0,0,0,0.6)",
+                                    color:"#fff", fontSize:12, lineHeight:"20px"}}
+                            onClick={()=> dropDishPic(d.name, pi)}>{"×"}</button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   {noteOpen[d.name] && (
                     <div style={{marginTop:6}}>
-                      <ClearInput value={d.note || ""} autoFocus
+                      {/* Was a single-line input, missed by the 1.441.0 pass
+                          because it lives behind a fold. Same field, same fix. */}
+                      <textarea className="input" value={d.note || ""} autoFocus
+                        style={{minHeight:56, lineHeight:1.45}}
                         placeholder="e.g. added mushrooms, no onions, well done"
-                        onChange={e=> setDishNote(d.name, e.target.value)}
-                        onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); toggleNote(d.name); } }} />
+                        onChange={e=> setDishNote(d.name, e.target.value)} />
                       <div className="row" style={{gap:8, marginTop:6}}>
                         <button className="btn ghost sm" onClick={()=> toggleNote(d.name)}>Done</button>
                         {d.note && (
