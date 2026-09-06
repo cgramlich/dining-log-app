@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.444.0";
+const APP_VERSION   = "1.445.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -13008,10 +13008,38 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
     </div>
   ) : null;
 
-  const gList = Array.isArray(gResults) && gResults.length > 0 ? (
+  /* "See places near me" answers WHERE, not WHAT - it lists the nearest places
+     and has never looked at the search box. So typing a restaurant name and
+     then tapping it produced six unrelated neighbours, and the natural read is
+     "my place is missing", or worse, a guess at why (closed? too far?) that
+     sends you looking for a filter that was never the problem.
+
+     With something typed, the nearby list is narrowed to it. Nothing matching
+     is now a stated fact with the next step attached, rather than a list that
+     silently answers a different question. */
+  const gQuery = (q || "").trim().toLowerCase();
+  const gShown = (Array.isArray(gResults) && gMode === "nearby" && gQuery)
+    ? gResults.filter(c => ((c && c.name) || "").toLowerCase().indexOf(gQuery) !== -1)
+    : gResults;
+  const gFilteredOut = Array.isArray(gResults) && gResults.length > 0
+                       && Array.isArray(gShown) && gShown.length === 0;
+
+  const gList = gFilteredOut ? (
+    <div className="card" style={{marginTop:8, padding:"12px 14px"}}>
+      <div className="small" style={{marginBottom:4}}>
+        Nothing near you is called &ldquo;{q.trim()}&rdquo;.
+      </div>
+      <div className="tiny faint">
+        Nearby only lists what is close by - it does not search. Use
+        <strong> Find &ldquo;{q.trim()}&rdquo; on Google</strong> above to look it up by name.
+      </div>
+    </div>
+  ) : Array.isArray(gShown) && gShown.length > 0 ? (
     <div className="card" style={{marginTop:8, padding:"4px 0"}}>
-      <div className="small muted" style={{padding:"6px 14px"}}>{gMode==="nearby" ? "Places near you" : "From Google"}</div>
-      {gResults.map((c,i)=>{
+      <div className="small muted" style={{padding:"6px 14px"}}>
+        {gMode==="nearby" ? (gQuery ? "Near you, matching “" + q.trim() + "”" : "Places near you") : "From Google"}
+      </div>
+      {gShown.map((c,i)=>{
         const savedHit = findPlaceByGoogleId(restaurants, c.place_id);
         return (
           <div key={i} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"flex-start", cursor:"pointer"}}
