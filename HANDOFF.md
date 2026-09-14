@@ -1,6 +1,6 @@
 # MenuCaptain — HANDOFF
 
-**True as of 2026-09-06.** Read this before changing anything. It says what is true *now* and
+**True as of 2026-09-13.** Read this before changing anything. It says what is true *now* and
 why — not what happened (git has that). Companion: `BRIEFING.md` (deck-ready, leaves the
 machine). When the two disagree, **this file is right**.
 
@@ -18,13 +18,13 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-09-06
+## Current state — 2026-09-13
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.444.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.446.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.121.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.444.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.446.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
