@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.448.0";
+const APP_VERSION   = "1.449.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -7599,6 +7599,14 @@ function App({openShare}){
     } catch(e){}
     if (!want) return;
     try { history.replaceState(null, "", location.pathname); } catch(e){}
+    // No account in this browser yet: the sign-in screen is showing, and signing
+    // in reloads the page, which would drop the overlay set below. Park the
+    // destination so the post-sign-in return brings you back to it. Only the
+    // known destinations are parked, so a crafted link cannot bounce anywhere.
+    if (!configComplete(loadConfig()) && (want === "shares" || want === "connections")){
+      rememberAfterSignup(location.origin + location.pathname + "?open=" + want);
+      return;
+    }
     if (want === "shares"){ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }
     else if (want === "connections"){ setOverlay({ type:"connections" }); }
   // eslint-disable-next-line
@@ -27569,6 +27577,22 @@ function ResetPasswordScreen({accessToken, refreshToken, expiresIn}){
 }
 
 function SetupScreen({initial, onSave, onClose, asOverlay}){
+  // Why this reader is here. Two sources, because the order is not guaranteed:
+  // if this screen renders before App's ?open= handler has run, the address
+  // still says; if App showed its loading spinner first, the handler has already
+  // cleaned the address and parked the destination - so read that instead,
+  // without consuming it (the post-sign-in return still needs it).
+  const [arrivedFor] = useState(()=>{
+    const pick = (str)=>{ const om = String(str || "").match(/[?&]open=([a-z]+)/); return om ? om[1] : ""; };
+    try {
+      const fromUrl = pick(location.search);
+      if (fromUrl) return fromUrl;
+      const raw = localStorage.getItem(AFTER_SIGNUP_KEY);
+      const o = raw ? JSON.parse(raw) : null;
+      if (o && o.href && o.at && (Date.now() - o.at) <= AFTER_SIGNUP_MAX_AGE_MS) return pick(o.href);
+    } catch(e){}
+    return "";
+  });
   // One-time note after an account deletion: the flag is set just before
   // the post-delete reload and consumed (removed) on first render here.
   const [deletedNote] = React.useState(()=>{
@@ -27762,8 +27786,27 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           <div className="small muted" style={{marginTop:6}}>{titles[mode][1]}</div>
         </div>
       )}
+      {/* Arrived from a notification. Without this the reader sees "Welcome"
+          and a pitch, and reasonably concludes they have been sent to the wrong
+          place or signed out of their account. They have not: this browser has
+          simply never been signed in, and after this once it will be. */}
+      {!asOverlay && mode === "signin" && arrivedFor ? (
+        <div className="card" style={{marginBottom:16, border:"1px solid rgba(224,118,74,0.45)"}}>
+          <div style={{fontWeight:600, marginBottom:6}}>
+            {arrivedFor === "connections"
+              ? "Sign in to see your friend requests"
+              : "Sign in to see what was shared with you"}
+          </div>
+          <div className="tiny muted" style={{lineHeight:1.6}}>
+            This link opened in your web browser, which is separate from the MenuCaptain
+            app on your home screen, so it asks you to sign in here once. Use the same email
+            and password - you will go straight to it afterwards. Or close this and open
+            MenuCaptain from your home screen instead.
+          </div>
+        </div>
+      ) : null}
       {/* The flow intro lives here (the welcome), not on the Home screen. */}
-      {!asOverlay && mode !== "forgot" && (
+      {!asOverlay && mode !== "forgot" && !arrivedFor && (
         <div className="card" style={{marginBottom:16}}>
           <div style={{fontWeight:600, marginBottom:8}}>How MenuCaptain works</div>
           <div className="tiny muted" style={{lineHeight:1.9}}>
