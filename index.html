@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.446.0";
+const APP_VERSION   = "1.447.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8528,8 +8528,15 @@ function App({openShare}){
         const r = restaurants.find(x => x.id === overlay.id);
         if (!r){ return null; }
         return (
-          <AtPlaceMenuStep restaurant={r} menus={menus}
+          <AtPlaceMenuStep cfg={config} restaurant={r} menus={menus}
             onScan={(id)=> setOverlay({ type:"scanMenu", restaurantId:id })}
+            onImportCommunityMenus={(newMenus)=>{
+              // Same as the place page's import. The screen then has a menu on
+              // file, so it turns into "See the menu" on its own.
+              const cur = menus[r.id] || [];
+              commit({ menus: Object.assign({}, menus, { [r.id]: cur.concat(newMenus) }) }, ["menus"]);
+              flash(newMenus.length > 1 ? (newMenus.length + " menus added") : "Menu added");
+            }}
             onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id })}
             onOpenMenu={(id, menuId)=> setOverlay({
               type:"menuDetail", restaurantId:id, menuId:menuId })}
@@ -10598,10 +10605,12 @@ function fmtCommunityDate(iso){
 }
 // PULL-ONLY: menus OTHER diners shared for this place, to add to yours. Sharing
 // your own menus lives under the place's "Share" button (ShareSheet), not here.
-function CommunityMenuPanel({cfg, restaurant, localMenus, onImport}){
+function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, initialOpen, initialList}){
   const placeId = restaurant && restaurant.google_place_id;
-  const [open, setOpen]       = useState(false);
-  const [list, setList]       = useState(null);   // null=unloaded | array
+  // initialOpen/initialList let a screen that has ALREADY checked the library
+  // lead with it, instead of hiding the answer behind a fold and fetching twice.
+  const [open, setOpen]       = useState(!!initialOpen);
+  const [list, setList]       = useState(Array.isArray(initialList) ? initialList : null);   // null=unloaded | array
   const [busy, setBusy]       = useState(false);
   const [err, setErr]         = useState("");
   const [msg, setMsg]         = useState("");
@@ -12822,7 +12831,7 @@ function PlaceStatus({ place, size }){
   return null;                       // hours unknown - say nothing rather than guess
 }
 
-function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onOpenMenu, onLogVisit, onClose, onHome }){
+function AtPlaceMenuStep({ cfg, restaurant, menus, onScan, onImportCommunityMenus, onOpenRestaurant, onOpenMenu, onLogVisit, onClose, onHome }){
   const r = restaurant;
   // In the SAME order the place page shows them - otherwise "the first menu"
   // means one thing here and another there, which is how you end up opening a
@@ -12832,6 +12841,26 @@ function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onOpenMe
   // several, the honest destination is the list of them.
   const bestMenu = withItems.length === 1 ? withItems[0] : null;
   const hasMenu = withItems.length > 0;
+
+  /* Menus other diners already left here. This screen used to go straight to
+     "Get the menu", which only offers photograph, their site or a link - so a
+     person standing in a restaurant somebody else had already captured was sent
+     off to photograph it again, never told a menu was waiting. (A comment here
+     claimed the scan screen offered community menus. It never did.)
+
+     Only checked when you have no menu of your own here: if you do, "See the
+     menu" is the right answer and the place page still lists anything extra. */
+  const [comm, setComm] = useState(null);   // null = not checked | array
+  useEffect(()=>{
+    let alive = true;
+    if (hasMenu || !r.google_place_id || !cfg){ setComm([]); return; }
+    communityListMenus(cfg, r.google_place_id)
+      .then(l => { if (alive) setComm(Array.isArray(l) ? l : []); })
+      .catch(()=> { if (alive) setComm([]); });   // unreachable library = offer the normal path
+    return ()=> { alive = false; };
+  // eslint-disable-next-line
+  }, [r.id, hasMenu]);
+  const commReady = !hasMenu && Array.isArray(comm) && comm.length > 0;
   return (
     <div className="overlay">
       <div className="ovhead">
@@ -12850,9 +12879,22 @@ function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onOpenMe
           <div className="muted" style={{marginTop:12}}>
             {hasMenu
               ? "There's already a menu on file here. Open it for Help me order, calorie estimates, and the rest."
-              : "Photograph it, paste a link, or let the app find it on their site. Then everything opens up: Help me order, calorie estimates, group ordering, and your own dining memory."}
+              : commReady
+                ? ("Other diners have already added " + (comm.length === 1 ? "a menu" : comm.length + " menus")
+                   + " here. Add " + (comm.length === 1 ? "it" : "them") + " and everything opens up, or get a fresh one if it looks out of date.")
+                : "Photograph it, paste a link, or let the app find it on their site. Then everything opens up: Help me order, calorie estimates, group ordering, and your own dining memory."}
           </div>
-          <div style={{marginTop:22}}>
+          {commReady ? (
+            <div style={{marginTop:18, textAlign:"left"}}>
+              {/* The same panel the place page uses - dates, a warning on old
+                  menus, report, and pick-then-add - so a menu left by a
+                  stranger is judged the same way wherever it appears. */}
+              <CommunityMenuPanel cfg={cfg} restaurant={r} localMenus={[]}
+                initialOpen initialList={comm}
+                onImport={onImportCommunityMenus} />
+            </div>
+          ) : null}
+          <div style={{marginTop: commReady ? 4 : 22}}>
             {hasMenu ? (
               <button className="btn primary" style={{width:"100%"}}
                 onClick={()=> (onOpenMenu && bestMenu) ? onOpenMenu(r.id, bestMenu.menu_id) : onOpenRestaurant(r.id)}>
@@ -12864,8 +12906,9 @@ function AtPlaceMenuStep({ restaurant, menus, onScan, onOpenRestaurant, onOpenMe
               // destination offers photograph, find-on-their-site, paste a
               // link, and pull a community menu. "Scan" undersold three of
               // them, and the camera icon undersold all four.
-              <button className="btn primary" style={{width:"100%"}} onClick={()=> onScan(r.id)}>
-                <Icon name="plus" size={16} />Get the menu
+              <button className={commReady ? "btn ghost" : "btn primary"} style={{width:"100%"}}
+                onClick={()=> onScan(r.id)}>
+                <Icon name="plus" size={16} />{commReady ? "Get a fresh menu instead" : "Get the menu"}
               </button>
             )}
             {onLogVisit ? (
