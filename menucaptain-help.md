@@ -220,12 +220,13 @@ description**. You can redo an estimate from a better source any time. Whichever
 you use, it is only an estimate, always shown with a "~" and marked EST, so a
 printed calorie count stays the most reliable number.
 
-**See photos of a dish.** Tap **See photos** on a menu item. If we have a *real*
-picture of that exact dish - one you snapped when logging a visit here, or one from
-the restaurant's own menu when you pulled it from the web (labeled **From the
-restaurant**) - that is the only photo shown; we don't clutter it with guesses.
-Only when there is no real photo do we fall back to **look-alike photos from the
-web**, clearly labeled as similar, not necessarily this exact dish.
+**See what a dish looks like.** Under each menu item, the photo button says what
+you will get. **See your photo** shows the picture you took of that dish here.
+**See the restaurant's photo** shows the one that came with their online menu.
+When there is neither, it reads **See what it usually looks like**: that searches
+the web for photos of a dish with that name, so you can get an idea before you
+order. Those are look-alikes, not this restaurant's version, and they are labeled
+that way. When a real photo exists, it is the only one shown - no guesses on top.
 
 **Pull a menu from a link.** You do not have to scan a paper menu. When adding a
 menu you can paste the address of the restaurant's online menu and the app reads
