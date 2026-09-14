@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.446.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.448.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.121.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.446.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.448.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -287,6 +287,33 @@ to keep in step.
 is not saved data; paths are written only at save, so a failed save leaves
 nothing pointing at files that were never uploaded.
 
+### The in-app guide is the source of truth; the .md is generated (2026-09-13)
+
+The user guide existed twice: `HELP_DOC` inside `index.html` (what people read, under Settings)
+and `menucaptain-help.md`, with a comment saying the .md was the source and to re-sync by hand.
+**They drifted in both directions.** The in-app copy was far richer in most sections, while four
+sections written from 2026-09-06 on (the vote, local knowledge, "I had this", dish photos) had gone
+only into the .md, so no user had seen them.
+
+**`HELP_DOC` is now the source.** Edit the guide there, then run `node export_help.js` in
+`menucaptain-native-build`, which renders the web version and overwrites the .md. Never edit the
+.md by hand.
+
+**Rejected: making the .md the source.** `HELP_DOC` contains build-dependent text
+(`${IS_NATIVE ? ...}` hides upgrade wording in the store build), which a plain Markdown file
+cannot express.
+
+### Arriving at a place offers the menus other diners left (2026-09-13)
+
+"Already at the restaurant" ends on a "You're all set" screen. With no menu of your own there, it
+offered only "Get the menu" (photograph, their site, a link) and never mentioned that a shared
+menu might already exist. A code comment claimed the scan flow offered community menus; it never
+did. The screen now checks the library and, if anything is there, leads with the same
+`CommunityMenuPanel` the place page uses, with **Get a fresh menu instead** underneath.
+
+Only menus somebody chose to share are in the library. A privately saved menu is never offered to
+another user, so "I added menus there" does not mean another person will see them.
+
 ### The email CTA is a link again (2026-09-03, reversing 2026-08)
 
 It was turned into an instruction ("Open MenuCaptain on your phone to see it")
@@ -352,6 +379,11 @@ off-menu note, the "how was it" comment, the vote note, and the dish note. A
 comment you cannot read back while typing it is not worth having typed. If a
 field can hold a sentence, it is a textarea.
 
+**A comment describing behaviour is a claim, not a fact.** Twice now a comment asserted
+something the code did not do: that the scan screen offered community menus, and that
+`menucaptain-help.md` was the guide's source of truth. Both were believed and both caused real
+misses. Check the code a comment describes before building on it.
+
 **`fetch` has no timeout of its own.** Photo upload hung indefinitely on a weak connection until
 an `AbortController` was added (60s per photo). Any new network call that a user waits on needs
 the same treatment.
@@ -373,7 +405,6 @@ the same treatment.
 - Signature marks and off-menu items are NOT carried on shared menus or shared place pages yet.
   A friend who opens your shared place sees the menu without them, which is most of what would
   make it worth sending.
-- `menucaptain-help.md` lags the app - see below.
 - Menu and list share links still route to the public viewer for signed-in users. Only *visit*
   shares were fixed.
 

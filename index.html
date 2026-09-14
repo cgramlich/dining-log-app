@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.447.0";
+const APP_VERSION   = "1.448.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1568,7 +1568,10 @@ async function initPush(cfg){
   }
 }
 
-// In-app user guide (source of truth: menucaptain-help.md). Re-sync this when the .md changes.
+// In-app user guide. THIS is the source of truth - what people read under Settings.
+// menucaptain-help.md is generated from it: after editing here, run
+// `node export_help.js` in menucaptain-native-build. Never edit the .md by hand;
+// the two were once kept in step manually and drifted in both directions.
 const HELP_DOC = `# MenuCaptain - User Guide
 
 *Updated July 2, 2026*
@@ -1599,15 +1602,18 @@ sign-up). Signing in on a new phone or computer is just your email and password
 
 ## Getting around
 
-The app opens to **Home**, and there is a bar across the bottom with five spots:
+The app opens to **Home**, and there is a bar across the bottom with five spots.
+The one you are on is highlighted.
 
 - **Home** - your start screen, built around two doors. **Already at the
   restaurant?** is right on top: it's a two-step for when you've sat down. First
   it finds *where you are* (tap **See places near me** and it uses your location to list the
   spots right around you, or search / pick a saved place), then it walks you into
-  **scanning the menu** for that place - so the menu always lands on a real,
+  **getting the menu** for that place - so the menu always lands on a real,
   Google-linked place instead of a name you typed. If a menu is already on file
-  there, it offers to open it instead of re-scanning. That same step also lets you
+  there, it offers to open it instead of re-scanning. If you have none but other
+  diners have already added one, it offers theirs first - with how old each is -
+  and **Get a fresh menu instead** right underneath if it looks out of date. That same step also lets you
   **log a visit** right away, to save the memory of the meal. The second door,
   **Looking for somewhere to eat?**, opens a find-a-place page: **Find a place by
   name** (search your own places or anywhere on Google) at the top - it's ready to
@@ -1628,8 +1634,9 @@ The app opens to **Home**, and there is a bar across the bottom with five spots:
   you can spot the right one, and when you add a place its Google photo, rating,
   and hours come along automatically.
 - **Places** - your list of restaurants.
-- **The plus (+) button** - quick actions. **Find places near me** discovers
-  spots around you, and **Find a place** searches your places or anywhere on
+- **The plus (+) button** - quick actions, not a page. **Already at the
+  restaurant** comes first - the same two-step as the card on Home. **Find places
+  near me** discovers spots around you, and **Find a place** searches your places or anywhere on
   Google. Below them are the things you do once you're there: scan or find a
   menu, log a visit, split the check, or start a group order. **Find friends**
   is here too, so your connections are always one tap away; if someone has
@@ -1825,6 +1832,34 @@ the app tidies up your old copy so there's no stale duplicate.
 
 -----
 
+## What only the locals know
+
+Two kinds of thing a menu will not tell you, and both live where you need them.
+
+**Signature dishes.** A menu lists forty things and does not say which one
+people actually come for. On any menu, tap **Edit names & tags** and you can
+mark a dish as a **Signature**. It then shows a star and a line under the dish
+name wherever that menu appears, so the thing this place is known for is obvious
+at the moment you are choosing rather than after you have ordered.
+
+**Off the menu.** The drink the regulars ask for by name. The dish they will
+make if you know to ask. On a restaurant page, under the menus, there is a
+**Not on the menu** card - tap **+ Add**, give it a name, and optionally a price
+and a note on how to ask for it or why it matters.
+
+These live on the *place*, not on one menu, because a bar with a food menu, a
+brunch menu and a drinks list has one set of things that are on none of them.
+They also join the dish suggestions when you log a visit, so once you have
+learned about something you never have to type its name from memory again.
+
+Each one is dated and carries a **Still true** link. Tap it when you confirm the
+thing still exists; after about six months without confirmation the app says so.
+This matters more here than anywhere else in the app - a tip that has gone stale
+sends somebody to ask a bartender, out loud, for something that no longer
+exists.
+
+-----
+
 ## Help me order
 
 On any digitized menu you can ask a plain-English question - things like
@@ -1845,6 +1880,29 @@ as a gentle hint. That is most helpful at a place you have barely been to, where
 there is little history yet, so even a first visit gets a personal suggestion. It
 never overrides what you actually asked for. When you are done with an answer, tap
 the small x in its corner to close it and clear the space.
+
+-----
+
+## Marking a dish from the menu
+
+You do not have to open the visit form to record what you ordered. On any menu,
+under each dish, there is **I had this**.
+
+Tap it and you get an optional comment box and three buttons: **I ordered this**,
+**Have again**, and **Not again**. No photo is needed, and none is asked for -
+this is for the very common case where you ordered something, had a view about
+it, and either forgot to take a picture or had already started eating.
+
+The dish goes onto today's visit at that restaurant. If you have not logged
+anything there today, one is started for you with just that dish on it - your
+rating and notes stay empty, so the record says only what is actually known. Tap
+it again later and it edits what is there rather than listing the dish twice;
+the row shows **Had it today** with your comment so you can see what you have
+already marked without leaving the menu.
+
+**Have again** and **Not again** are worth the extra tap. That verdict is what
+"Help me order" and "You usually get" are both built from, so recording it at
+the table is worth far more than trying to remember it later.
 
 -----
 
@@ -1967,6 +2025,12 @@ figures.
 visit, and the one somebody sees first when you share it. Every other photo has
 a **Make cover** button, so putting the right one in front is a single tap. This
 works on a visit you saved months ago, not just a new one.
+
+**Photos on a single dish.** Separate from the visit photos, each dish has its
+own **Add a photo** - up to three, purely as pictures, with no estimate
+involved. Use it for the plate itself when the visit photos are of the table and
+the people. If you *do* estimate calories from a photo, that picture is kept on
+the dish too rather than being used and discarded.
 
 -----
 
@@ -2295,6 +2359,37 @@ each line to whoever ordered it, and spreads tax and tip across everyone - so
 the per-person amounts add up to the actual check. Anything it can't match to a
 person is split evenly and labeled. Before the bill arrives it shows an estimate
 from menu prices (before tax), and you can switch to an even split any time.
+
+-----
+
+## Where shall we eat?
+
+The other half of eating together: deciding. Open **Find a place** (from the
+**+** button, or **Looking for somewhere to eat?** on Home) and tap **Eating with
+people?**. Pick two to five of your places, and send the link to whoever is
+coming.
+
+It is an **approval vote**, not a poll. Everyone ticks *every* place they would
+be happy to go to, not just their favourite, so the winner is the place most
+people can live with rather than the one that scraped a plurality while half the
+group quietly hated it. Nobody needs the app or an account to vote.
+
+**Nobody sees the tally while it runs**, on purpose - if people could watch it,
+late voters would follow the leader and one early tick would steer dinner. The
+result appears when the vote closes, which happens on its own after the time you
+set, or when you tap to close it early.
+
+**Fair to everyone, not convenient for you.** If you are not all starting from
+the same place, you can enter everyone's postcodes and the app will suggest
+places that split the travel, rather than the ones nearest whoever happened to
+be organising.
+
+If somebody votes under a name you do not recognise, the app asks you once who
+it was and remembers the answer. It never guesses - two people called Mark at
+one table is ordinary, and a wrong guess would quietly file somebody's dinner
+under the wrong person for good.
+
+-----
 
 ## Splitting a check (no group needed)
 
