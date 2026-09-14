@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.450.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.454.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.121.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.450.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.454.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -392,6 +392,19 @@ control that CHANGES LABEL between states, which is where all three hid.
 off-menu note, the "how was it" comment, the vote note, and the dish note. A
 comment you cannot read back while typing it is not worth having typed. If a
 field can hold a sentence, it is a textarea.
+
+**Never pipe the compile check into a `&&` chain.** On 2026-09-13 `node verify_compile.js 2>&1 |
+tail -1 && git commit ... && git push` pushed a syntax error to production (1.453.0, live for a
+few minutes). The check failed, but a pipeline's exit status is the LAST command's, and `tail`
+succeeded - so the chain carried on. The same pattern had been used for weeks and simply never
+failed before. Run the check on its own line and test its exit code before committing. `build.js`
+in the native repo does exit non-zero on a bad compile, which is why the store bundle was not
+committed that time.
+
+**A corrupt git object in the native repo (2026-09-13).** A push failed with `corrupt loose object`
+for the `www/app.js` blob written moments earlier; cause unknown. Repaired without losing anything:
+confirm `git hash-object www/app.js` matches the named hash, move the bad object file out of
+`.git/objects`, `git hash-object -w www/app.js`, `git fsck`, push.
 
 **A comment describing behaviour is a claim, not a fact.** Twice now a comment asserted
 something the code did not do: that the scan screen offered community menus, and that
