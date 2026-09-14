@@ -598,7 +598,9 @@ visits (including visits you logged before the rename), split-the-check
 suggestions, group-order invites, and Venmo requests. Clear it and they go
 back to their own name.
 
-**Sharing a visit.** Open a logged visit and tap **Share your visit**. One
+**Sharing a visit.** Right after you save a new visit, the **Visit logged** message
+at the bottom has a **Share it** button - the quickest way. Later, open a logged
+visit and tap **Share your visit**. One
 sheet, two ways: **Send to a friend** puts it in another MenuCaptain user's
 "Shared with you" inbox, and **Share a link with anyone** makes a page that
 works for people who have never heard of the app. Either way it carries the

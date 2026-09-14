@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.449.0";
+const APP_VERSION   = "1.450.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2172,7 +2172,9 @@ visits (including visits you logged before the rename), split-the-check
 suggestions, group-order invites, and Venmo requests. Clear it and they go
 back to their own name.
 
-**Sharing a visit.** Open a logged visit and tap **Share your visit**. One
+**Sharing a visit.** Right after you save a new visit, the **Visit logged** message
+at the bottom has a **Share it** button - the quickest way. Later, open a logged
+visit and tap **Share your visit**. One
 sheet, two ways: **Send to a friend** puts it in another MenuCaptain user's
 "Shared with you" inbox, and **Share a link with anyone** makes a page that
 works for people who have never heard of the app. Either way it carries the
@@ -9158,7 +9160,18 @@ function App({openShare}){
               flash("Visit updated");
             } else {
               next = [rec].concat(visits);
-              flash("Visit logged");
+              // Saving a new visit is the moment you would share it: the photos
+              // have just finished uploading and the people you would send it to
+              // were at the table. Before this you had to leave, dig through
+              // History and reopen the visit to find the share button.
+              //
+              // An offer, not a prompt - most visits are never shared, and a sheet
+              // dismissed after every save becomes noise. It opens the same share
+              // sheet as the visit card, which spells out what is and is not
+              // sent; it never shares in one tap from a toast that vanishes.
+              // New visits only for now; edits stay quiet.
+              flashAction("Visit logged", "Share it",
+                ()=> setOverlay({ type:"shareVisitSheet", visit: rec }));
             }
             // Rating now lives on the PLACE (latest-wins): stamp my_rating from
             // this save. Also graduate the place off "Want to try" - it has a

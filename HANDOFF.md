@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.448.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.450.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.121.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.448.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.450.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -313,6 +313,20 @@ did. The screen now checks the library and, if anything is there, leads with the
 
 Only menus somebody chose to share are in the library. A privately saved menu is never offered to
 another user, so "I added menus there" does not mean another person will see them.
+
+### An email link survives the sign-in (2026-09-13)
+
+The email button opens `?open=shares` in a browser. A browser with no MenuCaptain sign-in showed
+first-time setup, and signing in reloads the page, so the destination was lost and you landed on
+Home. The destination is now parked with `rememberAfterSignup` (one-shot, one hour, known
+destinations only) and the sign-in screen says why you are there. **The sign-in itself remains**:
+a browser cannot see the installed app's session, and only universal links in the native build
+remove that.
+
+### "Visit logged" offers Share it (2026-09-13)
+
+New visits only. It opens the same share sheet as the visit card, which states what is sent; it
+does not share in one tap from a toast. Edits stay quiet until there is a reason otherwise.
 
 ### The email CTA is a link again (2026-09-03, reversing 2026-08)
 
