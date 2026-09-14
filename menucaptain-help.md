@@ -223,7 +223,7 @@ printed calorie count stays the most reliable number.
 **See what a dish looks like.** Under each menu item, the photo button says what
 you will get. **See your photo** shows the picture you took of that dish here.
 **See the restaurant's photo** shows the one that came with their online menu.
-When there is neither, it reads **See what it usually looks like**: that searches
+When there is neither, it reads **See similar on the web**: that searches
 the web for photos of a dish with that name, so you can get an idea before you
 order. Those are look-alikes, not this restaurant's version, and they are labeled
 that way. When a real photo exists, it is the only one shown - no guesses on top.

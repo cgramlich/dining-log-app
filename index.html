@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.451.0";
+const APP_VERSION   = "1.452.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1797,7 +1797,7 @@ printed calorie count stays the most reliable number.
 **See what a dish looks like.** Under each menu item, the photo button says what
 you will get. **See your photo** shows the picture you took of that dish here.
 **See the restaurant's photo** shows the one that came with their online menu.
-When there is neither, it reads **See what it usually looks like**: that searches
+When there is neither, it reads **See similar on the web**: that searches
 the web for photos of a dish with that name, so you can get an idea before you
 order. Those are look-alikes, not this restaurant's version, and they are labeled
 that way. When a real photo exists, it is the only one shown - no guesses on top.
@@ -12833,15 +12833,15 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                           label "See photos" named none of them - feedback was that
                           it did not say what it does. Name what you will actually
                           see. The web case matters most: those are look-alikes of a
-                          dish with this NAME, not this restaurant's food, so
-                          "usually" is doing honest work in that label. */}
+                          dish with this NAME, not this restaurant's food, so the
+                          label says both "similar" and where they come from. */}
                       <Icon name={(!realPhotos.length && !it.web_image) ? "search" : "image"}
                         size={12} color="var(--accent)" />
                       {realPhotos.length
                         ? (realPhotos.length > 1 ? "See your photos" : "See your photo")
                         : it.web_image
                           ? "See the restaurant's photo"
-                          : "See what it usually looks like"}
+                          : "See similar on the web"}
                     </button>
                     {imgErr[key] && <span className="iest-err">{imgErr[key]}</span>}
                   </div>
