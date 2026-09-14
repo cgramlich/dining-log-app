@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.453.0";
+const APP_VERSION   = "1.454.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -12776,10 +12776,10 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                               onClick={()=> estimateFromPhoto(i, oj, it)}>
                               {itemBusy[key] ? "Working..." : "New estimate from menu photo"}</button>
                           )}
+                          {/* Short on purpose, to fit the row on a phone. "EST" matches the
+                              badge on estimated numbers; the full wording lives in
+                              title and aria-label for screen readers and long-press. */}
                           {canEstimate && (
-                            {/* Short on purpose, to fit the row on a phone. "EST" matches the
-                                badge on estimated numbers; the full wording lives in
-                                title and aria-label for screen readers and long-press. */}
                             <button className="dish-redo" disabled={itemBusy[key]}
                               title="Estimate nutrition from the dish description" aria-label="Estimate nutrition from the dish description"
                               onClick={()=> estimateOne(i, oj, it)}>
