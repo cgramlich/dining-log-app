@@ -26,17 +26,21 @@ just your email and password - your data follows your account.
 
 ## Getting around
 
-There is a bar across the bottom of the screen with five spots:
+There is a bar across the bottom of the screen with five spots. The one you are
+on is highlighted.
 
-- **History** - everything you have logged, newest first.
+- **Home** - your start screen, with your recent visits.
 - **Places** - your list of restaurants.
-- **The plus (+) button** - the quick-action button. Tap it to log a visit,
-  pull up a menu (open a place to browse and order), start a group order, add a
-  restaurant, or scan a menu.
+- **The plus (+) button** - quick actions, not a page. Tap it for **Already at
+  the restaurant** (find where you are and grab the menu), find places near you,
+  find a place by name, scan or find a menu, log a visit, split the check, start
+  a group order, see what friends have shared with you, and find friends.
+- **History** - everything you have logged, newest first.
 - **Discover** - the home for your badges, Your Year in Food, and your Food
   passport.
-- **Settings** - your account and plan, the look of the app (five color
-  themes under Appearance), the update check, this user guide, and app info.
+
+**Settings** is the gear at the top right of the screen: your account and plan,
+the look of the app, the update check, this user guide, and app info.
 
 -----
 
@@ -469,9 +473,10 @@ from menu prices (before tax), and you can switch to an even split any time.
 
 ## Where shall we eat?
 
-The other half of eating together: deciding. From the **+** button, choose
-**Where shall we eat?**, pick two to five of your places, and send the link to
-whoever is coming.
+The other half of eating together: deciding. Open **Find a place** (from the
+**+** button, or **Looking for somewhere to eat?** on Home) and tap **Eating with
+people?**. Pick two to five of your places, and send the link to whoever is
+coming.
 
 It is an **approval vote**, not a poll. Everyone ticks *every* place they would
 be happy to go to, not just their favourite, so the winner is the place most

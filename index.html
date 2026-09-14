@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.445.0";
+const APP_VERSION   = "1.446.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -15923,6 +15923,17 @@ function ActionSheet({onClose, onPick, pendingReqs, sharesCount}){
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" onClick={e=> e.stopPropagation()}>
         <div className="grip" />
+        {/* The "I'm here now" moment, and the door Home leads with - so it leads
+            here too. It was only reachable from the Home card, which meant that
+            from any other tab the most common way a session starts took two
+            screens to find. Same words as the Home card, and the same flow:
+            find where you are, then grab the menu.
+
+            "locate" rather than Home's pin, because the pin below already means
+            "near me" in this list and two identical icons for two different
+            jobs would be read as one. */}
+        <Item what="atRestaurant" icon="locate" t1="Already at the restaurant"
+          t2="Get the menu, order smarter, save the memory" />
         <Item what="nearMe"     icon="pin"     t1="Find places near me"  t2="Discover spots around you" />
         <Item what="findPlace"  icon="search"  t1="Find a place"         t2="Your places, or anywhere on Google" />
         <div style={{borderTop:"1px solid var(--line-soft)", margin:"2px 0 6px"}} />
