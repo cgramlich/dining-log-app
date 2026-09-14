@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.452.0";
+const APP_VERSION   = "1.453.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1789,8 +1789,8 @@ name almost always means a fresher copy of the same menu) or **Keep both**.
 those and shows them as a real number labeled "per menu." If it does not, each
 item offers a few ways to estimate, best first: **Add your photo** (snap the
 real plate right from the menu), **Estimate from menu photo** (the restaurant's
-own picture, when the menu came in from the web), and **Estimate from
-description**. You can redo an estimate from a better source any time. Whichever
+own picture, when the menu came in from the web), and **EST nutrition from DESCR**
+(estimate nutrition from the dish's description). You can redo an estimate from a better source any time. Whichever
 you use, it is only an estimate, always shown with a "~" and marked EST, so a
 printed calorie count stays the most reliable number.
 
@@ -12777,9 +12777,13 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                               {itemBusy[key] ? "Working..." : "New estimate from menu photo"}</button>
                           )}
                           {canEstimate && (
+                            {/* Short on purpose, to fit the row on a phone. "EST" matches the
+                                badge on estimated numbers; the full wording lives in
+                                title and aria-label for screen readers and long-press. */}
                             <button className="dish-redo" disabled={itemBusy[key]}
+                              title="Estimate nutrition from the dish description" aria-label="Estimate nutrition from the dish description"
                               onClick={()=> estimateOne(i, oj, it)}>
-                              {itemBusy[key] ? "Working..." : "New estimate from description"}</button>
+                              {itemBusy[key] ? "Working..." : "EST nutrition from DESCR"}</button>
                           )}
                           {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
                         </div>
@@ -12809,11 +12813,12 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                         )}
                         {canEstimate && (
                           <button className="iest-btn" disabled={itemBusy[key]}
+                            title="Estimate nutrition from the dish description" aria-label="Estimate nutrition from the dish description"
                             onClick={()=> estimateOne(i, oj, it)}>
                             {itemBusy[key]
                               ? <span className="spin" />
                               : <Icon name="sparkle" size={12} color="var(--accent)" />}
-                            {itemBusy[key] ? "Working..." : "Estimate from description"}
+                            {itemBusy[key] ? "Working..." : "EST nutrition from DESCR"}
                           </button>
                         )}
                         {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
