@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.456.0";
+const APP_VERSION   = "1.457.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3662,6 +3662,7 @@ function buildMenuPayload(restaurant, menu){
       if (it && it.description) o.d = it.description;
       if (it && it.price)       o.p = it.price;
       if (it && it.tags && it.tags.length) o.t = it.tags.slice(0, 6);
+      if (it && it.sig) o.g = 1;   // signature: one key, on every item of every share
       return o;
     }),
   }));
@@ -3682,6 +3683,20 @@ function buildPlacePayload(restaurant, menu, lovedNames){
   delete o.l;   // a place share isn't a single named menu
   const loved = (lovedNames || []).map(n => (n || "").trim()).filter(Boolean);
   if (loved.length) o.loved = loved.slice(0, 8);
+  // Things you can order here that are on no menu. Sent with the date each was
+  // last confirmed, so the reader can weigh a tip that has gone quiet rather
+  // than trusting it blind.
+  const off = ((restaurant && restaurant.offmenu) || [])
+    .filter(x => x && (x.name || "").trim())
+    .slice(0, 8)
+    .map(x => {
+      const e = { n: String(x.name).trim() };
+      if (x.price) e.p = String(x.price).trim();
+      if (x.note)  e.d = String(x.note).trim().slice(0, 200);
+      if (x.at)    e.at = x.at;
+      return e;
+    });
+  if (off.length) o.off = off;
   return o;
 }
 
@@ -24243,6 +24258,33 @@ function PublishedMenu({data, onSaved}){
         </div>
       ) : null}
 
+      {/* Not on any menu, so it cannot be checked against one. Says plainly
+          whose word it is and how old, because a reader who takes it for the
+          restaurant's own list will ask out loud for something discontinued. */}
+      {isPlace && Array.isArray(data.off) && data.off.length > 0 ? (
+        <div className="card" style={{marginBottom:14}}>
+          <div className="pub-cta-title" style={{textAlign:"left", marginBottom:4}}>
+            Not on the menu
+          </div>
+          <div className="tiny faint" style={{marginBottom:10}}>
+            Passed on by whoever shared this, not from the restaurant. Worth asking for.
+          </div>
+          <div style={{display:"grid", gap:9}}>
+            {data.off.map((x,i)=>(
+              <div key={i} style={{borderTop: i ? "1px solid var(--line-soft)" : "none",
+                   paddingTop: i ? 9 : 0}}>
+                <div className="between" style={{alignItems:"baseline", gap:8}}>
+                  <span className="small" style={{fontWeight:600}}>{x.n}</span>
+                  {x.p ? <span className="tiny faint">{x.p}</span> : null}
+                </div>
+                {x.d ? <div className="tiny muted" style={{marginTop:2}}>{x.d}</div> : null}
+                {x.at ? <div className="tiny faint" style={{marginTop:3}}>Last confirmed {x.at}</div> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="pub-menu">
         {data.s.map((s,si)=>(
           <React.Fragment key={si}>
@@ -24273,6 +24315,14 @@ function PublishedMenu({data, onSaved}){
                         {it.p && !isWidePrice(it.p) ? <span className="ipr">{it.p}</span> : null}
                       </div>
                       {it.p && isWidePrice(it.p) ? <div className="iprl">{it.p}</div> : null}
+                      {/* Said to be the signature by the PERSON who shared this,
+                          not by the restaurant. The wording carries that. */}
+                      {it.g ? (
+                        <div className="isig">
+                          <Icon name="star" size={12} color="var(--accent)" />
+                          <span>They say this is what the place is known for</span>
+                        </div>
+                      ) : null}
                       {it.d ? <div className="idesc">{it.d}</div> : null}
                       {it.t && it.t.length > 0 && (
                         <div className="chips" style={{marginTop:6}}>
