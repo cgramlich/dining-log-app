@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.459.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.460.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.121.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.459.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.460.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -343,6 +343,14 @@ over "only stop the stranding" and "jump straight to adding your own items".
 Both are labelled as the SENDER's word, not the restaurant's, with each tip's last-confirmed date.
 That labelling is the safety of the feature. Signature is one key (`g`) per item because it rides
 every item against the 80k payload ceiling; off-menu is capped at eight.
+
+### Places filters are pickers, not button walls (2026-09-16)
+
+City, Cuisine and Sort are one row of buttons that open `PickerSheet` (the + menu's bottom-sheet
+look), most-used first, with search past ten options. Chris chose this over "show six, hide the
+rest" and over folding filters into search. Non-food Google types (`NOT_A_CUISINE`: Golf Course,
+Point Of Interest, ...) are left out of the cuisine list only; the places stay under All cuisines,
+and nothing stored is changed.
 
 ### The email CTA is a link again (2026-09-03, reversing 2026-08)
 

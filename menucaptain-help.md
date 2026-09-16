@@ -97,6 +97,12 @@ just fill in the rest yourself.
 every visit you have logged there, and a picks card once you have rated some
 dishes (see "Your picks" below).
 
+**Narrowing the list.** Under the search box, **All / Want to try / Been** picks
+which places you see. Beside them, three buttons narrow it further: **City**,
+**Cuisine** and **Sort**. Each shows what it is set to and opens a short list,
+with the ones you use most at the top and a search box once the list gets long.
+Pick **All cities** or **All cuisines** to clear a filter.
+
 -----
 
 ## Map

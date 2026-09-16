@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.459.0";
+const APP_VERSION   = "1.460.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1670,6 +1670,12 @@ just fill in the rest yourself.
 **The restaurant page.** Opening a restaurant shows its details, its menus,
 every visit you have logged there, and a picks card once you have rated some
 dishes (see "Your picks" below).
+
+**Narrowing the list.** Under the search box, **All / Want to try / Been** picks
+which places you see. Beside them, three buttons narrow it further: **City**,
+**Cuisine** and **Sort**. Each shows what it is set to and opens a short list,
+with the ones you use most at the top and a search box once the list gets long.
+Pick **All cities** or **All cuisines** to clear a filter.
 
 -----
 
@@ -10338,12 +10344,46 @@ function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, 
 }
 
 
+/* A short pick-one list that rises from the bottom - the same sheet as the +
+   menu, so it looks and behaves like something the app already has. Options
+   arrive already ordered by the caller; a search box appears once the list is
+   long enough that scrolling for a name is the slow way. */
+function PickerSheet({ title, options, value, onPick, onClose }){
+  const [q, setQ] = useState("");
+  const ql = q.trim().toLowerCase();
+  const shown = ql ? options.filter(o => o.label.toLowerCase().indexOf(ql) !== -1) : options;
+  return (
+    <div className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={e=> e.stopPropagation()}>
+        <div className="grip" />
+        <div style={{fontWeight:600, fontSize:16, padding:"0 6px 10px"}}>{title}</div>
+        {options.length > 10 ? (
+          <div style={{padding:"0 0 6px"}}>
+            <ClearInput value={q} onChange={e=> setQ(e.target.value)} placeholder="Search" />
+          </div>
+        ) : null}
+        {shown.map(o => (
+          <button key={o.value} type="button" className="sheet-item"
+            style={{padding:"12px 6px"}}
+            onClick={()=>{ onPick(o.value); onClose(); }}>
+            <span style={{flex:1, minWidth:0, fontWeight: o.value === value ? 700 : 500,
+                  color: o.value === value ? "var(--accent)" : "var(--text)"}}>{o.label}</span>
+            {o.count != null ? <span className="tiny faint">{o.count}</span> : null}
+            {o.value === value ? <Icon name="check" size={16} color="var(--accent)" /> : null}
+          </button>
+        ))}
+        {!shown.length ? <div className="tiny faint" style={{padding:"12px 6px"}}>Nothing matches that.</div> : null}
+      </div>
+    </div>
+  );
+}
+
 function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin, onCreateRestaurant, onDeleteRestaurant, onAddPlace, onScanMenu}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("alpha");
   const [cuisineFilter, setCuisineFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("all");   // all | try | been
-  const [filtersOpen, setFiltersOpen] = useState(false);     // city/cuisine/sort live behind one toggle
+  const [picker, setPicker] = useState(null);                // "city" | "cuisine" | "sort" | null
   // Google search from the box (only offered when nothing saved matches).
   const [gBusy, setGBusy] = useState(false);
   const [gErr, setGErr]   = useState("");
@@ -10451,14 +10491,30 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   // Cuisines actually in use, cleaned the same way Near me cleans Google types
   // ("italian_restaurant"/"italian"/"Italian" all collapse to one "Italian"
   // chip), then deduped case-insensitively.
+  // Google place types that are not a kind of food. A place with no recognised
+  // cuisine keeps whatever Google called it, so these reached the cuisine list
+  // as if you could filter by "Golf Course". The places themselves are
+  // untouched and still appear under All cuisines.
+  const NOT_A_CUISINE = /^(point of interest|establishment|association or organization|golf course|indoor golf course|store|lodging|tourist attraction|premise|point of sale)$/i;
   const cuisineInUse = (function(){
     const seen = new Map();   // lower-cased canonical -> display label
     restaurants.forEach(r => {
       const c = normalizeCuisine(r.cuisine);   // same vocabulary as Near me; extras kept
-      if (c && !seen.has(c.toLowerCase())) seen.set(c.toLowerCase(), c);
+      if (c && !NOT_A_CUISINE.test(c) && !seen.has(c.toLowerCase())) seen.set(c.toLowerCase(), c);
     });
     return Array.from(seen.values()).sort((a,b)=> a.localeCompare(b));
   })();
+  // How many of your places are in each city / cuisine, for ordering the pickers
+  // most-used first - the one you want is nearly always one you use a lot.
+  const cityCount = {}, cuisineCount = {};
+  restaurants.forEach(r => {
+    const loc = (r.location || "").trim();
+    if (loc) cityCount[loc.toLowerCase()] = (cityCount[loc.toLowerCase()] || 0) + 1;
+    const c = normalizeCuisine(r.cuisine);
+    if (c) cuisineCount[c.toLowerCase()] = (cuisineCount[c.toLowerCase()] || 0) + 1;
+  });
+  const byUse = (counts)=> (a, b)=>
+    ((counts[b.toLowerCase()] || 0) - (counts[a.toLowerCase()] || 0)) || a.localeCompare(b);
 
   // If a previously-selected city is no longer a curated chip, fall back to "All"
   // (no side effect - just treat it as All for this render).
@@ -10673,78 +10729,67 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
           onClick={()=> setStatusFilter("been")}>Been</button>
       </div>
 
-      {/* City / cuisine / sort fold away behind one toggle so the list isn't
-          buried under chrome. Only shown when there's something to filter. */}
-      {(showChips || cuisineInUse.length >= 2 || restaurants.length > 1) && (
-        <div style={{margin:"0 0 12px"}}>
-          <button className="btn ghost sm" style={{margin:0}}
-            onClick={()=> setFiltersOpen(o => !o)}>
-            <Icon name="sliders" size={15} color="var(--accent)" />
-            Filters &amp; sort
-          <span style={{lineHeight:0, display:"inline-flex", transition:"transform .15s ease",
-            transform: filtersOpen ? "rotate(180deg)" : "none"}}>
-            <Icon name="chevd" size={14} color="var(--accent)" />
-          </span>
-            {!filtersOpen && (filter !== "All" || cuisineFilter !== "All" || sortBy !== "alpha")
-              ? <span className="tiny" style={{color:"var(--accent)", marginLeft:6}}>&bull; on</span> : null}
+      {/* City, cuisine and sort as one line of pickers. They used to open onto
+          two walls of buttons - with twenty-odd of each, a whole screen before
+          the first restaurant. Each button shows what it is set to, so what is
+          filtering the list is readable without opening anything. */}
+      {(showChips || cuisineInUse.length >= 2 || restaurants.length > 1) && (() => {
+        const SORT_LABEL = { alpha:"A\u2013Z", added:"Recently added", rating:"Highest rated", fav:"\u2665 Loved" };
+        const cityLabel = filter === "All" ? "All cities" : filter === "(no location)" ? "No location" : filter;
+        const cuisLabel = cuisineFilter === "All" ? "All cuisines"
+                        : cuisineFilter === "(no cuisine)" ? "No cuisine" : cuisineFilter;
+        const pill = (key, text, active)=> (
+          <button type="button" className={"chip pick" + (active ? " on" : "")}
+            style={{display:"inline-flex", alignItems:"center", gap:4, maxWidth:"100%"}}
+            onClick={()=> setPicker(key)}>
+            <span style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{text}</span>
+            <Icon name="chevd" size={13} color={active ? "#1b1714" : "var(--accent)"} />
           </button>
-        </div>
+        );
+        return (
+          <div className="chips" style={{margin:"0 0 12px", flexWrap:"wrap"}}>
+            {showChips ? pill("city", cityLabel, filter !== "All") : null}
+            {cuisineInUse.length >= 2 ? pill("cuisine", cuisLabel, cuisineFilter !== "All") : null}
+            {pill("sort", "Sort: " + (SORT_LABEL[sortBy] || "A\u2013Z"), false)}
+          </div>
+        );
+      })()}
+
+      {isCityFilter && visible.length > 0 && (
+        <button className="btn ghost sm" onClick={shareCity} disabled={cityShareBusy}
+                style={{margin:"0 0 14px"}}>
+          {cityShareBusy
+            ? <><span className="spin" /> Preparing link&hellip;</>
+            : <><Icon name="share" size={15} color="var(--accent)" /> Share my {filter} spots</>}
+        </button>
       )}
 
-      {filtersOpen && (
-        <>
-          {showChips && (
-            <div className="chips" style={{margin:"2px 0 14px"}}>
-              <span
-                className={"chip pick" + (filter === "All" ? " on" : "")}
-                onClick={()=> onFilterChange("All")}>All</span>
-              {cityChips.map(c => (
-                <span key={c}
-                  className={"chip pick" + (filter === c ? " on" : "")}
-                  onClick={()=> onFilterChange(c)}>{c}</span>
-              ))}
-              {hasUnplaced && (
-                <span
-                  className={"chip pick" + (filter === "(no location)" ? " on" : "")}
-                  onClick={()=> onFilterChange("(no location)")}>No location</span>
-              )}
-            </div>
-          )}
-
-          {cuisineInUse.length >= 2 && (
-            <div className="chips" style={{margin:"0 0 14px"}}>
-              <button type="button" className={"chip pick" + (cuisineFilter === "All" ? " on" : "")}
-                onClick={()=> setCuisineFilter("All")}>All cuisines</button>
-              {cuisineInUse.map(c => (
-                <span key={c} className={"chip pick" + (cuisineFilter === c ? " on" : "")}
-                  onClick={()=> setCuisineFilter(c)}>{c}</span>
-              ))}
-              {/* Mirrors the existing "No location" chip. Only offered when
-                  there is something to find. */}
-              {restaurants.some(r => !normalizeCuisine(r.cuisine)) && (
-                <span className={"chip pick" + (cuisineFilter === "(no cuisine)" ? " on" : "")}
-                  onClick={()=> setCuisineFilter("(no cuisine)")}>No cuisine</span>
-              )}
-            </div>
-          )}
-
-          {isCityFilter && visible.length > 0 && (
-            <button className="btn ghost sm" onClick={shareCity} disabled={cityShareBusy}
-                    style={{margin:"0 0 14px"}}>
-              {cityShareBusy
-                ? <><span className="spin" /> Preparing link&hellip;</>
-                : <><Icon name="share" size={15} color="var(--accent)" /> Share my {filter} spots</>}
-            </button>
-          )}
-
-          <div className="sortbar">
-            <span className="sortbar-lbl">Sort</span>
-            <button type="button" className={"chip pick" + (sortBy === "alpha" ? " on" : "")} onClick={()=> setSortBy("alpha")}>A&ndash;Z</button>
-            <button type="button" className={"chip pick" + (sortBy === "added" ? " on" : "")} onClick={()=> setSortBy("added")}>Recently added</button>
-            <button type="button" className={"chip pick" + (sortBy === "rating" ? " on" : "")} onClick={()=> setSortBy("rating")}>Highest rated</button>
-            <button type="button" className={"chip pick" + (sortBy === "fav" ? " on" : "")} onClick={()=> setSortBy("fav")}>{"♥ Loved"}</button>
-          </div>
-        </>
+      {picker === "city" && (
+        <PickerSheet title="City" value={filter} onClose={()=> setPicker(null)}
+          onPick={(v)=> onFilterChange(v)}
+          options={[{ value:"All", label:"All cities", count: restaurants.length }]
+            .concat(cityChips.slice().sort(byUse(cityCount))
+              .map(c => ({ value:c, label:c, count: cityCount[c.toLowerCase()] || 0 })))
+            .concat(hasUnplaced ? [{ value:"(no location)", label:"No location" }] : [])} />
+      )}
+      {picker === "cuisine" && (
+        <PickerSheet title="Cuisine" value={cuisineFilter} onClose={()=> setPicker(null)}
+          onPick={(v)=> setCuisineFilter(v)}
+          options={[{ value:"All", label:"All cuisines", count: restaurants.length }]
+            .concat(cuisineInUse.slice().sort(byUse(cuisineCount))
+              .map(c => ({ value:c, label:c, count: cuisineCount[c.toLowerCase()] || 0 })))
+            .concat(restaurants.some(r => !normalizeCuisine(r.cuisine))
+              ? [{ value:"(no cuisine)", label:"No cuisine" }] : [])} />
+      )}
+      {picker === "sort" && (
+        <PickerSheet title="Sort by" value={sortBy} onClose={()=> setPicker(null)}
+          onPick={(v)=> setSortBy(v)}
+          options={[
+            { value:"alpha",  label:"A\u2013Z" },
+            { value:"added",  label:"Recently added" },
+            { value:"rating", label:"Highest rated" },
+            { value:"fav",    label:"\u2665 Loved" },
+          ]} />
       )}
 
       {searched.length === 0 && (
