@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.458.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.459.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.121.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.458.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.459.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -447,8 +447,10 @@ the same treatment.
 - "Saved by N people" reported back to the sender. Proposed alongside the funnel work and
   deferred: it needs a per-slug count surfaced in the UI, and it is the weakest of the four
   ideas until the funnel numbers show anyone is opening these links at all.
-- The share card render is mostly empty black above and below the content band — right for a
-  9:16 story, wasteful in a text message. Cosmetic, ten minutes, unscheduled.
+- Reported: the share card image has empty black bands. NOT reproduced - `buildRestaurantCardBlob`
+  draws on a tall scratch canvas and crops to the height actually used, so the PNG is trimmed to its
+  content. The report came from another session looking at a rendered preview. Needs a screenshot
+  of a real sent card before anything changes.
 - On Edit visit, "Add a name `[Add]`" sits directly above "Search or type a dish `[Add]`" — two
   identical-looking rows. This produced a real bug (a person saved as a dish). 1.430.0 *detects*
   the collision and offers to fix it, but the underlying adjacency is untouched. The real fix is

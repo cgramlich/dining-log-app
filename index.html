@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.458.0";
+const APP_VERSION   = "1.459.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3704,9 +3704,10 @@ function buildPlacePayload(restaurant, menu, lovedNames){
    place (so the recipient can add it), the people's NAMES (no usernames /
    account ids - a published link is public), the date, the meal-photo URLs
    (pre-signed by the caller, 30-day), and the place's combined menu (short
-   form). DELIBERATELY EXCLUDED: private notes, and what was actually eaten
-   (no dishes) - a shared visit invites the recipient to log their own meal,
-   it never exposes the sharer's order or per-dish estimates/ratings. The one
+   form). DELIBERATELY EXCLUDED: private notes, what was paid, and any
+   per-dish notes, estimates or ratings. What was eaten IS sent, as dish names
+   only (see `ate` below) - this comment used to say dishes were excluded, which
+   was never true and contradicted the lines that follow. The one
    rating that IS included is the visit's star rating, which is a verdict on the
    PLACE - the whole point of passing it on, and not the private per-dish detail
    the exclusions above protect. `ate` carries the dish NAMES from the plate
