@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.457.0";
+const APP_VERSION   = "1.458.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -7154,6 +7154,8 @@ function App({openShare}){
       setOverlay({ type:"sharedMenu", slug: openShare.slug, data: openShare.data });
     } else if (openShare && openShare.kind === "list"){
       setOverlay({ type:"sharedList", data: openShare.data });
+    } else if (openShare && openShare.kind === "group"){
+      setOverlay({ type:"groupGuest", code: openShare.code });
     } else if (openShare && openShare.kind === "vote"){
       setOverlay({ type:"voteGuest", code: openShare.code });
     }
@@ -8601,6 +8603,19 @@ function App({openShare}){
           </div>
           <div className="ovbody">
             <PublishedList data={overlay.data} />
+          </div>
+        </div>
+      )}
+      {overlay && overlay.type === "groupGuest" && (
+        <div style={{position:"fixed", inset:0, zIndex:60, background:"var(--bg)", overflowY:"auto"}}>
+          <div style={{maxWidth:600, margin:"0 auto", padding:"14px 16px"}}>
+            <GroupOrderGuest code={overlay.code} cfg={config} profile={profile}
+              onClose={()=>{
+                // Closing it means you are done with it: do not reopen it
+                // behind your back on the next refresh.
+                try { sessionStorage.removeItem("mc_open_group"); } catch(e){}
+                setOverlay(null);
+              }} />
           </div>
         </div>
       )}
@@ -21377,6 +21392,27 @@ function markVoteDead(code){
   } catch(e){}
 }
 
+/* The same list for group order codes, kept separate so a vote and an order that
+   happen to share a code can never knock each other out. */
+const DEAD_GROUPS_KEY = "mc_dead_groups";
+function deadGroups(){
+  try {
+    const v = JSON.parse(localStorage.getItem(DEAD_GROUPS_KEY) || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch(e){ return []; }
+}
+function isDeadGroup(code){
+  return !!code && deadGroups().indexOf(code) !== -1;
+}
+function markGroupDead(code){
+  if (!code) return;
+  try {
+    const list = deadGroups().filter(c => c !== code);
+    list.push(code);
+    localStorage.setItem(DEAD_GROUPS_KEY, JSON.stringify(list.slice(-25)));
+  } catch(e){}
+}
+
 function groupNorm(s){ return (s || "").trim().toLowerCase(); }
 /* Might these two names be one person? Used ONLY to raise the question.
 
@@ -23487,7 +23523,19 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
       try {
         const d = await groupFetch(cfg || null, code);
         if (!alive) return;
-        if (!d){ setNotFound(true); setLoading(false); return; }
+        if (!d){
+          // Final, like a dead vote: record it so no future launch or refresh
+          // can come back to this code, whoever is holding the phone.
+          markGroupDead(code);
+          try { sessionStorage.removeItem("mc_open_group"); } catch(e){}
+          // Only touch the address if it is THIS link - the same component
+          // runs inside the host's own view, where the URL is not ours to clean.
+          try {
+            if (new RegExp("[?&]g=" + code + "(?:&|$)").test(location.search || ""))
+              history.replaceState(null, "", location.pathname);
+          } catch(e){}
+          setNotFound(true); setLoading(false); return;
+        }
         setData(d); setLoading(false);
       } catch(e){ if (alive){ setErr("Could not load this group order."); setLoading(false); } }
     })();
@@ -28164,6 +28212,12 @@ class ErrorBoundary extends React.Component {
     try { sessionStorage.removeItem("mc_open_vote"); } catch(e){}
     voteCode = null;   // downstream now behaves as though there were no vote at all
   }
+  // Same rule, same reason, for group order codes.
+  if (groupCode && isDeadGroup(groupCode)){
+    try { history.replaceState(null, "", location.pathname); } catch(e){}
+    try { sessionStorage.removeItem("mc_open_group"); } catch(e){}
+    groupCode = null;
+  }
 
   let inAppShare = null;
   try {
@@ -28187,10 +28241,18 @@ class ErrorBoundary extends React.Component {
         // launch never resurrects it, and the vote screen clears it the moment
         // the vote turns out to be gone.
         try { sessionStorage.setItem("mc_open_vote", voteCode); } catch(e){}
+      } else if (groupCode){
+        // Exactly the vote treatment: strip the code before the first render so
+        // a relaunch cannot come back to it, keep the place for a refresh only.
+        inAppShare = { kind:"group", code: groupCode };
+        try { history.replaceState(null, "", location.pathname); } catch(e){}
+        try { sessionStorage.setItem("mc_open_group", groupCode); } catch(e){}
       } else {
         try {
           const held = sessionStorage.getItem("mc_open_vote");
+          const heldG = sessionStorage.getItem("mc_open_group");
           if (held) inAppShare = { kind:"vote", code: held };
+          else if (heldG) inAppShare = { kind:"group", code: heldG };
         } catch(e){}
       }
     }

@@ -1,6 +1,6 @@
 # MenuCaptain — HANDOFF
 
-**True as of 2026-09-13.** Read this before changing anything. It says what is true *now* and
+**True as of 2026-09-16.** Read this before changing anything. It says what is true *now* and
 why — not what happened (git has that). Companion: `BRIEFING.md` (deck-ready, leaves the
 machine). When the two disagree, **this file is right**.
 
@@ -18,13 +18,13 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-09-13
+## Current state — 2026-09-16
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.454.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.458.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.121.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.454.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.458.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -328,6 +328,22 @@ remove that.
 New visits only. It opens the same share sheet as the visit card, which states what is sent; it
 does not share in one tap from a toast. Edits stay quiet until there is a reason otherwise.
 
+### Every share link opens in the app for an account holder (2026-09-16)
+
+Visits (1.421.0), votes (1.424.0), menus and lists (1.456.0) and group orders (1.458.0) all
+follow one rule now: a device with an account opens the link as an overlay inside the app; a
+device without one gets the public page. Group orders copy the vote fix whole - code stripped
+before the first render, `sessionStorage` for a refresh, a `localStorage` list of dead codes
+checked for every visitor - with their own keys (`mc_open_group`, `mc_dead_groups`) so a vote and
+an order sharing a code cannot knock each other out. **Chris chose "into the app, on the order"**
+over "only stop the stranding" and "jump straight to adding your own items".
+
+### A shared place carries signature marks and off-menu tips (2026-09-16)
+
+Both are labelled as the SENDER's word, not the restaurant's, with each tip's last-confirmed date.
+That labelling is the safety of the feature. Signature is one key (`g`) per item because it rides
+every item against the 80k payload ceiling; off-menu is capped at eight.
+
 ### The email CTA is a link again (2026-09-03, reversing 2026-08)
 
 It was turned into an instruction ("Open MenuCaptain on your phone to see it")
@@ -420,20 +436,12 @@ the same treatment.
 ## What is open
 
 **Blocked on Chris — nobody else can do these:**
-- iOS build machine (leaning MacBook Air 512GB), then TestFlight
+- ~~iOS build machine~~ **resolved 2026-09-15: Chris bought a MacBook Pro.** Next: Xcode on it, then TestFlight
 - Google Play Console registration and the Android release keystore
 - Store listing details: subtitle, Google title, age rating, demo account
 - Stripe prices, then `git merge hold/price-3.99`
 
 **Known bugs, unfixed and deliberate about it:**
-- `?g=` group-order links can park the installed app exactly like `?v=` used to. The same fix
-  applies; it was left because the right in-app destination for a group order is a product
-  decision, not a mechanical copy of the vote one.
-- Signature marks and off-menu items are NOT carried on shared menus or shared place pages yet.
-  A friend who opens your shared place sees the menu without them, which is most of what would
-  make it worth sending.
-- Menu and list share links still route to the public viewer for signed-in users. Only *visit*
-  shares were fixed.
 
 **Parked, with reasoning:**
 - "Saved by N people" reported back to the sender. Proposed alongside the funnel work and
