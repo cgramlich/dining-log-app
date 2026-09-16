@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.455.0";
+const APP_VERSION   = "1.456.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -7135,6 +7135,10 @@ function App({openShare}){
   useEffect(()=>{
     if (openShare && openShare.kind === "visit"){
       setOverlay({ type:"sharedVisit", slug: openShare.slug, data: openShare.data });
+    } else if (openShare && openShare.kind === "menu"){
+      setOverlay({ type:"sharedMenu", slug: openShare.slug, data: openShare.data });
+    } else if (openShare && openShare.kind === "list"){
+      setOverlay({ type:"sharedList", data: openShare.data });
     } else if (openShare && openShare.kind === "vote"){
       setOverlay({ type:"voteGuest", code: openShare.code });
     }
@@ -8552,6 +8556,36 @@ function App({openShare}){
             {overlay.data
               ? <PublishedVisit data={overlay.data} />
               : <PublishedVisitLoader slug={overlay.slug} />}
+          </div>
+        </div>
+      )}
+      {/* Shared menu and list, in the app for a reader who has an account -
+          the same shape as sharedVisit above, using the same public components
+          inside the app's own chrome. A reader with no account never reaches
+          here; the router sends them to the public page instead. */}
+      {overlay && overlay.type === "sharedMenu" && (
+        <div className="overlay">
+          <div className="ovhead">
+            <button className="x" onClick={()=> setOverlay(null)}>Back</button>
+            <h2>Shared menu</h2>
+            <span style={{width:54}} />
+          </div>
+          <div className="ovbody">
+            {overlay.data
+              ? <PublishedMenu data={overlay.data} />
+              : <PublishedMenuLoader slug={overlay.slug} />}
+          </div>
+        </div>
+      )}
+      {overlay && overlay.type === "sharedList" && (
+        <div className="overlay">
+          <div className="ovhead">
+            <button className="x" onClick={()=> setOverlay(null)}>Back</button>
+            <h2>Shared list</h2>
+            <span style={{width:54}} />
+          </div>
+          <div className="ovbody">
+            <PublishedList data={overlay.data} />
           </div>
         </div>
       )}
@@ -28086,6 +28120,10 @@ class ErrorBoundary extends React.Component {
     if (configComplete(loadConfig())){
       if (visitSlug || publishedVisit){
         inAppShare = { kind:"visit", slug: visitSlug || null, data: publishedVisit || null };
+      } else if (menuSlug || publishedMenu){
+        inAppShare = { kind:"menu", slug: menuSlug || null, data: publishedMenu || null };
+      } else if (published){
+        inAppShare = { kind:"list", data: published };
       } else if (voteCode){
         inAppShare = { kind:"vote", code: voteCode };
         // Strip it NOW, before the first render and regardless of whether the
