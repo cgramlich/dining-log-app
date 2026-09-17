@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.462.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.463.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.121.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.462.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.463.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -351,6 +351,11 @@ look), most-used first, with search past ten options. Chris chose this over "sho
 rest" and over folding filters into search. Non-food Google types (`NOT_A_CUISINE`: Golf Course,
 Point Of Interest, ...) are left out of the cuisine list only; the places stay under All cuisines,
 and nothing stored is changed.
+
+**Date order is its own drop-down (1.463.0).** Chris rejected newest/oldest living inside Sort,
+and chose a separate Date control (Any / Newest first / Oldest first) over a "sort by + order"
+pair. A date choice overrides Sort; picking any Sort option resets Date to Any, so the last
+control touched always wins.
 
 ### "In their words" is not "About this place" (2026-09-16)
 

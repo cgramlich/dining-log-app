@@ -101,7 +101,9 @@ dishes (see "Your picks" below).
 which places you see. Beside them, three buttons narrow it further: **City**,
 **Cuisine** and **Sort**. Each shows what it is set to and opens a short list,
 with the ones you use most at the top and a search box once the list gets long.
-Sort by name, newest or oldest added, highest rated, or the places you love.
+**Sort** orders by name, highest rated, or the places you love. **Date** orders
+by when you added them, newest or oldest first, and takes over from Sort until
+you set it back to **Any**.
 Pick **All cities** or **All cuisines** to clear a filter.
 
 -----

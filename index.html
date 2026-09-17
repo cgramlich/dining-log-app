@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.462.0";
+const APP_VERSION   = "1.463.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1675,7 +1675,9 @@ dishes (see "Your picks" below).
 which places you see. Beside them, three buttons narrow it further: **City**,
 **Cuisine** and **Sort**. Each shows what it is set to and opens a short list,
 with the ones you use most at the top and a search box once the list gets long.
-Sort by name, newest or oldest added, highest rated, or the places you love.
+**Sort** orders by name, highest rated, or the places you love. **Date** orders
+by when you added them, newest or oldest first, and takes over from Sort until
+you set it back to **Any**.
 Pick **All cities** or **All cuisines** to clear a filter.
 
 -----
@@ -10417,6 +10419,8 @@ function PickerSheet({ title, options, value, onPick, onClose }){
 function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin, onCreateRestaurant, onDeleteRestaurant, onAddPlace, onScanMenu}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("alpha");
+  // Its own control, and it overrides sortBy while set: "any" | "newest" | "oldest".
+  const [dateOrder, setDateOrder] = useState("any");
   const [cuisineFilter, setCuisineFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("all");   // all | try | been
   const [picker, setPicker] = useState(null);                // "city" | "cuisine" | "sort" | null
@@ -10604,8 +10608,8 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
     return (dir * x.localeCompare(y)) || byName(a, b);
   };
   const ordered =
-    sortBy === "added"  ? [...searched].sort(byAdded(-1)) :
-    sortBy === "oldest" ? [...searched].sort(byAdded(1)) :
+    dateOrder === "newest" ? [...searched].sort(byAdded(-1)) :
+    dateOrder === "oldest" ? [...searched].sort(byAdded(1)) :
     sortBy === "rating" ? [...searched].sort((a,b)=> (avgRating(b.id) - avgRating(a.id)) || byName(a,b)) :
                           [...searched].sort(byName);  // "alpha"
 
@@ -10779,7 +10783,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
           the first restaurant. Each button shows what it is set to, so what is
           filtering the list is readable without opening anything. */}
       {(showChips || cuisineInUse.length >= 2 || restaurants.length > 1) && (() => {
-        const SORT_LABEL = { alpha:"A\u2013Z", added:"Newest added", oldest:"Oldest added", rating:"Highest rated", fav:"\u2665 Loved" };
+        const SORT_LABEL = { alpha:"A\u2013Z", rating:"Highest rated", fav:"\u2665 Loved" };
         const cityLabel = filter === "All" ? "All cities" : filter === "(no location)" ? "No location" : filter;
         const cuisLabel = cuisineFilter === "All" ? "All cuisines"
                         : cuisineFilter === "(no cuisine)" ? "No cuisine" : cuisineFilter;
@@ -10796,6 +10800,9 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
             {showChips ? pill("city", cityLabel, filter !== "All") : null}
             {cuisineInUse.length >= 2 ? pill("cuisine", cuisLabel, cuisineFilter !== "All") : null}
             {pill("sort", "Sort: " + (SORT_LABEL[sortBy] || "A\u2013Z"), false)}
+            {pill("date", dateOrder === "newest" ? "Newest first"
+                        : dateOrder === "oldest" ? "Oldest first" : "Date: Any",
+                  dateOrder !== "any")}
           </div>
         );
       })()}
@@ -10828,13 +10835,20 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       )}
       {picker === "sort" && (
         <PickerSheet title="Sort by" value={sortBy} onClose={()=> setPicker(null)}
-          onPick={(v)=> setSortBy(v)}
+          onPick={(v)=>{ setSortBy(v); setDateOrder("any"); }}   // last choice wins
           options={[
             { value:"alpha",  label:"A\u2013Z" },
-            { value:"added",  label:"Newest added" },
-            { value:"oldest", label:"Oldest added" },
             { value:"rating", label:"Highest rated" },
             { value:"fav",    label:"\u2665 Loved" },
+          ]} />
+      )}
+      {picker === "date" && (
+        <PickerSheet title="Date added" value={dateOrder} onClose={()=> setPicker(null)}
+          onPick={(v)=> setDateOrder(v)}
+          options={[
+            { value:"any",    label:"Any (use Sort)" },
+            { value:"newest", label:"Newest first" },
+            { value:"oldest", label:"Oldest first" },
           ]} />
       )}
 
@@ -10852,7 +10866,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
         </div>
       )}
 
-      {sortBy === "fav" ? (
+      {sortBy === "fav" && dateOrder === "any" ? (
         favsSorted.length > 0
           ? favsSorted.map(Card)
           : (searched.length > 0 ? (
