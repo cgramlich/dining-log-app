@@ -270,6 +270,13 @@ the app tidies up your old copy so there's no stale duplicate.
 
 Two kinds of thing a menu will not tell you, and both live where you need them.
 
+**In their words.** Some menus print a story about the restaurant itself - who
+founded it, where the recipes come from. When you scan a menu like that, the app
+keeps the story word for word on the place, under **In their words**. It is kept
+apart from **About this place**, which is your own take, and it stays private -
+it is not included when you share the place. Tap the small info icon beside either
+heading for a reminder of what it is.
+
 **Signature dishes.** A menu lists forty things and does not say which one
 people actually come for. On any menu, tap **Edit names & tags** and you can
 mark a dish as a **Signature**. It then shows a star and a line under the dish

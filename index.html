@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.461.0";
+const APP_VERSION   = "1.462.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1843,6 +1843,13 @@ the app tidies up your old copy so there's no stale duplicate.
 ## What only the locals know
 
 Two kinds of thing a menu will not tell you, and both live where you need them.
+
+**In their words.** Some menus print a story about the restaurant itself - who
+founded it, where the recipes come from. When you scan a menu like that, the app
+keeps the story word for word on the place, under **In their words**. It is kept
+apart from **About this place**, which is your own take, and it stays private -
+it is not included when you share the place. Tap the small info icon beside either
+heading for a reminder of what it is.
 
 **Signature dishes.** A menu lists forty things and does not say which one
 people actually come for. On any menu, tap **Edit names & tags** and you can
@@ -4569,10 +4576,14 @@ async function digitizeMenu(cfg, dataUrls){
     "sections of the SAME restaurant menu - merge them into one menu.\n\n"+
     "Return ONLY valid JSON. No markdown, no commentary. Keep the response "+
     "compact so it is not truncated. Schema:\n"+
-    '{"restaurant_name": string or null, "sections":[{"name":string,'+
+    '{"restaurant_name": string or null, "house_story": string or null, "sections":[{"name":string,'+
     '"items":[{"name":string,"description":string,"price":string,'+
     '"tags":[string],"notes":string,"calories":number or null}]}]}\n\n'+
     "Rules:\n"+
+    "- house_story: if the menu prints a passage ABOUT THE RESTAURANT itself - its "+
+    "history, founders, origins, philosophy - copy it word for word, keeping "+
+    "paragraph breaks. Not dish descriptions, not hours, address, allergy or "+
+    "gratuity notices. null if there is none. Never write one yourself.\n"+
     "- price: a string exactly as printed (e.g. \"$12.95\", \"6.25 ea / 2 for 11.50\", "+
     "\"MP\"); empty string if none.\n"+
     "- A menu may price ONE dish across several sizes or styles in a grid. Keep "+
@@ -4691,7 +4702,7 @@ async function digitizeMenu(cfg, dataUrls){
     }).filter(it => it.name),
   })).filter(s => s.items.length);
   parsed.raw_text = String(parsed.raw_text || "");
-  return parsed;
+  return cleanHouseStory(parsed);
 }
 
 // Split a big menu text near a line boundary closest to the middle, so a chunk
@@ -4703,9 +4714,22 @@ function _menuSplitPoint(t){
 }
 // Merge two digitized menus: sections that share a name (case-insensitive) fold
 // together, duplicate items drop out. Used when a large menu is read in chunks.
+/* The restaurant's own printed story, as returned by a scan: a trimmed string
+   or nothing. Capped, because a menu page can carry a very long "about us" and
+   this rides on the restaurant record that syncs to every device. */
+const HOUSE_STORY_MAX = 1500;
+function cleanHouseStory(parsed){
+  if (!parsed) return parsed;
+  const t = (typeof parsed.house_story === "string") ? parsed.house_story.trim() : "";
+  if (t.length >= 40) parsed.house_story = t.slice(0, HOUSE_STORY_MAX);
+  else delete parsed.house_story;   // a stray line is not a story
+  return parsed;
+}
+
 function _mergeMenus(a, b){
   if (!a) return b; if (!b) return a;
   const out = { restaurant_name: a.restaurant_name || b.restaurant_name || null,
+                house_story: a.house_story || b.house_story || undefined,
                 sections: (a.sections || []).map(s => ({ name:s.name, items:(s.items||[]).slice() })),
                 raw_text: "" };
   const idx = {};
@@ -4765,10 +4789,14 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
     "the real items, descriptions, and prices are frequently in that JSON, so mine "+
     "it too.\n\n"+
     "Return ONLY valid JSON. No markdown, no commentary. Keep it compact. Schema:\n"+
-    '{"restaurant_name": string or null, "sections":[{"name":string,'+
+    '{"restaurant_name": string or null, "house_story": string or null, "sections":[{"name":string,'+
     '"items":[{"name":string,"description":string,"price":string,'+
     '"tags":[string],"notes":string,"calories":number or null}]}]}\n\n'+
     "Rules:\n"+
+    "- house_story: if the menu prints a passage ABOUT THE RESTAURANT itself - its "+
+    "history, founders, origins, philosophy - copy it word for word, keeping "+
+    "paragraph breaks. Not dish descriptions, not hours, address, allergy or "+
+    "gratuity notices. null if there is none. Never write one yourself.\n"+
     "- price: a string exactly as written (e.g. \"$12.95\", \"MP\"); empty string if none.\n"+
     "- A menu may price ONE dish across several sizes or styles in a grid. Keep "+
     "every number attached to its own label so no price is ambiguous, e.g. "+
@@ -4842,7 +4870,7 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
       return item;
     }).filter(it => it.name),
   })).filter(s => s.items.length);
-  return parsed;
+  return cleanHouseStory(parsed);
 }
 
 /* ============================================================
@@ -9341,6 +9369,13 @@ function App({openShare}){
           onSave={(restId, menusToSave, newRestaurant, isReplace, opts)=>{
             let nextR = restaurants;
             if (newRestaurant) nextR = [newRestaurant].concat(restaurants);
+            // The menu printed a story about the place: keep the latest one.
+            // A scan without one leaves an earlier story alone.
+            const houseStory = (opts && opts.houseStory) || "";
+            if (houseStory){
+              nextR = nextR.map(x => x.id === restId
+                ? Object.assign({}, x, { house_story: houseStory, house_story_at: todayISO() }) : x);
+            }
             const existingForRest = menus[restId] || [];
             let newRestMenus;
             if (isReplace){
@@ -9360,7 +9395,7 @@ function App({openShare}){
             }
             const nextM = Object.assign({}, menus, { [restId]:newRestMenus });
             commit({ restaurants:nextR, menus:nextM },
-                   newRestaurant ? ["restaurants","menus"] : ["menus"]);
+                   (newRestaurant || houseStory) ? ["restaurants","menus"] : ["menus"]);
             // stayOpen: the flow is looping through several found menus - data
             // is saved but the sheet stays up so the next one is one tap away.
             // Otherwise: if we were launched from somewhere (e.g. the log-visit
@@ -11756,11 +11791,40 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             is what makes a shared visit read as more than a receipt. */}
         {(r.story || "").trim() ? (
           <div className="card" style={{marginTop:14, padding:"13px 15px"}}>
-            <div className="lbl" style={{marginBottom:7}}>About this place</div>
+            <div className="row" style={{gap:6, alignItems:"center", marginBottom:7}}>
+              <span className="lbl" style={{margin:0}}>About this place</span>
+              <InfoDot title="About this place">
+                <span className="idl">What you know about this place - its history, what it is known
+                  for, why it is worth going. Yours to write, in the place's Edit screen.</span>
+                <span className="idl">It goes along when you share the place.</span>
+              </InfoDot>
+            </div>
             {/* Pasted text arrives with its own paragraphs; keeping them costs
                 nothing and reads far better than one run-on block. */}
             <div className="small" style={{whiteSpace:"pre-wrap", lineHeight:1.5}}>
               {r.story.trim()}
+            </div>
+          </div>
+        ) : null}
+
+        {/* The restaurant's own printed story, captured by a menu scan. A
+            separate card from About this place, so marketing never reads as
+            somebody's first-hand knowledge. The explanation lives behind the
+            info icon rather than taking up the card. */}
+        {(r.house_story || "").trim() ? (
+          <div className="card" style={{marginTop:14, padding:"13px 15px"}}>
+            <div className="row" style={{gap:6, alignItems:"center", marginBottom:7}}>
+              <span className="lbl" style={{margin:0}}>In their words</span>
+              <InfoDot title="In their words">
+                <span className="idl">The story this restaurant prints on its own menu, picked up
+                  when the menu was scanned{r.house_story_at ? " on " + r.house_story_at : ""}.</span>
+                <span className="idl">It is their description, not yours or a friend's. It stays
+                  private to you and is not included when you share the place.</span>
+                <span className="idl">Scanning a newer menu that has a story replaces it.</span>
+              </InfoDot>
+            </div>
+            <div className="small muted" style={{whiteSpace:"pre-wrap", lineHeight:1.5, fontStyle:"italic"}}>
+              {r.house_story.trim()}
             </div>
           </div>
         ) : null}
@@ -19904,7 +19968,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       ? foundMenus.filter(mn => mn.url !== curUrl && addedUrls.indexOf(mn.url) === -1)
       : [];
     const stayOpen = remaining.length > 0;
-    onSave(targetRestId, menusToSave, newRestaurant, isReplace, { stayOpen });
+    onSave(targetRestId, menusToSave, newRestaurant, isReplace,
+           { stayOpen, houseStory: (result && result.house_story) || "" });
     if (stayOpen){
       setAddedUrls(prev => prev.concat([curUrl]));
       setRestId(targetRestId);           // later menus land in the same place

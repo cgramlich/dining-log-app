@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.461.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.462.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.121.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.461.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.462.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -351,6 +351,18 @@ look), most-used first, with search past ten options. Chris chose this over "sho
 rest" and over folding filters into search. Non-food Google types (`NOT_A_CUISINE`: Golf Course,
 Point Of Interest, ...) are left out of the cuisine list only; the places stay under All cuisines,
 and nothing stored is changed.
+
+### "In their words" is not "About this place" (2026-09-16)
+
+A menu scan now also returns `house_story`: text the menu prints about the restaurant itself,
+verbatim, capped at 1,500 characters, dropped if under 40, and never invented. It is stored on
+the place (`house_story`, `house_story_at`), and a later scan with a story replaces it.
+
+**It is deliberately a separate field from `story` (About this place).** `story` is the user's
+own word and travels in the share payload; `house_story` is the restaurant's marketing and its
+copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
+filling About this place automatically and over keeping it manual. Both cards carry an info icon
+instead of explanatory text, at his request.
 
 ### The email CTA is a link again (2026-09-03, reversing 2026-08)
 
