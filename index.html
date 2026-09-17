@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.460.0";
+const APP_VERSION   = "1.461.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1675,6 +1675,7 @@ dishes (see "Your picks" below).
 which places you see. Beside them, three buttons narrow it further: **City**,
 **Cuisine** and **Sort**. Each shows what it is set to and opens a short list,
 with the ones you use most at the top and a search box once the list gets long.
+Sort by name, newest or oldest added, highest rated, or the places you love.
 Pick **All cities** or **All cuisines** to clear a filter.
 
 -----
@@ -10559,8 +10560,17 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   };
   const favsSorted   = searched.filter(r => r.favorite).sort(byName);
   const othersSorted = searched.filter(r => !r.favorite).sort(byName);
+  // Places saved before dates were recorded have no added_date. They go LAST in
+  // both directions - otherwise "oldest first" would open on a block of undated
+  // places that are not necessarily old at all.
+  const byAdded = (dir)=> (a, b)=> {
+    const x = a.added_date || "", y = b.added_date || "";
+    if (!x !== !y) return x ? -1 : 1;
+    return (dir * x.localeCompare(y)) || byName(a, b);
+  };
   const ordered =
-    sortBy === "added"  ? [...searched].sort((a,b)=> (b.added_date || "").localeCompare(a.added_date || "") || byName(a,b)) :
+    sortBy === "added"  ? [...searched].sort(byAdded(-1)) :
+    sortBy === "oldest" ? [...searched].sort(byAdded(1)) :
     sortBy === "rating" ? [...searched].sort((a,b)=> (avgRating(b.id) - avgRating(a.id)) || byName(a,b)) :
                           [...searched].sort(byName);  // "alpha"
 
@@ -10734,7 +10744,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
           the first restaurant. Each button shows what it is set to, so what is
           filtering the list is readable without opening anything. */}
       {(showChips || cuisineInUse.length >= 2 || restaurants.length > 1) && (() => {
-        const SORT_LABEL = { alpha:"A\u2013Z", added:"Recently added", rating:"Highest rated", fav:"\u2665 Loved" };
+        const SORT_LABEL = { alpha:"A\u2013Z", added:"Newest added", oldest:"Oldest added", rating:"Highest rated", fav:"\u2665 Loved" };
         const cityLabel = filter === "All" ? "All cities" : filter === "(no location)" ? "No location" : filter;
         const cuisLabel = cuisineFilter === "All" ? "All cuisines"
                         : cuisineFilter === "(no cuisine)" ? "No cuisine" : cuisineFilter;
@@ -10786,7 +10796,8 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
           onPick={(v)=> setSortBy(v)}
           options={[
             { value:"alpha",  label:"A\u2013Z" },
-            { value:"added",  label:"Recently added" },
+            { value:"added",  label:"Newest added" },
+            { value:"oldest", label:"Oldest added" },
             { value:"rating", label:"Highest rated" },
             { value:"fav",    label:"\u2665 Loved" },
           ]} />
