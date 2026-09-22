@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.463.0";
+const APP_VERSION   = "1.464.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -4756,10 +4756,17 @@ function _mergeMenus(a, b){
 // too big to read in one pass (output hits the token cap) is split in half and
 // each part digitized, then merged - so long chain menus come through whole.
 // Beyond this, one response cannot hold the answer. The JSON this schema
-// produces runs about 1:1 with the source text, so ~8k chars of menu is
-// already ~2.5k tokens of output; a 14k-char PDF menu is closer to 5k, which
-// is minutes of generation on a connection that has nothing to show for it.
-const MENU_TEXT_ONE_PASS = 8000;
+// produces runs about 1:1 with the source text, so 20k chars of menu is around
+// 6k tokens of output - comfortable under the 16k ceiling the call asks for,
+// with the stop_reason re-split below as the backstop if a dense menu overruns.
+//
+// This was 8,000, chosen for the WAIT: the halves run in parallel, so eight
+// small calls finish in about the time of one. What that missed is that the
+// allowance counts CALLS, not words, so a 199-item menu split eight ways spent
+// eight of a free user's seventy-five on one import. Chris chose the allowance
+// over the wait (2026-09-22): a big menu is now two or three calls and about
+// fifty seconds, rather than eight calls and about twenty.
+const MENU_TEXT_ONE_PASS = 20000;
 
 // Halve the text, digitize both halves, merge. The two calls are independent,
 // so run them together rather than end to end - four sequential chunks is
@@ -20647,7 +20654,17 @@ function PublishedVisit({data, onSaved, onLogVisit}){
       + (data.r ? "&at=" + encodeURIComponent(String(data.r).slice(0, 80)) : "")
       + (data.byn ? "&nm=" + encodeURIComponent(String(data.byn).slice(0, 60)) : "")
     : "");
-  const [shut, setShut] = useState({});   // which menu courses the reader folded away
+  // Every course starts FOLDED. The reader came to see a meal, and the menu
+  // behind it can run hundreds of items; folded, it reads as a contents list.
+  // A section with no name has no header to tap, so folding it would strand its
+  // items - those start open.
+  const [shut, setShut] = useState(()=> {
+    const init = {};
+    (Array.isArray(data && data.s) ? data.s : []).forEach((sec, i)=> {
+      if (sec && sec.n) init[i] = true;
+    });
+    return init;
+  });
   const [lb, setLb] = useState(-1);          // lightbox photo index, -1 = closed
   const myCfg = loadConfig();
   const canSave = configComplete(myCfg);
@@ -20969,8 +20986,9 @@ function PublishedVisit({data, onSaved, onLogVisit}){
         </div>
       ) : null}
 
-      {/* The whole menu, open, but every course folds away - a wine list can run
-          seventy items and nobody reading about dinner wants to scroll past it. */}
+      {/* The whole menu, every course folded shut - a wine list can run seventy
+          items and nobody reading about dinner wants to scroll past it. Tapping
+          a course name opens it. */}
       {sections.length > 0 && (
         <div style={{marginTop:18}}>
           <div className="tiny faint" style={{marginBottom:7}}>The menu</div>

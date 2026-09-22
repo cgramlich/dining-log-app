@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.463.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.464.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.122.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.463.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.464.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -369,6 +369,29 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### A shared visit opens with the menu folded (2026-09-22)
+
+The courses in a shared visit always folded; they just started open, so someone opening a link to
+see what a friend ate scrolled a whole menu to get past it. Every named course now starts shut,
+which turns the same block into a contents list: course names with their item counts, opening on
+a tap.
+
+A section with **no** name draws no header button, so folding it would put its items out of
+reach. Those start open. `useState` takes an initializer function rather than a value, so the
+fold map is computed once from the payload instead of on every render.
+
+### The menu chunk is 20,000 characters, not 8,000 (2026-09-22)
+
+`MENU_TEXT_ONE_PASS` was 8,000, chosen for the WAIT: the halves digitize in parallel, so eight
+small calls finish in roughly the time of one. What that reasoning missed is that the allowance
+counts **calls, not words** (`AI_CALL_CAPS` free = 75 lifetime), so a 199-item menu split eight
+ways spent about eight of a free user's seventy-five on one import.
+
+Chris chose the allowance over the wait: a big menu is now two or three calls and about fifty
+seconds rather than eight calls and about twenty. 20,000 characters is roughly 6,000 tokens of
+JSON, comfortably under the 16,000 the call asks for, and the `stop_reason === "max_tokens"`
+re-split still catches a menu dense enough to overrun.
+
 ### A web menu is judged on what the page CLAIMS, not on what it shipped (2026-09-22)
 
 A restaurant page can print its menu's section titles and leave the items for JavaScript to fill
@@ -514,11 +537,6 @@ the same treatment.
   making the two rows visibly different jobs.
 - Group order → logged visit, and a retention policy for group-order data. Both proposed, neither
   approved.
-- Menu chunk size vs the AI quota. A 199-item menu is ~40k characters and `MENU_TEXT_ONE_PASS`
-  (8,000) turns that into about eight relay calls, each one counting against a cap that counts
-  CALLS. Raising the chunk size cuts that to two or three and makes the single wait longer; the
-  8,000 was a deliberate latency choice, so it is Chris's to change. `max_tokens` is 16,000 and
-  the `stop_reason` re-split is the backstop, so a bigger chunk degrades safely.
 
 ---
 
