@@ -993,7 +993,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.464.0";
+const APP_VERSION   = "1.465.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1782,6 +1782,14 @@ hold a card near the grip to drag it into the order you like.
 **Dietary filters.** Open a menu and tap the diet chips (vegetarian, vegan,
 gluten-free, and friends) to narrow the list to dishes that fit - tags come
 from the menu itself plus the scan's best read of each dish.
+
+**Splitting a menu up.** A single pull from a restaurant's website often brings
+back their whole page at once - dinner, lunch, drinks and brunch in one menu.
+Open the menu and tap **Split** to move sections into a menu of their own: tick
+the ones to move, name where they are going, and the rest stay put. Type the
+name of a menu you already have and they join it instead of starting a new one.
+You cannot move every section out, because that would leave an empty menu - use
+**Rename** for that.
 
 **Re-scanning and deleting.** Each menu card offers **Refresh** to replace it
 with a fresh version - photograph it again or pull it from a link - and you
@@ -8967,6 +8975,16 @@ function App({openShare}){
             commit({ menus: Object.assign({}, menus, { [overlay.restaurantId]:restMenus }) }, ["menus"]);
             flash("Menu renamed");
           }}
+          onSplitMenu={(idxs, newLabel)=>{
+            const rid = overlay.restaurantId;
+            const next = splitMenuSections(menus[rid] || [], overlay.menuId, idxs, newLabel);
+            // null means the move was not a move - the panel gates for this, so
+            // reaching here means something changed underneath. Say nothing
+            // rather than writing a half-move.
+            if (!next) return;
+            commit({ menus: Object.assign({}, menus, { [rid]:next }) }, ["menus"]);
+            flash(idxs.length + (idxs.length === 1 ? " section moved" : " sections moved"));
+          }}
           onSaveItemNutrition={(si, ii, nutrition)=>{
             // cache the per-item estimate onto the menu item in the repo so it
             // computes only once. Identify the item by section + item index.
@@ -12304,16 +12322,57 @@ function AiText({ text }){
   );
 }
 
+/* Move chosen sections out of one menu into another, by name. Returns the
+   whole replacement list for that restaurant, or null when the move is not a
+   move: nothing chosen, no name, or every section leaving (that is a rename,
+   and doing it here would leave an empty menu behind).
+
+   A destination name that matches one you already have MERGES into it - the
+   same rule the scan review screen uses, so the two places cannot disagree
+   about what giving two things the same name means. */
+function splitMenuSections(list, menuId, idxs, rawLabel){
+  const label = String(rawLabel || "").trim().slice(0, 40);
+  const src = (list || []).find(x => x.menu_id === menuId);
+  if (!src || !label) return null;
+  const take = (src.sections || []).filter((_s, i) => idxs.indexOf(i) >= 0);
+  const keep = (src.sections || []).filter((_s, i) => idxs.indexOf(i) < 0);
+  if (!take.length || !keep.length) return null;
+  const key = label.toLowerCase();
+  if ((src.label || "").trim().toLowerCase() === key) return null;   // nowhere to go
+  const dest = list.find(x => x.menu_id !== menuId
+                           && (x.label || "").trim().toLowerCase() === key);
+  const out = list.map(x => x.menu_id === menuId
+    ? Object.assign({}, x, { sections: keep, last_updated: todayISO() })
+    : (dest && x.menu_id === dest.menu_id
+        ? Object.assign({}, x, { sections: (x.sections || []).concat(take),
+                                 last_updated: todayISO() })
+        : x));
+  if (dest) return out;
+  return out.concat([{ menu_id: uid("menu"), label: label, sections: take,
+                       captured_date: src.captured_date, source: src.source,
+                       last_updated: todayISO() }]);
+}
+
 /* ============================================================
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onHome}){
+function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
   const [renaming, setRenaming] = useState(false);    // rename this menu's name
   const [renameText, setRenameText] = useState((menu && menu.label) || "");
+  const [splitting, setSplitting] = useState(false);   // move sections to another menu
+  const [splitPick, setSplitPick] = useState({});      // section index -> going?
+  const [splitText, setSplitText] = useState("");
+  const [splitTried, setSplitTried] = useState(false); // say why only after a try
+  // Derived from the ticks. Every section leaving is a RENAME, not a split, and
+  // performing it here would leave an empty menu behind - so it is not ready.
+  const splitIdxs = Object.keys(splitPick).filter(k => splitPick[k]).map(Number);
+  const splitAll = splitIdxs.length > 0
+                && splitIdxs.length === (((menu && menu.sections) || []).length);
+  const splitReady = splitIdxs.length > 0 && !splitAll && !!splitText.trim();
   // "help me order" state
   const [askInput, setAskInput] = useState("");
   const [asking,   setAsking]   = useState(false);
@@ -12436,8 +12495,19 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             </button>
             {onRenameMenu && (
               <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-                onClick={()=>{ setRenameText(menu.label || ""); setRenaming(r => !r); }} title="Rename this menu">
+                onClick={()=>{ setRenameText(menu.label || ""); setRenaming(r => !r); setSplitting(false); }} title="Rename this menu">
                 <Icon name="edit" size={15} />
+              </button>
+            )}
+            {/* Only offered when there is something to split: one section cannot
+                leave a menu without emptying it. */}
+            {onSplitMenu && (menu.sections || []).length > 1 && (
+              <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                onClick={()=>{ setSplitPick({}); setSplitText(""); setSplitTried(false);
+                               setSplitting(v => !v); setRenaming(false); }}
+                title="Move sections into their own menu">
+                <span className="row" style={{gap:5, alignItems:"center"}}>
+                  <Icon name="nodes" size={15} />Split</span>
               </button>
             )}
             <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
@@ -12447,6 +12517,48 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             </button>
           </div>
         </div>
+
+        {splitting && (
+          <div className="card" style={{marginBottom:10}}>
+            <div className="row" style={{gap:6, alignItems:"center", marginBottom:8}}>
+              <span className="small" style={{fontWeight:600}}>Move sections out</span>
+              <InfoDot title="Move sections out">
+                <span className="idl">Tick the sections to move, then name the menu they go to.</span>
+                <span className="idl">Type the name of a menu you already have and they join it.</span>
+                <span className="idl">What you leave unticked stays here, so you cannot empty this menu.</span>
+              </InfoDot>
+            </div>
+            <div style={{maxHeight:220, overflowY:"auto", marginBottom:10}}>
+              {(menu.sections || []).map((sec, si)=>(
+                <label key={si} className="row" style={{gap:9, alignItems:"center", padding:"5px 0"}}>
+                  <input type="checkbox" checked={!!splitPick[si]}
+                    onChange={()=> setSplitPick(o => Object.assign({}, o, { [si]: !o[si] }))} />
+                  <span className="small" style={{flex:1, minWidth:0}}>{sec.name || "Section " + (si + 1)}</span>
+                  <span className="tiny faint" style={{flex:"none"}}>{(sec.items || []).length}</span>
+                </label>
+              ))}
+            </div>
+            <ClearInput value={splitText}
+              placeholder="New menu name (e.g. Drinks, Brunch)"
+              onChange={e=> setSplitText(e.target.value)} />
+            {splitReady === false && splitTried ? (
+              <div className="tiny" style={{color:"#d9604e", marginTop:7}}>
+                {splitAll ? "Leave at least one section here, or rename the menu instead."
+                          : "Pick at least one section and give the new menu a name."}
+              </div>
+            ) : null}
+            <div className="row" style={{gap:8, marginTop:10}}>
+              <button className="btn ghost sm" onClick={()=> setSplitting(false)}>Cancel</button>
+              <button className="btn primary sm"
+                onClick={()=>{
+                  setSplitTried(true);
+                  if (!splitReady) return;
+                  onSplitMenu(splitIdxs, splitText.trim());
+                  setSplitting(false);
+                }}>Move {splitIdxs.length || ""}</button>
+            </div>
+          </div>
+        )}
 
         {renaming && (
           <div className="card" style={{marginBottom:10}}>

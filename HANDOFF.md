@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.464.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.465.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.122.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.464.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.465.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -368,6 +368,25 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A saved menu can be split up (2026-09-22)
+
+Splitting a scan into several menus existed only on the review screen ("Customize each section"),
+which is too late the moment a menu is saved - and the web-menu fix above means one pull can now
+bring back a restaurant's whole page, so a single saved menu holds dinner, lunch, drinks and
+brunch at once.
+
+**Split** sits beside Rename on the menu card: tick sections, name where they go, they leave.
+`splitMenuSections()` is a pure function returning the whole replacement list for that
+restaurant, or `null` when the move is not a move - which is what made it testable
+(17 checks) without a browser.
+
+Two rules it inherits rather than invents:
+- A destination name matching a menu you already have **merges** into it. That is the same rule
+  the scan review screen states, so the two places cannot disagree about what a repeated name
+  means.
+- Moving **every** section out is refused. That is a rename, and doing it as a split would leave
+  an empty menu behind. The panel says so rather than silently disabling the button.
 
 ### A shared visit opens with the menu folded (2026-09-22)
 

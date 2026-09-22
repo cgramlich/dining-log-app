@@ -209,6 +209,14 @@ hold a card near the grip to drag it into the order you like.
 gluten-free, and friends) to narrow the list to dishes that fit - tags come
 from the menu itself plus the scan's best read of each dish.
 
+**Splitting a menu up.** A single pull from a restaurant's website often brings
+back their whole page at once - dinner, lunch, drinks and brunch in one menu.
+Open the menu and tap **Split** to move sections into a menu of their own: tick
+the ones to move, name where they are going, and the rest stay put. Type the
+name of a menu you already have and they join it instead of starting a new one.
+You cannot move every section out, because that would leave an empty menu - use
+**Rename** for that.
+
 **Re-scanning and deleting.** Each menu card offers **Refresh** to replace it
 with a fresh version - photograph it again or pull it from a link - and you
 can delete a menu you no longer want from inside it. Refreshing replaces the
