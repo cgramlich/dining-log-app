@@ -18,12 +18,12 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-09-16
+## Current state — 2026-09-22
 
 | Piece | Version | Where |
 |---|---|---|
 | Web app | **1.463.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.121.0** | Railway, `/health` reports `db connected` |
+| Backend | **0.122.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.463.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -369,6 +369,38 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### A web menu is judged on what the page CLAIMS, not on what it shipped (2026-09-22)
+
+A restaurant page can print its menu's section titles and leave the items for JavaScript to fill
+in. The direct fetch then reads whichever section happened to be in the HTML, finds real prices
+in it, and we accept that as the menu. Chris hit this on a Webflow site that printed 32 section
+titles and shipped the items for exactly one: he saved the appetizers and nothing else, with no
+sign anything was missing.
+
+The old question was "did we find any prices", which a partly filled page answers yes. The new
+one is "did we find prices for everything the page NAMES". A finished menu prices most of what it
+lists, so its price markers outnumber its menu headings; a shell inverts that. Measured on the
+reported page: **10 price markers against 54 menu headings as fetched, 349 against 237 once a
+browser had filled it** (13 items versus 199). `_menu_heading_count()` counts headings that sit
+inside menu markup, read from the MARKUP rather than the text, because what we need to know is
+what the page promised and that survives when the items never arrive.
+
+A page that looks like a shell is rendered through Firecrawl with `full=True`, using
+`_firecrawl_render` so the same call returns the pictures too — a shell's dish photos are in the
+rendered markup, never in what we fetched. The existing guard is unchanged: rendered text
+replaces the fetched text only when it is at least as menu-like, so a bad render can never
+clobber a good page.
+
+**The road not taken:** counting empty containers. It reads like the obvious tell and it is
+wrong — the same page after a browser filled it had *more* empty menu-ish divs (11,619) than the
+shell did (794). Modern pages are full of empty divs. Measure the content, not the scaffolding.
+
+**Known consequence, not yet addressed:** a whole 199-item menu is ~40k characters, and
+`MENU_TEXT_ONE_PASS` (8,000) splits that into roughly eight AI calls. The quota counts CALLS, not
+tokens (`AI_CALL_CAPS` free = 75 lifetime), so one big menu import now costs a free user about
+eight of their seventy-five. Raising the chunk size trades latency for quota; the 8,000 figure
+was a deliberate latency choice, so it is Chris's call and is on the open list.
+
 ### The email CTA is a link again (2026-09-03, reversing 2026-08)
 
 It was turned into an instruction ("Open MenuCaptain on your phone to see it")
@@ -482,6 +514,11 @@ the same treatment.
   making the two rows visibly different jobs.
 - Group order → logged visit, and a retention policy for group-order data. Both proposed, neither
   approved.
+- Menu chunk size vs the AI quota. A 199-item menu is ~40k characters and `MENU_TEXT_ONE_PASS`
+  (8,000) turns that into about eight relay calls, each one counting against a cap that counts
+  CALLS. Raising the chunk size cuts that to two or three and makes the single wait longer; the
+  8,000 was a deliberate latency choice, so it is Chris's to change. `max_tokens` is 16,000 and
+  the `stop_reason` re-split is the backstop, so a bigger chunk degrades safely.
 
 ---
 
