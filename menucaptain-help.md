@@ -789,6 +789,18 @@ tap **Close order** only when you are done - it stops new picks and also closes
 itself after a day. The shared link shows only the menu and the
 table's own picks - nothing else of yours.
 
+**Turning the order into a visit.** A closed order already knows where you were,
+who was there and what each of them ordered, so closing offers **Close and log
+this as a visit**. It opens your usual visit form with the place, the date,
+everyone who picked and every dish already filled in - check it over and save,
+or change anything first. Nothing is written to your diary unless you save it,
+because plenty of orders get closed without anybody eating.
+
+**How long an order is kept.** A group order lives for a day, then stops
+collecting. The session and everything on it - the picks, the ballots and your
+guests' names - are deleted thirty days after that. Log the visit before then if
+you want to keep it.
+
 **Knowing who you are still waiting on.** Optionally, add the people you are
 expecting under **Who's in on the order?** on your host screen. As orders arrive,
 each name is marked **ordered**, **passed**, or **waiting**, with a clear "Still

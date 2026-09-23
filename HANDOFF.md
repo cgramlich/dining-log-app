@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.466.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.122.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.466.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.467.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.123.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.467.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -369,6 +369,43 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### A closed group order offers to become a visit (2026-09-23)
+
+A closed order already knows the place, the date, who was there and what each of them picked.
+Closing now offers **Close and log this as a visit**, which opens the ordinary visit form
+pre-filled. **Nothing is written without the host saving it** - orders get closed for plenty of
+reasons that are not "we ate", and a silent write would put meals in the diary that never
+happened. Chris chose the offer over automatic.
+
+It reuses the `mc_logvisit_seed` channel and the `seedVisit` prop a shared visit already uses,
+rather than adding a second way to open a pre-filled visit form. `seedVisit` gained `dishes`.
+
+**The seed carries the place by NAME, not by id.** Of the four places that open the host screen,
+one resumes a session by code and holds no restaurant object at all; an id would have left that
+one unable to offer this. The reader resolves the name against places that have finished syncing,
+and **drops the seed** if no place matches once places have loaded - a seed that cannot resolve
+would otherwise retry on every render for ever.
+
+Everyone who picked is seeded as a companion, the host included if they picked. There is no
+reliable host marker in the picks, and the visit form is the review step, so the offer says to
+check it rather than guessing.
+
+### Group sessions are deleted 30 days after they expire (2026-09-23)
+
+Until now **nothing deleted them**. An expired session was hidden from the UI, but the row, its
+picks, its ballots, its view records and the guest names on all of those stayed indefinitely.
+Those are other people's names sitting on a host's session, and "kept indefinitely" is not an
+answer worth writing on a store privacy form.
+
+A daily task started in `lifespan` sweeps in bounded batches. Chris chose 30 days: long enough to
+still log last month's dinner, short enough that names do not accumulate without end.
+`GROUP_RETENTION_DAYS` is env-overridable, so it can be tightened without a deploy.
+
+**Children are deleted before the session, and the order matters.** None of the child tables
+declare a foreign key, so nothing cascades. Crash halfway with the children gone and you have an
+empty session the next sweep finds again; crash halfway with the *session* gone and the children
+are orphans no sweep can reach, because every sweep starts from `group_orders`.
+
 ### Two sections that invite the wrong box get a panel each (2026-09-22)
 
 On Edit visit, "Who was with you?" and "What you had" both had headings, but their controls are
@@ -571,8 +608,6 @@ the same treatment.
   draws on a tall scratch canvas and crops to the height actually used, so the PNG is trimmed to its
   content. The report came from another session looking at a rendered preview. Needs a screenshot
   of a real sent card before anything changes.
-- Group order → logged visit, and a retention policy for group-order data. Both proposed, neither
-  approved.
 
 ---
 

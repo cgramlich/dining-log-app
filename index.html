@@ -1007,7 +1007,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.466.0";
+const APP_VERSION   = "1.467.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2376,6 +2376,18 @@ or **Remove** to take them off - the tally updates. Step away any time with
 tap **Close order** only when you are done - it stops new picks and also closes
 itself after a day. The shared link shows only the menu and the
 table's own picks - nothing else of yours.
+
+**Turning the order into a visit.** A closed order already knows where you were,
+who was there and what each of them ordered, so closing offers **Close and log
+this as a visit**. It opens your usual visit form with the place, the date,
+everyone who picked and every dish already filled in - check it over and save,
+or change anything first. Nothing is written to your diary unless you save it,
+because plenty of orders get closed without anybody eating.
+
+**How long an order is kept.** A group order lives for a day, then stops
+collecting. The session and everything on it - the picks, the ballots and your
+guests' names - are deleted thirty days after that. Log the visit before then if
+you want to keep it.
 
 **Knowing who you are still waiting on.** Optionally, add the people you are
 expecting under **Who's in on the order?** on your host screen. As orders arrive,
@@ -7657,11 +7669,29 @@ function App({openShare}){
     let seed = null;
     try { const s = localStorage.getItem("mc_logvisit_seed"); if (s) seed = JSON.parse(s); }
     catch(e){ seed = null; }
-    if (!seed || !seed.rid) return;
-    if (!(restaurants || []).some(r => r && r.id === seed.rid)) return;  // wait for sync
+    if (!seed) return;
+    // A group order seeds the place by NAME (the host screen does not always
+    // have an id). Resolve it here, against places that have finished syncing.
+    let rid = seed.rid || "";
+    if (!rid && seed.rname){
+      const want = String(seed.rname).trim().toLowerCase();
+      const hit = (restaurants || []).find(r => r && (r.name || "").trim().toLowerCase() === want);
+      rid = hit ? hit.id : "";
+      // Named a place this account does not have: nothing to log against, and
+      // keeping the seed would retry for ever. Drop it.
+      if (!rid && (restaurants || []).length){
+        try { localStorage.removeItem("mc_logvisit_seed"); } catch(e){}
+        logMsg("GROUP","visit seed dropped - no place named " + seed.rname);
+        return;
+      }
+    }
+    if (!rid) return;
+    if (!(restaurants || []).some(r => r && r.id === rid)) return;  // wait for sync
+    seed = Object.assign({}, seed, { rid: rid });
     try { localStorage.removeItem("mc_logvisit_seed"); } catch(e){}
     setOverlay({ type:"logVisit", restaurantId: seed.rid,
       visitSeed: { date: seed.date || "", people: Array.isArray(seed.people) ? seed.people : [],
+        dishes: Array.isArray(seed.dishes) ? seed.dishes : [],
         photos: Array.isArray(seed.photos) ? seed.photos : [], sv: seed.sv || "" } });
   }, [ready, restaurants]);
 
@@ -17871,7 +17901,16 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     setRating(val === rating ? 0 : val);
   }
   const [notes,setNotes]   = useState(existing ? existing.notes : "");
-  const [dishes,setDishes] = useState(existing ? existing.dishes.slice() : []);
+  // Seeded dishes come from a closed group order: what the table actually
+  // ordered. Only on a NEW visit - an existing one already has its own.
+  const [dishes,setDishes] = useState(()=> {
+    if (existing) return existing.dishes.slice();
+    if (seedVisit && Array.isArray(seedVisit.dishes)){
+      return seedVisit.dishes.map(n => String(n || "").trim())
+        .filter(Boolean).map(n => ({ name:n, note:"", verdict:null }));
+    }
+    return [];
+  });
   const [dishInput,setDishInput] = useState("");
   const [confirmDel,setConfirmDel] = useState(false);
   // Split-the-check draft: built by the splitter launched from this form (as a
@@ -22618,7 +22657,31 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   async function copyLink(){
     try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(()=> setCopied(false), 1500); } catch(e){}
   }
-  async function closeOrder(){
+  // What the table ordered, as a visit would record it: the people who picked
+  // and the distinct dishes, newest order of appearance kept.
+  function orderAsVisit(){
+    const guests = (data && data.picks) || [];
+    const people = [];
+    const dishes = [];
+    guests.forEach(g => {
+      const nm = String((g && g.guest_name) || "").trim();
+      if (nm && people.indexOf(nm) < 0) people.push(nm);
+      ((g && g.picks) || []).forEach(pk => {
+        const it = String((pk && pk.item) || "").trim();
+        if (it && dishes.indexOf(it) < 0) dishes.push(it);
+      });
+    });
+    return { rname: (data && data.restaurant_name) || restaurantName || "",
+             date: todayISO(), people: people, dishes: dishes };
+  }
+
+  async function closeOrder(alsoLog){
+    // Write the seed BEFORE closing. Closing navigates away, and a seed written
+    // after a failed close would offer to log an order that is still open.
+    if (alsoLog){
+      try { localStorage.setItem("mc_logvisit_seed", JSON.stringify(orderAsVisit())); }
+      catch(e){ logMsg("GROUP","could not seed the visit: " + e.message); }
+    }
     if (code){
       try { await groupClose(cfg, code); logMsg("GROUP","closed code=" + code); }
       catch(e){ logMsg("GROUP","close failed: " + e.message); }
@@ -22823,10 +22886,23 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                   Close this order? Guests won't be able to add or change items, and it leaves
                   your Active group orders. To keep collecting, leave it open instead.
                 </div>
+                {/* Offered only when there is something to log. An order
+                    nobody picked from is not a meal. */}
+                {(data && (data.picks || []).length) ? (
+                  <button className="btn primary" style={{width:"100%", marginBottom:9}}
+                    onClick={()=> closeOrder(true)}>
+                    Close and log this as a visit</button>
+                ) : null}
                 <div className="row" style={{gap:9}}>
                   <button className="btn ghost" onClick={()=> setConfirmClose(false)}>Keep collecting</button>
-                  <button className="btn danger" onClick={closeOrder}>Close order</button>
+                  <button className="btn danger" onClick={()=> closeOrder(false)}>Close order</button>
                 </div>
+                {(data && (data.picks || []).length) ? (
+                  <div className="tiny faint" style={{marginTop:9}}>
+                    Logging opens your visit form with everyone who picked and what they
+                    ordered already filled in. Check it over before you save.
+                  </div>
+                ) : null}
               </div>
             )}
             {anyResponses ? (
