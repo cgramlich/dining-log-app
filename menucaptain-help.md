@@ -231,9 +231,9 @@ name almost always means a fresher copy of the same menu) or **Keep both**.
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, each
 item offers a few ways to estimate, best first: **Add your photo** (snap the
-real plate right from the menu), **Estimate from menu photo** (the restaurant's
-own picture, when the menu came in from the web), and **EST nutrition from DESCR**
-(estimate nutrition from the dish's description). You can redo an estimate from a better source any time. Whichever
+real plate right from the menu), **EST nutrition from MENU PIC** (the
+restaurant's own picture, when the menu came in from the web), and **EST
+nutrition from DESCR** (from the dish's written description). You can redo an estimate from a better source any time. Whichever
 you use, it is only an estimate, always shown with a "~" and marked EST, so a
 printed calorie count stays the most reliable number.
 

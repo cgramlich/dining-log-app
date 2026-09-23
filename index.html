@@ -512,6 +512,20 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     /* First header in a form has nothing above it to be divided from. */
     .sechd.first{ border-top:none; padding-top:2px; margin-top:4px; }
+    /* A section boxed off on its own. Two sections doing DIFFERENT jobs with
+       same-shaped controls read as one list and invite the wrong box - a person
+       got saved as a dish that way. A heading alone did not stop it; the panel
+       edge is a boundary you cannot read past by accident.
+       --bg-2, NOT the --surface a .card uses: a card holds text, this holds
+       input boxes, and on --surface they were the same shade as their own
+       container and stopped reading as boxes. --bg-2 is the step below
+       --surface in every theme, so the panel recedes and its controls sit proud.
+       The header inside drops its own rule and gap: the edge already divides. */
+    .secpanel{
+      background:var(--bg-2); border:1px solid var(--line-soft);
+      border-radius:15px; padding:14px 15px; margin:14px 0;
+    }
+    .secpanel > .sechd{ margin-top:0; padding-top:0; border-top:none; }
     /* Counts and asides ride along without competing with the section name. */
     .sechd .faint{ font-size:13px; letter-spacing:0; }
 
@@ -993,7 +1007,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.465.0";
+const APP_VERSION   = "1.466.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1805,9 +1819,9 @@ name almost always means a fresher copy of the same menu) or **Keep both**.
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, each
 item offers a few ways to estimate, best first: **Add your photo** (snap the
-real plate right from the menu), **Estimate from menu photo** (the restaurant's
-own picture, when the menu came in from the web), and **EST nutrition from DESCR**
-(estimate nutrition from the dish's description). You can redo an estimate from a better source any time. Whichever
+real plate right from the menu), **EST nutrition from MENU PIC** (the
+restaurant's own picture, when the menu came in from the web), and **EST
+nutrition from DESCR** (from the dish's written description). You can redo an estimate from a better source any time. Whichever
 you use, it is only an estimate, always shown with a "~" and marked EST, so a
 printed calorie count stays the most reliable number.
 
@@ -13091,12 +13105,16 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                           )}
                           {canEstimate && it.web_image && (
                             <button className="dish-redo" disabled={itemBusy[key]}
+                              title="Estimate nutrition from the menu's photo of this dish"
+                              aria-label="Estimate nutrition from the menu's photo of this dish"
                               onClick={()=> estimateFromPhoto(i, oj, it)}>
-                              {itemBusy[key] ? "Working..." : "New estimate from menu photo"}</button>
+                              {itemBusy[key] ? "Working..." : "EST nutrition from MENU PIC"}</button>
                           )}
-                          {/* Short on purpose, to fit the row on a phone. "EST" matches the
-                              badge on estimated numbers; the full wording lives in
-                              title and aria-label for screen readers and long-press. */}
+                          {/* Both estimate buttons are short on purpose, to fit the row on a
+                              phone, and phrased alike so they read as one choice with two
+                              sources rather than two unrelated features. "EST" matches the
+                              badge on estimated numbers; the full wording lives in title
+                              and aria-label for screen readers and long-press. */}
                           {canEstimate && (
                             <button className="dish-redo" disabled={itemBusy[key]}
                               title="Estimate nutrition from the dish description" aria-label="Estimate nutrition from the dish description"
@@ -13122,11 +13140,12 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                         {canEstimate && it.web_image && (
                           <button className="iest-btn" disabled={itemBusy[key]}
                             onClick={()=> estimateFromPhoto(i, oj, it)}
-                            title="Estimate calories from the restaurant's photo of this dish">
+                            title="Estimate nutrition from the menu's photo of this dish"
+                            aria-label="Estimate nutrition from the menu's photo of this dish">
                             {itemBusy[key]
                               ? <span className="spin" />
                               : <Icon name="image" size={12} color="var(--accent)" />}
-                            {itemBusy[key] ? "Working..." : "Estimate from menu photo"}
+                            {itemBusy[key] ? "Working..." : "EST nutrition from MENU PIC"}
                           </button>
                         )}
                         {canEstimate && (
@@ -18998,7 +19017,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           );
         })() : null}
 
-        <div className="fld">
+        <div className="fld secpanel">
           <span className="sechd">Who was with you?</span>
           <div className="tiny faint" style={{margin:"4px 0 8px"}}>
             Tag the people you dined with. Names you've used before (and your connections) autocomplete.
@@ -19006,7 +19025,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           <PeopleTag value={companions} onChange={setCompanions} roster={peopleRoster} />
         </div>
 
-        <div className="fld">
+        <div className="fld secpanel">
           <span className="sechd">What you had</span>
           {/* Catches the wrong-box slip, on existing visits as well as new
               ones, because the check runs on what is stored rather than on

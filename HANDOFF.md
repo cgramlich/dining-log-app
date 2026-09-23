@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.465.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.466.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.122.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.465.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.466.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -369,6 +369,27 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### Two sections that invite the wrong box get a panel each (2026-09-22)
+
+On Edit visit, "Who was with you?" and "What you had" both had headings, but their controls are
+the same shape - a box with an Add beside it - stacked in a continuous form. That adjacency put a
+person in the dish list once already. 1.430.0 added a check that CATCHES the slip; `.secpanel`
+removes the invitation, boxing each section so the eye cannot read past the boundary by accident.
+
+**The panel is `--bg-2`, not the `--surface` a `.card` uses.** The first cut reused the card
+colour and, rendered side by side against the old layout, the inputs inside disappeared into their
+own container - a card normally holds text, and this one holds boxes. `--bg-2` is the step below
+`--surface` in all five themes, so the panel recedes and its controls sit proud of it. Worth
+remembering the next time a "reuse the card" instinct meets a container full of controls.
+
+### Both estimate buttons name the same act (2026-09-22)
+
+"New estimate from menu photo" sat beside "EST nutrition from DESCR": one act, two vocabularies,
+and the longer one wrapped on a phone. It is now **EST nutrition from MENU PIC** - MENU PIC rather
+than PHOTO because the button next to it is about the user's OWN photo, and PHOTO would name both.
+The pair exists on **two** render paths (with and without icons) and both were changed; changing
+one is how two screens end up calling the same thing different names.
+
 ### A saved menu can be split up (2026-09-22)
 
 Splitting a scan into several menus existed only on the review screen ("Customize each section"),
@@ -550,10 +571,6 @@ the same treatment.
   draws on a tall scratch canvas and crops to the height actually used, so the PNG is trimmed to its
   content. The report came from another session looking at a rendered preview. Needs a screenshot
   of a real sent card before anything changes.
-- On Edit visit, "Add a name `[Add]`" sits directly above "Search or type a dish `[Add]`" — two
-  identical-looking rows. This produced a real bug (a person saved as a dish). 1.430.0 *detects*
-  the collision and offers to fix it, but the underlying adjacency is untouched. The real fix is
-  making the two rows visibly different jobs.
 - Group order → logged visit, and a retention policy for group-order data. Both proposed, neither
   approved.
 
