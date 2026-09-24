@@ -205,6 +205,16 @@ scan of a long menu can be saved as separate Dinner, Brunch, and Drinks menus.
 Explain the menu, and the calorie tools inside. With several menus, press and
 hold a card near the grip to drag it into the order you like.
 
+**How much of the menu you see.** Every menu has the same three options above
+it: **One at a time**, **Expand all** and **Collapse all**. One at a time is how
+menus start - you see the list of courses, and opening one closes whatever was
+open, so the list stays in reach and you never scroll a wine list to get to
+dessert. Expand all shows the whole menu, and you can still fold individual
+courses from there. Collapse all shuts everything and puts you back to one at a
+time. Whichever you pick is remembered on that device and used for every menu
+you open after it - your own menus, a group order, a shared visit, a shared
+menu. Searching a menu always shows every match, whatever option is set.
+
 **Dietary filters.** Open a menu and tap the diet chips (vegetarian, vegan,
 gluten-free, and friends) to narrow the list to dishes that fit - tags come
 from the menu itself plus the scan's best read of each dish.

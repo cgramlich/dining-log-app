@@ -18,13 +18,13 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-09-22
+## Current state — 2026-09-24
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.467.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.468.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.467.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.468.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -368,6 +368,33 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### One fold control on every menu (2026-09-24)
+
+Four screens rendered a foldable menu and each had invented its own rule: your own menu opened
+with the first two sections showing, a shared visit all closed, a group order closed only when it
+was multi-menu or over twelve items, a shared menu page all open. Same object, four behaviours,
+and nowhere to say "just show me everything".
+
+`useMenuFold` + `MenuFoldBar` now serve all four. Three options, exactly as Chris specified:
+
+- **One at a time** - the default. Opening a section closes the one that was open.
+- **Expand all** - everything open; sections still fold individually from there.
+- **Collapse all** - shuts everything **and returns to one at a time**. Chris's follow-up call:
+  collapsing is how you get back to the top of a menu, so it should leave you in the mode that
+  keeps you there. It is why there are only two persisted modes for three buttons.
+
+**The mode is remembered per device, the open sections are not.** The mode is a reading
+preference, like text size, so it rides `localStorage` (guarded both ways - it can throw in a
+private window). Which sections happen to be open resets each time, because section index 3 means
+a different course on the next menu.
+
+A search still forces every section open wherever a screen has one - a hit inside a closed section
+is a hit nobody finds. That is the only thing allowed to override the mode, and it stays
+per-screen because only two of the four screens search.
+
+Deleted along the way: the "first two sections" rule, the ">12 items or multi-menu" heuristic, and
+two separate always-open defaults. Four fold implementations became one.
 
 ### A closed group order offers to become a visit (2026-09-23)
 

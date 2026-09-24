@@ -452,6 +452,17 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 
     /* ---- menu sections ---- */
     .msec{border-bottom:1px solid var(--line-soft); padding:4px 0;}
+    /* The fold options. Quiet by default - this is a reading preference, not a
+       thing to do - with the active mode filled in so the row says which one you
+       are in without a label saying "mode". */
+    .fold-bar{ display:flex; gap:6px; margin:0 0 10px; flex-wrap:wrap; }
+    .fold-pill{
+      font:inherit; font-size:12px; font-weight:600; letter-spacing:0.01em;
+      padding:5px 11px; border-radius:999px; cursor:pointer;
+      background:transparent; color:var(--text-dim);
+      border:1px solid var(--line-soft);
+    }
+    .fold-pill.on{ background:var(--accent); border-color:var(--accent); color:#1b1714; }
     .msec-head{
       display:flex; align-items:center; justify-content:space-between;
       padding:12px 2px; cursor:pointer;
@@ -1007,7 +1018,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.467.0";
+const APP_VERSION   = "1.468.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1792,6 +1803,16 @@ scan of a long menu can be saved as separate Dinner, Brunch, and Drinks menus.
 **Menus** section - tap a card to open the full menu, with Help me order,
 Explain the menu, and the calorie tools inside. With several menus, press and
 hold a card near the grip to drag it into the order you like.
+
+**How much of the menu you see.** Every menu has the same three options above
+it: **One at a time**, **Expand all** and **Collapse all**. One at a time is how
+menus start - you see the list of courses, and opening one closes whatever was
+open, so the list stays in reach and you never scroll a wine list to get to
+dessert. Expand all shows the whole menu, and you can still fold individual
+courses from there. Collapse all shuts everything and puts you back to one at a
+time. Whichever you pick is remembered on that device and used for every menu
+you open after it - your own menus, a group order, a shared visit, a shared
+menu. Searching a menu always shows every match, whatever option is set.
 
 **Dietary filters.** Open a menu and tap the diet chips (vegetarian, vegan,
 gluten-free, and friends) to narrow the list to dishes that fit - tags come
@@ -12820,9 +12841,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
   // Which item's "I had this" panel is open, and what is typed in it.
   const [hadOpen, setHadOpen] = useState(null);   // "si:ii" | null
   const [hadNote, setHadNote] = useState("");
-  const [open, setOpen]   = useState(()=> {
-    const o = {}; (menu.sections||[]).forEach((s,i)=> { o[i] = i < 2; }); return o;
-  });
+  const fold = useMenuFold();
   const [filter, setFilter] = useState("");
   const [itemBusy, setItemBusy] = useState({});   // "si:ii" -> bool
   const [itemErr,  setItemErr]  = useState({});    // "si:ii" -> message
@@ -12972,18 +12991,23 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
       {sections.length === 0 && (
         <div className="small faint" style={{padding:"12px 2px"}}>No items match.</div>
       )}
-      {sections.map(({s,i,items})=>(
+      <MenuFoldBar fold={fold} count={sections.length} />
+      {sections.map(({s,i,items})=>{
+        // A search opens everything: a match inside a closed section is a match
+        // nobody can see.
+        const secOpen = !!q || fold.isOpen(i);
+        return (
         <div key={i} className="msec">
-          <button type="button" className="msec-head" aria-expanded={!!(open[i]||q)}
+          <button type="button" className="msec-head" aria-expanded={secOpen}
             style={{width:"100%", textAlign:"left"}}
-            onClick={()=> setOpen(o=> Object.assign({},o,{[i]:!o[i]}))}>
+            onClick={()=> fold.toggle(i)}>
             <span className="nm">{s.name}</span>
             <span className="row" style={{gap:8}}>
               <span className="ct">{items.length}</span>
-              <Chevron open={(open[i]||q)} size={16} color="#80715f" />
+              <Chevron open={secOpen} size={16} color="#80715f" />
             </span>
           </button>
-          {(open[i] || q) && items.map(({it,oj})=>{
+          {secOpen && items.map(({it,oj})=>{
             const key = i + ":" + oj;
             // Menu-first photos: a real shot of THIS dish (the item's own photo,
             // plus any you snapped in a visit here) ranks ahead of web images.
@@ -13288,7 +13312,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
             );
           })}
         </div>
-      ))}
+      );})}
     </div>
   );
 }
@@ -20824,17 +20848,7 @@ function PublishedVisit({data, onSaved, onLogVisit}){
       + (data.r ? "&at=" + encodeURIComponent(String(data.r).slice(0, 80)) : "")
       + (data.byn ? "&nm=" + encodeURIComponent(String(data.byn).slice(0, 60)) : "")
     : "");
-  // Every course starts FOLDED. The reader came to see a meal, and the menu
-  // behind it can run hundreds of items; folded, it reads as a contents list.
-  // A section with no name has no header to tap, so folding it would strand its
-  // items - those start open.
-  const [shut, setShut] = useState(()=> {
-    const init = {};
-    (Array.isArray(data && data.s) ? data.s : []).forEach((sec, i)=> {
-      if (sec && sec.n) init[i] = true;
-    });
-    return init;
-  });
+  const fold = useMenuFold();
   const [lb, setLb] = useState(-1);          // lightbox photo index, -1 = closed
   const myCfg = loadConfig();
   const canSave = configComplete(myCfg);
@@ -21156,32 +21170,35 @@ function PublishedVisit({data, onSaved, onLogVisit}){
         </div>
       ) : null}
 
-      {/* The whole menu, every course folded shut - a wine list can run seventy
-          items and nobody reading about dinner wants to scroll past it. Tapping
-          a course name opens it. */}
+      {/* The reader came to see a meal, and the menu behind it can run hundreds
+          of items, so it folds. A section with NO name draws no header to tap,
+          so folding it would strand its items - those always show. */}
       {sections.length > 0 && (
         <div style={{marginTop:18}}>
           <div className="tiny faint" style={{marginBottom:7}}>The menu</div>
+          <MenuFoldBar fold={fold} count={sections.length} />
           {true ? (
             <div className="pub-menu" style={{marginTop:10}}>
-              {sections.map((s,si)=>(
+              {sections.map((s,si)=>{
+                const secOpen = !s.n || fold.isOpen(si);
+                return (
                 <div key={si} className="pub-msec">
                   {s.n ? (
-                    <button className="pub-msec-head" aria-expanded={!shut[si]}
-                      onClick={()=> setShut(m => Object.assign({}, m, { [si]: !m[si] }))}
+                    <button className="pub-msec-head" aria-expanded={secOpen}
+                      onClick={()=> fold.toggle(si)}
                       style={{width:"100%", background:"none", border:0,
                               borderBottom:"1px solid rgba(255,255,255,0.08)", textAlign:"left"}}>
                       <span className="nm">{s.n}</span>
                       <span className="row" style={{gap:7, flex:"none"}}>
                         <span className="ct">{(s.i || []).length}</span>
                         <span style={{display:"inline-flex", transition:"transform 0.15s ease",
-                              transform: shut[si] ? "rotate(-90deg)" : "none"}}>
+                              transform: secOpen ? "none" : "rotate(-90deg)"}}>
                           <Icon name="chevd" size={14} color="var(--text-faint)" />
                         </span>
                       </span>
                     </button>
                   ) : null}
-                  {shut[si] ? null : (s.i || []).map((it,ii)=>(
+                  {!secOpen ? null : (s.i || []).map((it,ii)=>(
                     <div key={ii} className="pub-mitem" style={{cursor:"default"}}>
                       <div style={{flex:1, minWidth:0}}>
                         <div className="pub-mitem-head">
@@ -21199,7 +21216,7 @@ function PublishedVisit({data, onSaved, onLogVisit}){
                     </div>
                   ))}
                 </div>
-              ))}
+              );})}
             </div>
           ) : null}
         </div>
@@ -21912,6 +21929,63 @@ function pickLabel(p){
   if (stem && item.toLowerCase().indexOf(stem) !== -1) return item;  // item already names it
   return sec + " - " + item;
 }
+/* ============================================================
+   MENU FOLDING - shared by every screen that lists a menu
+   ============================================================ */
+const MENU_FOLD_KEY = "mc_menu_fold";      // device-local reading preference
+
+function readFoldMode(){
+  try {
+    const v = localStorage.getItem(MENU_FOLD_KEY);
+    return (v === "open") ? "open" : "one";      // anything else, including
+  } catch(e){ return "one"; }                    // nothing stored, means "one"
+}
+
+/* Fold state for one menu. `mode` is remembered across menus; which sections
+   happen to be open is not - that resets each time a menu is opened, because a
+   section index means something different on the next menu. */
+function useMenuFold(){
+  const [mode, setModeRaw] = useState(readFoldMode);
+  const [only, setOnly] = useState(-1);      // one-at-a-time: the open section
+  const [over, setOver] = useState({});      // expand-all: per-section overrides
+
+  function remember(next){
+    try { localStorage.setItem(MENU_FOLD_KEY, next); } catch(e){}
+  }
+  function expandAll(){ setModeRaw("open"); setOver({}); setOnly(-1); remember("open"); }
+  // Collapsing returns to one-at-a-time with nothing showing: you collapse a
+  // menu to get back to its course list, which is what that mode is for.
+  function collapseAll(){ setModeRaw("one"); setOver({}); setOnly(-1); remember("one"); }
+  function oneAtATime(){ collapseAll(); }
+
+  function isOpen(si){
+    if (mode === "one") return only === si;
+    return (si in over) ? over[si] : true;
+  }
+  function toggle(si){
+    if (mode === "one"){ setOnly(x => x === si ? -1 : si); return; }
+    setOver(o => Object.assign({}, o, { [si]: !isOpen(si) }));
+  }
+  return { mode, isOpen, toggle, expandAll, collapseAll, oneAtATime };
+}
+
+/* The three options, as one row. Shown only when there is more than one section
+   - with a single section there is nothing to fold against. */
+function MenuFoldBar({fold, count}){
+  if (!fold || (count || 0) < 2) return null;
+  const pill = (label, on, go) => (
+    <button type="button" onClick={go} aria-pressed={on}
+      className={"fold-pill" + (on ? " on" : "")}>{label}</button>
+  );
+  return (
+    <div className="fold-bar">
+      {pill("One at a time", fold.mode === "one", fold.oneAtATime)}
+      {pill("Expand all", fold.mode === "open", fold.expandAll)}
+      {pill("Collapse all", false, fold.collapseAll)}
+    </div>
+  );
+}
+
 function aggregatePicks(picks){
   // Key by section + item so the same item name in different sections (and the
   // protein variants under a section like Quesadillas) stay distinct.
@@ -23862,7 +23936,7 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
   const [placed, setPlaced]   = useState(false);   // ever submitted (sticky); sent = unchanged-since-submit
   const [err, setErr]         = useState("");
   const [showOrder, setShowOrder] = useState(false);
-  const [openSec, setOpenSec]     = useState({});  // si -> open; undefined = use default
+  const fold = useMenuFold();
   const [helpOpen, setHelpOpen]     = useState(false);   // "Help me decide" card
   const [helpInput, setHelpInput]   = useState("");
   const [helpAnswer, setHelpAnswer] = useState("");
@@ -23904,11 +23978,6 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
   }, [code]);
 
   const menu     = (data && data.menu_snapshot) || null;
-  // Long / combined menus start with sections collapsed so guests can scan; a
-  // short single menu stays open. Per-section taps override this default.
-  const totalItems = menu ? (menu.sections || []).reduce((a,s)=> a + ((s.items || []).length), 0) : 0;
-  const isMultiMenu = !!(menu && String(menu.menu_id || "").indexOf("multi:") === 0);
-  const collapseDefault = !!(menu && (isMultiMenu || totalItems > 12));
   const closed   = data && data.status === "closed";
   const selected = Object.keys(picks).map(k => picks[k]).filter(Boolean);
   const restName = (data && data.restaurant_name) || (menu && menu.label) || "the menu";
@@ -24247,17 +24316,19 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
               ) : null}
             </div>
           ) : null}
+          <MenuFoldBar fold={fold} count={(menu.sections || []).length} />
           {menu.sections.map((s, si)=>{
             const items = matchItems(s);
             if (dishQ.trim() && !items.length) return null;
-            const secOpen = dishQ.trim() ? true
-              : ((si in openSec) ? openSec[si] : !collapseDefault);
+            // Searching opens everything: a dish hiding inside a closed
+            // section is a dish this guest cannot order.
+            const secOpen = dishQ.trim() ? true : fold.isOpen(si);
             const secSel  = Object.keys(picks).filter(k => picks[k] && k.indexOf(si + ":") === 0).length;
             return (
             <div key={si} className="go-gsec">
               <button type="button" className="go-gsec-head" aria-expanded={secOpen}
                 style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer", width:"100%", textAlign:"left"}}
-                onClick={()=> setOpenSec(o => Object.assign({}, o, { [si]: !((si in o) ? o[si] : !collapseDefault) }))}>
+                onClick={()=> fold.toggle(si)}>
                 <span style={{flex:1, minWidth:0}}>{s.name || "Menu"}</span>
                 {secSel ? <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>{secSel} added</span> : null}
                 <Chevron open={secOpen} size={15} />
@@ -24477,9 +24548,7 @@ function PublishedMenu({data, onSaved}){
   // picks: "si:ii" -> dish name (object so order-of-tap is stable enough)
   const [picks, setPicks] = useState({});
   const [notes, setNotes] = useState({});  // "si:ii" -> special-instructions note
-  const [open,  setOpen]  = useState(()=>{
-    const o = {}; ((data && data.s) || []).forEach((s,i)=> { o[i] = true; }); return o;
-  });
+  const fold = useMenuFold();
   const [sent, setSent] = useState(false);
   // "Save to my places" (logged-in viewers only). Imports the shared place +
   // menu into the user's own restaurants/menus, asking before overwriting.
@@ -24695,6 +24764,7 @@ function PublishedMenu({data, onSaved}){
       ) : null}
 
       <div className="pub-menu">
+        <MenuFoldBar fold={fold} count={(data.s || []).length} />
         {data.s.map((s,si)=>(
           <React.Fragment key={si}>
           {/* After the first section, and only when there is more menu below -
@@ -24705,14 +24775,14 @@ function PublishedMenu({data, onSaved}){
           ) : null}
           <div className="pub-msec">
             {s.n ? (
-              <button type="button" className="pub-msec-head" aria-expanded={open[si] !== false}
+              <button type="button" className="pub-msec-head" aria-expanded={fold.isOpen(si)}
                 style={{width:"100%", textAlign:"left"}}
-                onClick={()=> setOpen(o=> Object.assign({}, o, { [si]: !o[si] }))}>
+                onClick={()=> fold.toggle(si)}>
                 <span className="nm">{s.n}</span>
                 <span className="ct">{(s.i || []).length}</span>
               </button>
             ) : null}
-            {(open[si] !== false) && (s.i || []).map((it,ii)=>{
+            {(!s.n || fold.isOpen(si)) && (s.i || []).map((it,ii)=>{
               const key = si + ":" + ii;
               if (isPlace){
                 // Place recommendation: browse only - no pick tick, no note.
