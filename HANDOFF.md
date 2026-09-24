@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.468.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.469.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.468.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.469.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -396,6 +396,11 @@ per-screen because only two of the four screens search.
 Deleted along the way: the "first two sections" rule, the ">12 items or multi-menu" heuristic, and
 two separate always-open defaults. Four fold implementations became one.
 
+
+**Anchored (1.469.0).** The row sticks to the top of whatever is scrolling, so on a long expanded
+menu the way back to a short list is one tap rather than a scroll to the top. One CSS rule covers
+all four: every site puts the bar in a container padded 18px, and none has a sticky header INSIDE
+its scroll area, so it sticks at 0 and bleeds 18px either side to let rows pass behind it.
 ### A closed group order offers to become a visit (2026-09-23)
 
 A closed order already knows the place, the date, who was there and what each of them picked.
