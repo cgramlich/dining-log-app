@@ -1026,7 +1026,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.470.0";
+const APP_VERSION   = "1.471.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -5254,6 +5254,12 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
 // A dish verdict is "loved" (top) | "again" (would reorder) | "skip" | null.
 // Both loved AND again are positive ("would order again") for recommendations and
 // the picks/passport lists; "loved" is the standout tier surfaced separately.
+/* "3 visits", "1 visit". Only for places a COUNT is shown - a bare "menu(s)"
+   with no number in sight is not a pluralisation bug, it is a genuine either. */
+function countLabel(n, one, many){
+  return n + " " + (n === 1 ? one : (many || (one + "s")));
+}
+
 function verdictPositive(v){ return v === "loved" || v === "again"; }
 
 /* A menu section whose items are drinks. Matched on the SECTION name, which is
@@ -6005,10 +6011,13 @@ function saveCache(payload){
 /* ============================================================
    ICONS - small inline SVG (no emoji, per project rules)
    ============================================================ */
-function Icon({name, size, color}){
+function Icon({name, size, color, fill}){
   const s = size || 22;
   const c = color || "currentColor";
-  const p = { width:s, height:s, viewBox:"0 0 24 24", fill:"none",
+  // Every glyph here is drawn as a stroked outline. `fill` is for the few that
+  // mean something FILLED - a lit star reads as empty otherwise, which is how
+  // a five-out-of-five ended up looking like a zero.
+  const p = { width:s, height:s, viewBox:"0 0 24 24", fill:(fill || "none"),
               stroke:c, strokeWidth:1.7, strokeLinecap:"round", strokeLinejoin:"round" };
   const paths = {
     clock:   <g><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>,
@@ -6246,14 +6255,15 @@ function Stars({value, size, showNum}){
               <span style={{position:"absolute", left:0, top:0,
                             width:"50%", overflow:"hidden",
                             display:"inline-block", lineHeight:0}}>
-                <Icon name="star" size={px} color="#e7b24c" />
+                <Icon name="star" size={px} color="#e7b24c" fill="#e7b24c" />
               </span>
             </span>
           );
         }
         return (
           <span key={n} className={"star" + (isFull ? " lit" : "") + (big ? " big" : "")}>
-            <Icon name="star" size={px} color={isFull ? "#e7b24c" : "#3a3128"} />
+            <Icon name="star" size={px} color={isFull ? "#e7b24c" : "#3a3128"}
+                  fill={isFull ? "#e7b24c" : undefined} />
           </span>
         );
       })}
@@ -8537,8 +8547,9 @@ function App({openShare}){
               // confirm first since those would be left without their place.
               const vCount = visits.filter(v => v.restaurant_id === r.id).length;
               if (vCount > 0 && !window.confirm(
-                    "Delete \"" + (r.name || "this place") + "\"? It has " + vCount +
-                    " visit(s) - those stay in your history but lose their place link.")){
+                    "Delete \"" + (r.name || "this place") + "\"? It has " +
+                    countLabel(vCount, "visit") +
+                    " - those stay in your history but lose their place link.")){
                 return;
               }
               const savedMenus = menus[r.id];                 // snapshot for undo
@@ -8615,7 +8626,8 @@ function App({openShare}){
             onDeleteLocation={(name)=>{
               const inUse = restaurants.filter(r => r.location === name).length;
               if (inUse > 0){
-                flash(inUse + " place(s) use this - move them first");
+                flash(countLabel(inUse, "place") + (inUse === 1 ? " uses" : " use")
+                      + " this - move them first");
                 return;
               }
               const next = locations.filter(l => l !== name);
@@ -10798,7 +10810,7 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
               {r.location ? "  \u00b7  " + r.location : ""}
               {r.g_rating != null ? "  \u00b7  \u2605 " + Number(r.g_rating).toFixed(1)
                 + (r.g_rating_count ? " (" + Number(r.g_rating_count).toLocaleString() + ")" : "") : ""}
-              {countVisits(r.id) > 0 ? "  \u00b7  " + countVisits(r.id) + " visit(s)" : ""}
+              {countVisits(r.id) > 0 ? "  \u00b7  " + countLabel(countVisits(r.id), "visit") : ""}
             </div>
           </div>
           <span className={"fav" + (r.favorite ? " on" : "")}>
@@ -12349,7 +12361,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         ) : (
           <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)"}}>
             <div className="small" style={{marginBottom:11}}>
-              Delete {r.name} and its saved menu(s)? Logged visits are kept in History.
+              Delete {r.name} and {(menus || []).length === 1 ? "its saved menu"
+                : "its " + (menus || []).length + " saved menus"}?
+              Logged visits are kept in History.
             </div>
             <div className="row" style={{gap:9}}>
               <button className="btn ghost" onClick={()=> setConfirmDel(false)}>Cancel</button>

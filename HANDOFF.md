@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.470.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.471.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.470.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.471.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -368,6 +368,20 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A lit star is filled, and counts say the right word (2026-09-24)
+
+Every glyph in the icon set is drawn as a stroked outline with `fill:none`, so a **lit star was an
+amber outline**. Five out of five rendered as five empty stars beside a "5" - the number and the
+picture said opposite things, which is what made it visible in Chris's screenshot. `Icon` takes a
+`fill` now; only the star passes one.
+
+Separately, "1 visit(s)". `countLabel(n, one, many)` fixes the four places a **count** is on
+screen. Deliberately not applied to phrases with no number - "contribute your menu(s)" is a
+genuine either, not a pluralisation bug, and rewriting those would be churn.
+
+Both were noticed while reading the recap card for the two bugs below, and neither was asked for
+until Chris said to fix everything raised.
 
 ### "Most loved dish" was crowning the alphabet (2026-09-24)
 
