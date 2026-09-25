@@ -68,7 +68,7 @@ The one you are on is highlighted.
   is here too, so your connections are always one tap away; if someone has
   asked to connect, a badge shows the count.
 - **History** - everything you have logged, newest first.
-- **Discover** - the home for Your Year in Food, your Food
+- **You** - the home for Your Year in Food, your Food
   passport, dining companions, your published lists, your saved splits, and any
   active group orders.
 
@@ -539,7 +539,15 @@ again does not count against it.
 
 ## Your Year in Food
 
-Open **Your Year in Food** from the **Discover** tab, or from
+**How your most loved is picked.** A dish counts when you mark it **Loved** or
+**Would order again** on a visit. It becomes your most loved only once you have
+done that on **two separate visits** - a single tick means you liked something,
+not that it is your favourite. Until something repeats, the card lists what you
+liked without naming a winner. Drinks are counted separately from food, using
+the section they sit in on the menu, so a cocktail competes to be your most
+loved drink rather than your most loved dish.
+
+Open **Your Year in Food** from the **You** tab, or from
 **Settings** - either way you get a recap built entirely from what you have
 logged - a calm look back rather than a scoreboard.
 
@@ -569,7 +577,7 @@ app renders the year you are viewing onto a card you can text or post.
 ## Your food passport
 
 **Food passport** is a photo gallery of everywhere you have eaten - open it from
-the **Discover** tab, or from **Settings**. Every photo you have
+the **You** tab, or from **Settings**. Every photo you have
 added, whether to a whole visit or to a single dish, shows up as a tile, grouped
 by month with the newest first. Tap any photo to jump straight to that visit.
 
@@ -581,7 +589,7 @@ not cached yet load over a few seconds, and are quick to view after that.
 
 ## Your badges
 
-Open the **Discover** tab to find **Your badges** - a small set of stamps the
+Open the **You** tab to find **Your badges** - a small set of stamps the
 app awards as you use it. They are milestones, not a scoreboard: there is nothing
 to chase and nothing you can lose. A badge you have earned shows in full color
 with a note of what you did; one you have not earned yet sits quietly greyed
@@ -607,7 +615,7 @@ earned before badges arrived simply shows as already earned, without a fuss.
 
 MenuCaptain has a light social layer built around your **@handle** (set it in
 Settings, under Your profile). Open **Friends** - at the top of the
-**Discover** tab, or from the **+** button - to find friends by their handle
+**You** tab, or from the **+** button - to find friends by their handle
 and send or accept requests. Once connected you can send a place, a menu, or a
 visit straight to a friend from any Share sheet, and anything they send you
 appears under **Shared with you**, with a banner on Home so you never miss it.
@@ -674,7 +682,7 @@ separate - you are welcome to disagree about the food. If you were not there, **
 try** still saves it as a recommendation instead.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
-names build your **dining companions** view in the Discover tab - who you eat
+names build your **dining companions** view in the You tab - who you eat
 with most, and every meal you've shared. Tagging a connection links the visit
 to their handle.
 
@@ -684,7 +692,7 @@ plain language, using what is actually on the menu.
 
 ## Share the Love
 
-In the **Discover** tab, the **Five Shares** badge sits beside a **Share the
+In the **You** tab, the **Five Shares** badge sits beside a **Share the
 Love** button. If you are enjoying
 MenuCaptain, tap it to pass the app along to someone who would like it too - it
 opens your phone's share sheet with a link to a short page that shows them what
@@ -903,7 +911,7 @@ visit**, tap **Split the check**, build the split, and tap **Use this split** - 
 rides along on the visit and is saved when you save the visit.
 
 ## Publishing a list
-On the **Discover** tab under **Your lists**, tap **Publish a list**, give it a title,
+On the **You** tab under **Your lists**, tap **Publish a list**, give it a title,
 and tick the restaurants to include (your favorites and
 highest-rated are listed first). Tap **Create link**, then **Copy** or **Share**.
 
@@ -924,7 +932,7 @@ just that city's places and opens your share sheet straight away - no titling or
 ticking needed.
 
 **My lists.** Once you have published at least one list, a **My lists** entry
-appears under **Your lists** on the **Discover** tab, next to **Publish a list**. It keeps every list you
+appears under **Your lists** on the **You** tab, next to **Publish a list**. It keeps every list you
 have published so you can re-share or copy its link, **favorite** one to pin it
 to the top, sort them (recent, newest, A-Z, or most places), and **refresh** a
 list to rebuild it from your current places - handy when you have added or

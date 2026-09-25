@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.469.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.470.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.469.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.470.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -368,6 +368,43 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### "Most loved dish" was crowning the alphabet (2026-09-24)
+
+Chris's recap read **Most loved dish: Americano**. The list under it was Americano, Black
+Manhattan, Black Panther, Blackened Chicken Sandwich, Cadillac Margarita, Carajillo Aveo - strict
+alphabetical order, and no chip carried a `xN`. Every count was 1, so the **tiebreak** picked the
+winner and the card was really showing "the positively-rated thing whose name sorts first".
+
+A favourite now needs a **repeat**: `crown()` returns the top entry only when its count is above
+1. That is the bar `myUsualAt` already sets for "your usual here", so the app means one thing by
+favourite. Below the bar the list still shows, relabelled "Dishes you liked" with a line saying
+what would promote one. Showing the list was never the problem; calling its first row a favourite
+was.
+
+### Drinks are counted apart from food (2026-09-24)
+
+A logged dish stores a name, a note and a verdict - nothing said whether it was food. Cocktails
+therefore competed to be the most loved *dish*, which is how a Black Manhattan ended up on that
+card.
+
+The menu already knew: the item came out of a Cocktails section. **`addDish` now records that
+section** on the dish, and `dishIsDrink` falls back to looking the name up in that restaurant's
+menus when it is absent - so history logged before today sorts itself out with no migration.
+
+**Matched on the SECTION name, never the dish name.** "Arnold Palmer", "Dark and Stormy" and
+"French 75" are unwinnable by name, and a wrong guess relabels somebody's dinner. Unknown counts
+as food for the same reason: a menu we cannot consult must not turn a meal into a nightcap.
+
+### The Discover tab is now "You" (2026-09-24)
+
+It holds Year in Food, the Food passport, People, the Leaderboard, Shares, Connections and splits
+- every one of them the user's own record or their own people. Nothing in it discovers a
+restaurant; the nearby search that does lives on another screen. Chris raised it himself.
+
+**The internal key stays `"discover"`.** It is persisted in navigation state and used by deep
+links; renaming a stored value to match a label is how you break the thing the label was meant to
+clarify. Icon moved from the compass to people.
 
 ### One fold control on every menu (2026-09-24)
 

@@ -142,7 +142,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .badge.locked .badge-ic{ background:var(--bg-2); }
     .badge-name{ font-weight:600; font-size:14px; color:var(--text); display:flex; align-items:center; }
     .badge-sub{ font-size:12px; color:var(--text-dim); line-height:1.35; }
-    /* Discover tab: each badge is a row - stamp + text on the left, a quiet
+    /* You tab: each badge is a row - stamp + text on the left, a quiet
        action button on the right (the "doorway" into what the badge is about). */
     .badge-row{ display:flex; align-items:center; gap:12px; padding:11px 2px; }
     .badge-row + .badge-row{ border-top:1px solid var(--line); }
@@ -1026,7 +1026,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.469.0";
+const APP_VERSION   = "1.470.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1675,7 +1675,7 @@ The one you are on is highlighted.
   is here too, so your connections are always one tap away; if someone has
   asked to connect, a badge shows the count.
 - **History** - everything you have logged, newest first.
-- **Discover** - the home for Your Year in Food, your Food
+- **You** - the home for Your Year in Food, your Food
   passport, dining companions, your published lists, your saved splits, and any
   active group orders.
 
@@ -2146,7 +2146,15 @@ again does not count against it.
 
 ## Your Year in Food
 
-Open **Your Year in Food** from the **Discover** tab, or from
+**How your most loved is picked.** A dish counts when you mark it **Loved** or
+**Would order again** on a visit. It becomes your most loved only once you have
+done that on **two separate visits** - a single tick means you liked something,
+not that it is your favourite. Until something repeats, the card lists what you
+liked without naming a winner. Drinks are counted separately from food, using
+the section they sit in on the menu, so a cocktail competes to be your most
+loved drink rather than your most loved dish.
+
+Open **Your Year in Food** from the **You** tab, or from
 **Settings** - either way you get a recap built entirely from what you have
 logged - a calm look back rather than a scoreboard.
 
@@ -2176,7 +2184,7 @@ app renders the year you are viewing onto a card you can text or post.
 ## Your food passport
 
 **Food passport** is a photo gallery of everywhere you have eaten - open it from
-the **Discover** tab, or from **Settings**. Every photo you have
+the **You** tab, or from **Settings**. Every photo you have
 added, whether to a whole visit or to a single dish, shows up as a tile, grouped
 by month with the newest first. Tap any photo to jump straight to that visit.
 
@@ -2188,7 +2196,7 @@ not cached yet load over a few seconds, and are quick to view after that.
 
 ## Your badges
 
-Open the **Discover** tab to find **Your badges** - a small set of stamps the
+Open the **You** tab to find **Your badges** - a small set of stamps the
 app awards as you use it. They are milestones, not a scoreboard: there is nothing
 to chase and nothing you can lose. A badge you have earned shows in full color
 with a note of what you did; one you have not earned yet sits quietly greyed
@@ -2214,7 +2222,7 @@ earned before badges arrived simply shows as already earned, without a fuss.
 
 MenuCaptain has a light social layer built around your **@handle** (set it in
 Settings, under Your profile). Open **Friends** - at the top of the
-**Discover** tab, or from the **+** button - to find friends by their handle
+**You** tab, or from the **+** button - to find friends by their handle
 and send or accept requests. Once connected you can send a place, a menu, or a
 visit straight to a friend from any Share sheet, and anything they send you
 appears under **Shared with you**, with a banner on Home so you never miss it.
@@ -2281,7 +2289,7 @@ separate - you are welcome to disagree about the food. If you were not there, **
 try** still saves it as a recommendation instead.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
-names build your **dining companions** view in the Discover tab - who you eat
+names build your **dining companions** view in the You tab - who you eat
 with most, and every meal you've shared. Tagging a connection links the visit
 to their handle.
 
@@ -2291,7 +2299,7 @@ plain language, using what is actually on the menu.
 
 ## Share the Love
 
-In the **Discover** tab, the **Five Shares** badge sits beside a **Share the
+In the **You** tab, the **Five Shares** badge sits beside a **Share the
 Love** button. If you are enjoying
 MenuCaptain, tap it to pass the app along to someone who would like it too - it
 opens your phone's share sheet with a link to a short page that shows them what
@@ -2510,7 +2518,7 @@ visit**, tap **Split the check**, build the split, and tap **Use this split** - 
 rides along on the visit and is saved when you save the visit.
 
 ## Publishing a list
-On the **Discover** tab under **Your lists**, tap **Publish a list**, give it a title,
+On the **You** tab under **Your lists**, tap **Publish a list**, give it a title,
 and tick the restaurants to include (your favorites and
 highest-rated are listed first). Tap **Create link**, then **Copy** or **Share**.
 
@@ -2531,7 +2539,7 @@ just that city's places and opens your share sheet straight away - no titling or
 ticking needed.
 
 **My lists.** Once you have published at least one list, a **My lists** entry
-appears under **Your lists** on the **Discover** tab, next to **Publish a list**. It keeps every list you
+appears under **Your lists** on the **You** tab, next to **Publish a list**. It keeps every list you
 have published so you can re-share or copy its link, **favorite** one to pin it
 to the top, sort them (recent, newest, A-Z, or most places), and **refresh** a
 list to rebuild it from your current places - handy when you have added or
@@ -2941,7 +2949,7 @@ function yifMonthName(m){
 // Pure: derive the "Year in Food" recap stats for a period (a year number, or
 // "all"). No DOM, no calorie totals (deliberate - the recap is about places,
 // dishes and memories, not a budget). Returns {empty:true} when nothing fits.
-function computeYearStats(visits, restaurants, period){
+function computeYearStats(visits, restaurants, period, menus){
   const restMap = {};
   (restaurants || []).forEach(r => { if (r && r.id) restMap[r.id] = r; });
   const yearOf = (d)=> { const y = parseInt(String(d || "").slice(0,4), 10); return isFinite(y) ? y : 0; };
@@ -2990,16 +2998,30 @@ function computeYearStats(visits, restaurants, period){
   if (period !== "all") placeIds.forEach(id => { if (firstYear[id] === period) newSpots++; });
 
   const lovedCount = {}, lovedDisplay = {};
+  // Drinks are counted apart from food. A cocktail you liked is not your most
+  // loved DISH, and the menu already knew which was which.
+  const drinkCount = {}, drinkDisplay = {};
   filtered.forEach(v => (v.dishes || []).forEach(d => {
     if (d && d.name && verdictPositive(d.verdict)){
       const k = d.name.trim().toLowerCase();
-      lovedCount[k] = (lovedCount[k] || 0) + 1;
-      if (!lovedDisplay[k]) lovedDisplay[k] = d.name.trim();
+      const drink = dishIsDrink(d, (menus || {})[v.restaurant_id]);
+      const cnt = drink ? drinkCount : lovedCount;
+      const disp = drink ? drinkDisplay : lovedDisplay;
+      cnt[k] = (cnt[k] || 0) + 1;
+      if (!disp[k]) disp[k] = d.name.trim();
     }
   }));
-  const lovedList = Object.keys(lovedCount)
-    .map(k => ({ name:lovedDisplay[k], count:lovedCount[k] }))
+  const rank = (cnt, disp)=> Object.keys(cnt)
+    .map(k => ({ name:disp[k], count:cnt[k] }))
     .sort((a,b)=> b.count - a.count || a.name.localeCompare(b.name));
+  const lovedList  = rank(lovedCount, lovedDisplay);
+  const drinkList  = rank(drinkCount, drinkDisplay);
+  /* A favourite has to have been ordered again. Ties here break
+     alphabetically, so with nothing yet repeated the "top" was simply whatever
+     started with the earliest letter - the card crowned Americano on a single
+     tick. Same bar myUsualAt sets for "your usual here": a repeat, or no claim.
+     The list still shows; only the crown is withheld. */
+  const crown = (list)=> (list[0] && list[0].count > 1) ? list[0] : null;
 
   // Top rated is now a top rated PLACE (rating lives on the place, latest-wins).
   let topVisit = null;
@@ -3035,7 +3057,9 @@ function computeYearStats(visits, restaurants, period){
     topSpot: topSpot,
     topCuisine: topCuisine,
     lovedList: lovedList,
-    topLoved: lovedList[0] || null,
+    topLoved: crown(lovedList),
+    drinkList: drinkList,
+    topDrink: crown(drinkList),
     topVisit: topVisit,
     busiest: busiest ? { label:busiestLabel, count:busiest.count } : null,
   };
@@ -4063,6 +4087,7 @@ async function buildYearCardBlob(s, periodLabel){
   if (s.topSpot)   statRow("Your #1 spot", s.topSpot.name + "  (" + s.topSpot.count + (s.topSpot.count === 1 ? " visit" : " visits") + ")");
   if (s.topCuisine) statRow("Top cuisine", s.topCuisine.name);
   if (s.topLoved)  statRow("Most loved dish", s.topLoved.name);
+  if (s.topDrink)  statRow("Most loved drink", s.topDrink.name);
   if (s.busiest)   statRow("Busiest month", s.busiest.label);
   if (s.cities && s.cities.length) statRow(s.cities.length === 1 ? "City" : "Cities",
     s.cities.length <= 3 ? s.cities.join(", ") : s.cities.length + " cities");
@@ -5230,6 +5255,36 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
 // Both loved AND again are positive ("would order again") for recommendations and
 // the picks/passport lists; "loved" is the standout tier surfaced separately.
 function verdictPositive(v){ return v === "loved" || v === "again"; }
+
+/* A menu section whose items are drinks. Matched on the SECTION name, which is
+   what a menu actually tells us - no attempt to judge a dish by its own name,
+   because "Arnold Palmer", "Dark and Stormy" and "French 75" are unwinnable
+   that way and a wrong guess here mislabels somebody's favourite meal. */
+const DRINK_SECTION_RE = new RegExp(
+  "(drink|beverage|cocktail|mocktail|wine|beer|cider|spirit|liquor|liqueur|" +
+  "whisk|bourbon|tequila|mezcal|vodka|gin|rum|sake|soju|margarita|martini|" +
+  "coffee|espresso|tea\\b|juice|soda|smoothie|shake|bar menu|on tap|by the glass|" +
+  "aperitivo|digestivo|vermouth|champagne|prosecco|sangria|punch|refresco|bebida)", "i");
+
+function sectionIsDrink(name){ return DRINK_SECTION_RE.test(String(name || "")); }
+
+/* Is this logged dish a drink? The section recorded when it was logged is the
+   answer when there is one. Older entries never recorded it, so fall back to
+   finding the name on that restaurant's menus - which also means history logged
+   before any of this sorts itself out without a migration. Unknown is FOOD:
+   a menu we cannot consult should not turn somebody's dinner into a nightcap. */
+function dishIsDrink(dish, menusForRest){
+  if (!dish) return false;
+  if (dish.sec) return sectionIsDrink(dish.sec);
+  const want = String(dish.name || "").trim().toLowerCase();
+  if (!want) return false;
+  let hit = false;
+  (menusForRest || []).forEach(mn => (mn.sections || []).forEach(sec => {
+    if (hit || !sectionIsDrink(sec.name)) return;
+    if ((sec.items || []).some(it => String((it && it.name) || "").trim().toLowerCase() === want)) hit = true;
+  }));
+  return hit;
+}
 function dishChipClass(v){ return v === "loved" ? " loved" : v === "again" ? " again" : v === "skip" ? " skip" : ""; }
 
 function nutritionHint(it){
@@ -8612,7 +8667,7 @@ function App({openShare}){
           <span className="navicon"><Icon name="clock" size={23} /></span>History
         </button>
         <button className={tab==="discover" ? "on" : ""} aria-current={tab==="discover" ? "page" : undefined} onClick={()=> setTab("discover")}>
-          <span className="navicon"><Icon name="compass" size={23} /></span>Discover
+          <span className="navicon"><Icon name="people" size={23} /></span>You
         </button>
       </nav>
 
@@ -9547,7 +9602,7 @@ function App({openShare}){
       )}
 
       {overlay && overlay.type === "yearInFood" && (
-        <YearInFood visits={visits} restaurants={restaurants}
+        <YearInFood visits={visits} restaurants={restaurants} menus={menus}
           onClose={()=> setOverlay(null)} />
       )}
 
@@ -9617,7 +9672,7 @@ function TopBar({tab, onShare, onOpenSettings, pendingReqs}){
   const titles = {
     history:["MenuCaptain","Where you have been"],
     restaurants:["Places","Your restaurants & menus"],
-    discover:["Discover","Your badges & recaps"],
+    discover:["You","Your recaps, people and badges"],
     settings:["Settings","Sync & configuration"],
   };
   const [t,s] = titles[tab] || titles.history;
@@ -18535,13 +18590,30 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   })();
   const menuItemTotal = menuGroups.reduce((n,g)=> n + (g.total || 0), 0);
 
+  // Which menu section a name sits in at this place, or "" when it is not on
+  // any menu here (typed in, or an off-menu ask).
+  function sectionForDish(name){
+    const want = String(name || "").trim().toLowerCase();
+    let found = "";
+    (menusForRest || []).forEach(mn => (mn.sections || []).forEach(sec => {
+      if (found) return;
+      if ((sec.items || []).some(it => String((it && it.name) || "").trim().toLowerCase() === want))
+        found = sec.name || "";
+    }));
+    return found;
+  }
+
   function addDish(name){
     const n = (name || "").trim();
     if (!n) return;
     if (dishNames.indexOf(n) !== -1) return;       // avoid duplicates
     // verdict: per-dish memory for "should I order this again?"
     //   null (unset) | "again" (loved it) | "skip" (not again)
-    setDishes(d => d.concat([{ name:n, note:"", verdict:null }]));
+    // sec: the menu section it came from, so a cocktail is not counted as a
+    // dish later. Absent when it is not on a menu here, which reads as food.
+    const sec = sectionForDish(n);
+    setDishes(d => d.concat(
+      [sec ? { name:n, note:"", verdict:null, sec:sec } : { name:n, note:"", verdict:null }]));
     setDishInput("");
   }
   function removeDish(name){ setDishes(d => d.filter(x => x.name !== name)); }
@@ -25214,7 +25286,7 @@ function FoodPassport({visits, restaurantById, cfg, onOpenVisit, onClose, onHome
   );
 }
 
-function YearInFood({visits, restaurants, onClose, onHome}){
+function YearInFood({visits, restaurants, menus, onClose, onHome}){
   // years that have visits, newest first
   const years = Array.from(new Set((visits || [])
     .map(v => parseInt(String(v.date || "").slice(0,4), 10))
@@ -25232,7 +25304,7 @@ function YearInFood({visits, restaurants, onClose, onHome}){
   }
   const [period, setPeriod] = useState(defaultPeriod);
   const [shareBusy, setShareBusy] = useState(false);
-  const s = computeYearStats(visits, restaurants, period);
+  const s = computeYearStats(visits, restaurants, period, menus);
   const periodLabel = period === "all" ? "All time" : String(period);
 
   const share = async ()=>{
@@ -25329,19 +25401,43 @@ function YearInFood({visits, restaurants, onClose, onHome}){
               </div>
             )}
 
-            {s.topLoved && (
+{/* Two cards, food and drink, and each names a favourite only when
+                something was actually ordered again. Without a repeat the list
+                still shows - "here is what you liked" is true; "here is your
+                favourite" was not. */}
+            {s.lovedList.length > 0 && (
               <div className="yif-stat">
-                <div className="yif-lbl">Most loved dish</div>
-                <div className="yif-name">{s.topLoved.name}</div>
-                {s.lovedList.length > 1 && (
-                  <div className="chips" style={{marginTop:11}}>
-                    {s.lovedList.slice(0,6).map((d,i)=>(
-                      <span key={i} className="chip dish again">
-                        {d.name}{d.count > 1 ? "  \u00d7" + d.count : ""}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <div className="yif-lbl">{s.topLoved ? "Most loved dish" : "Dishes you liked"}</div>
+                {s.topLoved
+                  ? <div className="yif-name">{s.topLoved.name}</div>
+                  : <div className="yif-sub" style={{marginBottom:2}}>
+                      Order one of these again and it becomes your most loved dish.
+                    </div>}
+                <div className="chips" style={{marginTop:11}}>
+                  {s.lovedList.slice(0,6).map((d,i)=>(
+                    <span key={i} className="chip dish again">
+                      {d.name}{d.count > 1 ? "  \u00d7" + d.count : ""}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {s.drinkList.length > 0 && (
+              <div className="yif-stat">
+                <div className="yif-lbl">{s.topDrink ? "Most loved drink" : "Drinks you liked"}</div>
+                {s.topDrink
+                  ? <div className="yif-name">{s.topDrink.name}</div>
+                  : <div className="yif-sub" style={{marginBottom:2}}>
+                      Order one of these again and it becomes your most loved drink.
+                    </div>}
+                <div className="chips" style={{marginTop:11}}>
+                  {s.drinkList.slice(0,6).map((d,i)=>(
+                    <span key={i} className="chip dish again">
+                      {d.name}{d.count > 1 ? "  \u00d7" + d.count : ""}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -25853,7 +25949,7 @@ const DEFAULT_TABS = [
   { key:"home",        name:"Home",    icon:"home" },
   { key:"restaurants", name:"Places",  icon:"plate" },
   { key:"history",     name:"History", icon:"clock" },
-  { key:"discover",    name:"Discover", icon:"compass" },
+  { key:"discover",    name:"You", icon:"people" },
 ];
 function getDefaultTab(){
   try {
