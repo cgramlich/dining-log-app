@@ -1026,7 +1026,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.471.0";
+const APP_VERSION   = "1.472.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1979,12 +1979,22 @@ the table is worth far more than trying to remember it later.
 Tap the plus button and choose "Log a visit." You can fill in as much or as
 little as you like:
 
-**Date and rating.** Pick the date and give the visit a star rating. You can
-rate in half-stars: tap the left side of a star for a half, the right side for
-a whole. Tap the rating you already have to clear it. You rate each visit, not
-the restaurant - so a place can have a different rating every time you go. On a
-restaurant, in the Places list, and on a shared card, the star number shown is
-the average of your visits there, labelled "avg."
+**Date and rating.** Pick the date, then rate the place on three things:
+**Food**, **Service** and **Atmosphere**. Rate one, two or all three - whatever
+you have an opinion about. Each is in half-stars: tap the left side of a star
+for a half, the right side for a whole, and tap the rating you already have to
+clear it.
+
+Those three combine into the single score you see in the Places list, in
+"highest-rated place" and on a shared card. **Food counts for half of it,
+service for 30%, atmosphere for 20%** - a meal is mostly the food. If you rate
+only some of them, the ones you skipped are not counted against the place: rate
+Food four stars and nothing else and the place scores four, not two.
+
+The rating belongs to the **place**, not to one visit, so rating from a visit
+updates the place and the newest rating is the one that stands. Places you rated
+before the three appeared keep the score you gave them until you rate any of the
+three, and then the new one takes over.
 
 **What you had (dishes).** There are three easy ways to add what you ordered, top
 to bottom. **Search or type** in the box to find any dish on the menu (or type a
@@ -6176,7 +6186,33 @@ function HomeBtn({ onHome }){
 // the numeric value (e.g. "4.5") beside the stars for read-only contexts.
 // The user's star rating lives on the PLACE now (latest-visit-wins). Prefer an
 // explicit my_rating; else derive from the most recent rated visit at that place.
+/* The three things a place is rated on, and what each is worth in the single
+   number everything else reads. Chris's weighting: a meal is mostly the food. */
+const RATING_PARTS = [
+  { key:"my_food",       label:"Food",       weight:0.5 },
+  { key:"my_service",    label:"Service",    weight:0.3 },
+  { key:"my_atmosphere", label:"Atmosphere", weight:0.2 },
+];
+
+/* Weighted mean of the parts that are SET, with the weights renormalised over
+   them. Rate only Food and the place scores its food, not half of it - the
+   alternative treats an unrated part as a zero, which would quietly punish
+   every place you have not finished rating. 0 when nothing is set. */
+function weightedRating(r){
+  if (!r) return 0;
+  let sum = 0, w = 0;
+  RATING_PARTS.forEach(part => {
+    const v = r[part.key];
+    if (typeof v === "number" && v > 0){ sum += v * part.weight; w += part.weight; }
+  });
+  return w ? (sum / w) : 0;
+}
+
+function hasRatingParts(r){ return weightedRating(r) > 0; }
+
 function placeRating(restaurant, visitsForPlace){
+  const w = weightedRating(restaurant);
+  if (w > 0) return w;                      // the parts win once any is set
   if (restaurant && typeof restaurant.my_rating === "number") return restaurant.my_rating;
   const vs = (visitsForPlace || []).filter(v => v && typeof v.rating === "number" && v.rating > 0);
   if (!vs.length) return 0;
@@ -6220,7 +6256,7 @@ function StarRater({value, onChange, size}){
               {(full || half) && (
                 <span style={{position:"absolute", left:0, top:0, height:"100%",
                         width: full ? "100%" : "50%", overflow:"hidden", display:"inline-block", lineHeight:0}}>
-                  <Icon name="star" size={sz} color="#e7b24c" />
+                  <Icon name="star" size={sz} color="#e7b24c" fill="#e7b24c" />
                 </span>
               )}
             </span>
@@ -6230,6 +6266,38 @@ function StarRater({value, onChange, size}){
       {val0 > 0 && (
         <span className="small muted">{Number.isInteger(val0) ? val0 : val0.toFixed(1)}</span>
       )}
+    </div>
+  );
+}
+
+/* Rating a place: three rows and the number they add up to. Both screens that
+   rate a place use THIS - they had two separate star implementations before,
+   which is two places for the same behaviour to drift apart.
+
+   `place` supplies the current values; onChange(key, value) reports a tap. The
+   overall is shown, never typed: it is derived, and a field you can type into
+   invites it to disagree with its own parts. */
+function PlaceRatingFields({place, onChange, size}){
+  const overall = weightedRating(place);
+  const legacy = (!overall && place && typeof place.my_rating === "number") ? place.my_rating : 0;
+  return (
+    <div>
+      {RATING_PARTS.map(part => (
+        <div key={part.key} className="row between"
+             style={{alignItems:"center", gap:10, marginBottom:4}}>
+          <span className="small" style={{flex:"none", minWidth:86}}>{part.label}</span>
+          <StarRater size={size || 30} value={place ? place[part.key] : 0}
+            onChange={(v)=> onChange(part.key, v)} />
+        </div>
+      ))}
+      <div className="tiny faint" style={{marginTop:7}}>
+        {overall > 0
+          ? "Overall " + overall.toFixed(1) + " \u00b7 food counts half, service a third, atmosphere the rest"
+          : legacy > 0
+            ? "Overall " + (Number.isInteger(legacy) ? legacy : legacy.toFixed(1))
+              + " \u00b7 your earlier rating, kept until you rate any of the three"
+            : "Rate any of the three and they become this place's overall score"}
+      </div>
     </div>
   );
 }
@@ -9031,9 +9099,10 @@ function App({openShare}){
             commit({ restaurants:next }, ["restaurants"]);
             flash(rr && rr.wishlist ? "Removed from Want to try" : "Added to Want to try");
           }}
-          onSetMyRating={(val)=>{
+          onSetMyRating={(key, val)=>{
+            const patch = {}; patch[key] = val;
             const next = restaurants.map(r =>
-              r.id===overlay.id ? Object.assign({},r,{my_rating:val}) : r);
+              r.id===overlay.id ? Object.assign({}, r, patch) : r);
             commit({ restaurants:next }, ["restaurants"]);
           }}
           onDelete={()=>{
@@ -9446,13 +9515,27 @@ function App({openShare}){
             // visit now, so it's a place you've been.
             const rid = rec && rec.restaurant_id;
             const target = restaurants.find(r => r.id === rid);
+            // Lift the three parts off the record and onto the place.
+            const parts = (rec && rec._rating_parts) || null;
+            if (rec) delete rec._rating_parts;
             const needRating = rec && typeof rec.rating === "number";
             const needGraduate = !!(target && target.wishlist);
-            if (rid && (needRating || needGraduate)){
+            if (rid && (needRating || needGraduate || parts)){
               const nr = restaurants.map(r => {
                 if (r.id !== rid) return r;
                 const patch = {};
-                if (needRating) patch.my_rating = rec.rating;
+                // A part that was actually set is written; one left blank is
+                // left blank, so rating Food alone does not silently zero the
+                // other two. my_rating stays as the older single score until
+                // some part exists, and then the weighting takes over.
+                if (parts){
+                  RATING_PARTS.forEach(part => {
+                    const v = parts[part.key];
+                    if (typeof v === "number" && v > 0) patch[part.key] = v;
+                    else if (typeof v === "number" && v === 0) patch[part.key] = 0;
+                  });
+                }
+                if (needRating && !hasRatingParts(parts)) patch.my_rating = rec.rating;
                 if (needGraduate) patch.wishlist = false;
                 return Object.assign({}, r, patch);
               });
@@ -10185,8 +10268,8 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
     (b.logged_at || 0) - (a.logged_at || 0);
   const ratingOf = (v)=>{
     const r = restaurantById(v.restaurant_id);
-    if (r && typeof r.my_rating === "number") return r.my_rating;   // place rating wins
-    return (typeof v.rating === "number" ? v.rating : -1);          // legacy fallback
+    const rt = placeRating(r, (visits || []).filter(x => x && x.restaurant_id === v.restaurant_id));
+    return rt > 0 ? rt : -1;    // unrated sinks, as before
   };
   const histName = (v)=> {
     const rr = restaurantById(v.restaurant_id);
@@ -10758,9 +10841,8 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
   // match History). -1 when it has no rated visits, so unrated sink to the end.
   const avgRating = (rid)=> {
     const rest = (restaurants || []).find(x => x.id === rid);
-    if (rest && typeof rest.my_rating === "number") return rest.my_rating;   // place rating wins
-    const rs = (visits || []).filter(v => v.restaurant_id === rid && typeof v.rating === "number").map(v => v.rating);
-    return rs.length ? (rs.reduce((a,b)=> a + b, 0) / rs.length) : -1;       // legacy fallback
+    const rt = placeRating(rest, (visits || []).filter(v => v && v.restaurant_id === rid));
+    return rt > 0 ? rt : -1;    // unrated sinks to the end
   };
   const favsSorted   = searched.filter(r => r.favorite).sort(byName);
   const othersSorted = searched.filter(r => !r.favorite).sort(byName);
@@ -11754,10 +11836,12 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           {r.location ? "  \u00b7  " + r.location : ""}
         </div>
 
-        <div className="row" style={{gap:10, alignItems:"center", marginTop:10, flexWrap:"wrap"}}>
-          <span className="small faint" style={{flex:"none"}}>Your rating</span>
-          <StarRater value={placeRating(r, visits)} size={30}
-            onChange={(val)=> onSetMyRating && onSetMyRating(val)} />
+        <div style={{marginTop:12}}>
+          <span className="small faint">Your rating</span>
+          <div style={{marginTop:6}}>
+            <PlaceRatingFields place={r} size={28}
+              onChange={(key, val)=> onSetMyRating && onSetMyRating(key, val)} />
+          </div>
         </div>
 
         {(r.g_rating != null || gPrice(r.g_price_level) || (r.g_hours && r.g_hours.length)) && (
@@ -17977,29 +18061,22 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   }
   const [date,setDate]     = useState(existing ? existing.date
     : ((seedVisit && seedVisit.date) || todayISO()));
-  const [rating,setRating] = useState(()=> placeRating(
-    (restaurants||[]).find(x=>x.id===restId),
-    (visits||[]).filter(v=>v && v.restaurant_id===restId)));
-  // The rating belongs to the PLACE now; reseed when the chosen place changes.
-  useEffect(()=>{ setRating(placeRating(
-    (restaurants||[]).find(x=>x.id===restId),
-    (visits||[]).filter(v=>v && v.restaurant_id===restId))); }, [restId]);
-  const ratingRef = useRef(null);
-  // Half-star rating by tap position: map where the tap landed across the
-  // 5-star row to the nearest 0.5 step. This is far more reliable on iOS
-  // Safari than overlaying invisible half-width buttons (which did not fire).
-  // Tapping the value you already have clears the rating back to none.
-  function onRateTap(e){
-    const el = ratingRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    // clientX is present on both mouse clicks and tap-generated click events
-    const cx = (e.clientX != null) ? e.clientX
-             : (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientX : rect.left);
-    const x  = Math.max(0, Math.min(rect.width, cx - rect.left));
-    let val  = Math.ceil((x / rect.width) * 5 * 2) / 2;   // nearest half, rounding up
-    val = Math.max(0.5, Math.min(5, val));
-    setRating(val === rating ? 0 : val);
+  // The three parts, read off the PLACE. Rating from a visit still rates the
+  // place - it always did - so this edits the same fields the place screen does.
+  const seedParts = (rid)=> {
+    const rr = (restaurants || []).find(x => x.id === rid) || {};
+    const out = {};
+    RATING_PARTS.forEach(part => { out[part.key] = rr[part.key]; });
+    out.my_rating = rr.my_rating;
+    return out;
+  };
+  const [ratingParts, setRatingParts] = useState(()=> seedParts(restId));
+  useEffect(()=>{ setRatingParts(seedParts(restId)); }, [restId]);
+  // The single number the rest of the app reads. Derived, never typed.
+  const rating = weightedRating(ratingParts)
+              || (typeof ratingParts.my_rating === "number" ? ratingParts.my_rating : 0);
+  function setRatingPart(key, val){
+    setRatingParts(prev => Object.assign({}, prev, { [key]: val }));
   }
   const [notes,setNotes]   = useState(existing ? existing.notes : "");
   // Seeded dishes come from a closed group order: what the table actually
@@ -18743,6 +18820,10 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       restaurant_name: r ? r.name : "",          // snapshot, survives restaurant deletion
       date: date || todayISO(),
       rating: rating,
+      // Not stored on the visit - the save handler lifts these onto the PLACE
+      // and drops the key. A visit carrying a place's rating is what the
+      // my_rating move was undoing.
+      _rating_parts: ratingParts,
       // Each dish carries whichever photos were attached to it. Written here
       // rather than into `dishes` state, so a save that fails leaves no paths
       // pointing at files that were never uploaded.
@@ -18972,47 +19053,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           <div className="tiny faint" style={{margin:"-2px 0 6px"}}>
             Rates the place, not just this visit - it keeps your latest.
           </div>
-          {/* One tappable row. onRateTap reads the tap's X position across
-              the whole row and maps it to the nearest half-star, so the left
-              portion of a star is a half and the right portion is a whole.
-              No gaps between stars so the position maps cleanly. */}
-          <div className="row" style={{alignItems:"center", gap:10}}>
-            <div ref={ratingRef} onClick={onRateTap} role="slider" tabIndex={0}
-                 onKeyDown={e=>{
-                   if (e.key === "ArrowRight" || e.key === "ArrowUp"){ e.preventDefault(); setRating(Math.min(5, (rating || 0) + 0.5)); }
-                   else if (e.key === "ArrowLeft" || e.key === "ArrowDown"){ e.preventDefault(); setRating(Math.max(0, (rating || 0) - 0.5)); }
-                 }}
-                 aria-label="Rating" aria-valuemin={0} aria-valuemax={5}
-                 aria-valuenow={rating}
-                 style={{display:"inline-flex", gap:0, cursor:"pointer",
-                         touchAction:"manipulation", WebkitUserSelect:"none",
-                         userSelect:"none", padding:"4px 0"}}>
-              {[1,2,3,4,5].map(n => {
-                const full = n <= rating;
-                const half = !full && (rating >= n - 0.5);
-                return (
-                  <span key={n}
-                        style={{position:"relative", display:"inline-block",
-                                width:40, height:40, lineHeight:0,
-                                pointerEvents:"none"}}>
-                    <Icon name="star" size={40} color="#3a3128" />
-                    {(full || half) && (
-                      <span style={{position:"absolute", left:0, top:0, height:"100%",
-                                    width: full ? "100%" : "50%",
-                                    overflow:"hidden", display:"inline-block", lineHeight:0}}>
-                        <Icon name="star" size={40} color="#e7b24c" />
-                      </span>
-                    )}
-                  </span>
-                );
-              })}
-            </div>
-            {rating > 0 && (
-              <span className="small muted">
-                {Number.isInteger(rating) ? rating : rating.toFixed(1)}
-              </span>
-            )}
-          </div>
+          <PlaceRatingFields place={ratingParts} size={30} onChange={setRatingPart} />
         </div>
 
         {/* Photos - up to MAX_VISIT_PHOTOS per visit. Placed high in the form
@@ -25770,8 +25811,7 @@ function buildHistoryCsv(visits, restById){
     const restName = (r && r.name) || v.restaurant_name || "";
     const city     = (r && r.city) || "";
     const cuisine  = (r && r.cuisine) || "";
-    const myr      = (r && typeof r.my_rating === "number") ? r.my_rating
-                     : ((typeof v.rating === "number") ? v.rating : 0);   // place rating, legacy fallback
+    const myr      = placeRating(r, (visits || []).filter(x => x && x.restaurant_id === v.restaurant_id));
     const rating   = myr > 0 ? myr : "";
     const notes    = v.notes || "";
     const lead = [v.date, restName, city, cuisine, rating];   // shared visit prefix

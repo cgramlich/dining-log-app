@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.471.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.472.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.471.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.472.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -368,6 +368,38 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A place is rated on Food, Service and Atmosphere (2026-09-24)
+
+Three half-star raters instead of one. A single overall still exists, because Places sorting,
+"highest-rated place", the export and the share card all need one number, and it is **weighted at
+Chris's direction: food 0.5, service 0.3, atmosphere 0.2** - a meal is mostly the food.
+
+**Weights renormalise over the parts actually set.** Rate only Food four stars and the place
+scores four, not two. The alternative - treating an unrated part as zero - would quietly punish
+every place somebody had not finished rating, which is most of them.
+
+**Existing ratings are untouched.** `placeRating` tries the weighted parts, then the old
+`my_rating`, then the latest rated visit. An existing 5 stays a 5 until a part is set; nothing was
+back-filled, so the app never claims somebody rated three things when they rated one.
+
+**Chris asked for a typed exact number and then withdrew it** once the weighting was settled:
+"now that we are averaging them I don't need to type the number". Half-star taps only. The overall
+is displayed and never editable - a field you can type into invites it to disagree with its own
+parts.
+
+Two clean-ups the change forced, both worth having on their own:
+- **Four readers, one rule.** History sorting, Places sorting, the export and `placeRating` each
+  carried their own copy of "my_rating wins, else fall back to a visit". Four copies is four
+  chances to disagree about what a place scores, and adding a weighting would have meant editing
+  all four correctly. They all call `placeRating` now.
+- **Two star implementations, one component.** `StarRater` and a copy inlined in the visit form.
+  Both screens use `PlaceRatingFields` now. The inlined copy also still had the unfilled-star bug
+  fixed in 1.471.0, which is what two implementations gets you.
+
+The guide paragraph for this was already wrong before today - it said you rate each VISIT and that
+the number shown is an average labelled "avg", neither true since the rating moved onto the place.
+Rewritten rather than left.
 
 ### A lit star is filled, and counts say the right word (2026-09-24)
 

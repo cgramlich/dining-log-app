@@ -372,12 +372,22 @@ the table is worth far more than trying to remember it later.
 Tap the plus button and choose "Log a visit." You can fill in as much or as
 little as you like:
 
-**Date and rating.** Pick the date and give the visit a star rating. You can
-rate in half-stars: tap the left side of a star for a half, the right side for
-a whole. Tap the rating you already have to clear it. You rate each visit, not
-the restaurant - so a place can have a different rating every time you go. On a
-restaurant, in the Places list, and on a shared card, the star number shown is
-the average of your visits there, labelled "avg."
+**Date and rating.** Pick the date, then rate the place on three things:
+**Food**, **Service** and **Atmosphere**. Rate one, two or all three - whatever
+you have an opinion about. Each is in half-stars: tap the left side of a star
+for a half, the right side for a whole, and tap the rating you already have to
+clear it.
+
+Those three combine into the single score you see in the Places list, in
+"highest-rated place" and on a shared card. **Food counts for half of it,
+service for 30%, atmosphere for 20%** - a meal is mostly the food. If you rate
+only some of them, the ones you skipped are not counted against the place: rate
+Food four stars and nothing else and the place scores four, not two.
+
+The rating belongs to the **place**, not to one visit, so rating from a visit
+updates the place and the newest rating is the one that stands. Places you rated
+before the three appeared keep the score you gave them until you rate any of the
+three, and then the new one takes over.
 
 **What you had (dishes).** There are three easy ways to add what you ordered, top
 to bottom. **Search or type** in the box to find any dish on the menu (or type a
