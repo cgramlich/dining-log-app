@@ -692,7 +692,17 @@ separate - you are welcome to disagree about the food. If you were not there, **
 try** still saves it as a recommendation instead.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
-names build your **dining companions** view in the You tab - who you eat
+**When one person shows up twice.** Somebody you tagged by first name for
+months, who later joins MenuCaptain, can appear as two people: the old visits
+under the name you typed, the newer ones under their account. Open **Dining
+companions** and the older entry offers **Same person as [their name]?** - tap
+**Merge them** and those visits are re-tagged to their account. You can also
+open anyone and tap **Same person as...** to pick from the list yourself. It
+asks first, because it edits saved visits and undoing it means re-tagging by
+hand. It only ever suggests a merge, never does one on its own - two people
+really can share a first name.
+
+The names you tag build your **dining companions** view in the You tab - who you eat
 with most, and every meal you've shared. Tagging a connection links the visit
 to their handle.
 

@@ -18,13 +18,13 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-09-24
+## Current state — 2026-09-25
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.472.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.473.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.472.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.473.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -368,6 +368,30 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Two companions who are one person can be merged (2026-09-25)
+
+Chris's companions list showed **Kristin Gramlich @kristingramlich, 19 visits** and **Kristin, 6
+visits** - the same person, split because he tagged her by first name for months before she
+signed up. `companionKey` keys on `user_id` when there is one and on the lowercased name when
+there is not, so an account arriving mid-history splits that person in two. Nothing in the app
+could join them; the only remedy was re-tagging six visits by hand.
+
+**This is structural, not a one-off.** Every unlinked name on that list splits the same way the
+day its owner signs up.
+
+`mergeCompanions(visits, fromKey, to)` rewrites the absorbed tags to carry the target's account
+and returns a new visits array, or **null when nothing matched** - so the caller can tell "merged"
+from "there was nothing to merge" instead of committing a no-op. A visit already carrying the
+target keeps one of them; the merge must not tag one person twice on one meal.
+
+Two ways in, per Chris: **"Same person as..."** on anyone, and a **suggestion on the row** driven
+by `likelySamePerson` - written for the guest-order work in August and matching exactly this case.
+It only suggests **from an unlinked row to a linked one**, the direction that gains an account.
+
+**It suggests and never applies.** Two people genuinely can share a first name, and undoing a
+wrong merge means re-tagging every visit. Chris was offered auto-merge and did not take it. The
+confirm names both people, the direction and the count, and says plainly that undoing is manual.
 
 ### A place is rated on Food, Service and Atmosphere (2026-09-24)
 

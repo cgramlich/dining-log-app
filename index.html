@@ -1026,7 +1026,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.472.0";
+const APP_VERSION   = "1.473.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2299,7 +2299,17 @@ separate - you are welcome to disagree about the food. If you were not there, **
 try** still saves it as a recommendation instead.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
-names build your **dining companions** view in the You tab - who you eat
+**When one person shows up twice.** Somebody you tagged by first name for
+months, who later joins MenuCaptain, can appear as two people: the old visits
+under the name you typed, the newer ones under their account. Open **Dining
+companions** and the older entry offers **Same person as [their name]?** - tap
+**Merge them** and those visits are re-tagged to their account. You can also
+open anyone and tap **Same person as...** to pick from the list yourself. It
+asks first, because it edits saved visits and undoing it means re-tagging by
+hand. It only ever suggests a merge, never does one on its own - two people
+really can share a first name.
+
+The names you tag build your **dining companions** view in the You tab - who you eat
 with most, and every meal you've shared. Tagging a connection links the visit
 to their handle.
 
@@ -9710,6 +9720,12 @@ function App({openShare}){
       {overlay && overlay.type === "people" && (
         <PeopleView visits={visits} restaurants={restaurants}
           onOpenVisit={(v)=> setOverlay({ type:"editVisit", visit:v, returnTo:{ type:"people" } })}
+          onMerge={(fromKey, to)=>{
+            const next = mergeCompanions(visits, fromKey, to);
+            if (!next){ flash("Nothing to merge"); return; }
+            commit({ visits:next }, ["visits"]);
+            flash("Merged into " + (to.name || "them"));
+          }}
           onClose={()=> setOverlay(null)} />
       )}
 
@@ -9849,8 +9865,10 @@ function SearchBar({value, onChange, placeholder, autoFocus}){
 /* Dining companions: who you've eaten with, ranked by how often, derived from
    the people tagged on visits. Tap a person to see your visits together. Pure
    read-only analytics over visit.companions - no new data model. */
-function PeopleView({ visits, restaurants, onClose, onOpenVisit }){
+function PeopleView({ visits, restaurants, onClose, onOpenVisit, onMerge }){
   const [sel, setSel] = useState(null);   // selected person key | null
+  const [merging, setMerging] = useState(false);   // picking who they really are
+  const [confirmTo, setConfirmTo] = useState(null);
   const byId = {}; (restaurants || []).forEach(r => { byId[r.id] = r; });
   const restName = (v)=> { const r = byId[v.restaurant_id]; return r ? r.name : (v.restaurant_name || "Unknown"); };
 
@@ -9873,6 +9891,16 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit }){
     b.count - a.count || (b.last || "").localeCompare(a.last || "") || a.name.localeCompare(b.name));
   const selPerson = sel ? map.get(sel) : null;
 
+  /* The split this screen causes: somebody tagged by first name for months, who
+     then signs up, appears twice. Only ever suggested from an UNLINKED row to a
+     LINKED one - the merge direction that gains an account - and only when the
+     names actually correspond. Suggested, never applied: two people really can
+     share a first name, and undoing a wrong merge means editing every visit. */
+  const suggestionFor = (person)=> {
+    if (person.user_id) return null;
+    return people.find(o => o.user_id && likelySamePerson(person.name, o.name)) || null;
+  };
+
   return (
     <div className="overlay">
       <div className="ovhead">
@@ -9883,6 +9911,34 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit }){
         <span style={{width:40}} />
       </div>
       <div className="ovbody">
+        {/* Merging rewrites saved visits, so it asks first and says exactly what
+            moves and in which direction. */}
+        {confirmTo ? (
+          <div className="card" style={{border:"1px solid rgba(224,118,74,0.45)", marginBottom:12}}>
+            <div className="small" style={{marginBottom:9}}>
+              Treat <strong>{confirmTo.from.name}</strong> and <strong>{confirmTo.to.name}</strong> as
+              the same person? {confirmTo.from.name}'s {confirmTo.from.count} visit
+              {confirmTo.from.count === 1 ? "" : "s"} will be re-tagged
+              as {confirmTo.to.name}
+              {confirmTo.to.username ? " (@" + confirmTo.to.username + ")" : ""}.
+            </div>
+            <div className="tiny faint" style={{marginBottom:11}}>
+              This edits those visits. To undo it you would have to re-tag them by hand.
+            </div>
+            <div className="row" style={{gap:9}}>
+              <button className="btn ghost" onClick={()=> setConfirmTo(null)}>Cancel</button>
+              <button className="btn primary" onClick={()=>{
+                onMerge(confirmTo.from.key, {
+                  name: confirmTo.to.name,
+                  username: confirmTo.to.username,
+                  user_id: confirmTo.to.user_id,
+                });
+                if (sel === confirmTo.from.key) setSel(null);
+                setMerging(false); setConfirmTo(null);
+              }}>Yes, same person</button>
+            </div>
+          </div>
+        ) : null}
         {!people.length ? (
           <div className="empty" style={{padding:"30px 20px"}}>
             <div className="big">No companions yet</div>
@@ -9894,6 +9950,34 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit }){
               {selPerson.count} visit{selPerson.count === 1 ? "" : "s"} together
               {selPerson.username ? "  ·  @" + selPerson.username : ""}
             </div>
+            {onMerge && !merging ? (
+              <button className="btn ghost sm" style={{marginBottom:12}}
+                onClick={()=> setMerging(true)}>Same person as...</button>
+            ) : null}
+            {onMerge && merging ? (
+              <div className="card" style={{marginBottom:12}}>
+                <div className="small" style={{marginBottom:4, fontWeight:600}}>
+                  Who is {selPerson.name} really?
+                </div>
+                <div className="tiny faint" style={{marginBottom:9}}>
+                  Their {selPerson.count} visit{selPerson.count === 1 ? "" : "s"} move
+                  across and this entry goes away.
+                </div>
+                <div style={{maxHeight:260, overflowY:"auto"}}>
+                  {people.filter(o => o.key !== selPerson.key).map(o => (
+                    <button key={o.key} className="sheet-item" style={{width:"100%", textAlign:"left"}}
+                      onClick={()=> setConfirmTo({ from:selPerson, to:o })}>
+                      {o.name}
+                      {o.username ? <span className="tiny faint" style={{marginLeft:6}}>@{o.username}</span> : null}
+                      <span className="tiny faint" style={{marginLeft:6}}>
+                        {o.count} visit{o.count === 1 ? "" : "s"}</span>
+                    </button>
+                  ))}
+                </div>
+                <button className="btn ghost sm" style={{marginTop:9}}
+                  onClick={()=> setMerging(false)}>Cancel</button>
+              </div>
+            ) : null}
             {selPerson.visits.slice().sort((a,b)=> (b.date || "").localeCompare(a.date || "")).map(v => (
               <div key={v.id} className="card tap" onClick={()=> onOpenVisit && onOpenVisit(v)}>
                 <div className="place-name">{restName(v)}</div>
@@ -9920,23 +10004,40 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit }){
             <div className="tiny faint" style={{margin:"2px 2px 12px"}}>
               {people.length} {people.length === 1 ? "person" : "people"} you've dined with. Tap to see your visits together.
             </div>
-            {people.map(p => (
-              <div key={p.key} className="card tap" onClick={()=> setSel(p.key)}
-                style={{display:"flex", alignItems:"center", gap:10}}>
-                <div style={{flex:1, minWidth:0}}>
-                  <div className="place-name">
-                    {p.name}{p.username ? <span className="tiny faint" style={{marginLeft:6}}>@{p.username}</span> : null}
+            {people.map(p => {
+              const sug = onMerge ? suggestionFor(p) : null;
+              return (
+              <div key={p.key} className="card">
+                <div className="tap" onClick={()=> setSel(p.key)}
+                  style={{display:"flex", alignItems:"center", gap:10}}>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div className="place-name">
+                      {p.name}{p.username ? <span className="tiny faint" style={{marginLeft:6}}>@{p.username}</span> : null}
+                    </div>
+                    <div className="meta-line" style={{marginTop:4}}>
+                      {p.count} visit{p.count === 1 ? "" : "s"}
+                      {p.last ? "  ·  last " + fmtDate(p.last) : ""}
+                    </div>
                   </div>
-                  <div className="meta-line" style={{marginTop:4}}>
-                    {p.count} visit{p.count === 1 ? "" : "s"}
-                    {p.last ? "  ·  last " + fmtDate(p.last) : ""}
-                  </div>
+                  <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+                    <Icon name="back" size={15} color="var(--text-faint)" />
+                  </span>
                 </div>
-                <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
-                  <Icon name="back" size={15} color="var(--text-faint)" />
-                </span>
+                {/* Somebody you tagged by name before they had an account. */}
+                {sug ? (
+                  <div className="row" style={{gap:8, alignItems:"center", marginTop:9, flexWrap:"wrap"}}>
+                    <span className="tiny faint" style={{flex:1, minWidth:150}}>
+                      Same person as {sug.name}?
+                    </span>
+                    <button className="btn ghost sm" style={{flex:"none", padding:"6px 12px"}}
+                      onClick={(e)=>{ e.stopPropagation(); setConfirmTo({ from:p, to:sug }); }}>
+                      Merge them
+                    </button>
+                  </div>
+                ) : null}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -26508,6 +26609,39 @@ function saveConnName(userId, name){
 // the person by another name now.
 // Identity key for a tagged person: the linked account when there is one, so a
 // rename keeps all their visits together, else the name they were tagged with.
+/* Rewrite every companion tag matching `fromKey` to BE `to`. Returns a new
+   visits array, or null when nothing matched - so the caller can tell "merged"
+   from "there was nothing to merge" rather than committing a no-op.
+
+   A visit that already carries the target keeps ONE of them: tagging the same
+   person twice on one meal is what a merge would otherwise produce, and every
+   count downstream would then be wrong in the other direction. */
+function mergeCompanions(visits, fromKey, to){
+  if (!fromKey || !to) return null;
+  const toKey = companionKey(to);
+  if (toKey === fromKey) return null;
+  let touched = false;
+  const out = (visits || []).map(v => {
+    const list = (v && v.companions) || [];
+    if (!list.some(p => companionKey(p) === fromKey)) return v;
+    touched = true;
+    const seen = {};
+    const next = [];
+    list.forEach(p => {
+      const isMatch = companionKey(p) === fromKey;
+      const person = isMatch
+        ? Object.assign({}, p, { name:to.name, username:to.username, user_id:to.user_id })
+        : p;
+      const k = companionKey(person);
+      if (seen[k]) return;              // already on this visit
+      seen[k] = true;
+      next.push(person);
+    });
+    return Object.assign({}, v, { companions:next });
+  });
+  return touched ? out : null;
+}
+
 function companionKey(p){
   if (p && p.user_id) return "id:" + p.user_id;
   return ((p && p.name) || "").trim().toLowerCase();
