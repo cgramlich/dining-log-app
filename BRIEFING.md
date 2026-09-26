@@ -30,21 +30,31 @@ vote that needs no app and no account.
 The billing infrastructure is live. The remaining work before the app stores is administrative
 rather than technical.
 
+**What daily use keeps finding.** Almost none of the recent work was new capability. It was
+features that were built correctly and then quietly told the truth about the wrong thing: a
+"most loved dish" that was really the alphabetically first one, because nothing had yet been
+eaten twice; a menu importer that read the one section a restaurant's page happened to ship and
+called it the whole menu; a five-star rating that drew as five empty outlines. Each was invisible
+until somebody used the app on a real evening and looked at the screen. That is the argument for
+building the thing you personally need: the bugs that survive testing are the ones only use can
+find.
+
 ---
 
 ## Concrete figures
 
 | Figure | Value | As of |
 |---|---|---|
-| Web app | v1.444.0, live | 2026-09-06 |
-| Backend | v0.121.0, live | 2026-09-06 |
-| Front end | a single HTML file, ~1.41 MB, no build step | 2026-09-06 |
-| Backend | ~7,600 lines of Python (FastAPI) | 2026-09-06 |
+| Web app | v1.473.0, live | 2026-09-25 |
+| Backend | v0.123.0, live | 2026-09-25 |
+| Front end | a single HTML file, ~1.41 MB, no build step | 2026-09-25 |
+| Backend | ~7,600 lines of Python (FastAPI) | 2026-09-25 |
 | Free tier | 75 AI calls + 15 Discovery lookups, lifetime | current |
 | Pro | $2.99/month or $19.99/year | current, live in Stripe |
 | Cost of a fully-consumed free tier | ~$2.30 per user | modelled |
 | AI model, all six tasks | Claude Sonnet 5 | since 2026-08 |
 | Versions shipped in the fortnight to 2026-09-06 | 40+, each from real use | 2026-09-06 |
+| Versions shipped in the three weeks since | 29, every one from a real meal | 2026-09-25 |
 
 **The free tier is priced as customer acquisition cost, not as a trial.** A user who exhausts it
 entirely costs about $2.30. That is a deliberate, bounded number — the tier is metered by *spend*
@@ -68,6 +78,12 @@ rather than by days or by feature gates, so the cost of a free user cannot run a
 > silently overwriting either number.
 
 > One HTML file. Deploying is a git push.
+
+> The hardest bugs were not crashes. They were screens that confidently displayed the wrong
+> answer, and every one of them was found by using the app rather than testing it.
+
+> A favourite has to have been ordered twice. Anything else is just the first thing you happened
+> to like, and the app should not call that a favourite.
 
 ---
 
