@@ -289,6 +289,12 @@ nothing pointing at files that were never uploaded.
 
 ### The in-app guide is the source of truth; the .md is generated (2026-09-13)
 
+**Amended 2026-09-26:** there was a THIRD copy, in Dropbox under Guides_Help, that nobody
+regenerated - three months stale. `export_help.js` now writes it from the same render, best
+effort, so it cannot drift again. The Dropbox write failing must never fail a build that has
+already produced the repo copy. A copy nothing regenerates is a copy that is wrong; the only
+question is how wrong.
+
 The user guide existed twice: `HELP_DOC` inside `index.html` (what people read, under Settings)
 and `menucaptain-help.md`, with a comment saying the .md was the source and to re-sync by hand.
 **They drifted in both directions.** The in-app copy was far richer in most sections, while four
