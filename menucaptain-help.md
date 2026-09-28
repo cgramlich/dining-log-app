@@ -1095,6 +1095,11 @@ Questions or trouble? Email **support@menucaptain.com**.
 
 ## If something stops working
 
+- **You signed up but never got a confirmation email.** There isn't one - your
+  account works the moment you create it. If the app asks you to sign in again,
+  you probably created the account in your browser (from a link someone sent) and
+  then opened the app from your home screen; on iPhone those two keep separate
+  sign-ins. Sign in with the same email and password and you're in.
 - **You can't sign in.** Tap "Forgot password" on the sign-in screen and use
   the reset link the app emails you. If the email doesn't arrive within a
   minute or two, check your spam folder - and note the app sends at most one

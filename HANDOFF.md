@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.485.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.486.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.125.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.485.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.486.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -374,6 +374,34 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Sign-up sends no email, and now says so (2026-09-28)
+
+Chris reported people signing up who "checked spam and never got the email". Supabase's public
+settings (`/auth/v1/settings`) report **`mailer_autoconfirm: true`** - email confirmation is OFF, so
+a new account is signed straight in and **no email is sent at all**. There is nothing to arrive.
+People expect one because nearly every app sends one.
+
+The three things a "missing email" report actually is, in the order to check them:
+1. **Waiting for a confirmation that does not exist** - usually already signed in.
+2. **Signed up in the browser, then opened the home-screen app** - iOS gives each its own
+   storage, so the app shows sign-in and it looks as though sign-up failed.
+3. **A password-reset email**, the one email the app genuinely sends (via Resend). Real causes:
+   a typo'd address, the Gmail Updates tab, work-mail quarantine, or **Resend suppressing an
+   address that once bounced** - which only the Resend dashboard shows.
+
+Support playbook: ask "did the app let you in after you signed up?"; if genuinely locked out,
+check Resend's logs for the address and Supabase > Authentication > Users for the account.
+
+**Built (Chris picked one of four):** the sign-up screen now says there is no confirmation email to
+wait for, and a one-time message says it again the moment a new account is in (a localStorage flag
+carries it across the sign-in reload). The guide's troubleshooting explains cause #2. **Offered and
+not built:** a browser-vs-app line on the sign-in screen, a better reset-email confirmation screen,
+and Sign in with Apple.
+
+**Stale comment corrected by this finding:** the sign-up code still carries a "confirmation is on"
+branch and copy ("we sent a confirmation link"). It is unreachable while autoconfirm is on, and
+left in place deliberately so that turning confirmation back on in Supabase still works.
 
 ### About this place can be drafted from the web, with sources (2026-09-28)
 

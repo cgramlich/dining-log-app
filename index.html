@@ -1085,7 +1085,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.485.0";
+const APP_VERSION   = "1.486.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2761,6 +2761,11 @@ Questions or trouble? Email **support@menucaptain.com**.
 
 ## If something stops working
 
+- **You signed up but never got a confirmation email.** There isn't one - your
+  account works the moment you create it. If the app asks you to sign in again,
+  you probably created the account in your browser (from a link someone sent) and
+  then opened the app from your home screen; on iPhone those two keep separate
+  sign-ins. Sign in with the same email and password and you're in.
 - **You can't sign in.** Tap "Forgot password" on the sign-in screen and use
   the reset link the app emails you. If the email doesn't arrive within a
   minute or two, check your spam folder - and note the app sends at most one
@@ -8005,6 +8010,17 @@ function App({openShare}){
         dishes: Array.isArray(seed.dishes) ? seed.dishes : [],
         photos: Array.isArray(seed.photos) ? seed.photos : [], sv: seed.sv || "" } });
   }, [ready, restaurants]);
+
+  /* ---- first moment after sign-up ------------------------------------- */
+  // No email is sent at sign-up, and people who expect one go looking in spam
+  // for a message that does not exist. Tell them once, the moment they are in.
+  useEffect(()=>{
+    let fresh = false;
+    try { fresh = localStorage.getItem("mc_welcome_new") === "1";
+          if (fresh) localStorage.removeItem("mc_welcome_new"); } catch(e){}
+    if (fresh) flash("You're in! There's no confirmation email to wait for.");
+    // eslint-disable-next-line
+  }, []);
 
   /* ---- global toast bus: show toast() calls from anywhere ------------- */
   useEffect(()=>{
@@ -29203,6 +29219,8 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           expiresAt: data.session.expires_at || (Math.floor(Date.now()/1000) + (data.session.expires_in || 3600)),
         };
         logMsg("AUTH","Account created and signed in: " + cfg.email);
+        // Carried across the reload that signing in can cause; read once by App.
+        try { localStorage.setItem("mc_welcome_new", "1"); } catch(e){}
         setBusy(false);
         onSave(cfg);
         return;
@@ -29248,7 +29266,8 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
 
   const titles = {
     signin:["Welcome","MenuCaptain keeps your places, menus, and visits in your private account so they sync across devices. Sign in to get started."],
-    signup:["Create your account","One account, all your devices. Your log stays private to you."],
+    signup:["Create your account","One account, all your devices. Your log stays private to you. " +
+            "There's no confirmation email to wait for - you're signed in as soon as you create it."],
     forgot:["Reset your password","Enter your account email and we will send you a reset link."],
   };
   const primary = {
