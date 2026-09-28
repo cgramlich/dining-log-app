@@ -189,6 +189,12 @@ the menu for me** looks on the restaurant's website and reads the menu in for
 you - and if no website is on file, you can simply type it in. You can also
 paste a link straight to a menu page.
 
+**Seen the menu on Google, Facebook or Yelp?** Those sites don't let apps read
+their listings, so pasting that link won't work - but you can see the menu, so
+screenshot it. Add a menu, choose **I have the menu or a screenshot**, and pick
+the screenshot. It is read exactly like a photo of a paper menu. If you do paste
+one of those links, the app says so straight away and gives you the button.
+
 **Fixing a scanned dish name.** If the scan misread a dish or two, open the menu
 and tap **Edit names & tags** - each dish name becomes editable, so you can fix a
 typo in place. Changes save as you go, and each dish keeps its price and tags.

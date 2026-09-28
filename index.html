@@ -1073,7 +1073,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.481.0";
+const APP_VERSION   = "1.482.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1842,6 +1842,12 @@ sections, dish names, descriptions, prices, and tags. This is what powers
 the menu for me** looks on the restaurant's website and reads the menu in for
 you - and if no website is on file, you can simply type it in. You can also
 paste a link straight to a menu page.
+
+**Seen the menu on Google, Facebook or Yelp?** Those sites don't let apps read
+their listings, so pasting that link won't work - but you can see the menu, so
+screenshot it. Add a menu, choose **I have the menu or a screenshot**, and pick
+the screenshot. It is read exactly like a photo of a paper menu. If you do paste
+one of those links, the app says so straight away and gives you the button.
 
 **Fixing a scanned dish name.** If the scan misread a dish or two, open the menu
 and tap **Edit names & tags** - each dish name becomes editable, so you can fix a
@@ -5343,6 +5349,43 @@ async function parseReceiptPhotos(cfg, dataUrls, menuItemNames){
 function countLabel(n, one, many){
   return n + " " + (n === 1 ? one : (many || (one + "s")));
 }
+
+/* Links that will never yield a menu, and why, in words for the person who
+   pasted one. Scoped to search and profile PATHS rather than whole domains: a
+   cafe genuinely can host its menu on sites.google.com or share a PDF from
+   Google Drive, and those must keep working. Mirrored on the backend. */
+const MENU_DEAD_ENDS = [
+  ["google.com", "/search", "search"], ["google.com", "/maps", "search"],
+  ["maps.app.goo.gl", "", "search"], ["goo.gl", "/maps", "search"],
+  ["bing.com", "/search", "search"], ["search.yahoo.com", "", "search"],
+  ["duckduckgo.com", "", "search"],
+  ["facebook.com", "", "social"], ["fb.com", "", "social"], ["instagram.com", "", "social"],
+  ["tiktok.com", "", "social"], ["twitter.com", "", "social"], ["x.com", "", "social"],
+  ["yelp.com", "", "review"], ["tripadvisor.com", "", "review"],
+];
+function menuDeadEnd(raw){
+  let u;
+  try { u = new URL(/^https?:\/\//i.test(raw) ? raw : "https://" + raw); }
+  catch(e){ return null; }
+  const host = u.hostname.toLowerCase().replace(/^www\./, "");
+  const path = (u.pathname || "/").toLowerCase();
+  for (const [suffix, prefix, kind] of MENU_DEAD_ENDS){
+    if (host !== suffix && !host.endsWith("." + suffix)) continue;
+    if (prefix && path.indexOf(prefix) !== 0) continue;
+    return kind;
+  }
+  return null;
+}
+// What to say for each. Honest about WHY: Google and the review sites are a
+// matter of their terms, not of the app being unable to see the page.
+const MENU_DEAD_END_WHY = {
+  search: "Google and other search sites don't let apps read their listings - but you can. " +
+          "Screenshot the menu you're looking at, then choose the screenshot here.",
+  social: "Facebook and Instagram pages sit behind a login and rarely hold a readable menu. " +
+          "If you can see the menu there, screenshot it and choose the screenshot here.",
+  review: "Review sites don't let apps read their pages. If you can see the menu there, " +
+          "screenshot it and choose the screenshot here.",
+};
 
 function verdictPositive(v){ return v === "loved" || v === "again"; }
 
@@ -20231,6 +20274,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [result,setResult]     = useState(null);        // parsed menu
   const [urlInput,setUrlInput] = useState("");          // "pull from a link" field
   const [showUrl,setShowUrl]   = useState(false);       // link option starts as a twin button; reveals the field on tap
+  const [deadEnd,setDeadEnd]   = useState(null);        // "search" | "social" | "review" - a link no app may read
   const [showSite,setShowSite] = useState(false);       // "Find the menu" with no website on file reveals a type-it-in field
   const [siteInput,setSiteInput] = useState("");        // the typed website for that path
   const [lastTry,setLastTry]   = useState(null);        // {kind:"url"|"find", value} - powers Try again on the error screen
@@ -20358,6 +20402,11 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     // to onClick it receives the event object, which we ignore in favor of the field.
     const u = ((typeof overrideUrl === "string" && overrideUrl) || urlInput || "").trim();
     if (!u) return;
+    // A page no app may read: say so and hand over the route that works, here,
+    // before any request goes out. Finding out the slow way cost two renders.
+    const dead = menuDeadEnd(u);
+    if (dead){ setDeadEnd(dead); setShowUrl(false); setStep("pick"); return; }
+    setDeadEnd(null);
     setLastTry({ kind:"url", value:u });
     setStep("working");
     try {
@@ -20456,6 +20505,11 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     let site = typed || (rest && (rest.website || "").trim()) || "";
     if (!site){ setShowSite(true); return; }
     if (!/^https?:\/\//i.test(site)) site = "https://" + site;
+    // Plenty of small places list a Facebook page as their website. Crawling
+    // it finds nothing, so say so at once and offer the screenshot route.
+    const dead = menuDeadEnd(site);
+    if (dead){ setDeadEnd(dead); setShowSite(false); return; }
+    setDeadEnd(null);
     setLastTry({ kind:"find", value:site });
     setStep("working");
     try {
@@ -20695,29 +20749,47 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
         {step === "pick" && (
           <div>
-            <div className="card small muted">
-              {presetMenu
-                ? "Refresh this menu - photograph it, or pull it from a link. " +
-                  "It replaces the current " + presetMenu.label + " menu in place."
-                : "Take clear photos of the menu, straight on. Multiple pages of " +
-                  "the same menu are fine; add them all and they merge."}
-            </div>
+            {presetMenu ? (
+              <div className="card small muted">
+                {"Refresh this menu - photograph it, or pull it from a link. " +
+                 "It replaces the current " + presetMenu.label + " menu in place."}
+              </div>
+            ) : (
+              /* The real question on this screen. Each option below answers it. */
+              <div className="small" style={{fontWeight:600, margin:"2px 2px 10px"}}>
+                What do you have?
+              </div>
+            )}
+
+            {/* A link that no app may read. Offered the route that works, with
+                its button, rather than an error after the fact. */}
+            {deadEnd ? (
+              <div className="card" style={{border:"1px solid rgba(224,118,74,0.45)", marginBottom:12}}>
+                <div className="small" style={{marginBottom:11}}>{MENU_DEAD_END_WHY[deadEnd]}</div>
+                <button className="btn primary" style={{width:"100%"}}
+                  onClick={()=>{ setDeadEnd(null); fileRef.current.click(); }}>
+                  <Icon name="image" size={17} color="#1b1714" />{" "}Choose the screenshot
+                </button>
+                <button className="btn ghost sm" style={{marginTop:8}}
+                  onClick={()=>{ setDeadEnd(null); setUrlInput(""); setShowUrl(true); }}>
+                  Paste a different link
+                </button>
+              </div>
+            ) : null}
             <input ref={fileRef} type="file" accept="image/*" multiple
               style={{display:"none"}} onChange={onFiles} />
             {/* When we know the place's website, lead with the lowest-effort path
                 (find the menu for them); scanning always works and comes next. */}
             {!showUrl && (
               <button className="btn ghost" onClick={findMenu} disabled={!!processing}>
-                <Icon name="search" size={18} />Find the menu for me
+                <Icon name="search" size={18} />Nothing yet - find it for me
               </button>
             )}
             {!showUrl && !showSite && (
               <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
                 {destWebsite
-                  ? "We look on the restaurant's website for its menu page and read it in for you, no typing."
-                  : (_destRest && _destRest.google_place_id
-                      ? "Google has no website on file for this place - tap above and type their website, and we'll find the menu."
-                      : "No website on file for this place - tap above and type their website, and we'll find the menu.")}
+                  ? "We look on their website for the menu and read it in."
+                  : "Type their website and we'll look for the menu."}
               </div>
             )}
             {!showUrl && showSite && (
@@ -20736,29 +20808,28 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 </button>
               </div>
             )}
-            <button className="btn ghost" style={{marginTop:8}}
+            <button className="btn ghost" style={{marginTop:10}}
               onClick={()=> fileRef.current.click()} disabled={!!processing}>
               <Icon name="camera" size={18} />
-              {previews.length ? "Add more photos" : "Choose / take photos"}
+              {previews.length ? "Add more photos" : "I have the menu or a screenshot"}
             </button>
-            {!showUrl && (
+            {!showUrl && !previews.length && (
               <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
-                On iPhone, picking many photos at once can pause for several seconds
-                while iOS converts them. That is normal. If it hangs, cancel and
-                pick one or two at a time.
+                Photograph it, or pick photos and screenshots you already have. The most
+                reliable way in. Several pages are fine; they merge.
               </div>
             )}
             {!showUrl && (
-              <button className="btn ghost" style={{marginTop:8}} onClick={()=> setShowUrl(true)}
+              <button className="btn ghost" style={{marginTop:10}}
+                onClick={()=>{ setDeadEnd(null); setShowUrl(true); }}
                 disabled={!!processing}>
-                <Icon name="link" size={18} />{destWebsite ? "Paste a menu link instead" : "Link to a menu online"}
+                <Icon name="link" size={18} />I have a link to paste
               </button>
             )}
             {!showUrl && (
               <div className="tiny faint" style={{marginTop:6, padding:"0 2px"}}>
-                Paste the web address of the restaurant's own menu or ordering page. We
-                read it in and you review it before saving. Works best on their actual
-                menu page, though if you paste the homepage we will try to follow to it.
+                Their own menu or ordering page. Google listings and Facebook pages
+                can't be read - screenshot those instead.
               </div>
             )}
             {showUrl && (
@@ -20784,6 +20855,12 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             {processing && (
               <div className="photo-progress">
                 Processing photo {processing.done} of {processing.total}&hellip;
+                {/* Said while it is happening, not to everyone up front. */}
+                {processing.total > 2 ? (
+                  <div className="tiny faint" style={{marginTop:4}}>
+                    iPhone can pause here while it converts the photos. That's normal.
+                  </div>
+                ) : null}
               </div>
             )}
             {previews.length > 0 && (

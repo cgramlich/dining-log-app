@@ -18,13 +18,13 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-09-27
+## Current state — 2026-09-28
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.481.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.481.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.482.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.124.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.482.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -374,6 +374,40 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Add a menu asks what you have; links no app may read are caught (2026-09-28)
+
+**The labels.** The three routes were named by mechanism - "Choose / take photos", "Link to a
+menu online" - under a card that only talked about photos, so the reader had to translate each
+into "is that what I've got?". Chris suggested "I have a link to paste" and the idea generalises:
+the screen now asks **What do you have?** and the options answer it - *Nothing yet - find it for
+me*, *I have the menu or a screenshot*, *I have a link to paste*. The iPhone slow-photo warning
+moved from permanent fine print to the moment it is actually happening.
+
+**The dead ends.** Chris pasted a Google listing for a coffee shop whose menu he could plainly see.
+The honest position, which took two corrections to reach:
+- It is **not impossible** to read. Google search, Yelp and TripAdvisor are readable with a
+  residential render. For Google and the review sites the reason not to is **their terms**, which
+  an App Store app has to respect. Facebook and Instagram add a login wall.
+- The Places API **does not help**. It has no menu field; what we request is name, address, phone,
+  website, rating, price, hours, summary, status and photos. The typed menu on a Google listing
+  comes from the owner's Business Profile and is only available to that owner. Following the
+  listing's *website* works for places that have one - Pink Coffee's is a Facebook page.
+- What the person CAN do is capture what is on their own screen: **screenshot it and add it as a
+  photo**. That is theirs, for their own notebook, exactly like photographing a paper menu.
+
+So a pasted Google, Facebook, Instagram, Yelp or TripAdvisor link is caught **on the phone, before
+any request**, and gets a card saying why with a **Choose the screenshot** button. "Find it for me"
+catches the same thing when a place's only website is a Facebook page. Previously the Google case
+cost two paid renders (the bot check reads as a block, which escalates to Firecrawl then stealth)
+and ended in a generic no-menu message.
+
+**Scoped to search and profile PATHS, never whole domains** - a cafe genuinely can host a menu on
+`sites.google.com` or share a PDF from Drive or Docs, and those must keep working. The backend
+refuses the same list as a second line (`_MENU_DEAD_ENDS`), for older app versions and anything
+else that reaches the endpoint directly. **Two copies of one rule**: a parity script runs the real
+backend function over the same 26 cases as the app's test, including lookalikes (wix.com is not
+x.com, myfb.com is not fb.com). Change one list, change both.
 
 ### A public About page, in the promo sheet's language (2026-09-27)
 
