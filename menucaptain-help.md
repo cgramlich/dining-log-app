@@ -314,6 +314,17 @@ make if you know to ask. Tonight's special. On a restaurant page, just under
 the menus, there is a **Not on the menu / specials** card - tap **+ Add**, give it
 a name, and optionally a price and a note on how to ask for it or why it matters.
 
+**About this place, drafted for you.** In a place's Edit screen, under **About
+this place**, tap **Suggest from the web**. It searches the web and drafts two
+short parts: **In their own words** - what the place says about itself - and
+**What people are saying** - what diners, local press, Reddit and social posts
+single out, including dishes people keep naming. It is added to whatever you
+had already written, never in place of it, and nothing is saved until you save
+the place. The sources it used are listed under the About card with the date,
+so you can see where every claim came from. If little has been written about a
+place it says so rather than making something up. It uses 3 of your AI
+allowance, because a web search costs about three ordinary AI requests.
+
 These live on the *place*, not on one menu, because a bar with a food menu, a
 brunch menu and a drinks list has one set of things that are on none of them.
 They also join the dish suggestions when you log a visit, so once you have

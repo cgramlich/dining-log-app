@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.483.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.124.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.483.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.484.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.125.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.484.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -374,6 +374,50 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### About this place can be drafted from the web, with sources (2026-09-28)
+
+`POST /api/place/about` runs Claude (task `place_about`, Sonnet 5, effort medium) with the
+server-side **web search tool** (`web_search_20260209`, `max_uses` 3) and returns two parts - what
+the place says about itself, and what people say - plus the sources used. The editor's **Suggest
+from the web** APPENDS the draft to the About box; it never replaces what the user wrote, and
+nothing saves until the place is saved. Sources persist as `story_sources` / `story_sourced_at`
+and are listed, dated, under the About card. They are **not** in the share payload.
+
+**How we got here, because the road not taken matters.** Chris first asked for an AI to "find
+something unique". Ungrounded, that invents founders and dishes for small places, and About this
+place travels in shares under the user's name. Then "what people are saying" ran into the
+2026-09-06 licensing finding - Google forbids caching review content; Yelp, Foursquare and Reddit
+forbid derived datasets - which ruled out harvesting reviews into a saved field. Chris clarified
+he meant **an AI web search**, which is a different act: a licensed search tool reads public
+pages and the model writes a short cited summary, the way Claude, Perplexity and ChatGPT answer
+the same question. That is standard practice and a reasonable position, not a legal guarantee.
+
+**Priced before building** from Anthropic's pricing page, read 2026-09-28: web search **$10 per
+1,000 searches**, plus results billed as input tokens; Sonnet 5 $2 / $10 per MTok. Estimated
+**7-11 cents a tap**, about three ordinary calls. **It counts as three against the allowance**
+(Chris's call - the free tier is metered by spend), recorded as one usage row carrying the
+tokens and the search cost (`record_usage` gained `extra_cost` so the monthly breaker sees real
+spend) plus two rows carrying only the count. `_place_about_room` refuses up front when the call
+would not fit - at 73 of 75 a three-call action would otherwise finish at 76.
+
+**Four guards, each for a reason:**
+- **Only sources the search actually returned survive.** Any URL the model names that did not
+  come back from the search is dropped: a model invents a plausible link as easily as a plausible
+  fact.
+- **Nothing is better than padding.** It is told to return null for a part it cannot support.
+- **Same place, same town.** Small places share names with others elsewhere.
+- **Summarise, don't copy** - a few words at most from any one source.
+
+A paused server-tool turn (`pause_turn`) is resumed, bounded at four rounds. Usage is recorded
+in `finally`, so a failure part way through still records the searches that were billed.
+
+**Not verified live before shipping:** the API key lives only in Railway, so the endpoint was
+tested with a stand-in client (24 checks: both parts, a fabricated source dropped, tool and
+effort settings, three usage rows with 2 cents on the first, pause_turn resume summing tokens,
+an error-shaped search result, nothing found, prose instead of JSON, 73 vs 72 of 75, a blank
+name). The first real tap is the first live call; its cost should be read from the `[ABOUT]`
+and `[COST]` log lines and compared with the 7-11 cent estimate.
 
 ### A place's menu comes first and looks like a menu (2026-09-28)
 

@@ -1078,7 +1078,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.483.0";
+const APP_VERSION   = "1.484.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1972,6 +1972,17 @@ at the moment you are choosing rather than after you have ordered.
 make if you know to ask. Tonight's special. On a restaurant page, just under
 the menus, there is a **Not on the menu / specials** card - tap **+ Add**, give it
 a name, and optionally a price and a note on how to ask for it or why it matters.
+
+**About this place, drafted for you.** In a place's Edit screen, under **About
+this place**, tap **Suggest from the web**. It searches the web and drafts two
+short parts: **In their own words** - what the place says about itself - and
+**What people are saying** - what diners, local press, Reddit and social posts
+single out, including dishes people keep naming. It is added to whatever you
+had already written, never in place of it, and nothing is saved until you save
+the place. The sources it used are listed under the About card with the date,
+so you can see where every claim came from. If little has been written about a
+place it says so rather than making something up. It uses 3 of your AI
+allowance, because a web search costs about three ordinary AI requests.
 
 These live on the *place*, not on one menu, because a bar with a food menu, a
 brunch menu and a drinks list has one set of things that are on none of them.
@@ -12280,7 +12291,8 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <span className="lbl" style={{margin:0}}>About this place</span>
               <InfoDot title="About this place">
                 <span className="idl">What you know about this place - its history, what it is known
-                  for, why it is worth going. Yours to write, in the place's Edit screen.</span>
+                  for, why it is worth going. Yours to write, in the place's Edit screen, where
+                  Suggest from the web can draft it for you with sources.</span>
                 <span className="idl">It goes along when you share the place.</span>
               </InfoDot>
             </div>
@@ -12289,6 +12301,21 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             <div className="small" style={{whiteSpace:"pre-wrap", lineHeight:1.5}}>
               {r.story.trim()}
             </div>
+            {/* Where a web-suggested draft came from, and when. */}
+            {Array.isArray(r.story_sources) && r.story_sources.length ? (
+              <div style={{marginTop:10, paddingTop:9, borderTop:"1px solid var(--line-soft)"}}>
+                <div className="tiny faint" style={{marginBottom:4}}>
+                  Found on the web{r.story_sourced_at ? " " + fmtDate(r.story_sourced_at) : ""}
+                </div>
+                {r.story_sources.slice(0, 6).map((src, i)=>(
+                  <div key={i} className="tiny" style={{marginTop:2, overflow:"hidden",
+                       textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                    <a href={src.url} target="_blank" rel="noopener noreferrer"
+                       style={{color:"var(--accent)"}}>{src.title || src.url}</a>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -17484,6 +17511,31 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
 /* ============================================================
    RESTAURANT FORM (add / edit)
    ============================================================ */
+/* Ask the backend for a cited, web-searched draft about a place. Bounded by a
+   timeout because fetch has none of its own (HANDOFF trap) and a web search
+   can take a while - somebody should never be left watching a spinner. */
+async function fetchPlaceAbout(cfg, place){
+  const ctl = new AbortController();
+  const timer = setTimeout(()=> ctl.abort(), 90000);
+  try {
+    const headers = await authHeaders(cfg);
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(apiBase(cfg) + "/api/place/about", {
+      method:"POST", headers, signal: ctl.signal, body: JSON.stringify(place),
+    });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok){
+      const det = data && data.detail;
+      throw new Error((typeof det === "string" && det) || (det && det.message) ||
+                      "Couldn't search for this place right now.");
+    }
+    return data;
+  } catch(e){
+    if (e && e.name === "AbortError") throw new Error("That took too long. Try again in a moment.");
+    throw e;
+  } finally { clearTimeout(timer); }
+}
+
 function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onSave}){
   // Field seeds come from `existing` (Edit) OR `prefill` (a fresh Add seeded from
   // Google discovery). Identity-shaped things (id, photo, added_date, the "Edit"
@@ -17505,6 +17557,14 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
   // also the field the Google enrich WRITES to ("Hours: ..."), which would
   // have overwritten anything interesting you had typed.
   const [story,setStory]       = useState(seed ? (seed.story || "") : "");
+  // Where a web-suggested draft came from, kept with the place so it can be
+  // shown and dated. Carried over from the existing place until replaced.
+  const [storySources,setStorySources] = useState(
+    existing && Array.isArray(existing.story_sources) ? existing.story_sources : []);
+  const [storySourcedAt,setStorySourcedAt] = useState(
+    existing ? (existing.story_sourced_at || "") : "");
+  const [aboutBusy,setAboutBusy] = useState(false);
+  const [aboutMsg,setAboutMsg]   = useState("");
   const [fav,setFav]           = useState(existing ? !!existing.favorite : false);
   const [wishlist,setWishlist] = useState(existing ? !!existing.wishlist : false);   // "want to try" (haven't been)
 
@@ -17751,6 +17811,10 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
       location: finalLoc,
       address:address.trim(), phone:phone.trim(), website:website.trim(),
       notes:notes.trim(), story:story.trim(), favorite:fav, wishlist:wishlist,
+      // Sources only mean something beside text they back. An emptied About
+      // box drops them rather than leaving links attached to nothing.
+      story_sources: story.trim() ? storySources : [],
+      story_sourced_at: story.trim() ? (storySourcedAt || "") : "",
       photo: finalPhotoPath,
       added_date: existing ? existing.added_date : todayISO(),
       // map coordinates (geo is pre-seeded from existing, so edits keep the pin)
@@ -17962,9 +18026,49 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
           <textarea className="input" value={story} onChange={e=>setStory(e.target.value)}
             style={{minHeight:100}}
             placeholder="What makes it worth going? The history, the dish it is known for, who cooks there. Paste something you read." /></label>
-        <div className="tiny faint" style={{margin:"-8px 0 14px"}}>
+        <div className="tiny faint" style={{margin:"-8px 0 10px"}}>
           Shown on the place and carried into a visit you share. Private until then.
         </div>
+        {/* A draft from the web, never a replacement for what you wrote. */}
+        {cfg && name.trim() ? (
+          <div style={{margin:"0 0 14px"}}>
+            <button type="button" className="btn ghost sm" disabled={aboutBusy}
+              onClick={async ()=>{
+                setAboutBusy(true); setAboutMsg("");
+                try {
+                  const d = await fetchPlaceAbout(cfg, {
+                    name: name.trim(), city: (location || "").trim(),
+                    address: address.trim(), cuisine: cuisine.trim(), website: website.trim(),
+                  });
+                  const parts = [];
+                  if (d.own_words)  parts.push("In their own words: " + d.own_words);
+                  if (d.people_say) parts.push("What people are saying: " + d.people_say);
+                  if (!parts.length){
+                    setAboutMsg("Couldn't find anything written about this place. That's common for "
+                      + "small spots - what you know about it is worth more anyway.");
+                    return;
+                  }
+                  const draft = parts.join("\n\n");
+                  setStory(prev => (prev || "").trim() ? prev.trim() + "\n\n" + draft : draft);
+                  setStorySources(Array.isArray(d.sources) ? d.sources : []);
+                  setStorySourcedAt(todayISO());
+                  setAboutMsg("Added as a draft above - read it, change anything, then save.");
+                } catch(e){
+                  setAboutMsg((e && e.message) || "Couldn't search for this place right now.");
+                } finally { setAboutBusy(false); }
+              }}>
+              {aboutBusy
+                ? <span className="row" style={{gap:6, alignItems:"center"}}><span className="spin" />Searching the web...</span>
+                : <span className="row" style={{gap:5, alignItems:"center"}}>
+                    <Icon name="sparkle" size={14} color="var(--accent)" />Suggest from the web</span>}
+            </button>
+            <div className="tiny faint" style={{marginTop:5}}>
+              Looks up what the place says about itself and what people say about it, with
+              sources. Adds to what's here rather than replacing it. Uses 3 of your AI allowance.
+            </div>
+            {aboutMsg ? <div className="tiny" style={{marginTop:6, color:"var(--text-dim)"}}>{aboutMsg}</div> : null}
+          </div>
+        ) : null}
         <div className="card between" onClick={()=> setWishlist(w=>!w)} style={{cursor:"pointer"}}>
           <span>Want to try (haven't been yet)</span>
           <span className={"fav" + (wishlist?" on":"")}>
