@@ -45,8 +45,8 @@ find.
 
 | Figure | Value | As of |
 |---|---|---|
-| Web app | v1.473.0, live | 2026-09-25 |
-| Backend | v0.123.0, live | 2026-09-25 |
+| Web app | v1.487.0, live | 2026-09-28 |
+| Backend | v0.125.0, live | 2026-09-28 |
 | Front end | a single HTML file, ~1.41 MB, no build step | 2026-09-25 |
 | Backend | ~7,600 lines of Python (FastAPI) | 2026-09-25 |
 | Free tier | 75 AI calls + 15 Discovery lookups, lifetime | current |
@@ -54,7 +54,7 @@ find.
 | Cost of a fully-consumed free tier | ~$2.30 per user | modelled |
 | AI model, all six tasks | Claude Sonnet 5 | since 2026-08 |
 | Versions shipped in the fortnight to 2026-09-06 | 40+, each from real use | 2026-09-06 |
-| Versions shipped in the three weeks since | 29, every one from a real meal | 2026-09-25 |
+| Versions shipped since 2026-09-06 | 43, every one from real use | 2026-09-28 |
 
 **The free tier is priced as customer acquisition cost, not as a trial.** A user who exhausts it
 entirely costs about $2.30. That is a deliberate, bounded number — the tier is metered by *spend*
