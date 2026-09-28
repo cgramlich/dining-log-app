@@ -23,7 +23,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 | Piece | Version | Where |
 |---|---|---|
 | Web app | **1.487.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.125.0** | Railway, `/health` reports `db connected` |
+| Backend | **0.126.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.487.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -374,6 +374,37 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The Stripe webhook now applies only OUR subscriptions (2026-09-28)
+
+FitnessCaptain Pro sells through the same MilSpo Life Stripe account (Chris, 2026-09-28), and
+Stripe delivers every event of a subscribed type to **every endpoint on the account**. Found by
+the FitnessCaptain session reading our webhook; verified here before acting.
+
+Mostly junk rows keyed by a user id from another Supabase project. **The case that is not merely
+untidy**, and which that session did not flag: `customer.subscription.updated/deleted` with no
+metadata falls back to `_user_for_customer`. One person buying both apps with one email is ONE
+Stripe customer, so cancelling FitnessCaptain would have flipped their MenuCaptain row to
+cancelled. The guard runs before that fallback.
+
+`_is_our_subscription` accepts on any one of: the price is ours, the user is already in our
+subscriptions table, or the event carries `app=menucaptain` (checkouts now set it on both the
+session and the subscription).
+
+**The middle rule is the correction to the suggestion.** Price-only was proposed; it breaks the
+day `STRIPE_PRICE_MONTHLY` points at the .99 price, because existing .99 subscribers would
+stop matching and silently stop updating. Relevant to `hold/price-3.99`.
+
+**Both degradations accept rather than refuse**, and log: with no prices configured the guard
+cannot tell ours from anyone else's, and a failed ownership lookup is not evidence. Refusing
+everything would break billing silently, which is worse than the pollution this prevents - the
+opposite of the usual fail-closed default, because here the guard is the thing that can be wrong.
+
+**Open, for Chris:** the FitnessCaptain session also reports that ITS `record_ai_usage` was
+executable by the `anon` role, which would let anyone with the public anon key push
+`system_meter` past the monthly AI breaker and switch AI off for everyone. Ours grew from the
+same skeleton and its SQL is not in this repo, so it is **unverified**. The audit query is in the
+2026-09-28 log entry; it needs running in the Supabase SQL editor.
 
 ### A wrong email is caught at sign-up, all of it (2026-09-28)
 
