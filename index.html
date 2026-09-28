@@ -1073,7 +1073,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.480.0";
+const APP_VERSION   = "1.481.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -21522,6 +21522,50 @@ function PublishedVisit({data, onSaved, onLogVisit}){
         </div>
       ) : null}
 
+      {/* Somebody handed one meal has a fair question - what IS this? - and it
+          deserves more than a line of fine print under a button.
+
+          Placed where the VISIT ends and the menu begins, NOT at the foot of
+          the page: behind a 94-item menu it may as well not exist, which is
+          exactly what happened. This is the moment somebody has finished the
+          thing they were sent. Only for readers without an account. */}
+      {!canSave ? (
+        <div className="ab-card">
+          <div className="ab-mark">
+            <svg width="44" height="44" viewBox="0 0 56 56" fill="none" stroke="var(--accent)"
+                 strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <circle cx="28" cy="28" r="16.5"/><circle cx="28" cy="28" r="4.5"/>
+              <line x1="34" y1="28" x2="52" y2="28"/><line x1="22" y1="28" x2="4" y2="28"/>
+              <line x1="28" y1="34" x2="28" y2="52"/><line x1="28" y1="22" x2="28" y2="4"/>
+              <line x1="32.2" y1="32.2" x2="45.7" y2="45.7"/><line x1="23.8" y1="23.8" x2="10.3" y2="10.3"/>
+              <line x1="23.8" y1="32.2" x2="10.3" y2="45.7"/><line x1="32.2" y1="23.8" x2="45.7" y2="10.3"/>
+              <circle cx="52" cy="28" r="2.4"/><circle cx="4" cy="28" r="2.4"/>
+              <circle cx="28" cy="52" r="2.4"/><circle cx="28" cy="4" r="2.4"/>
+              <circle cx="45.7" cy="45.7" r="2.4"/><circle cx="10.3" cy="10.3" r="2.4"/>
+              <circle cx="10.3" cy="45.7" r="2.4"/><circle cx="45.7" cy="10.3" r="2.4"/>
+            </svg>
+          </div>
+          <div className="ab-wm"><span className="b">Menu</span><span className="a">Captain</span></div>
+          <div className="ab-tag">Remember every great meal.</div>
+          <div className="ab-rule" />
+          <div className="ab-card-sub">
+            A private notebook for eating out. It remembers the places you go, the dishes you
+            loved and the ones you would skip.
+          </div>
+          <div className="ab-mini">
+            {[["camera","Scan any menu"],["receipt","Split the check"],["people","Group orders"]]
+              .map(([ic, t])=>(
+              <div key={t} className="ab-mini-i">
+                <div className="ab-mini-c"><Icon name={ic} size={18} color="var(--accent)" /></div>
+                <div className="ab-mini-t">{t}</div>
+              </div>
+            ))}
+          </div>
+          <a className="ab-btn" href={home + "?about"}
+             style={{padding:"12px 30px", fontSize:16}}>See what it does</a>
+        </div>
+      ) : null}
+
       {canSave ? (
         <div style={{textAlign:"center", marginTop:16}}>
           {saveState === "saved" ? (
@@ -21628,47 +21672,6 @@ function PublishedVisit({data, onSaved, onLogVisit}){
           ) : null}
         </div>
       )}
-
-      {/* Somebody handed one meal has a fair question - what IS this? - and it
-          deserves more than a line of fine print under a button. The page ends
-          by answering it, in the same language as the page it leads to. Only
-          for readers without an account: everyone else knows. */}
-      {!canSave ? (
-        <div className="ab-card">
-          <div className="ab-mark">
-            <svg width="44" height="44" viewBox="0 0 56 56" fill="none" stroke="var(--accent)"
-                 strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <circle cx="28" cy="28" r="16.5"/><circle cx="28" cy="28" r="4.5"/>
-              <line x1="34" y1="28" x2="52" y2="28"/><line x1="22" y1="28" x2="4" y2="28"/>
-              <line x1="28" y1="34" x2="28" y2="52"/><line x1="28" y1="22" x2="28" y2="4"/>
-              <line x1="32.2" y1="32.2" x2="45.7" y2="45.7"/><line x1="23.8" y1="23.8" x2="10.3" y2="10.3"/>
-              <line x1="23.8" y1="32.2" x2="10.3" y2="45.7"/><line x1="32.2" y1="23.8" x2="45.7" y2="10.3"/>
-              <circle cx="52" cy="28" r="2.4"/><circle cx="4" cy="28" r="2.4"/>
-              <circle cx="28" cy="52" r="2.4"/><circle cx="28" cy="4" r="2.4"/>
-              <circle cx="45.7" cy="45.7" r="2.4"/><circle cx="10.3" cy="10.3" r="2.4"/>
-              <circle cx="10.3" cy="45.7" r="2.4"/><circle cx="45.7" cy="10.3" r="2.4"/>
-            </svg>
-          </div>
-          <div className="ab-wm"><span className="b">Menu</span><span className="a">Captain</span></div>
-          <div className="ab-tag">Remember every great meal.</div>
-          <div className="ab-rule" />
-          <div className="ab-card-sub">
-            A private notebook for eating out. It remembers the places you go, the dishes you
-            loved and the ones you would skip.
-          </div>
-          <div className="ab-mini">
-            {[["camera","Scan any menu"],["receipt","Split the check"],["people","Group orders"]]
-              .map(([ic, t])=>(
-              <div key={t} className="ab-mini-i">
-                <div className="ab-mini-c"><Icon name={ic} size={18} color="var(--accent)" /></div>
-                <div className="ab-mini-t">{t}</div>
-              </div>
-            ))}
-          </div>
-          <a className="ab-btn" href={home + "?about"}
-             style={{padding:"12px 30px", fontSize:16}}>See what it does</a>
-        </div>
-      ) : null}
 
       {/* A reader with no account needs the offer within reach at ALL times.
           Buried under a long menu it may as well not exist, and stacked above

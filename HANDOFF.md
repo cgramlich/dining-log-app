@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.480.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.481.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.480.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.481.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -392,6 +392,12 @@ changes.
 in the smallest type on the page - everything else in that bar aims at somebody who has already
 decided. The question now gets a branded CARD at the END of the visit, in the promo language, and
 the fine-print link is gone rather than duplicated. The footer keeps its single job.
+
+**And at the foot of the page it may as well not have existed (1.481.0).** Chris opened a fresh
+private window and still could not find it: nobody scrolls somebody else's 94-item menu to the
+bottom. It now sits where the VISIT ends and the menu begins - after Directions - which is the
+moment a reader has finished the thing they were sent. Three placements in three versions, each
+one only visible as wrong once it was in front of a real reader.
 
 **It lives in the app, not anywhere else.** That is the only copy that cannot fall behind the
 product, and it is on his own domain rather than a hosting service's.
