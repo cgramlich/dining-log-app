@@ -389,6 +389,18 @@ updates the place and the newest rating is the one that stands. Places you rated
 before the three appeared keep the score you gave them until you rate any of the
 three, and then the new one takes over.
 
+**If you split the check, the dishes are already known.** Splitting records
+which item each person was ticked under, so a visit with a split offers **Bring
+in what the table ordered**. It asks which of the names on the check is you -
+a check is written in whatever shorthand suited the table, so the app will not
+guess - then puts your items into what you had and lists everyone else's below.
+Their items are not added to your dishes, because what you had is yours.
+
+Names on a check are often surnames when the visit has full names. The app
+matches on any part of the name, so "Witherspoon" finds David Witherspoon. When
+two people at the table would both fit, it leaves the name exactly as you wrote
+it rather than pick one.
+
 **What you had (dishes).** There are three easy ways to add what you ordered, top
 to bottom. **Search or type** in the box to find any dish on the menu (or type a
 new one). **Your usuals here** is a row of one-tap chips - the dishes you have

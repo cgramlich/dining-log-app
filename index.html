@@ -1026,7 +1026,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.473.0";
+const APP_VERSION   = "1.474.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1995,6 +1995,18 @@ The rating belongs to the **place**, not to one visit, so rating from a visit
 updates the place and the newest rating is the one that stands. Places you rated
 before the three appeared keep the score you gave them until you rate any of the
 three, and then the new one takes over.
+
+**If you split the check, the dishes are already known.** Splitting records
+which item each person was ticked under, so a visit with a split offers **Bring
+in what the table ordered**. It asks which of the names on the check is you -
+a check is written in whatever shorthand suited the table, so the app will not
+guess - then puts your items into what you had and lists everyone else's below.
+Their items are not added to your dishes, because what you had is yours.
+
+Names on a check are often surnames when the visit has full names. The app
+matches on any part of the name, so "Witherspoon" finds David Witherspoon. When
+two people at the table would both fit, it leaves the name exactly as you wrote
+it rather than pick one.
 
 **What you had (dishes).** There are three easy ways to add what you ordered, top
 to bottom. **Search or type** in the box to find any dish on the menu (or type a
@@ -18191,6 +18203,8 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     return [];
   });
   const [dishInput,setDishInput] = useState("");
+  const [whoPick, setWhoPick] = useState(false);   // "which of these is you?"
+  const [whoShown, setWhoShown] = useState(false); // the table's order, expanded
   const [confirmDel,setConfirmDel] = useState(false);
   // Split-the-check draft: built by the splitter launched from this form (as a
   // layer), held here, and saved onto the visit when the form is saved. Seeded
@@ -18793,6 +18807,32 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         found = sec.name || "";
     }));
     return found;
+  }
+
+  // Everything the split recorded, by person. Empty when the split predates
+  // assignment or nobody was ticked - the button hides in that case rather than
+  // opening onto nothing.
+  const whoHadWhat = splitWhoHadWhat(splitDraft);
+
+  /* Take one split person's items as YOUR dishes. Adds, never replaces:
+     anything already listed was put there deliberately, and addDish skips
+     duplicates, so pulling twice is harmless. */
+  function takeMyItems(personName){
+    const row = whoHadWhat.find(r => r.name === personName);
+    setWhoPick(false);
+    if (!row) return;
+    const have = {};
+    dishes.forEach(d => { have[(d.name || "").trim().toLowerCase()] = true; });
+    const add = [];
+    row.items.forEach(nm => {
+      const k = nm.trim().toLowerCase();
+      if (!k || have[k]) return;
+      have[k] = true;
+      const sec = sectionForDish(nm);
+      add.push(sec ? { name:nm, note:"", verdict:null, sec:sec } : { name:nm, note:"", verdict:null });
+    });
+    if (add.length) setDishes(d => d.concat(add));
+    setWhoShown(true);
   }
 
   function addDish(name){
@@ -19407,6 +19447,80 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               </div>
             </div>
           )}
+          {/* The check already knows what the table ordered. Offered above the
+              menu because, on a night that was split, it is the better source:
+              it is what was actually served, not what could have been. */}
+          {whoHadWhat.length > 0 && (
+            <div style={{marginTop:12}}>
+              {!whoPick && !whoShown && (
+                <button className="btn ghost sm" style={{width:"100%"}}
+                  onClick={()=> setWhoPick(true)}>
+                  <Icon name="receipt" size={15} color="var(--accent)" />
+                  {" "}Bring in what the table ordered
+                </button>
+              )}
+              {whoPick && (
+                <div className="card" style={{marginBottom:0}}>
+                  <div className="small" style={{fontWeight:600, marginBottom:4}}>
+                    Which of these is you?
+                  </div>
+                  <div className="tiny faint" style={{marginBottom:9}}>
+                    Your items become what you had. Everyone else's are listed below,
+                    not added to your dishes.
+                  </div>
+                  {whoHadWhat.map(row => {
+                    const c = splitNameToCompanion(row.name, companions);
+                    return (
+                      <button key={row.name} className="sheet-item"
+                        style={{width:"100%", textAlign:"left"}}
+                        onClick={()=> takeMyItems(row.name)}>
+                        {row.name}
+                        {c && c.name !== row.name
+                          ? <span className="tiny faint" style={{marginLeft:6}}>{c.name}</span>
+                          : null}
+                        <span className="tiny faint" style={{marginLeft:6}}>
+                          {countLabel(row.items.length, "item")}</span>
+                      </button>
+                    );
+                  })}
+                  <div className="row" style={{gap:8, marginTop:9}}>
+                    <button className="btn ghost sm" onClick={()=> setWhoPick(false)}>Cancel</button>
+                    {/* Somebody who paid but did not eat, or a check written
+                        under names that are not yours at all. */}
+                    <button className="btn ghost sm"
+                      onClick={()=>{ setWhoPick(false); setWhoShown(true); }}>
+                      None of them - just show me the list
+                    </button>
+                  </div>
+                </div>
+              )}
+              {whoShown && (
+                <div className="card" style={{marginBottom:0}}>
+                  <div className="row between" style={{alignItems:"center", marginBottom:7}}>
+                    <span className="small" style={{fontWeight:600}}>What the table had</span>
+                    <a href="#" className="tiny" style={{color:"var(--accent)"}}
+                       onClick={(e)=>{ e.preventDefault(); setWhoShown(false); }}>Hide</a>
+                  </div>
+                  <div className="tiny faint" style={{marginBottom:9}}>
+                    From the check you split. Yours are in <strong>What you had</strong> above;
+                    these are here so the night is not only a set of totals.
+                  </div>
+                  {whoHadWhat.map(row => {
+                    const c = splitNameToCompanion(row.name, companions);
+                    return (
+                      <div key={row.name} style={{padding:"6px 0"}}>
+                        <div className="small" style={{fontWeight:600}}>
+                          {(c && c.name) || row.name}
+                        </div>
+                        <div className="tiny faint">{row.items.join(", ")}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Browse the full menu sits right here, next to the type box and your
               usuals, so the ways to add a dish are together. */}
           {menuGroups.length > 0 && menuItemTotal > 12 && !showFullMenu && (
@@ -26640,6 +26754,70 @@ function mergeCompanions(visits, fromKey, to){
     return Object.assign({}, v, { companions:next });
   });
   return touched ? out : null;
+}
+
+/* Who ate what, out of a saved split. Returns [{name, items:[string]}] in the
+   split's own people order, dropping anybody nothing was ticked for.
+
+   Derived, never stored: the assign map has been saved on every split since
+   splitting existed, so this reads history as happily as it reads today. */
+function splitWhoHadWhat(split){
+  const inp = split && split.inputs;
+  const lines = (inp && inp.lines) || [];
+  const assign = (inp && inp.assign) || {};
+  const names = (inp && inp.people) || [];
+  const byName = {};
+  lines.forEach(ln => {
+    const nm = String((ln && ln.name) || "").trim();
+    if (!nm) return;
+    ((assign[ln.id]) || []).forEach(who => {
+      (byName[who] = byName[who] || []).push(nm);
+    });
+  });
+  return names.map(n => ({ name:n, items:(byName[n] || []) }))
+              .filter(row => row.items.length);
+}
+
+/* Does a name written on a split refer to a person tagged on the visit? Chris
+   writes surnames on a check ("Witherspoon") and full names on a visit ("David
+   Witherspoon"), so an exact match finds nothing and a FIRST-name rule - which
+   is what likelySamePerson does - finds nothing either. Any whole word
+   matching any whole word is what actually corresponds to how people label a
+   receipt.
+
+   Whole words only: "Ann" must not match "Joanne". */
+function splitNameMatches(splitName, personName){
+  const a = String(splitName || "").trim().toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const b = String(personName || "").trim().toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (!a.length || !b.length) return false;
+  return a.some(w => w.length > 1 && b.indexOf(w) >= 0);
+}
+
+/* How many whole words two names share. The strength of a match, not just
+   whether there is one. */
+function splitNameScore(splitName, personName){
+  const a = String(splitName || "").trim().toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 1);
+  const b = String(personName || "").trim().toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (!a.length || !b.length) return 0;
+  return a.filter(w => b.indexOf(w) >= 0).length;
+}
+
+/* The companion a split name refers to, when one is clearly the best fit.
+
+   "Witherspoon" against David and Tori Witherspoon is a TIE at one word each,
+   and guessing there puts somebody else's dinner in a person's history - so it
+   returns nothing and the screen shows the name as written. "Tori Witherspoon"
+   against the same two is not a tie: it matches Tori on two words and David on
+   one, and refusing that would be false modesty. */
+function splitNameToCompanion(splitName, companions){
+  let best = null, bestScore = 0, tied = false;
+  (companions || []).forEach(c => {
+    const sc = splitNameScore(splitName, c && c.name);
+    if (!sc) return;
+    if (sc > bestScore){ best = c; bestScore = sc; tied = false; }
+    else if (sc === bestScore){ tied = true; }
+  });
+  return (best && !tied) ? best : null;
 }
 
 function companionKey(p){

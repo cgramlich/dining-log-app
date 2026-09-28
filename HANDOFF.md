@@ -18,13 +18,13 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-09-25
+## Current state — 2026-09-27
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.473.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.474.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.473.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.474.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -374,6 +374,35 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The check already knew what the table ordered (2026-09-27)
+
+Chris split a five-way dinner item by item, then opened the visit and found "What you had" empty.
+Splitting **has always recorded** which line item each person was ticked under - it cannot compute
+what anyone owes otherwise - and that map is saved on the visit in `split.inputs.assign`. Nothing
+ever read it back.
+
+`splitWhoHadWhat(split)` derives the table's order from what is already stored, so it works on
+every split ever taken rather than only future ones. **Nothing new is persisted.**
+
+A visit with assignments offers **Bring in what the table ordered**. It asks which of the names on
+the check is you, because **a split has no notion of "me"** - the names are whatever suited the
+table that night - and guessing would put somebody else's dinner in your history. Your items
+become your dishes; everyone else's render read-only. That division is the point: "What you had"
+is yours, and what the table had is a different fact.
+
+**Only companions were ever seeded from a split, and only on a NEW visit.** Chris was on an
+existing visit, so even that did not apply.
+
+**Name matching had to be rebuilt, not reused.** `likelySamePerson` compares FIRST names, so it
+catches "Kristin" against "Kristin Gramlich" and misses "Witherspoon" against "David Witherspoon"
+- and a surname is exactly what people write on a check. `splitNameScore` counts whole words
+shared and the best score wins.
+
+**Caught by a test, not by reading:** the first cut refused whenever more than one candidate
+matched at all. Correct for "Witherspoon" against two Witherspoons, wrong for "Tori Witherspoon"
+against the same two - it matched David on the surname and gave up on a name that could not be
+clearer. Ambiguity is a **tie**, not merely more than one candidate.
 
 ### Two companions who are one person can be merged (2026-09-25)
 
