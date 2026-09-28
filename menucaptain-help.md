@@ -310,9 +310,9 @@ name wherever that menu appears, so the thing this place is known for is obvious
 at the moment you are choosing rather than after you have ordered.
 
 **Off the menu.** The drink the regulars ask for by name. The dish they will
-make if you know to ask. On a restaurant page, under the menus, there is a
-**Not on the menu** card - tap **+ Add**, give it a name, and optionally a price
-and a note on how to ask for it or why it matters.
+make if you know to ask. Tonight's special. On a restaurant page, just under
+the menus, there is a **Not on the menu / specials** card - tap **+ Add**, give it
+a name, and optionally a price and a note on how to ask for it or why it matters.
 
 These live on the *place*, not on one menu, because a bar with a food menu, a
 brunch menu and a drinks list has one set of things that are on none of them.

@@ -508,6 +508,11 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
     }
     .menu-row:active{ background:var(--surface-2); border-color:rgba(224,118,74,0.35); }
+    /* The circle that says "this row is a menu" before the label is read.
+       Same accent circle the About page tiles use. */
+    .menu-row-ic{ flex:none; width:34px; height:34px; border-radius:50%;
+      border:1.5px solid var(--accent); display:flex; align-items:center;
+      justify-content:center; margin-right:12px; }
     .menu-row-label{
       font-family:'Fraunces',serif; font-size:18px; color:var(--text);
       line-height:1.2;
@@ -1073,7 +1078,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.482.0";
+const APP_VERSION   = "1.483.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1964,9 +1969,9 @@ name wherever that menu appears, so the thing this place is known for is obvious
 at the moment you are choosing rather than after you have ordered.
 
 **Off the menu.** The drink the regulars ask for by name. The dish they will
-make if you know to ask. On a restaurant page, under the menus, there is a
-**Not on the menu** card - tap **+ Add**, give it a name, and optionally a price
-and a note on how to ask for it or why it matters.
+make if you know to ask. Tonight's special. On a restaurant page, just under
+the menus, there is a **Not on the menu / specials** card - tap **+ Add**, give it
+a name, and optionally a price and a note on how to ask for it or why it matters.
 
 These live on the *place*, not on one menu, because a bar with a food menu, a
 brunch menu and a drinks list has one set of things that are on none of them.
@@ -5386,6 +5391,15 @@ const MENU_DEAD_END_WHY = {
   review: "Review sites don't let apps read their pages. If you can see the menu there, " +
           "screenshot it and choose the screenshot here.",
 };
+
+/* What to call a menu on screen. "Main" alone reads as a course or a room, so
+   it becomes "Main menu"; every other label is left exactly as the user wrote
+   it, because a blanket suffix turns "Wine List" into "Wine List menu". */
+function menuDisplayLabel(label){
+  const t = String(label || "").trim();
+  if (!t) return "Menu";
+  return /^main$/i.test(t) ? "Main menu" : t;
+}
 
 function verdictPositive(v){ return v === "loved" || v === "again"; }
 
@@ -11580,7 +11594,7 @@ function OffMenuCard({ place, onSave }){
   return (
     <div className="card" style={{marginTop:14, padding:"14px 15px"}}>
       <div className="between" style={{alignItems:"center", marginBottom: list.length ? 10 : 6}}>
-        <span className="lbl" style={{margin:0}}>Not on the menu</span>
+        <span className="lbl" style={{margin:0}}>Not on the menu / specials</span>
         <button className="btn ghost sm" style={{flex:"none", padding:"4px 11px"}}
           onClick={()=> setOpen(o => !o)}>{open ? "Cancel" : "+ Add"}</button>
       </div>
@@ -11615,8 +11629,8 @@ function OffMenuCard({ place, onSave }){
         </div>
       ) : (
         <div className="tiny faint">
-          The drink the locals order by name, the dish they will make if you ask.
-          The things you would never learn from the menu.
+          Tonight's special, the drink the locals order by name, the dish they will
+          make if you ask. The things you would never learn from the menu.
         </div>
       )}
 
@@ -12374,8 +12388,13 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             }} />
         ) : null}
 
-        <CommunityMenuPanel cfg={cfg} restaurant={r} localMenus={menuList}
-          onImport={onImportCommunityMenus} />
+        {/* With no menu of your own, the ones other diners left are the best
+            thing on the page (the 2026-09-13 decision). Once you have one,
+            yours come first and this drops below them. */}
+        {menuList.length === 0 ? (
+          <CommunityMenuPanel cfg={cfg} restaurant={r} localMenus={menuList}
+            onImport={onImportCommunityMenus} />
+        ) : null}
 
         {/* Dietary filter: chips for diets that have tagged matches; tapping one
             shows a combined menu of those dishes pulled from all of this place's menus. */}
@@ -12417,8 +12436,6 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           </div>
         )}
 
-        <OffMenuCard place={r} onSave={onSaveOffMenu} />
-
         {!dietFilter && menuList.length === 1 && (() => {
           // A lone menu shows as a compact card (same as multi-menu places),
           // tappable to open the full menu page - rather than dumping every
@@ -12428,8 +12445,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           const n0 = (m0.sections || []).reduce((n,s)=> n + ((s.items || []).length), 0);
           const row = (
             <div className="menu-row" onClick={()=> onOpenMenu(m0.menu_id)}>
+              <span className="menu-row-ic"><Icon name="book" size={17} color="var(--accent)" /></span>
               <div style={{flex:1, minWidth:0}}>
-                <div className="menu-row-label">{m0.label || "Menu"}</div>
+                <div className="menu-row-label">{menuDisplayLabel(m0.label)}</div>
                 <div className="tiny faint" style={{marginTop:3}}>
                   {n0} item{n0 === 1 ? "" : "s"}
                   {m0.captured_date ? "  ·  Captured " + fmtDate(m0.captured_date) : ""}
@@ -12498,8 +12516,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                     onPointerCancel={menuDragEnd}>
                     {"\u2630"}</span>
                 )}
+                <span className="menu-row-ic"><Icon name="book" size={17} color="var(--accent)" /></span>
                 <div style={{flex:1, minWidth:0}}>
-                  <div className="menu-row-label">{m.label || "Menu"}</div>
+                  <div className="menu-row-label">{menuDisplayLabel(m.label)}</div>
                   <div className="tiny faint" style={{marginTop:3}}>
                     {itemCount} item{itemCount === 1 ? "" : "s"}
                     {"  \u00b7  Captured " + fmtDate(m.captured_date)}
@@ -12524,6 +12543,14 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           return menuList.slice(0, menuMainCount).map(m => card(m, false))
             .concat(orderedNonMain.map(m => card(m, true)));
         })()}
+
+        {/* After the menus, not before them: this is what ISN'T on them. */}
+        <OffMenuCard place={r} onSave={onSaveOffMenu} />
+
+        {menuList.length > 0 ? (
+          <CommunityMenuPanel cfg={cfg} restaurant={r} localMenus={menuList}
+            onImport={onImportCommunityMenus} />
+        ) : null}
 
         {/* Close the flow: once you've looked at the menu and ordered, log the
             visit right here instead of hunting for the + button. */}
@@ -25357,7 +25384,7 @@ function PublishedMenu({data, onSaved}){
       {isPlace && Array.isArray(data.off) && data.off.length > 0 ? (
         <div className="card" style={{marginBottom:14}}>
           <div className="pub-cta-title" style={{textAlign:"left", marginBottom:4}}>
-            Not on the menu
+            Not on the menu / specials
           </div>
           <div className="tiny faint" style={{marginBottom:10}}>
             Passed on by whoever shared this, not from the restaurant. Worth asking for.

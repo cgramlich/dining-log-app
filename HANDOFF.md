@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.482.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.483.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.124.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.482.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.483.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -374,6 +374,21 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A place's menu comes first and looks like a menu (2026-09-28)
+
+Chris opened a place and could not quickly find its menu. Under "Menus (1)" the order was the
+panel of menus other diners shared, the dietary chips, the Not-on-the-menu card, and only then the
+menu - **fourth**, labelled "Main" with nothing marking it as a menu. "Main" alone reads as a
+course or a dining room.
+
+Now: your menus come first, each led by a book icon in an accent circle so the row reads as a
+menu before the label is read. `menuDisplayLabel` shows a label of exactly "Main" as **"Main
+menu"** and leaves every other label alone - a blanket "+ menu" suffix gives "Wine List menu".
+The off-menu card follows the menus, renamed **"Not on the menu / specials"** because a special
+is the thing people most want to record there and the old name did not say so. The panel of
+menus other diners left drops below your own once you have one; with none it stays on top,
+which keeps the 2026-09-13 decision that arriving at a place offers what others left.
 
 ### Add a menu asks what you have; links no app may read are caught (2026-09-28)
 
