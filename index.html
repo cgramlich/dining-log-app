@@ -500,14 +500,21 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .menu-row{
       display:flex; align-items:center; gap:10px;
       padding:14px 16px; margin-bottom:8px;
-      background:var(--surface); border:1px solid var(--line); border-radius:12px;
+      /* Your menus are the thing on a place's page you came for, so they carry
+         the accent and everything around them stays neutral. Theme-aware via
+         color-mix; the fixed values first are the fallback. */
+      background:rgba(224,118,74,0.09); border:1px solid rgba(224,118,74,0.55);
+      background:color-mix(in srgb, var(--accent) 9%, var(--surface));
+      border-color:color-mix(in srgb, var(--accent) 55%, transparent);
+      border-radius:12px;
       cursor:pointer; transition:background 0.12s ease, border-color 0.12s ease;
       -webkit-tap-highlight-color:transparent;
       /* Holding a card to drag/reorder must NOT trigger iOS text selection or the
          copy/paste callout - that was hijacking the drag. */
       user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
     }
-    .menu-row:active{ background:var(--surface-2); border-color:rgba(224,118,74,0.35); }
+    .menu-row:active{ background:rgba(224,118,74,0.16);
+      background:color-mix(in srgb, var(--accent) 16%, var(--surface)); border-color:var(--accent); }
     /* The circle that says "this row is a menu" before the label is read.
        Same accent circle the About page tiles use. */
     .menu-row-ic{ flex:none; width:34px; height:34px; border-radius:50%;
@@ -1078,7 +1085,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.484.0";
+const APP_VERSION   = "1.485.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -12368,6 +12375,10 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <div className="row between" style={{alignItems:"center", gap:8}}>
             <div style={{fontFamily:"'Fraunces',serif", fontSize:21, fontWeight:600,
                  color:"var(--text)", lineHeight:1.1, flex:1, minWidth:0}}>
+              {/* The accent bar every form section header uses (.sechd). */}
+              <span aria-hidden="true" style={{display:"inline-block", width:3, height:19,
+                    borderRadius:2, background:"var(--accent)", marginRight:10,
+                    verticalAlign:"-2px"}} />
               Menus{menuList.length
                 ? <span className="muted" style={{fontWeight:400, fontSize:15}}> ({menuList.length})</span>
                 : null}

@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.484.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.485.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.125.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.484.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.485.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -433,6 +433,12 @@ The off-menu card follows the menus, renamed **"Not on the menu / specials"** be
 is the thing people most want to record there and the old name did not say so. The panel of
 menus other diners left drops below your own once you have one; with none it stays on top,
 which keeps the 2026-09-13 decision that arriving at a place offers what others left.
+
+**Accent (1.485.0).** Chris picked option A of three rendered mockups: your menu cards carry a
+faint accent tint and edge, and the Menus heading gets the same accent bar as form section
+headers. Tint via color-mix on var(--accent), so it follows the theme; fixed Warm Brown values
+are declared first as the fallback. The rejected options were one tinted panel around all menus
+(a box around boxes) and a coloured heading alone (menus still looked like every other card).
 
 ### Add a menu asks what you have; links no app may read are caught (2026-09-28)
 
