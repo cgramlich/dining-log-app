@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.477.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.478.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.477.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.478.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -380,7 +380,13 @@ instead of explanatory text, at his request.
 Somebody opening a shared visit got a meal and a Create account button and nothing between them.
 Chris shared a dinner with friends who wanted to know what the app was, and the only answer
 available was to explain it himself by text message. `menucaptain.com/?about` is now that answer,
-linked quietly from every shared page beside the sign-in line.
+linked from every shared page beside the sign-in line.
+
+**It was on the wrong bar first (1.478.0).** A shared VISIT has its own sticky footer, separate
+from the SignupBridge that menus and lists use, so the one page Chris actually sends friends never
+showed the link. The comment three lines from that edit records the SAME miss in 1.434.0: two CTA
+surfaces, and a change to one keeps looking like a change to both. Check both whenever either
+changes.
 
 **It lives in the app, not anywhere else.** That is the only copy that cannot fall behind the
 product, and it is on his own domain rather than a hosting service's.

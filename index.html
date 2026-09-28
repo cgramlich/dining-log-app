@@ -1055,7 +1055,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.477.0";
+const APP_VERSION   = "1.478.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -21652,6 +21652,12 @@ function PublishedVisit({data, onSaved, onLogVisit}){
                  onClick={()=> rememberAfterSignup(location.href)}>Sign in to save it</a>
               <span className="faint"> - this opened in your browser, which does not share
                 the sign-in inside the app. Once here and it remembers you.</span>
+            </div>
+            {/* The other fair question somebody handed one meal will have. Its
+                own line: it is for a different reader than the two above, who
+                have both already decided they want in. */}
+            <div className="tiny" style={{marginTop:6}}>
+              <a href={home + "?about"} style={{color:"var(--accent)"}}>What is MenuCaptain?</a>
             </div>
             </div>
           </div>
