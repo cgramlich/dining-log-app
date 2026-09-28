@@ -1026,7 +1026,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.475.0";
+const APP_VERSION   = "1.476.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -24870,6 +24870,68 @@ function PublishedMenuLoader({slug}){
    this markup was starting to exist in two places, and a CTA that drifts is a
    CTA where one copy quietly loses the thing that carries the place across
    signup - which had already happened once. */
+/* What MenuCaptain is, for somebody who has just been handed a link to one
+   meal. Written for a friend, not a buyer: no pricing table, no feature grid,
+   no claim the app cannot keep. Every line here is something the product
+   actually does today. */
+function AboutPage(){
+  const home = location.origin + location.pathname;
+  const Thing = ({title, children}) => (
+    <div className="card" style={{marginBottom:11}}>
+      <div className="small" style={{fontWeight:600, marginBottom:4}}>{title}</div>
+      <div className="small muted">{children}</div>
+    </div>
+  );
+  return (
+    <div className="pub-wrap">
+      <div className="pub-kicker">MenuCaptain</div>
+      <div className="pub-title">A private notebook for eating out</div>
+      <div className="small muted" style={{textAlign:"center", marginBottom:22}}>
+        It remembers the places you go, the dishes you had, and which ones were
+        worth it. Nobody else sees any of it unless you send it to them.
+      </div>
+
+      <Thing title="It reads the actual menu">
+        Photograph a paper menu, or paste a link to one. It comes back as a list you
+        can tap, with prices and sections. Then you can ask it things a menu cannot
+        answer on its own, like what to order if you want something lighter.
+      </Thing>
+
+      <Thing title="Logging a meal is quick">
+        The photos you already took, what you ate, who you were with. Mark a dish
+        Loved, or Would order again, or Skip. Months later it can tell you what you
+        usually get somewhere, because you told it once.
+      </Thing>
+
+      <Thing title="The awkward parts of a group dinner">
+        Split the check by photographing it and tapping who had what. Send one link and
+        everyone adds their own order from the real menu, with no app to install.
+        Settle where to eat with a vote that also needs no account.
+      </Thing>
+
+      <Thing title="It is not a review site">
+        There is no feed, no followers, no public profile and nobody rating you. A
+        shared meal goes to the person you sent it to and stops there.
+      </Thing>
+
+      <Thing title="What it costs">
+        Free to start, with a set amount of the paid-for features included. If you use
+        those up there is a subscription, and if you do not, there is nothing to pay.
+        You can take your whole history back out whenever you want.
+      </Thing>
+
+      <div style={{textAlign:"center", marginTop:22}}>
+        <a className="btn primary" href={home} style={{textDecoration:"none", display:"inline-block"}}>
+          Try it
+        </a>
+        <div className="tiny faint" style={{marginTop:11}}>
+          It is a web app: open it and add it to your home screen. Nothing to download.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SignupBridge({ home, compact }){
   const go = ()=> rememberAfterSignup(location.href);
   return (
@@ -24890,6 +24952,12 @@ function SignupBridge({ home, compact }){
           are again", and the honest position is the opposite: their account is
           fine, this browser has simply never met them, and signing in here is
           a one-off that every future link will benefit from. */}
+      {/* Somebody handed a single meal has a fair question - what IS this? -
+          and the honest place for the answer is its own page, not more words
+          wrapped around their friend's dinner. */}
+      <div className="tiny" style={{marginTop:9}}>
+        <a href={home + "?about"} style={{color:"var(--accent)"}}>What is MenuCaptain?</a>
+      </div>
       <div className="tiny" style={{marginTop:10}}>
         <span className="faint">Already have MenuCaptain? </span>
         <a href={home} style={{color:"var(--accent)"}} onClick={go}>Sign in to save it</a>
@@ -29066,6 +29134,10 @@ class ErrorBoundary extends React.Component {
   } catch(e){ publishedMenu = null; }
   // Shared-visit links. Primary path: ?vs=<slug> -> fetch the blob from the
   // backend (no URL-length limit). Legacy/inline: ?visit=<encoded> decodes directly.
+  // "What is this?" from a shared link. A plain flag, no value to validate.
+  let wantAbout = false;
+  try { wantAbout = /[?&]about(=|&|$)/.test(location.search || ""); }
+  catch(e){ wantAbout = false; }
   let visitSlug = null;
   try {
     const vs = (location.search || "").match(/[?&]vs=([A-Za-z0-9]+)/);
@@ -29172,7 +29244,10 @@ class ErrorBoundary extends React.Component {
   const root = ReactDOM.createRoot(document.getElementById("root"));
   root.render(
     <ErrorBoundary>
-      {recovery ? <ResetPasswordScreen accessToken={recovery.accessToken}
+      {/* Before everything: somebody who asked what this is gets told, whether
+          or not they have an account. */}
+      {wantAbout ? <AboutPage />
+       : recovery ? <ResetPasswordScreen accessToken={recovery.accessToken}
                     refreshToken={recovery.refreshToken}
                     expiresIn={recovery.expiresIn} />
        : published ? <PublishedList data={published} />
