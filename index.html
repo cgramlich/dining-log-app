@@ -1026,7 +1026,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.474.0";
+const APP_VERSION   = "1.475.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3854,7 +3854,8 @@ function buildPlacePayload(restaurant, menu, lovedNames){
    reader who makes an account can add them back, and `byn` is their display
    name so the page can say "Chris" rather than "@cjgramlich". Shape:
      { k:"v", v:1, r,cu,c,a,gpid,lat,lng, dt, rt, g:{r,n}, ppl:[names],
-       ate:[{n,y}], ph:[urls], hero, s:[ { n, i:[ { n,d,p,t } ] } ] } */
+       ate:[{n,y}] (y:2 loved, y:1 again), ph:[urls], hero,
+       s:[ { n, i:[ { n,d,p,t } ] } ] } */
 function buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl, note){
   const usable = (menuList || []).filter(m => m && (m.sections || []).length);
   const combined = usable.length ? (usable.length === 1 ? usable[0] : combineGroupMenus(usable)) : null;
@@ -3883,14 +3884,18 @@ function buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl, note
     o.g = { r: restaurant.g_rating };
     if (typeof restaurant.g_rating_count === "number") o.g.n = restaurant.g_rating_count;
   }
-  // The plate: dish NAMES only, flagged if you would order them again. No
-  // per-dish notes, no per-dish ratings, no what-you-paid.
+  // The plate: dish NAMES only, flagged with WHICH verdict. No per-dish notes,
+  // no per-dish ratings, no what-you-paid.
+  //   y:2 loved   y:1 would order again   absent neither
+  // Older links only ever set y:1, so they keep reading as "again" - the safer
+  // one to be wrong about, since it under-claims.
   const plate = ((visit && visit.dishes) || [])
     .filter(d => d && d.name)
     .slice(0, 20)
     .map(d => {
       const x = { n: String(d.name).trim() };
-      if (verdictPositive(d.verdict)) x.y = 1;
+      if (d.verdict === "loved") x.y = 2;
+      else if (d.verdict === "again") x.y = 1;
       return x;
     })
     .filter(d => d.n);
@@ -21444,14 +21449,19 @@ function PublishedVisit({data, onSaved, onLogVisit}){
           <div className="tiny faint" style={{textAlign:"center", marginBottom:7}}>What they had</div>
           <div className="chips" style={{justifyContent:"center"}}>
             {data.ate.map((d,i)=>(
-              <span key={i} className={"chip dish" + (d.y ? " loved" : "")}>
-                {d.y ? "\u2665 " : ""}{d.n}
+              <span key={i} className={"chip dish" + (d.y === 2 ? " loved" : d.y ? " again" : "")}>
+                {d.y === 2 ? "\u2665 " : ""}{d.n}
               </span>
             ))}
           </div>
+          {/* Say what each mark means, and only for the marks actually present -
+              a legend explaining a colour nothing on the page uses is noise. */}
           {data.ate.some(d => d.y) ? (
             <div className="tiny faint" style={{textAlign:"center", marginTop:7}}>
-              &hearts; marks the ones they would order again
+              {data.ate.some(d => d.y === 2) ? <span>&hearts; loved it</span> : null}
+              {data.ate.some(d => d.y === 2) && data.ate.some(d => d.y === 1)
+                ? <span>{"  \u00b7  "}</span> : null}
+              {data.ate.some(d => d.y === 1) ? <span>highlighted = would order again</span> : null}
             </div>
           ) : null}
         </div>

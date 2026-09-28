@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.474.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.475.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.474.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.475.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -374,6 +374,23 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A shared visit collapsed Loved into Again (2026-09-27)
+
+The app has three verdicts and the guide calls them its heart: **Loved** for a standout, **Again**
+for something solid, **Skip** for neither. In the app they are even styled apart, pink against
+amber.
+
+The share payload set one flag for both and captioned the lot "marks the ones they would order
+again", so a dish somebody adored and a dish they merely liked arrived identical, under a label
+that was wrong for the first. Chris caught it reading his own shared visit.
+
+The payload now says which: **y:2 loved, y:1 again** - one extra digit per positive dish - and the
+shared page uses the same two chip styles the app already uses, with a legend naming only the
+marks actually present.
+
+**Older links only ever set y:1, so they keep reading as Again.** That is the safer direction to
+be wrong in: it under-claims rather than putting a word in somebody's mouth.
 
 ### The check already knew what the table ordered (2026-09-27)
 
