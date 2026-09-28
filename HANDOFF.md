@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.486.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.487.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.125.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.486.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.487.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -374,6 +374,38 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A wrong email is caught at sign-up, all of it (2026-09-28)
+
+With confirmation off, a misspelt address makes an account that works perfectly until a password
+reset goes to an address that does not exist. The confirm-email box catches a random slip but not
+the SAME slip typed twice, nor autofill filling both boxes wrongly.
+
+**Two layers, sign-up only:**
+- **`emailDomainSuggestion`** - "Did you mean gmail.com?", live under the Email field. Matches
+  against a list of real providers using **optimal string alignment distance**, so two swapped
+  neighbours count as ONE slip. Plain edit distance scored "gamil" as two changes, tied it with
+  mail.com and suggested nothing - on the commonest way fingers miss. Real providers near big names
+  (gmx.com, proton.me, pm.me, me.com, att.net) are listed and never touched; distance 1 for short
+  domains, 2 for longer; a tie suggests nothing. 32 checks.
+- **A read-back card** before the account is created - Chris's idea. No rule can tell "chirs@" from
+  "chris@"; people check an address they are SHOWN more carefully than one they retype. The domain
+  correction sits on the same card, so it is one moment of checking, not two.
+
+**The card's primary button is the correction when there is one.** The first render made the big
+accent button "Yes, that's right" with the fix in a quiet button above it - a thumb goes to the
+accent, so the card would have confirmed the very slip it exists to catch. Caught by rendering it.
+
+**Sign-up only, deliberately:** on sign-in the account itself may carry the misspelling, and
+"correcting" it would send the person to an account that does not exist.
+
+**"Already registered" is now good news.** Somebody who signed up, thought it failed (no email) and
+tried again got Supabase's raw "User already registered". Now the app switches to sign-in with the
+address kept and says the account exists. A second attempt with a CORRECTED address is a separate
+account and simply works; the misspelt one is a harmless orphan to delete in Supabase.
+
+`signUp(confirmed)` treats only a strict `true` as a yes: wired to onClick it receives the click
+event, which must not count.
 
 ### Sign-up sends no email, and now says so (2026-09-28)
 

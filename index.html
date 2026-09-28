@@ -1085,7 +1085,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.486.0";
+const APP_VERSION   = "1.487.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -5422,6 +5422,51 @@ function menuDisplayLabel(label){
   const t = String(label || "").trim();
   if (!t) return "Menu";
   return /^main$/i.test(t) ? "Main menu" : t;
+}
+
+/* The corrected address when an email's domain looks like a slip for a common
+   provider, otherwise null. Exact matches of real providers - including ones
+   that sit a letter or two from a big name, like gmx.com and proton.me - are
+   never touched. Distance 1 for short domains, 2 for longer, so a genuine
+   small domain is not flagged for resembling a big one. */
+const EMAIL_KNOWN_DOMAINS = [
+  "gmail.com","googlemail.com","yahoo.com","ymail.com","rocketmail.com","hotmail.com",
+  "outlook.com","live.com","msn.com","icloud.com","me.com","mac.com","aol.com",
+  "comcast.net","att.net","sbcglobal.net","verizon.net","bellsouth.net","charter.net",
+  "cox.net","protonmail.com","proton.me","pm.me","gmx.com","gmx.net","mail.com",
+  "zoho.com","fastmail.com","hey.com","yahoo.co.uk","hotmail.co.uk","btinternet.com",
+];
+function emailEditDistance(a, b){
+  const d = Array.from({length: a.length + 1}, (_, i)=> [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++){
+    for (let j = 1; j <= b.length; j++){
+      d[i][j] = Math.min(d[i-1][j] + 1, d[i][j-1] + 1,
+                         d[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+      // Two neighbouring letters swapped is ONE slip, not two - the commonest
+      // way fingers miss (gamil, hotmial). Without this "gamil.com" tied with
+      // mail.com and got no suggestion at all.
+      if (i > 1 && j > 1 && a[i-1] === b[j-2] && a[i-2] === b[j-1])
+        d[i][j] = Math.min(d[i][j], d[i-2][j-2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
+function emailDomainSuggestion(email){
+  const e = String(email || "").trim();
+  const at = e.lastIndexOf("@");
+  if (at < 1 || at === e.length - 1) return null;
+  const local = e.slice(0, at), domain = e.slice(at + 1).toLowerCase();
+  if (domain.indexOf(".") < 1 || EMAIL_KNOWN_DOMAINS.indexOf(domain) >= 0) return null;
+  const limit = domain.length < 9 ? 1 : 2;
+  let best = null, bestD = 99, tie = false;
+  EMAIL_KNOWN_DOMAINS.forEach(k => {
+    const dd = emailEditDistance(domain, k);
+    if (dd < bestD){ best = k; bestD = dd; tie = false; }
+    else if (dd === bestD){ tie = true; }
+  });
+  // Two providers equally close means we cannot say which was meant.
+  return (best && bestD <= limit && !tie) ? local + "@" + best : null;
 }
 
 function verdictPositive(v){ return v === "loved" || v === "again"; }
@@ -29109,6 +29154,8 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   const [mode,setMode]       = useState("signin");   // signin | signup | forgot
   const [email,setEmail]     = useState(initial ? (initial.email || "") : "");
   const [email2,setEmail2]   = useState("");   // signup only: confirm-email typo guard
+  // The read-back card: shown once for an address before its account is made.
+  const [readBack,setReadBack] = useState(false);
   const [password,setPassword] = useState("");
   const [busy,setBusy]       = useState(false);
   const [err,setErr]         = useState("");
@@ -29170,7 +29217,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     }
   }
 
-  async function signUp(){
+  async function signUp(confirmed){
     setErr(""); setInfo("");
     if (!email.trim() || !password){
       setErr("Email and password are required."); return;
@@ -29184,6 +29231,11 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     if (password.length < 6){
       setErr("Password must be at least 6 characters."); return;
     }
+    // Read it back before creating anything. `confirmed` is strictly true only
+    // from the card's own button - wired to onClick, signUp receives the click
+    // event, which must not count as a yes.
+    if (confirmed !== true){ setReadBack(true); return; }
+    setReadBack(false);
     setBusy(true);
     const base = (((initial && initial.apiBase) || API_BASE_DEFAULT)).replace(/\/+$/, "");
     try {
@@ -29199,7 +29251,13 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         // WHY: Supabase throttles confirmation emails and returns raw
         // plumbing copy ("you can only request this after N seconds").
         // Translate it - the email almost certainly already went out.
-        if (/only request this after/i.test(msg)){
+        if (data.error_code === "user_already_exists" || /already (registered|exists)/i.test(msg)){
+          // Their account is there and works. Switch to sign-in, keeping the
+          // address they typed, and say what to do.
+          setMode("signin"); setEmail2(""); setReadBack(false);
+          setInfo("Good news - " + email.trim() + " already has an account. Sign in with it " +
+                  "below, or tap Forgot password if you don't remember the password.");
+        } else if (/only request this after/i.test(msg)){
           setErr("We just sent your confirmation email - check your inbox " +
                  "(and spam). You can request another one in a minute.");
           setPendingConfirmEmail(email.trim());
@@ -29275,7 +29333,15 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     signup:{ label:"Create account",     busyLabel:"Creating...",        fn:signUp },
     forgot:{ label:"Send reset link",    busyLabel:"Sending...",         fn:sendReset },
   }[mode];
-  const switchTo = (m)=>{ setMode(m); setErr(""); setInfo(""); setEmail2(""); };
+  const switchTo = (m)=>{ setMode(m); setErr(""); setInfo(""); setEmail2(""); setReadBack(false); };
+  // Take the suggested domain. The confirm box usually holds the same slip, so
+  // it is fixed alongside rather than left to fail the match check.
+  function useSuggestedEmail(){
+    const fix = emailDomainSuggestion(email);
+    if (!fix) return;
+    if (email2.trim().toLowerCase() === email.trim().toLowerCase()) setEmail2(fix);
+    setEmail(fix); setErr("");
+  }
 
   const body = (
     <div className="ovbody">
@@ -29322,8 +29388,19 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         </div>
       )}
       <label className="fld"><span className="lbl">Email</span>
-        <ClearInput type="email" value={email} onChange={e=>setEmail(e.target.value)}
+        <ClearInput type="email" value={email}
+          onChange={e=>{ setEmail(e.target.value); setReadBack(false); }}
           autoCapitalize="none" autoComplete="email" placeholder="you@example.com" /></label>
+      {mode === "signup" && emailDomainSuggestion(email) ? (
+        <div className="tiny" style={{margin:"-8px 2px 12px"}}>
+          <span className="faint">Did you mean </span>
+          <button type="button" className="linkbtn"
+            style={{background:"none", border:0, padding:0, color:"var(--accent)",
+                    fontWeight:600, cursor:"pointer", font:"inherit"}}
+            onClick={()=> useSuggestedEmail()}>{emailDomainSuggestion(email)}</button>
+          <span className="faint">?</span>
+        </div>
+      ) : null}
       {mode === "signup" && (
         <label className="fld"><span className="lbl">Confirm email</span>
           <ClearInput type="email" value={email2} onChange={e=>setEmail2(e.target.value)}
@@ -29357,6 +29434,47 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           <span className="dot" style={{background:"var(--danger)"}} />{err}
         </div>
       )}
+      {/* Is this address right? Shown large, with the reason it matters, before
+          anything is created. The domain correction sits here too, so there is
+          one moment of checking, not two. */}
+      {mode === "signup" && readBack ? (
+        <div className="card" style={{border:"1px solid var(--accent)", marginBottom:14,
+             textAlign:"center"}}>
+          <div className="small muted" style={{marginBottom:6}}>Is this your email?</div>
+          <div style={{fontSize:20, fontWeight:600, color:"var(--text)", wordBreak:"break-all",
+               lineHeight:1.3, marginBottom:8}}>{email.trim()}</div>
+          <div className="tiny faint" style={{marginBottom:12}}>
+            It's the only way back into your account if you forget your password,
+            so check every letter.
+          </div>
+          {emailDomainSuggestion(email) ? (
+            <>
+              <div className="small" style={{marginBottom:8}}>
+                Did you mean <strong>{emailDomainSuggestion(email)}</strong>?
+              </div>
+              <button type="button" className="btn primary" style={{marginBottom:8}}
+                onClick={()=> useSuggestedEmail()}>
+                <Icon name="check" size={18} color="#1b1714" />Use {emailDomainSuggestion(email)}
+              </button>
+              <button type="button" className="btn ghost sm" disabled={busy}
+                onClick={()=> signUp(true)}>
+                {busy ? "Creating..." : "No, keep " + email.trim()}
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn primary" disabled={busy}
+                onClick={()=> signUp(true)}>
+                {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
+                {busy ? "Creating..." : "Yes, that's right"}
+              </button>
+              <button type="button" className="btn ghost sm" style={{marginTop:8}}
+                onClick={()=> setReadBack(false)}>Let me fix it</button>
+            </>
+          )}
+        </div>
+      ) : null}
+      {!(mode === "signup" && readBack) ? (
       <button className="btn primary" disabled={busy} onClick={primary.fn}
         style={(mode === "signin" && pendingConfirmEmail &&
                 email.trim().toLowerCase() === pendingConfirmEmail.toLowerCase())
@@ -29364,6 +29482,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
         {busy ? primary.busyLabel : primary.label}
       </button>
+      ) : null}
 
       <div className="small muted" style={{marginTop:16, textAlign:"center", lineHeight:2.2}}>
         {mode === "signin" && (<span>
