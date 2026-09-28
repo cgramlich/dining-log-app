@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.475.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.477.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.123.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.475.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.477.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -374,6 +374,33 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A public About page, in the promo sheet's language (2026-09-27)
+
+Somebody opening a shared visit got a meal and a Create account button and nothing between them.
+Chris shared a dinner with friends who wanted to know what the app was, and the only answer
+available was to explain it himself by text message. `menucaptain.com/?about` is now that answer,
+linked quietly from every shared page beside the sign-in line.
+
+**It lives in the app, not anywhere else.** That is the only copy that cannot fall behind the
+product, and it is on his own domain rather than a hosting service's.
+
+**Deliberately not the promo brief**, which carries shot lists, a do-not-film list and an
+investor line. Different audience entirely: this is for a friend who was handed one meal.
+
+**The first cut was five grey cards of prose** - accurate and completely flat. Chris asked why it
+did not look like the promo work, and he was right: a signed-off design for exactly this job
+already existed in `MenuCaptain Promo/_promo_print.html` and **I had not looked at it**. The page
+now ports that language - the helm mark copied verbatim, the two-tone Fraunces wordmark, the
+italic tagline over an accent rule, tiles led by an outline icon in an accent circle, the italic
+pull-quote, the pill CTA.
+
+Two deliberate departures from the print sheet: its icons came from a Tabler webfont over a CDN,
+and this uses the app's own icon set - same stroked-outline style, no network - and the tiles are
+one column on a phone, because most people meeting this page are opening a link from a text.
+
+**The rule this is the second instance of: check for the signed-off sibling BEFORE building, not
+after being asked why it looks different.**
 
 ### A shared visit collapsed Loved into Again (2026-09-27)
 
