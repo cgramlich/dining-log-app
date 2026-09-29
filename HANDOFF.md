@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.487.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.488.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.126.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.487.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.488.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,24 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### 1.488.0: a raw NUL byte, and a blank strip in the store app (2026-09-29)
+
+`aggregatePicks` keyed its Map on section + a **literal 0x00 byte** + item. Right intent (a
+separator no dish name contains), identical runtime value to the escape, so no behaviour change;
+the real function sliced from before and after returned identical output. But the byte made
+`grep` treat the whole file as binary and print "Binary file matches" instead of lines, which
+silently hid results during a search, and would blind any audit tool that greps index.html. Now
+the `\u0000` escape; the file has no control bytes. **Check for this after any Python patch
+that writes an escape**: `\0`, `\b` and friends become real bytes inside a normal Python string.
+
+Also found: Home wrapped `InstallHint` in a div with a 13px margin. `InstallHint` renders
+nothing under Capacitor, but the wrapper still drew a blank band in the native app. Gated on
+`!IS_NATIVE`. The rest of the "hide Add to Home Screen in the store app" roadmap item was
+already done.
+
+This was also the first ship through the promo refresh step: the builder flagged 1.488.0 as not
+yet reviewed, it needed no inventory line, and the stamp moved to 1.488.0.
 
 ### The promo brief rebuilds itself every ship (2026-09-29)
 
