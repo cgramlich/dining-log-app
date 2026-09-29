@@ -1085,7 +1085,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.487.0";
+const APP_VERSION   = "1.488.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8759,7 +8759,7 @@ function App({openShare}){
             </button>
           </div>
         )}
-        {!a2hsDismissed && !isStandalone() && !configComplete(config) && (
+        {!IS_NATIVE && !a2hsDismissed && !isStandalone() && !configComplete(config) && (
           <div style={{marginBottom:13}}>
             <InstallHint onClose={()=>{ try { localStorage.setItem("mc_a2hs_dismissed", "1"); } catch(e){} setA2hsDismissed(true); }} />
           </div>
@@ -22725,7 +22725,7 @@ function aggregatePicks(picks){
     (g.picks || []).forEach(p => {
       if (!p || !p.item) return;
       const sec = p.section || "";
-      const key = sec + " " + p.item;
+      const key = sec + "\u0000" + p.item;   // separator no dish name contains
       const cur = byKey.get(key) || { item:p.item, section:sec, qty:0, notes:[] };
       cur.qty += (p.qty || 1);
       if (p.note) cur.notes.push({ name:g.guest_name, note:p.note });
