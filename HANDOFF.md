@@ -93,6 +93,18 @@ Rebuild the native bundle after a front-end change:
 cd /c/Users/cjgra/menucaptain-native-build && node build.js
 ```
 
+Refresh the promo brief **after both deploys are confirmed live**. It records what is running,
+so running it earlier stamps the old version (the page would say the new one is "on its way"):
+
+```bash
+cd "/c/Users/cjgra/Dropbox/My AI/CG Apps/MenuCaptain/MenuCaptain Promo" && python make_living_promo.py
+```
+
+Then republish `menucaptain-promo-living.html` to the promo artifact
+(https://claude.ai/artifact/DXPkph4v7MmRyihNhqQqKX). If it prints `INVENTORY BEHIND`, draft
+inventory lines in `living-promo-template.html` for the changes that need one, show them to Chris
+(he corrects the wording), then bump `data-inventory-as-of`.
+
 Gradle needs an explicit JDK on this machine:
 
 ```bash
@@ -374,6 +386,38 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The promo brief rebuilds itself every ship (2026-09-29)
+
+Chris wanted the promo "always up-to-date as we're making changes". Decided with him: one page,
+three parts, refreshed every ship, Claude drafts and Chris corrects. Built as
+`MenuCaptain Promo/make_living_promo.py` + `living-promo-template.html`, published to the
+existing promo artifact so the link did not change.
+
+**What regenerates:** the live-status strip (repo versions checked against what the site and the
+server report) and What's new, which is **every frontend version bump in its commit subject**.
+Frontend only, and that is the privacy design: server-only work (the webhook guard, the function
+grants) never bumps the frontend, so it cannot reach a page shared by link. A structural filter,
+not a deny-list. The generator also refuses to write if the page would contain a server hostname
+or an email address; both checks were proven to fire against copies.
+
+**What stays written:** inventory, cuts, supers, do-not-film. The road not taken was generating
+the inventory too: never stale, reads worse, and cannot judge what deserves screen time. The
+template carries `data-inventory-as-of`; anything shipped after it is flagged on the page and
+printed by the script, which is the check that stops the written half drifting the way the
+.md brief drifted three weeks.
+
+**An error found in the old inventory:** "Share a visit" said what you ordered stays private.
+Shared visits have always carried dish names (the payload comment was corrected in 1.459.0 but
+the promo copy never was). It now says what is really withheld: private notes and what you paid.
+Six lines were drafted for 1.474 to 1.487 for Chris to correct. **About this place's Suggest from
+the web is listed but untagged**, because it has not yet made a real call.
+
+The old `MenuCaptain-Promo-Brief-2026-09-06.md` is superseded and marked so.
+
+**Sharing is Chris's setting:** the artifact is shared by link, but viewers see a pinned earlier
+version, so people he sent it to will not see updates until the pin moves to the live version
+(page's Share menu).
 
 ### The Stripe webhook now applies only OUR subscriptions (2026-09-28)
 
