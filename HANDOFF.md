@@ -400,11 +400,31 @@ cannot tell ours from anyone else's, and a failed ownership lookup is not eviden
 everything would break billing silently, which is worse than the pollution this prevents - the
 opposite of the usual fail-closed default, because here the guard is the thing that can be wrong.
 
-**Open, for Chris:** the FitnessCaptain session also reports that ITS `record_ai_usage` was
-executable by the `anon` role, which would let anyone with the public anon key push
-`system_meter` past the monthly AI breaker and switch AI off for everyone. Ours grew from the
-same skeleton and its SQL is not in this repo, so it is **unverified**. The audit query is in the
-2026-09-28 log entry; it needs running in the Supabase SQL editor.
+### Database functions are locked to the backend (2026-09-29)
+
+The FitnessCaptain session also reported that its `record_ai_usage` was executable by the `anon`
+role. **Ours was too, and so was every other public function**: `record_ai_usage`,
+`record_places_usage`, `set_updated_at`, `rls_auto_enable` all answered `anon_can_run = true`.
+Anyone with the public anon key could have pushed `system_meter` past the monthly AI breaker and
+switched AI off for every user, or done the same to the Places breaker. The July RLS work never
+covered this: **RLS protects tables, not functions.**
+
+Fixed live 2026-09-29 by Chris in the SQL editor; the statements are now in
+`dining-captain-backend/sql/function_grants.sql`. Blanket revoke from `public, anon,
+authenticated`, explicit grant to `service_role`, and default privileges so later functions start
+locked.
+
+**The grant half is the dangerous one to forget.** Whether `service_role` holds EXECUTE explicitly
+or through PUBLIC depends on the project's default privileges, and this project already surprised
+us on tables. If a revoke took the backend's access too, nothing would show: `record_usage` and
+`record_places_usage` log and swallow by design, so metering would just stop and the breakers
+would never trip. **Verified both halves**: anon false AND service_role true on all four. A
+before/after on `ai_usage` was tried first and could not tell "no AI call yet" from "metering
+broken"; the two-column privilege check settles it without needing a call.
+
+The frontend calls no RPCs (no `.rpc(` or `/rest/v1/rpc` in index.html), so nothing in the app
+depended on the anon grant. Trigger functions are unaffected: EXECUTE is checked when a trigger is
+created, not when it fires.
 
 ### A wrong email is caught at sign-up, all of it (2026-09-28)
 
