@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.488.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.489.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.126.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.488.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.489.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,22 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Rename a menu by tapping its name; a mini header on the menu screen (2026-10-03, 1.489.0)
+
+Chris could not find how to rename a menu titled just "Menu". The row pencil had done it for
+months, but it was the only unlabelled button among labelled ones, and a bare pencil reads as
+"edit the dishes". **The title is now the control** (`.title-btn`: inherits the heading's type,
+trailing pencil is the only affordance, `aria-expanded` follows the rename card). Road not taken:
+labelling the row button, rejected because that row already wrapped the date on a phone.
+
+He then asked for "a distinguishable mini header". Two options were rendered on the real
+stylesheet (accent eyebrow in the top bar vs a tinted card); **he picked the tinted card**
+(`.menu-head`): place + captured date in the `.menu-row` tint with the book circle, so the menu
+screen looks like opening the card you tapped on the place page. Buttons got their own wrapping
+row; the date no longer wraps. The eyebrow was the road not taken: more compact and sticky, but
+quieter. A render harness for this screen lives in the session scratchpad, served by the
+`menucaptain-harness` entry in the Claude Code folder's `.claude/launch.json`.
 
 ### 1.488.0: a raw NUL byte, and a blank strip in the store app (2026-09-29)
 
