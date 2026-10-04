@@ -196,7 +196,7 @@ the screenshot. It is read exactly like a photo of a paper menu. If you do paste
 one of those links, the app says so straight away and gives you the button.
 
 **Fixing a scanned dish name.** If the scan misread a dish or two, open the menu
-and tap **Edit names & tags** - each dish name becomes editable, so you can fix a
+and tap **Edit dishes** - each dish name becomes editable, so you can fix a
 typo in place. Changes save as you go, and each dish keeps its price and tags.
 
 **More than one menu.** A place can have several menus (for example Dinner,
@@ -240,8 +240,8 @@ the small pencil beside it) and type a new one - **Dinner**, **Brunch**,
 **Re-scanning and deleting.** Each menu card offers **Refresh** to replace it
 with a fresh version - photograph it again or pull it from a link - and you
 can delete a menu you no longer want from inside it. Refreshing replaces the
-old copy in place (no duplicate), so any estimates saved on the old items are
-not carried over.
+old copy in place (no duplicate) and takes today's date, so any estimates saved
+on the old items are not carried over.
 
 **Adding a menu that already exists.** If you go in through **Get the menu**
 rather than Refresh and give it a name the place already uses, the review screen
@@ -308,7 +308,7 @@ it is not included when you share the place. Tap the small info icon beside eith
 heading for a reminder of what it is.
 
 **Signature dishes.** A menu lists forty things and does not say which one
-people actually come for. On any menu, tap **Edit names & tags** and you can
+people actually come for. On any menu, tap **Edit dishes** and you can
 mark a dish as a **Signature**. It then shows a star and a line under the dish
 name wherever that menu appears, so the thing this place is known for is obvious
 at the moment you are choosing rather than after you have ordered.

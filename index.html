@@ -1105,7 +1105,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.489.0";
+const APP_VERSION   = "1.490.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1882,7 +1882,7 @@ the screenshot. It is read exactly like a photo of a paper menu. If you do paste
 one of those links, the app says so straight away and gives you the button.
 
 **Fixing a scanned dish name.** If the scan misread a dish or two, open the menu
-and tap **Edit names & tags** - each dish name becomes editable, so you can fix a
+and tap **Edit dishes** - each dish name becomes editable, so you can fix a
 typo in place. Changes save as you go, and each dish keeps its price and tags.
 
 **More than one menu.** A place can have several menus (for example Dinner,
@@ -1926,8 +1926,8 @@ the small pencil beside it) and type a new one - **Dinner**, **Brunch**,
 **Re-scanning and deleting.** Each menu card offers **Refresh** to replace it
 with a fresh version - photograph it again or pull it from a link - and you
 can delete a menu you no longer want from inside it. Refreshing replaces the
-old copy in place (no duplicate), so any estimates saved on the old items are
-not carried over.
+old copy in place (no duplicate) and takes today's date, so any estimates saved
+on the old items are not carried over.
 
 **Adding a menu that already exists.** If you go in through **Get the menu**
 rather than Refresh and give it a name the place already uses, the review screen
@@ -1994,7 +1994,7 @@ it is not included when you share the place. Tap the small info icon beside eith
 heading for a reminder of what it is.
 
 **Signature dishes.** A menu lists forty things and does not say which one
-people actually come for. On any menu, tap **Edit names & tags** and you can
+people actually come for. On any menu, tap **Edit dishes** and you can
 mark a dish as a **Signature**. It then shows a star and a line under the dish
 name wherever that menu appears, so the thing this place is known for is obvious
 at the moment you are choosing rather than after you have ordered.
@@ -13511,14 +13511,20 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
           </button>
         )}
       </div>
+      {/* "Edit names & tags" named two of its three jobs and hid the Signature
+          star (2026-10-04); the label now says what is behind it. */}
       {(onSaveItemTags || onRenameItem) && (
-        <button className="btn ghost sm" style={{marginBottom:6}} onClick={()=> setEditTags(e=> !e)}>
-          {editTags ? "Done editing" : "Edit names & tags"}
-        </button>
+        <div className="row" style={{gap:10, alignItems:"center", marginBottom:6, flexWrap:"wrap"}}>
+          <button className="btn ghost sm" style={{flex:"none"}} onClick={()=> setEditTags(e=> !e)}>
+            {editTags ? "Done editing" : "Edit dishes"}
+          </button>
+          {!editTags ? <span className="tiny faint">Names, signature dish, diet tags</span> : null}
+        </div>
       )}
       {editTags && (onSaveItemTags || onRenameItem) && (
         <div className="tiny faint" style={{margin:"-2px 2px 9px"}}>
-          Tap a dish name to fix a typo, or toggle its dietary tags - changes save as you go.
+          Fix a dish's name, star the one this place is known for, or set its diet tags.
+          Changes save as you go.
         </div>
       )}
       {sections.length === 0 && (
@@ -20815,7 +20821,11 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         menu_id:       presetMenu.menu_id,
         label:         (label || "").trim() || presetMenu.label,
         restaurant_id: targetRestId,
-        captured_date: presetMenu.captured_date,
+        // A refresh replaces every section, so this content was captured today.
+        // Keeping the original date made a menu pulled in October read "Captured
+        // May 30" (2026-10-04). last_updated is not a substitute: tag toggles
+        // and renames bump it too.
+        captured_date: result.captured_date || todayISO(),
         last_updated:  todayISO(),
         source:        result.source || "photo_ocr",   // keep "web" on a web re-pull
         sections:      sections,
@@ -24750,6 +24760,15 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
   const closed   = data && data.status === "closed";
   const selected = Object.keys(picks).map(k => picks[k]).filter(Boolean);
   const restName = (data && data.restaurant_name) || (menu && menu.label) || "the menu";
+  // `title` holds the host's typed note on a quick order, but an order started
+  // from a menu stores the menu's LABEL there (the host's Active list shows it).
+  // Rendered as "Note from Christopher: Main" that read as a message he never
+  // wrote (2026-10-04), so a title that only repeats the label is no note.
+  const hostNote = (()=>{
+    const t = ((data && data.title) || "").trim();
+    const lbl = ((menu && menu.label) || "").trim();
+    return (t && lbl && t.toLowerCase() === lbl.toLowerCase()) ? "" : t;
+  })();
   // Free-form (quick) order: no scanned menu, so guests type their order in their
   // own words. menu_snapshot is {free_form:true} (no usable sections).
   const hasMenu  = !!(menu && Array.isArray(menu.sections) && menu.sections.length);
@@ -24950,15 +24969,15 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
       {/* The host's note (entered at start) - stored as `title`. Notes can be
           long and multiline (e.g. a catering order with a list of options), so
           render with line breaks preserved; only short one-liners center. */}
-      {data && (data.title || "").trim() ? (
+      {hostNote ? (
         <div style={{margin:"0 0 16px", padding:"12px 14px", borderRadius:12,
-             textAlign: data.title.trim().length > 60 || data.title.indexOf("\n") !== -1 ? "left" : "center",
+             textAlign: hostNote.length > 60 || hostNote.indexOf("\n") !== -1 ? "left" : "center",
              background:"rgba(224,118,74,0.10)", border:"1px solid rgba(224,118,74,0.35)"}}>
           <span className="tiny faint" style={{display:"block", marginBottom:4}}>
             {data.host_name ? "Note from " + data.host_name : "Note from the host"}
           </span>
           <span style={{fontWeight:600, whiteSpace:"pre-wrap", overflowWrap:"break-word", display:"block", lineHeight:1.5}}>
-            {data.title}
+            {hostNote}
           </span>
         </div>
       ) : null}
