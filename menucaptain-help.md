@@ -230,8 +230,12 @@ back their whole page at once - dinner, lunch, drinks and brunch in one menu.
 Open the menu and tap **Split** to move sections into a menu of their own: tick
 the ones to move, name where they are going, and the rest stay put. Type the
 name of a menu you already have and they join it instead of starting a new one.
-You cannot move every section out, because that would leave an empty menu - use
-**Rename** for that.
+You cannot move every section out, because that would leave an empty menu - rename
+it instead.
+
+**Renaming a menu.** Tap the menu's name at the top of its page (the one with
+the small pencil beside it) and type a new one - **Dinner**, **Brunch**,
+**Wine list**. Do it any time, not just right after you add it.
 
 **Re-scanning and deleting.** Each menu card offers **Refresh** to replace it
 with a fresh version - photograph it again or pull it from a link - and you
@@ -287,7 +291,7 @@ panel lets you *pull down* a menu someone else already digitized here. You can
 share any time (not only right after scanning), and the app gives a gentle
 **"Share your menu?"** nudge so it's easy to find. Community menus you pull are
 labeled "not verified." Tip: rename a menu to what it really is (say **Lunch**
-instead of the default Main) *before* sharing; if you rename and re-share later,
+instead of the default Main, by tapping its name) *before* sharing; if you rename and re-share later,
 the app tidies up your old copy so there's no stale duplicate.
 
 -----

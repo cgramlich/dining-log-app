@@ -423,6 +423,14 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       border-bottom:1px solid var(--line-soft); position:sticky; top:0; background:var(--bg); z-index:5;
     }
     .ovhead h2{font-size:20px; flex:1; letter-spacing:-0.01em;}
+    /* A heading that is also a control (menu rename). Inherits the heading's type
+       so it reads as the title; the trailing pencil is the only affordance. */
+    .title-btn{background:none; border:none; padding:0; margin:0; font:inherit; color:inherit;
+      letter-spacing:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+      max-width:100%; text-align:left;}
+    .title-btn .t{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+    .title-btn svg{flex:none;}
+    .title-btn:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:4px;}
     .ovhead .x{font-size:15px; color:var(--text-dim); padding:6px 4px; font-weight:600;}
     .ovbody{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:18px;}
 
@@ -520,6 +528,18 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .menu-row-ic{ flex:none; width:34px; height:34px; border-radius:50%;
       border:1.5px solid var(--accent); display:flex; align-items:center;
       justify-content:center; margin-right:12px; }
+    /* The menu screen's mini header: the menu-row tint, not tappable. */
+    .menu-head{
+      display:flex; align-items:center; gap:12px; padding:12px 14px; margin-bottom:10px;
+      border-radius:12px;
+      background:rgba(224,118,74,0.09); border:1px solid rgba(224,118,74,0.55);
+      background:color-mix(in srgb, var(--accent) 9%, var(--surface));
+      border-color:color-mix(in srgb, var(--accent) 55%, transparent);
+    }
+    .menu-head-place{
+      font-family:'Fraunces',serif; font-size:17px; color:var(--text); line-height:1.2;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
     .menu-row-label{
       font-family:'Fraunces',serif; font-size:18px; color:var(--text);
       line-height:1.2;
@@ -1085,7 +1105,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.488.0";
+const APP_VERSION   = "1.489.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1896,8 +1916,12 @@ back their whole page at once - dinner, lunch, drinks and brunch in one menu.
 Open the menu and tap **Split** to move sections into a menu of their own: tick
 the ones to move, name where they are going, and the rest stay put. Type the
 name of a menu you already have and they join it instead of starting a new one.
-You cannot move every section out, because that would leave an empty menu - use
-**Rename** for that.
+You cannot move every section out, because that would leave an empty menu - rename
+it instead.
+
+**Renaming a menu.** Tap the menu's name at the top of its page (the one with
+the small pencil beside it) and type a new one - **Dinner**, **Brunch**,
+**Wine list**. Do it any time, not just right after you add it.
 
 **Re-scanning and deleting.** Each menu card offers **Refresh** to replace it
 with a fresh version - photograph it again or pull it from a link - and you
@@ -1953,7 +1977,7 @@ panel lets you *pull down* a menu someone else already digitized here. You can
 share any time (not only right after scanning), and the app gives a gentle
 **"Share your menu?"** nudge so it's easy to find. Community menus you pull are
 labeled "not verified." Tip: rename a menu to what it really is (say **Lunch**
-instead of the default Main) *before* sharing; if you rename and re-share later,
+instead of the default Main, by tapping its name) *before* sharing; if you rename and re-share later,
 the app tidies up your old copy so there's no stale duplicate.
 
 -----
@@ -13028,21 +13052,42 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
     <div className="overlay">
       <div className="ovhead">
         <BackBtn onClick={onClose} />
-        <h2>{menu.label || "Menu"}</h2>
+        {/* The name IS the rename control (2026-10-03): a pencil in the action row
+            went unfound, because a bare pencil reads as "edit the dishes". */}
+        <h2 style={{minWidth:0}}>
+          {onRenameMenu ? (
+            <button className="title-btn" aria-expanded={renaming}
+              aria-label={"Rename this menu, now called " + (menu.label || "Menu")}
+              onClick={()=>{ setRenameText(menu.label || ""); setRenaming(r => !r); setSplitting(false); }}>
+              <span className="t">{menu.label || "Menu"}</span>
+              <Icon name="edit" size={15} color={renaming ? "var(--accent)" : "var(--text-dim)"} />
+            </button>
+          ) : (menu.label || "Menu")}
+        </h2>
         <HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
-        <div className="tiny faint" style={{marginBottom:4}}>
-          {restaurant ? restaurant.name : ""}
+        {/* Mini header (2026-10-03): the place and the date in the same tinted
+            card as the menu rows on the place page, so arriving here looks like
+            opening the card you tapped. Chris picked this over an eyebrow in the
+            top bar. */}
+        <div className="menu-head">
+          <span className="menu-row-ic" style={{marginRight:0}}>
+            <Icon name="book" size={17} color="var(--accent)" />
+          </span>
+          <div style={{minWidth:0}}>
+            {restaurant && restaurant.name ? (
+              <div className="menu-head-place">{restaurant.name}</div>
+            ) : null}
+            <div className="tiny faint">
+              Captured {fmtDate(menu.captured_date)}
+              {menu.source === "seed" ? " (starter data)" : ""}
+            </div>
+          </div>
         </div>
 
-        {/* inline action row: captured date + rescan + delete */}
-        <div className="row between" style={{alignItems:"center",marginBottom:10}}>
-          <div className="tiny faint">
-            Captured {fmtDate(menu.captured_date)}
-            {menu.source === "seed" ? " (starter data)" : ""}
-          </div>
-          <div className="row" style={{gap:6,flex:"none"}}>
+        {/* action row: share, refresh, split, delete. Rename lives on the title. */}
+        <div className="row" style={{gap:6, flexWrap:"wrap", marginBottom:10}}>
             <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
               onClick={()=> publishAndShareMenu(cfg, restaurant, menu, setSharing, setShareErr)}
               disabled={sharing} title="Share this menu">
@@ -13053,12 +13098,6 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
               <span className="row" style={{gap:5, alignItems:"center"}}>
                 <Icon name="refresh" size={15} color="var(--accent)" />Refresh</span>
             </button>
-            {onRenameMenu && (
-              <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-                onClick={()=>{ setRenameText(menu.label || ""); setRenaming(r => !r); setSplitting(false); }} title="Rename this menu">
-                <Icon name="edit" size={15} />
-              </button>
-            )}
             {/* Only offered when there is something to split: one section cannot
                 leave a menu without emptying it. */}
             {onSplitMenu && (menu.sections || []).length > 1 && (
@@ -13075,7 +13114,6 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
               <Icon name="trash" size={15}
                 color={confirmDel ? "#d9604e" : "#80715f"} />
             </button>
-          </div>
         </div>
 
         {splitting && (
@@ -13124,7 +13162,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           <div className="card" style={{marginBottom:10}}>
             <div className="small muted" style={{marginBottom:8}}>Rename this menu</div>
             <ClearInput value={renameText} autoFocus
-              placeholder="Menu name (e.g. Main)"
+              placeholder="e.g. Dinner, Brunch, Wine list"
               onChange={e=> setRenameText(e.target.value)}
               onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); const v=(renameText||"").trim(); if (v){ onRenameMenu(v); setRenaming(false); } } }} />
             <div className="row" style={{gap:8, marginTop:10}}>
