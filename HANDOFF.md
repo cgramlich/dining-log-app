@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.489.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.490.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.126.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.489.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.490.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,24 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Refresh dates the menu today; no fake "Main" note; "Edit dishes" (2026-10-04, 1.490.0)
+
+- **Refresh keeps the old date - fixed.** The re-scan branch set `captured_date: presetMenu.captured_date`,
+  so a menu pulled in October read "Captured May 30". No recorded reason existed. Now
+  `result.captured_date || todayISO()`. **Do not use `last_updated` for this**: tag toggles, renames and
+  photos bump it, so it means "last touched". Splits still carry the source's date (they move content,
+  they do not re-capture it).
+- **"Note from Christopher: Main".** `groupCreate` sends `title: menu.label`; `title` is also the quick
+  order's typed note, and the guest page rendered it as "Note from <host>". Fixed on the READING side
+  (`hostNote` in GroupOrderGuest: a title equal to `menu_snapshot.label` is no note) so open orders are
+  covered and the host's Active group orders list keeps showing which menu. The vote page's `title` is a
+  real question and untouched.
+- **"Edit names & tags" -> "Edit dishes"**, with "Names, signature dish, diet tags" beside it; the old
+  label hid the Signature star it also controls.
+- Group orders expire 24 hours after creation: `group_orders.expires_at` defaults to
+  `now() + '24:00:00'` (read from the live schema 2026-10-04 with the Supabase plugin). The host's open
+  orders list is the **Active group orders** card on Home and You.
 
 ### Rename a menu by tapping its name; a mini header on the menu screen (2026-10-03, 1.489.0)
 
