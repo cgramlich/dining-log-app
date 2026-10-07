@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.495.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.496.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.129.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.495.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.496.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,14 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A quiet Translate link on menus that look English (2026-10-07, 1.496.0)
+
+`canTranslate` no longer requires `menuLooksForeign`: any menu not yet confirmed English (`translation.lang
+=== "en"`) can be translated. Foreign-looking menus keep the "Show English" pill; others get a small
+"Translate" text link in the same place-card spot, so a misjudged foreign menu is never stranded. On a
+truly English menu the tap costs one AI request, records `lang:"en"`, and the link disappears for that
+menu. Road not taken: the pill on every menu (clutter on English menus).
 
 ### A restaurant's own story from a photo (2026-10-07, 1.495.0)
 
