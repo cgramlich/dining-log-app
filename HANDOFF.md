@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.492.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.493.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.128.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.492.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.493.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,22 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Menus printed in two languages; Show English at the top (2026-10-07, 1.493.0)
+
+- **Bilingual menus** (La Bona Sort, Barcelona: Spanish pages above English pages). The digitizers'
+  new TWO LANGUAGES rule: list each dish once in the local language, return the menu's OWN English as
+  `name_en` / `description_en` (section `name_en`), copied word for word, absent on one-language menus.
+  `printedEnglish()` lifts them into `menu.translation` (`source:"menu"`, `lang:"printed"`, keyed by
+  `trKey` on the normalizer's trimmed wording) BEFORE the normalizer drops unknown fields;
+  `_mergeMenus` merges chunk translations; all three save branches attach `result.translation`.
+  `mergeTranslation` keeps `source` only when both halves agree. Show English then shows the printed
+  English, labelled "English as printed on the menu". Road not taken: asking which language to keep
+  (loses one, and pays to AI-translate what the menu already printed). **Untested against a real
+  scan of a bilingual board**; the first one is the live test.
+- **Placement.** Chris couldn't find Show English (a screen and a half down). It is now a pill in the
+  `.menu-head` place card; state + `toggleEnglish` moved to MenuDetail, MenuView takes `showEnglish`.
+  Road not taken: an "EN" pill in the sticky fold bar (in reach, but cryptic).
 
 ### Places abroad get their city; photo estimates reuse the photo (2026-10-07, 1.492.0)
 
