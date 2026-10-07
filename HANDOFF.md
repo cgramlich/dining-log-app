@@ -517,7 +517,9 @@ no global entry. Found by the portfolio overview session, which had already appl
 to the other nine projects. The missing line is
 `alter default privileges for role postgres revoke execute on functions from public;`, now in
 `function_grants.sql` with a rolled-back probe that proves it. Existing functions were never
-affected.
+affected. **Applied live 2026-10-06** with Chris's yes, through the Supabase plugin, as migration
+`default_function_privileges_private`; probe: `anon=f authenticated=f service_role=t`; the four
+existing functions re-checked false/true and no probe function was left behind.
 
 **The grant half is the dangerous one to forget.** Whether `service_role` holds EXECUTE explicitly
 or through PUBLIC depends on the project's default privileges, and this project already surprised
