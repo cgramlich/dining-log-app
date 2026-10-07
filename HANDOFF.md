@@ -507,8 +507,17 @@ covered this: **RLS protects tables, not functions.**
 
 Fixed live 2026-09-29 by Chris in the SQL editor; the statements are now in
 `dining-captain-backend/sql/function_grants.sql`. Blanket revoke from `public, anon,
-authenticated`, explicit grant to `service_role`, and default privileges so later functions start
-locked.
+authenticated`, explicit grant to `service_role`, and schema-level default privileges.
+
+**Correction, 2026-10-06: those default privileges did NOT make later functions start locked**, as
+this entry originally said. A per-schema default can only add to the global default, and Postgres's
+built-in global default grants EXECUTE on new functions to PUBLIC (which includes anon). Verified
+read-only against `pg_default_acl`: postgres has a public-schema entry (postgres, service_role) and
+no global entry. Found by the portfolio overview session, which had already applied the global fix
+to the other nine projects. The missing line is
+`alter default privileges for role postgres revoke execute on functions from public;`, now in
+`function_grants.sql` with a rolled-back probe that proves it. Existing functions were never
+affected.
 
 **The grant half is the dangerous one to forget.** Whether `service_role` holds EXECUTE explicitly
 or through PUBLIC depends on the project's default privileges, and this project already surprised
