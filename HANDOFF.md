@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.490.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.127.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.490.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.491.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.128.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.491.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,31 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Show English on a menu in another language (2026-10-07, app 1.491.0 / backend 0.128.0)
+
+Chris asked how the app handles a restaurant in Spain with Spanish menus. Reading worked and Help me
+order / Explain the menu answered in English, but there was no English menu, and **neither digitizer
+said anything about language**, so a scan could drift into translating on its own. Decided with him:
+translate on tap.
+
+- **Both digitizers** (`digitizeMenu`, `digitizeMenuFromText`) now carry a LANGUAGE rule: keep the
+  printed wording, never translate. The menu is the record; English is a separate layer.
+- **`translateMenu`**: one relay call per batch of up to ~120 dishes (section boundaries), task
+  `translate_menu` (Sonnet 5, routed in backend 0.128.0). Every line goes out with an id (`s2`, `s2i5`)
+  and only ids the app sent are accepted back.
+- **Stored as `menu.translation = {lang, at, sec:{origSectionName: en}, item:{trKey(name, desc): [enName,
+  enDesc]}}`, keyed by ORIGINAL wording, never by position.** Renaming, splitting or reordering can then
+  never attach the wrong English; a changed dish just shows none. Positional keys were the road not
+  taken: smaller, but silently wrong the first time anything moves.
+- Toggle offered when `menuLooksForeign` (30%+ of dishes carry accented letters or es/fr/it/de/pt
+  function words) or a translation exists; a translation that comes back `en` marks the menu English
+  and hides the toggle for good. Preference remembered per device (`mc_menu_en`).
+- Search matches the English. Refresh drops the translation (content replaced); split carries it, and
+  a split into an existing menu merges both (`mergeTranslation`).
+- **Not yet translated:** shared menus, published pages and the group-order guest page still show the
+  original only.
+- Verified: 23 checks on the real code with a stand-in relay; rendered on the real stylesheet.
 
 ### The server watches its own Firecrawl credits (2026-10-06, backend 0.127.0)
 
