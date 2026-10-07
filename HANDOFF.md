@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.494.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.495.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.129.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.494.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.495.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,16 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A restaurant's own story from a photo (2026-10-07, 1.495.0)
+
+Chris photographed FIRE's "Opposites attract" page and asked where it fits. It belongs in **In their
+words** (`restaurant.house_story`), which only ever filled from a menu scan. RestaurantDetail now offers
+"Add their story from a photo" / "Replace from a photo" (`onSaveHouseStory`): it reuses `digitizeMenu`
+(one AI request, 1600px for small print) and shows the text before saving, because it is presented as
+the restaurant's words. Also fixed in Add a menu: a page with **no dishes** used to reach review with zero
+sections and save an EMPTY menu (and a re-scan would have crashed on `menusToSave[0]`); now it saves
+only the story, is never a replace, and the review card and toast say so.
 
 ### The vote that could never be cast (2026-10-07, app 1.494.0 / backend 0.129.0 / DB)
 
