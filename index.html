@@ -1116,7 +1116,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.494.0";
+const APP_VERSION   = "1.495.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1949,6 +1949,12 @@ English, whether or not you have translated. When a menu prints its own English
 (a board with Spanish on top and English below, say), scanning it keeps one copy
 in the local language and uses the restaurant's English for Show English - no
 translation needed, and it says so.
+
+**In their words.** Some restaurants print a page about themselves - who they
+are, what they cook and why. Scanning a menu that includes one keeps it, word
+for word, in an **In their words** card on the place. If it is a separate page,
+open the place and tap **Add their story from a photo** (or **Replace from a
+photo**): you see the text it read before anything is saved.
 
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.
@@ -9560,6 +9566,14 @@ function App({openShare}){
             commit({ restaurants:next }, ["restaurants"]);
             flash("Linked to Google - tap Update from Google to pull details");
           }}
+          onSaveHouseStory={(text)=>{
+            // The restaurant's own words from a photographed page (2026-10-07).
+            const t = String(text || "").trim().slice(0, HOUSE_STORY_MAX);
+            if (!t) return;
+            const next = restaurants.map(x => x.id === overlay.id
+              ? Object.assign({}, x, { house_story: t, house_story_at: todayISO() }) : x);
+            commit({ restaurants: next }, ["restaurants"]);
+          }}
           onStampMeta={(patch)=>{
             // Stamp display-only Google data (rating/price/hours) onto the place.
             const next = restaurants.map(x => x.id === overlay.id ? Object.assign({}, x, patch) : x);
@@ -10169,7 +10183,8 @@ function App({openShare}){
                   : { type:"restaurant", id:restId });
             }
             const savedPlace = newRestaurant || restaurantById(restId);
-            const baseMsg = isReplace ? "Menu replaced"
+            const baseMsg = !menusToSave.length ? "Saved their story to In their words"
+              : isReplace ? "Menu replaced"
               : (menusToSave.length > 1 ? menusToSave.length + " menus saved" : "Menu saved");
             // Deliberately no share offer here. The restaurant page already
             // shows the "Share your menu?" card for exactly this case, and a
@@ -12033,8 +12048,33 @@ function OffMenuCard({ place, onSave }){
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onRescanMenu, onOpenVisit,
-                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onSaveOffMenu, onAddPhotos, onToggleVisitLoved, onUpgrade, onHome}){
+                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onSaveOffMenu, onAddPhotos, onToggleVisitLoved, onUpgrade, onSaveHouseStory, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
+  // "In their words" from a photographed page (2026-10-07): a story page has no
+  // dishes, so it could only ever arrive by accident inside a menu scan.
+  const storyFileRef = useRef(null);
+  const [storyBusy, setStoryBusy]   = useState(false);
+  const [storyErr, setStoryErr]     = useState("");
+  const [storyDraft, setStoryDraft] = useState(null);
+  async function onStoryPhotos(e){
+    const files = Array.from((e.target && e.target.files) || []).slice(0, 4);
+    if (storyFileRef.current) storyFileRef.current.value = "";
+    if (!files.length) return;
+    if (!configComplete(cfg)){ setStoryErr("Set up your account in Settings."); return; }
+    setStoryBusy(true); setStoryErr(""); setStoryDraft(null);
+    try {
+      const dataUrls = [];
+      for (const f of files) dataUrls.push(await resizeForOcr(f, 1600));   // small print needs the pixels
+      const parsed = await digitizeMenu(cfg, dataUrls);
+      const story = ((parsed && parsed.house_story) || "").trim();
+      if (!story) throw new Error("Couldn't find a passage about the restaurant on that page. Try a closer, straighter photo.");
+      setStoryDraft(story);
+    } catch(err){
+      setStoryErr(err.message || "Couldn't read that page. Try again.");
+    } finally {
+      setStoryBusy(false);
+    }
+  }
   const [lightbox, setLightbox]     = useState(null);   // {paths, index} | null
   const [addPhotoFor, setAddPhotoFor] = useState(null); // visit awaiting a card-level photo add
   const addPhotoRef = useRef(null);
@@ -12691,20 +12731,45 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             separate card from About this place, so marketing never reads as
             somebody's first-hand knowledge. The explanation lives behind the
             info icon rather than taking up the card. */}
+        <input ref={storyFileRef} type="file" accept="image/*" multiple style={{display:"none"}}
+          onChange={onStoryPhotos} />
         {(r.house_story || "").trim() ? (
           <div className="card" style={{marginTop:14, padding:"13px 15px"}}>
             <div className="row" style={{gap:6, alignItems:"center", marginBottom:7}}>
               <span className="lbl" style={{margin:0}}>In their words</span>
               <InfoDot title="In their words">
-                <span className="idl">The story this restaurant prints on its own menu, picked up
-                  when the menu was scanned{r.house_story_at ? " on " + r.house_story_at : ""}.</span>
+                <span className="idl">The story this restaurant prints about itself, picked up from
+                  its menu or a page you photographed{r.house_story_at ? " on " + r.house_story_at : ""}.</span>
                 <span className="idl">It is their description, not yours or a friend's. It stays
                   private to you and is not included when you share the place.</span>
-                <span className="idl">Scanning a newer menu that has a story replaces it.</span>
+                <span className="idl">A newer menu or page with a story replaces it.</span>
               </InfoDot>
             </div>
             <div className="small muted" style={{whiteSpace:"pre-wrap", lineHeight:1.5, fontStyle:"italic"}}>
               {r.house_story.trim()}
+            </div>
+            {onSaveHouseStory && !storyDraft ? (
+              <button type="button" className="tiny" disabled={storyBusy}
+                style={{marginTop:8, background:"none", border:"none", padding:0, color:"var(--accent)", cursor:"pointer"}}
+                onClick={()=> storyFileRef.current && storyFileRef.current.click()}>
+                {storyBusy ? "Reading the page..." : "Replace from a photo"}</button>
+            ) : null}
+          </div>
+        ) : (onSaveHouseStory && !storyDraft ? (
+          <button type="button" className="btn ghost sm" disabled={storyBusy} style={{marginTop:14}}
+            onClick={()=> storyFileRef.current && storyFileRef.current.click()}>
+            {storyBusy ? <span className="spin" /> : <Icon name="camera" size={14} />}
+            {storyBusy ? "Reading the page..." : "Add their story from a photo"}
+          </button>
+        ) : null)}
+        {storyErr ? <div className="tiny" style={{color:"#d9604e", marginTop:6}}>{storyErr}</div> : null}
+        {storyDraft ? (
+          <div className="card" style={{marginTop:14, padding:"13px 15px"}}>
+            <div className="small muted" style={{marginBottom:7}}>Read from your photo. Save it as "In their words"?</div>
+            <div className="small" style={{whiteSpace:"pre-wrap", lineHeight:1.5, fontStyle:"italic"}}>{storyDraft}</div>
+            <div className="row" style={{gap:8, marginTop:10}}>
+              <button className="btn primary sm" onClick={()=>{ onSaveHouseStory(storyDraft); setStoryDraft(null); }}>Save</button>
+              <button className="btn ghost sm" onClick={()=> setStoryDraft(null)}>Cancel</button>
             </div>
           </div>
         ) : null}
@@ -21272,6 +21337,10 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       }];
     }
 
+    // A page with no dishes (a restaurant's story page, say) saves only its
+    // story. Without this it saved an EMPTY menu beside it (2026-10-07).
+    if (!sections.length) menusToSave = [];
+
     logMsg("SCAN", (isReplace ? "Replacing menu (re-scan)" :
                    menusToSave.length > 1 ? "Adding " + menusToSave.length + " menus" :
                                             "Adding 1 menu") +
@@ -21286,7 +21355,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       ? foundMenus.filter(mn => mn.url !== curUrl && addedUrls.indexOf(mn.url) === -1)
       : [];
     const stayOpen = remaining.length > 0;
-    onSave(targetRestId, menusToSave, newRestaurant, isReplace,
+    // A story-only save is never a replace: there is no menu to swap in, and
+    // replacing a menu with nothing would empty it.
+    onSave(targetRestId, menusToSave, newRestaurant, isReplace && menusToSave.length > 0,
            { stayOpen, houseStory: (result && result.house_story) || "" });
     if (stayOpen){
       setAddedUrls(prev => prev.concat([curUrl]));
@@ -21595,8 +21666,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         {step === "review" && result && (
           <div>
             <div className="card small muted">
-              Review the digitized menu, choose which restaurant it belongs to,
-              then name it.
+              {!(result.sections || []).length && result.house_story
+                ? "No dishes on this page, but it tells the restaurant's story. Choose the place and save, and it goes into In their words."
+                : "Review the digitized menu, choose which restaurant it belongs to, then name it."}
             </div>
 
             <label className="fld"><span className="lbl">Save menu to</span>

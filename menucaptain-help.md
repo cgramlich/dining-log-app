@@ -238,6 +238,12 @@ English, whether or not you have translated. When a menu prints its own English
 in the local language and uses the restaurant's English for Show English - no
 translation needed, and it says so.
 
+**In their words.** Some restaurants print a page about themselves - who they
+are, what they cook and why. Scanning a menu that includes one keeps it, word
+for word, in an **In their words** card on the place. If it is a separate page,
+open the place and tap **Add their story from a photo** (or **Replace from a
+photo**): you see the text it read before anything is saved.
+
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.
 Open the menu and tap **Split** to move sections into a menu of their own: tick
