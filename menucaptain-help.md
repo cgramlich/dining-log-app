@@ -227,7 +227,8 @@ from the menu itself plus the scan's best read of each dish.
 
 **Menus in another language.** A menu is kept exactly as the restaurant
 printed it. On a menu in Spanish, French or another language, tap **Show
-English** at the top of the menu: the first time, every dish and section is translated in one go (it
+English** at the top of the menu (on a menu the app takes for English it is a small
+**Translate** link instead, in case it guessed wrong): the first time, every dish and section is translated in one go (it
 counts as one AI request, or one per hundred-odd dishes on a very long menu) and
 saved, so it is instant after that. The English sits under each original line,
 so you can still point at the menu when you order, and searching finds dishes

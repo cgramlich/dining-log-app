@@ -1116,7 +1116,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.495.0";
+const APP_VERSION   = "1.496.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1939,7 +1939,8 @@ from the menu itself plus the scan's best read of each dish.
 
 **Menus in another language.** A menu is kept exactly as the restaurant
 printed it. On a menu in Spanish, French or another language, tap **Show
-English** at the top of the menu: the first time, every dish and section is translated in one go (it
+English** at the top of the menu (on a menu the app takes for English it is a small
+**Translate** link instead, in case it guessed wrong): the first time, every dish and section is translated in one go (it
 counts as one AI request, or one per hundred-odd dishes on a very long menu) and
 saved, so it is instant after that. The English sits under each original line,
 so you can still point at the menu when you order, and searching finds dishes
@@ -13300,7 +13301,11 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   const trOf = (menu && menu.translation && menu.translation.lang && menu.translation.lang !== "en")
     ? menu.translation : null;
   const knownEnglish = !!(menu && menu.translation && menu.translation.lang === "en");
-  const canTranslate = !!(menu && onSaveTranslation && !knownEnglish && (trOf || menuLooksForeign(menu)));
+  // Every menu not yet confirmed English can be translated (2026-10-07): the
+  // full button where it looks foreign, a quiet "Translate" link elsewhere, so
+  // a foreign menu the detector misjudges is never stranded without it.
+  const canTranslate = !!(menu && onSaveTranslation && !knownEnglish);
+  const looksForeign = !!(trOf || (menu && menuLooksForeign(menu)));
   const showEn = !!(enOn && trOf);
   function setEnPref(on){ setEnOn(on); try { localStorage.setItem("mc_menu_en", on ? "1" : "0"); } catch(e){} }
   async function toggleEnglish(){
@@ -13458,13 +13463,18 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           </div>
           {/* Show English lives here, the first thing on screen (2026-10-07):
               lower down it went unfound. Only on menus in another language. */}
-          {canTranslate ? (
+          {canTranslate && looksForeign ? (
             <button type="button" className={"chip pick" + (showEn ? " on" : "")}
               style={{flex:"none"}} aria-pressed={showEn} disabled={trBusy} onClick={toggleEnglish}>
               {trBusy
                 ? <span className="row" style={{gap:6, alignItems:"center"}}><span className="spin" />
                     {trProg && trProg.total > 1 ? trProg.n + " of " + trProg.total : "Translating"}</span>
                 : "Show English"}
+            </button>
+          ) : canTranslate ? (
+            <button type="button" className="tiny" disabled={trBusy} onClick={toggleEnglish}
+              style={{flex:"none", background:"none", border:"none", padding:"4px 2px", color:"var(--accent)", cursor:"pointer"}}>
+              {trBusy ? <span className="row" style={{gap:6, alignItems:"center"}}><span className="spin" />Translating</span> : "Translate"}
             </button>
           ) : null}
         </div>
