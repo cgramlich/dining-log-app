@@ -495,6 +495,12 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
           font-variant-numeric:tabular-nums; overflow-wrap:anywhere;}
     .mitem .ipr.paid{color:var(--text-faint); font-weight:400; font-style:italic;}
     .mitem .idesc{font-size:13px; color:var(--text-dim); margin-top:3px; line-height:1.45;}
+    /* Show English: the translation sits under the original, quieter and in
+       italics, so the printed wording stays the thing you point at. */
+    .mitem .ien{font-size:13.5px; color:var(--text); font-style:italic; margin-top:2px; opacity:0.85;}
+    .mitem .idesc-en{font-style:italic;}
+    .msec-head .nm-en{display:block; font-family:inherit; font-size:12.5px; font-weight:500;
+      font-style:italic; color:var(--text-dim); letter-spacing:0; margin-top:1px;}
 
     /* ---- misc ---- */
     .empty{text-align:center; padding:46px 20px; color:var(--text-faint);}
@@ -1105,7 +1111,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.490.0";
+const APP_VERSION   = "1.491.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1910,6 +1916,16 @@ menu. Searching a menu always shows every match, whatever option is set.
 **Dietary filters.** Open a menu and tap the diet chips (vegetarian, vegan,
 gluten-free, and friends) to narrow the list to dishes that fit - tags come
 from the menu itself plus the scan's best read of each dish.
+
+**Menus in another language.** A menu is kept exactly as the restaurant
+printed it. On a menu in Spanish, French or another language, tap **Show
+English**: the first time, every dish and section is translated in one go (it
+counts as one AI request, or one per hundred-odd dishes on a very long menu) and
+saved, so it is instant after that. The English sits under each original line,
+so you can still point at the menu when you order, and searching finds dishes
+by their English too. Tap **Show English** again to hide it; your choice is
+remembered on this device. Help me order and Explain the menu always answer in
+English, whether or not you have translated.
 
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.
@@ -4798,6 +4814,131 @@ async function ghPutFile(cfg, path, dataObj, sha){
 }
 
 /* ============================================================
+   MENU TRANSLATION - "Show English" (2026-10-07)
+   ============================================================
+   A menu stays exactly as the restaurant printed it; English is a separate,
+   saved layer shown under each line. It is keyed by each dish's ORIGINAL
+   name + description, never by position, so renaming, splitting or
+   reordering can never attach the wrong English to a dish: a dish whose
+   wording changed simply shows none. */
+const TR_SEP = " || ";
+function trKey(name, desc){ return String(name || "").trim() + TR_SEP + String(desc || "").trim(); }
+
+// Only decides whether to OFFER the toggle; the translation request itself
+// confirms the language, and an English menu then hides it for good.
+const FOREIGN_RE = /[\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00fc\u00e0\u00e8\u00ec\u00f2\u00f9\u00e2\u00ea\u00ee\u00f4\u00fb\u00e7\u00e3\u00f5\u00e4\u00f6\u00df\u00bf\u00a1]|\b(de|del|con|las|los|el|al|y|du|des|les|aux|au|et|di|della|alla|alle|und|mit|der|die|das|com|da|do|ao)\b/i;
+function menuLooksForeign(menu){
+  const items = [];
+  ((menu && menu.sections) || []).forEach(sec => (sec.items || []).forEach(it => items.push(it)));
+  if (items.length < 3) return false;
+  const hits = items.filter(it => FOREIGN_RE.test((it.name || "") + " " + (it.description || ""))).length;
+  return hits / items.length >= 0.3;     // a few French dish names on an English menu stay under this
+}
+
+function mergeTranslation(a, b){
+  if (!a) return b || undefined;
+  if (!b) return a;
+  return { lang: a.lang || b.lang, at: a.at || b.at,
+           sec: Object.assign({}, b.sec, a.sec), item: Object.assign({}, b.item, a.item) };
+}
+
+// One AI request per batch of up to ~120 dishes, split on section boundaries.
+// Every line goes out with an id ("s2", "s2i5") and comes back under the same
+// id, so the answer maps to dishes by id, never by order.
+async function translateMenu(cfg, menu, onProgress){
+  const secs = (menu && menu.sections) || [];
+  const batches = []; let cur = [], count = 0;
+  secs.forEach((sec, si) => {
+    const n = (sec.items || []).length;
+    if (cur.length && count + n > 120){ batches.push(cur); cur = []; count = 0; }
+    cur.push(si); count += n;
+  });
+  if (cur.length) batches.push(cur);
+  const out = { lang: null, at: todayISO(), sec: {}, item: {} };
+  for (let b = 0; b < batches.length; b++){
+    if (onProgress) onProgress(b + 1, batches.length);
+    const lines = [], ids = {};
+    batches[b].forEach(si => {
+      const sec = secs[si];
+      lines.push("s" + si + ": " + (sec.name || ""));
+      (sec.items || []).forEach((it, ii) => {
+        const id = "s" + si + "i" + ii;
+        ids[id] = it;
+        lines.push(id + ": " + (it.name || "") + (it.description ? "  ||  " + it.description : ""));
+      });
+    });
+    const prompt =
+      "Translate this restaurant menu into natural English for a diner deciding what "+
+      "to order. Each line is an id, a colon, then the original text. Section lines "+
+      "have ids like s0; dish lines have ids like s0i0 and read 'name  ||  description'.\n\n"+
+      "Return ONLY JSON, no markdown:\n"+
+      '{"language": "two-letter code of the menu\'s language", "sections": {"s0": "English '+
+      'section name"}, "items": {"s0i0": {"n": "English dish name", "d": "English description, '+
+      'or empty string"}}}\n\n'+
+      "Rules:\n"+
+      "- If the menu is already in English, return {\"language\": \"en\"} and nothing else.\n"+
+      "- Translate faithfully. Never add an ingredient, cooking method or claim that is "+
+      "not in the original. If you do not know a term, keep the original word rather "+
+      "than guess.\n"+
+      "- Give each dish the name a diner would understand (\"Pulpo a la gallega\" -> "+
+      "\"Galician-style octopus\"), but keep dish names people order by as they are "+
+      "(paella, gazpacho, tapas).\n"+
+      "- Every id in the input appears exactly once in the output. No prices.\n\n"+
+      "MENU:\n" + lines.join("\n");
+    const nItems = Object.keys(ids).length;
+    let res;
+    try {
+      res = await fetch(apiBase(cfg) + "/api/ai/relay", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+        body:JSON.stringify({
+          task:"translate_menu",
+          model:ASK_MODEL,
+          max_tokens: Math.min(16000, 600 + nItems * 90),
+          messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
+        }),
+      });
+    } catch(err){
+      throw new Error("Could not reach the AI service - " + ((err && err.message) || "no reason given") +
+                      ". If you are on a weak signal, try again.");
+    }
+    if (!res.ok){
+      const txt = await res.text().catch(()=> "");
+      let _detail = ""; try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
+      if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
+      if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
+      if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
+      throw new Error(_detail || ("Translation failed (" + res.status + ")"));
+    }
+    const json = await res.json();
+    let text = (json.content || []).filter(x => x.type === "text").map(x => x.text).join("").trim();
+    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    let j;
+    try { j = JSON.parse(text); }
+    catch(e){ throw new Error("The translation came back garbled. Try again."); }
+    const lang = String((j && j.language) || "").trim().toLowerCase().slice(0, 5);
+    if (!out.lang) out.lang = lang || null;
+    if (lang === "en" && b === 0) return { lang: "en", at: todayISO(), sec: {}, item: {} };
+    // Only ids we sent are accepted; anything else in the answer is ignored.
+    Object.keys((j && j.sections) || {}).forEach(id => {
+      const mm = /^s(\d+)$/.exec(id);
+      if (!mm || batches[b].indexOf(+mm[1]) === -1) return;
+      const en = String(j.sections[id] || "").trim().slice(0, 120);
+      if (en) out.sec[String(secs[+mm[1]].name || "").trim()] = en;
+    });
+    Object.keys((j && j.items) || {}).forEach(id => {
+      const it = ids[id]; if (!it) return;
+      const v = j.items[id] || {};
+      const n = String(v.n || "").trim().slice(0, 160), d = String(v.d || "").trim().slice(0, 600);
+      if (n || d) out.item[trKey(it.name, it.description)] = [n, d];
+    });
+    logMsg("TRANSLATE", "batch " + (b + 1) + "/" + batches.length + " lang=" + lang +
+           " sent=" + nItems + " got=" + Object.keys((j && j.items) || {}).length);
+  }
+  return out;
+}
+
+/* ============================================================
    ANTHROPIC VISION - menu digitization
    ============================================================ */
 async function digitizeMenu(cfg, dataUrls){
@@ -4816,6 +4957,9 @@ async function digitizeMenu(cfg, dataUrls){
     "history, founders, origins, philosophy - copy it word for word, keeping "+
     "paragraph breaks. Not dish descriptions, not hours, address, allergy or "+
     "gratuity notices. null if there is none. Never write one yourself.\n"+
+    "- LANGUAGE: keep every section name, dish name and description in the "+
+    "menu's own language exactly as printed. Never translate; the app shows "+
+    "English separately when the diner asks for it.\n"+
     "- price: a string exactly as printed (e.g. \"$12.95\", \"6.25 ea / 2 for 11.50\", "+
     "\"MP\"); empty string if none.\n"+
     "- A menu may price ONE dish across several sizes or styles in a grid. Keep "+
@@ -5036,6 +5180,9 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
     "history, founders, origins, philosophy - copy it word for word, keeping "+
     "paragraph breaks. Not dish descriptions, not hours, address, allergy or "+
     "gratuity notices. null if there is none. Never write one yourself.\n"+
+    "- LANGUAGE: keep every section name, dish name and description in the "+
+    "menu's own language exactly as printed. Never translate; the app shows "+
+    "English separately when the diner asks for it.\n"+
     "- price: a string exactly as written (e.g. \"$12.95\", \"MP\"); empty string if none.\n"+
     "- A menu may price ONE dish across several sizes or styles in a grid. Keep "+
     "every number attached to its own label so no price is ambiguous, e.g. "+
@@ -9518,6 +9665,15 @@ function App({openShare}){
             commit({ visits: [visit].concat(visits) }, ["visits"]);
             flash("Started today's visit with " + nm);
           }}
+          onSaveTranslation={(translation)=>{
+            // Saved on the menu as one object keyed by each dish's ORIGINAL
+            // wording (see translateMenu), so later views cost nothing.
+            const rid = overlay.restaurantId, mid = overlay.menuId;
+            const list = menus[rid] || [];
+            const nextList = list.map(m => m.menu_id !== mid ? m
+              : Object.assign({}, m, { translation: translation }));
+            commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
+          }}
           onSaveItemSig={(si, ii, on)=>{
             // Mark the dish this place is known for. Same section+item
             // addressing as the tag editor above; kept OUT of `tags` because
@@ -12929,11 +13085,13 @@ function splitMenuSections(list, menuId, idxs, rawLabel){
     ? Object.assign({}, x, { sections: keep, last_updated: todayISO() })
     : (dest && x.menu_id === dest.menu_id
         ? Object.assign({}, x, { sections: (x.sections || []).concat(take),
+                                 translation: mergeTranslation(x.translation, src.translation),
                                  last_updated: todayISO() })
         : x));
   if (dest) return out;
   return out.concat([{ menu_id: uid("menu"), label: label, sections: take,
                        captured_date: src.captured_date, source: src.source,
+                       translation: src.translation,   // keyed by wording, so extra entries are harmless
                        last_updated: todayISO() }]);
 }
 
@@ -12941,7 +13099,7 @@ function splitMenuSections(list, menuId, idxs, rawLabel){
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onHome}){
+function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, onHome}){
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
@@ -13349,6 +13507,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           onSaveItemPhoto={onSaveItemPhoto}
           onSaveItemTags={onSaveItemTags}
           onSaveItemSig={onSaveItemSig}
+          onSaveTranslation={onSaveTranslation}
           onHadThis={onHadThis}
           hadToday={(function(){
             const t = todayISO(), out = {};
@@ -13370,7 +13529,38 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem}){
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, onSaveTranslation}){
+  // Show English (2026-10-07). The preference is remembered on the device, so
+  // a traveller who turns it on once sees English on every translated menu.
+  const [enOn, setEnOn] = useState(()=>{ try { return localStorage.getItem("mc_menu_en") === "1"; } catch(e){ return false; } });
+  const [trBusy, setTrBusy] = useState(false);
+  const [trProg, setTrProg] = useState(null);
+  const [trErr, setTrErr]   = useState("");
+  const [trNote, setTrNote] = useState("");
+  const tr = (menu && menu.translation && menu.translation.lang && menu.translation.lang !== "en")
+    ? menu.translation : null;
+  const knownEnglish = !!(menu && menu.translation && menu.translation.lang === "en");
+  const canTranslate = !!onSaveTranslation && !knownEnglish && (tr || menuLooksForeign(menu));
+  const showEn = !!(enOn && tr);
+  const enFor = (it)=> (tr && tr.item && tr.item[trKey(it.name, it.description)]) || null;
+  const sameText = (x, y)=> String(x || "").trim().toLowerCase() === String(y || "").trim().toLowerCase();
+  function setEnPref(on){ setEnOn(on); try { localStorage.setItem("mc_menu_en", on ? "1" : "0"); } catch(e){} }
+  async function toggleEnglish(){
+    setTrErr(""); setTrNote("");
+    if (tr){ setEnPref(!enOn); return; }
+    if (!configComplete(cfg)){ setTrErr("Set up your account in Settings."); return; }
+    setTrBusy(true);
+    try {
+      const t = await translateMenu(cfg, menu, (n, total)=> setTrProg({ n, total }));
+      onSaveTranslation(t);
+      if (t.lang === "en") setTrNote("This menu is already in English.");
+      else setEnPref(true);
+    } catch(err){
+      setTrErr(err.message || "Translation failed. Try again.");
+    } finally {
+      setTrBusy(false); setTrProg(null);
+    }
+  }
   // Which item's "I had this" panel is open, and what is typed in it.
   const [hadOpen, setHadOpen] = useState(null);   // "si:ii" | null
   const [hadNote, setHadNote] = useState("");
@@ -13441,8 +13631,12 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
   const sections = (menu.sections || []).map((s,i)=>{
     const withIdx = (s.items || []).map((it,oj)=> ({ it, oj }));
     if (!q) return { s, i, items:withIdx };
-    const items = withIdx.filter(({it}) =>
-      (it.name + " " + it.description).toLowerCase().indexOf(q) !== -1);
+    // The English counts too once there is one: "octopus" finds "pulpo".
+    const items = withIdx.filter(({it}) => {
+      const en = enFor(it);
+      return (it.name + " " + it.description + (en ? " " + en[0] + " " + en[1] : ""))
+        .toLowerCase().indexOf(q) !== -1;
+    });
     return { s, i, items };
   }).filter(x => !q || x.items.length);
 
@@ -13530,6 +13724,20 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
       {sections.length === 0 && (
         <div className="small faint" style={{padding:"12px 2px"}}>No items match.</div>
       )}
+      {canTranslate ? (
+        <div className="row" style={{gap:10, alignItems:"center", margin:"2px 0 8px", flexWrap:"wrap"}}>
+          <button type="button" className={"chip pick" + (showEn ? " on" : "")}
+            aria-pressed={showEn} disabled={trBusy} onClick={toggleEnglish}>
+            {trBusy
+              ? <span className="row" style={{gap:6, alignItems:"center"}}><span className="spin" />
+                  {"Translating" + (trProg && trProg.total > 1 ? " (" + trProg.n + " of " + trProg.total + ")" : "") + "\u2026"}</span>
+              : "Show English"}
+          </button>
+          {!tr && !trBusy && !trErr ? <span className="tiny faint">Translates every dish once, then it's saved</span> : null}
+          {trErr ? <span className="tiny" style={{color:"#d9604e"}}>{trErr}</span> : null}
+        </div>
+      ) : null}
+      {trNote ? <div className="tiny faint" style={{margin:"0 2px 8px"}}>{trNote}</div> : null}
       <MenuFoldBar fold={fold} count={sections.length} />
       {sections.map(({s,i,items})=>{
         // A search opens everything: a match inside a closed section is a match
@@ -13540,7 +13748,10 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
           <button type="button" className="msec-head" aria-expanded={secOpen}
             style={{width:"100%", textAlign:"left"}}
             onClick={()=> fold.toggle(i)}>
-            <span className="nm">{s.name}</span>
+            <span className="nm">{s.name}
+              {showEn && tr.sec && tr.sec[String(s.name || "").trim()] && !sameText(tr.sec[String(s.name || "").trim()], s.name)
+                ? <span className="nm-en">{tr.sec[String(s.name || "").trim()]}</span> : null}
+            </span>
             <span className="row" style={{gap:8}}>
               <span className="ct">{items.length}</span>
               <Chevron open={secOpen} size={16} color="#80715f" />
@@ -13634,9 +13845,13 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                       ? it.sig.trim() : "What they are known for"}</span>
                   </div>
                 ) : null}
+                {showEn && enFor(it) && enFor(it)[0] && !sameText(enFor(it)[0], it.name)
+                  ? <div className="ien">{enFor(it)[0]}</div> : null}
                 {it.price && isWidePrice(it.price)
                   ? <div className="iprl">{it.price}</div> : null}
                 {it.description && <div className="idesc">{it.description}</div>}
+                {showEn && enFor(it) && enFor(it)[1] && !sameText(enFor(it)[1], it.description)
+                  ? <div className="idesc idesc-en">{enFor(it)[1]}</div> : null}
                 {!editTags && it.tags && it.tags.length > 0 && (
                   <div className="chips" style={{marginTop:6}}>
                     {it.tags.map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
