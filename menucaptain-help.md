@@ -227,13 +227,16 @@ from the menu itself plus the scan's best read of each dish.
 
 **Menus in another language.** A menu is kept exactly as the restaurant
 printed it. On a menu in Spanish, French or another language, tap **Show
-English**: the first time, every dish and section is translated in one go (it
+English** at the top of the menu: the first time, every dish and section is translated in one go (it
 counts as one AI request, or one per hundred-odd dishes on a very long menu) and
 saved, so it is instant after that. The English sits under each original line,
 so you can still point at the menu when you order, and searching finds dishes
 by their English too. Tap **Show English** again to hide it; your choice is
 remembered on this device. Help me order and Explain the menu always answer in
-English, whether or not you have translated.
+English, whether or not you have translated. When a menu prints its own English
+(a board with Spanish on top and English below, say), scanning it keeps one copy
+in the local language and uses the restaurant's English for Show English - no
+translation needed, and it says so.
 
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.

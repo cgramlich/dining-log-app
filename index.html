@@ -1116,7 +1116,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.492.0";
+const APP_VERSION   = "1.493.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1939,13 +1939,16 @@ from the menu itself plus the scan's best read of each dish.
 
 **Menus in another language.** A menu is kept exactly as the restaurant
 printed it. On a menu in Spanish, French or another language, tap **Show
-English**: the first time, every dish and section is translated in one go (it
+English** at the top of the menu: the first time, every dish and section is translated in one go (it
 counts as one AI request, or one per hundred-odd dishes on a very long menu) and
 saved, so it is instant after that. The English sits under each original line,
 so you can still point at the menu when you order, and searching finds dishes
 by their English too. Tap **Show English** again to hide it; your choice is
 remembered on this device. Help me order and Explain the menu always answer in
-English, whether or not you have translated.
+English, whether or not you have translated. When a menu prints its own English
+(a board with Spanish on top and English below, say), scanning it keeps one copy
+in the local language and uses the restaurant's English for Show English - no
+translation needed, and it says so.
 
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.
@@ -4876,7 +4879,31 @@ function mergeTranslation(a, b){
   if (!a) return b || undefined;
   if (!b) return a;
   return { lang: a.lang || b.lang, at: a.at || b.at,
+           // "menu" only when BOTH halves are the restaurant's own printed English.
+           source: (a.source === b.source) ? a.source : undefined,
            sec: Object.assign({}, b.sec, a.sec), item: Object.assign({}, b.item, a.item) };
+}
+
+// The menu's own printed English, lifted out of a scan (2026-10-07). Same
+// shape Show English reads, marked source "menu" so the screen can say it is
+// the restaurant's wording, not ours. Keys use the normalizer's trimming, so
+// they match the saved dish names exactly. null when nothing was printed.
+function printedEnglish(sections){
+  const out = { lang: "printed", source: "menu", at: todayISO(), sec: {}, item: {} };
+  let n = 0;
+  (sections || []).forEach(sec => {
+    const sen = String((sec && sec.name_en) || "").trim().slice(0, 120);
+    if (sen){ out.sec[String((sec && sec.name) || "Menu").trim()] = sen; n++; }
+    ((sec && sec.items) || []).forEach(it => {
+      const en = String((it && it.name_en) || "").trim().slice(0, 160);
+      const de = String((it && it.description_en) || "").trim().slice(0, 600);
+      if (it && (en || de)){
+        out.item[trKey(String(it.name || "").trim(), String(it.description || "").trim())] = [en, de];
+        n++;
+      }
+    });
+  });
+  return n ? out : null;
 }
 
 // One AI request per batch of up to ~120 dishes, split on section boundaries.
@@ -4997,6 +5024,12 @@ async function digitizeMenu(cfg, dataUrls){
     "- LANGUAGE: keep every section name, dish name and description in the "+
     "menu's own language exactly as printed. Never translate; the app shows "+
     "English separately when the diner asks for it.\n"+
+    "- TWO LANGUAGES: if the menu prints the SAME dishes in two languages (for "+
+    "example Spanish pages and English pages), list each dish ONCE, in the local "+
+    "(non-English) language, and add the menu's own English as \"name_en\" and "+
+    "\"description_en\" on that item (and \"name_en\" on its section). Copy the "+
+    "printed English word for word; never write your own. Leave them out where "+
+    "no English is printed, and on any menu printed in only one language.\n"+
     "- price: a string exactly as printed (e.g. \"$12.95\", \"6.25 ea / 2 for 11.50\", "+
     "\"MP\"); empty string if none.\n"+
     "- A menu may price ONE dish across several sizes or styles in a grid. Keep "+
@@ -5092,6 +5125,7 @@ async function digitizeMenu(cfg, dataUrls){
   }
   if (!Array.isArray(parsed.sections)) throw new Error("Model response had no sections array");
   // normalize so downstream rendering is safe
+  const printed = printedEnglish(parsed.sections);   // before the normalizer drops *_en
   parsed.sections = parsed.sections.map(s => ({
     name:String(s.name || "Menu"),
     items:(s.items || []).map(it => {
@@ -5115,6 +5149,7 @@ async function digitizeMenu(cfg, dataUrls){
     }).filter(it => it.name),
   })).filter(s => s.items.length);
   parsed.raw_text = String(parsed.raw_text || "");
+  if (printed) parsed.translation = printed;
   return cleanHouseStory(parsed);
 }
 
@@ -5143,6 +5178,7 @@ function _mergeMenus(a, b){
   if (!a) return b; if (!b) return a;
   const out = { restaurant_name: a.restaurant_name || b.restaurant_name || null,
                 house_story: a.house_story || b.house_story || undefined,
+                translation: mergeTranslation(a.translation, b.translation),
                 sections: (a.sections || []).map(s => ({ name:s.name, items:(s.items||[]).slice() })),
                 raw_text: "" };
   const idx = {};
@@ -5220,6 +5256,12 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
     "- LANGUAGE: keep every section name, dish name and description in the "+
     "menu's own language exactly as printed. Never translate; the app shows "+
     "English separately when the diner asks for it.\n"+
+    "- TWO LANGUAGES: if the menu prints the SAME dishes in two languages (for "+
+    "example Spanish pages and English pages), list each dish ONCE, in the local "+
+    "(non-English) language, and add the menu's own English as \"name_en\" and "+
+    "\"description_en\" on that item (and \"name_en\" on its section). Copy the "+
+    "printed English word for word; never write your own. Leave them out where "+
+    "no English is printed, and on any menu printed in only one language.\n"+
     "- price: a string exactly as written (e.g. \"$12.95\", \"MP\"); empty string if none.\n"+
     "- A menu may price ONE dish across several sizes or styles in a grid. Keep "+
     "every number attached to its own label so no price is ambiguous, e.g. "+
@@ -5274,6 +5316,7 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
   try { parsed = parseJsonLoose(text); }
   catch(err){ throw new Error("Couldn’t read a menu from that page. Try scanning it instead."); }
   if (!Array.isArray(parsed.sections)) parsed.sections = [];
+  const printed = printedEnglish(parsed.sections);   // before the normalizer drops *_en
   parsed.sections = parsed.sections.map(s => ({
     name:String(s.name || "Menu"),
     items:(s.items || []).map(it => {
@@ -5293,6 +5336,7 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
       return item;
     }).filter(it => it.name),
   })).filter(s => s.items.length);
+  if (printed) parsed.translation = printed;
   return cleanHouseStory(parsed);
 }
 
@@ -13173,6 +13217,35 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   const [shareErr, setShareErr] = useState(null);     // small note under the row
   const [renaming, setRenaming] = useState(false);    // rename this menu's name
   const [renameText, setRenameText] = useState((menu && menu.label) || "");
+  // Show English (2026-10-07). Remembered on the device, so a traveller who
+  // turns it on once sees English on every translated menu.
+  const [enOn, setEnOn]     = useState(()=>{ try { return localStorage.getItem("mc_menu_en") === "1"; } catch(e){ return false; } });
+  const [trBusy, setTrBusy] = useState(false);
+  const [trProg, setTrProg] = useState(null);
+  const [trErr, setTrErr]   = useState("");
+  const [trNote, setTrNote] = useState("");
+  const trOf = (menu && menu.translation && menu.translation.lang && menu.translation.lang !== "en")
+    ? menu.translation : null;
+  const knownEnglish = !!(menu && menu.translation && menu.translation.lang === "en");
+  const canTranslate = !!(menu && onSaveTranslation && !knownEnglish && (trOf || menuLooksForeign(menu)));
+  const showEn = !!(enOn && trOf);
+  function setEnPref(on){ setEnOn(on); try { localStorage.setItem("mc_menu_en", on ? "1" : "0"); } catch(e){} }
+  async function toggleEnglish(){
+    setTrErr(""); setTrNote("");
+    if (trOf){ setEnPref(!enOn); return; }
+    if (!configComplete(cfg)){ setTrErr("Set up your account in Settings."); return; }
+    setTrBusy(true);
+    try {
+      const t = await translateMenu(cfg, menu, (n, total)=> setTrProg({ n, total }));
+      onSaveTranslation(t);
+      if (t.lang === "en") setTrNote("This menu is already in English.");
+      else setEnPref(true);
+    } catch(err){
+      setTrErr(err.message || "Translation failed. Try again.");
+    } finally {
+      setTrBusy(false); setTrProg(null);
+    }
+  }
   const [splitting, setSplitting] = useState(false);   // move sections to another menu
   const [splitPick, setSplitPick] = useState({});      // section index -> going?
   const [splitText, setSplitText] = useState("");
@@ -13301,7 +13374,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           <span className="menu-row-ic" style={{marginRight:0}}>
             <Icon name="book" size={17} color="var(--accent)" />
           </span>
-          <div style={{minWidth:0}}>
+          <div style={{minWidth:0, flex:1}}>
             {restaurant && restaurant.name ? (
               <div className="menu-head-place">{restaurant.name}</div>
             ) : null}
@@ -13310,7 +13383,23 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
               {menu.source === "seed" ? " (starter data)" : ""}
             </div>
           </div>
+          {/* Show English lives here, the first thing on screen (2026-10-07):
+              lower down it went unfound. Only on menus in another language. */}
+          {canTranslate ? (
+            <button type="button" className={"chip pick" + (showEn ? " on" : "")}
+              style={{flex:"none"}} aria-pressed={showEn} disabled={trBusy} onClick={toggleEnglish}>
+              {trBusy
+                ? <span className="row" style={{gap:6, alignItems:"center"}}><span className="spin" />
+                    {trProg && trProg.total > 1 ? trProg.n + " of " + trProg.total : "Translating"}</span>
+                : "Show English"}
+            </button>
+          ) : null}
         </div>
+        {(trErr || trNote || (showEn && trOf && trOf.source === "menu")) ? (
+          <div className="tiny" style={{margin:"-4px 2px 10px", color: trErr ? "#d9604e" : "var(--text-dim)"}}>
+            {trErr || trNote || "English as printed on the menu"}
+          </div>
+        ) : null}
 
         {/* action row: share, refresh, split, delete. Rename lives on the title. */}
         <div className="row" style={{gap:6, flexWrap:"wrap", marginBottom:10}}>
@@ -13575,7 +13664,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           onSaveItemPhoto={onSaveItemPhoto}
           onSaveItemTags={onSaveItemTags}
           onSaveItemSig={onSaveItemSig}
-          onSaveTranslation={onSaveTranslation}
+          showEnglish={showEn}
           onHadThis={onHadThis}
           hadToday={(function(){
             const t = todayISO(), out = {};
@@ -13597,38 +13686,14 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, onSaveTranslation}){
-  // Show English (2026-10-07). The preference is remembered on the device, so
-  // a traveller who turns it on once sees English on every translated menu.
-  const [enOn, setEnOn] = useState(()=>{ try { return localStorage.getItem("mc_menu_en") === "1"; } catch(e){ return false; } });
-  const [trBusy, setTrBusy] = useState(false);
-  const [trProg, setTrProg] = useState(null);
-  const [trErr, setTrErr]   = useState("");
-  const [trNote, setTrNote] = useState("");
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish}){
+  // Show English: the switch lives in MenuDetail's place card (moved there
+  // 2026-10-07 because it was hard to find); this view only renders it.
   const tr = (menu && menu.translation && menu.translation.lang && menu.translation.lang !== "en")
     ? menu.translation : null;
-  const knownEnglish = !!(menu && menu.translation && menu.translation.lang === "en");
-  const canTranslate = !!onSaveTranslation && !knownEnglish && (tr || menuLooksForeign(menu));
-  const showEn = !!(enOn && tr);
+  const showEn = !!(showEnglish && tr);
   const enFor = (it)=> (tr && tr.item && tr.item[trKey(it.name, it.description)]) || null;
   const sameText = (x, y)=> String(x || "").trim().toLowerCase() === String(y || "").trim().toLowerCase();
-  function setEnPref(on){ setEnOn(on); try { localStorage.setItem("mc_menu_en", on ? "1" : "0"); } catch(e){} }
-  async function toggleEnglish(){
-    setTrErr(""); setTrNote("");
-    if (tr){ setEnPref(!enOn); return; }
-    if (!configComplete(cfg)){ setTrErr("Set up your account in Settings."); return; }
-    setTrBusy(true);
-    try {
-      const t = await translateMenu(cfg, menu, (n, total)=> setTrProg({ n, total }));
-      onSaveTranslation(t);
-      if (t.lang === "en") setTrNote("This menu is already in English.");
-      else setEnPref(true);
-    } catch(err){
-      setTrErr(err.message || "Translation failed. Try again.");
-    } finally {
-      setTrBusy(false); setTrProg(null);
-    }
-  }
   // Which item's "I had this" panel is open, and what is typed in it.
   const [hadOpen, setHadOpen] = useState(null);   // "si:ii" | null
   const [hadNote, setHadNote] = useState("");
@@ -13792,20 +13857,6 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
       {sections.length === 0 && (
         <div className="small faint" style={{padding:"12px 2px"}}>No items match.</div>
       )}
-      {canTranslate ? (
-        <div className="row" style={{gap:10, alignItems:"center", margin:"2px 0 8px", flexWrap:"wrap"}}>
-          <button type="button" className={"chip pick" + (showEn ? " on" : "")}
-            aria-pressed={showEn} disabled={trBusy} onClick={toggleEnglish}>
-            {trBusy
-              ? <span className="row" style={{gap:6, alignItems:"center"}}><span className="spin" />
-                  {"Translating" + (trProg && trProg.total > 1 ? " (" + trProg.n + " of " + trProg.total + ")" : "") + "\u2026"}</span>
-              : "Show English"}
-          </button>
-          {!tr && !trBusy && !trErr ? <span className="tiny faint">Translates every dish once, then it's saved</span> : null}
-          {trErr ? <span className="tiny" style={{color:"#d9604e"}}>{trErr}</span> : null}
-        </div>
-      ) : null}
-      {trNote ? <div className="tiny faint" style={{margin:"0 2px 8px"}}>{trNote}</div> : null}
       <MenuFoldBar fold={fold} count={sections.length} />
       {sections.map(({s,i,items})=>{
         // A search opens everything: a match inside a closed section is a match
@@ -21164,6 +21215,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         source:        result.source || "photo_ocr",   // keep "web" on a web re-pull
         sections:      sections,
         raw_text:      result.raw_text || "",
+        translation:   result.translation || undefined,   // printed English, if the menu has it
       }];
     } else if (sections.length >= 2 && saveMode === "custom"){
       // customize mode: group sections by destination label.
@@ -21192,6 +21244,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         source:        "photo_ocr",
         sections:      g.sections,
         raw_text:      "",
+        translation:   result.translation || undefined,   // keyed by wording: extra entries are harmless
       }));
     } else {
       // "one menu" mode (or single-section): one menu containing all sections.
@@ -21207,6 +21260,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         source:        "photo_ocr",
         sections:      sections,
         raw_text:      result.raw_text || "",
+        translation:   result.translation || undefined,
       }];
     }
 
