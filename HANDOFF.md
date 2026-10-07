@@ -23,7 +23,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 | Piece | Version | Where |
 |---|---|---|
 | Web app | **1.490.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.126.0** | Railway, `/health` reports `db connected` |
+| Backend | **0.127.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.490.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -386,6 +386,23 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The server watches its own Firecrawl credits (2026-10-06, backend 0.127.0)
+
+Firecrawl's free 1,000 monthly credits back the menu-from-link fallback. Claude sessions using the
+Firecrawl connector burned them to about 15% before anyone noticed (the connector is now off for
+sessions; see the `firecrawl-credits-reserved-for-menucaptain` memory). Nobody could read the balance
+without handling the key, which lives only in Railway.
+
+`_fc_credit_loop` reads `GET https://api.firecrawl.dev/v2/team/credit-usage` at startup and every
+12 hours; `[FIRECRAWL]` log lines carry remaining / plan / period end; `/health` carries only
+`menu_link_credits` = ok / low / out / unknown (**exact numbers on the public page was the road not
+taken**). Low = under 25% of plan or under 100. Firecrawl's docs are silent on whether the check costs
+a credit, so startup measures it (two checks 60s apart): **measured 0**. A 402 from any of the three
+scrape call sites flips the state to "out" at once via `_fc_note_refusal`. When credits run out,
+imports from hard sites fall back to the normal can't-read path, which offers a screenshot; nothing
+crashes. First reading: **142 of 1,000, period ends 2026-10-25 19:35 UTC**. Verified: 17 checks on
+the real code with a stand-in Firecrawl, then the live log.
 
 ### Refresh dates the menu today; no fake "Main" note; "Edit dishes" (2026-10-04, 1.490.0)
 
