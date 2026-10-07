@@ -510,7 +510,10 @@ otherwise it is a "~" estimate added up from your dish prices. Like the
 calorie numbers, it is a memory, never a budget.
 
 **Estimate a dish from a photo.** Under each dish is an "Estimate from a photo"
-button. When the food arrives, tap it and snap a picture of that dish. The app
+button. When the food arrives, tap it and snap a picture of that dish. If you
+have already added a photo of that dish, the button says "Estimate from your
+photo" and uses it - the newest one if there are several - so there is no need
+to take it again. The app
 estimates the calories and macros for it. If that dish is on the restaurant's
 digitized menu, the estimate (and a thumbnail of your photo) is saved onto the
 menu item too - so the next time you open that menu, the picture and the
@@ -530,7 +533,8 @@ add up as you log - a number for memory, never a budget.
 
 **Estimate the whole plate.** If your meal is not on a menu, there is also a
 "Estimate from a photo" option for the whole plate, which gives one set of
-numbers for the meal. You can edit any estimate by hand if you know the real
+numbers for the meal. If the visit already has photos, it shows them and asks
+which one shows the food, or you can take a new one. You can edit any estimate by hand if you know the real
 figures.
 
 **Photos and notes.** Attach photos of the visit and jot down any notes.

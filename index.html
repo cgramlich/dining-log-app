@@ -495,6 +495,11 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
           font-variant-numeric:tabular-nums; overflow-wrap:anywhere;}
     .mitem .ipr.paid{color:var(--text-faint); font-weight:400; font-style:italic;}
     .mitem .idesc{font-size:13px; color:var(--text-dim); margin-top:3px; line-height:1.45;}
+    /* "Which photo shows the food?" thumbnails in the visit form. */
+    .pick-thumb{width:64px; height:64px; padding:0; border:1px solid var(--line); border-radius:10px;
+      overflow:hidden; background:none; cursor:pointer; flex:none;}
+    .pick-thumb:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+    .pick-thumb-img{width:100%; height:100%; object-fit:cover; display:block;}
     /* Show English: the translation sits under the original, quieter and in
        italics, so the printed wording stays the thing you point at. */
     .mitem .ien{font-size:13.5px; color:var(--text); font-style:italic; margin-top:2px; opacity:0.85;}
@@ -1111,7 +1116,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.491.0";
+const APP_VERSION   = "1.492.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1406,16 +1411,31 @@ async function placesNearby(cfg, body){
 // detail page already reads.
 // Best-effort city from a formatted address, for quick-adds where Google's
 // search result has no parsed city (only the full details call returns one).
-// Confidence-gated: only returns a city when a US "ST 12345" segment anchors it,
-// so we never plant a wrong city (accuracy over coverage). "" = unknown.
+// Confidence-gated: a city only when a POSTCODE anchors it, so we never plant
+// a wrong city (accuracy over coverage). "" = unknown.
+// US-only until 2026-10-07, when every place Chris added in Barcelona came back
+// cityless: "..., 08013 Barcelona, Spain" puts the postcode BEFORE the city.
 function cityFromAddress(addr){
   if (!addr) return "";
   let parts = String(addr).split(",").map(s => s.trim()).filter(Boolean);
   if (parts.length && /^(usa|united states)$/i.test(parts[parts.length - 1])) parts.pop();
+  const clean = c => String(c || "").replace(/\s+/g, " ").trim();
   for (let i = parts.length - 1; i >= 1; i--){
-    if (/^[A-Za-z]{2}\s+\d{5}(-\d{4})?$/.test(parts[i]) || /^\d{5}(-\d{4})?$/.test(parts[i])){
+    const seg = parts[i];
+    // US "Dallas, TX 75201" / Canada "Toronto, ON M5V 2T6": the city is the segment before.
+    if (/^[A-Za-z]{2}\s+\d{5}(-\d{4})?$/.test(seg) || /^\d{5}(-\d{4})?$/.test(seg)
+        || /^[A-Za-z]{2}\s+[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d$/.test(seg)){
       return parts[i - 1] || "";
     }
+    // Further back is the street, where "1234 Something" is a house number.
+    if (i < parts.length - 3) continue;
+    // Postcode first (most of Europe, Latin America): "08013 Barcelona",
+    // "75001 Paris", "1012 AB Amsterdam", "00186 Roma RM" (province dropped).
+    let mm = /^(?:[A-Z]{1,2}-)?\d{4,5}(?:\s?[A-Z]{2})?\s+([^\d]+?)(?:\s+[A-Z]{2})?$/.exec(seg);
+    if (mm && clean(mm[1]).length >= 2) return clean(mm[1]);
+    // City then postcode: UK "London SW1A 1AA", Japan "Tokyo 131-0045".
+    mm = /^([^\d]+?)\s+(?:[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}|\d{3}-\d{4})$/.exec(seg);
+    if (mm && clean(mm[1]).length >= 2) return clean(mm[1]);
   }
   return "";
 }
@@ -2202,7 +2222,10 @@ otherwise it is a "~" estimate added up from your dish prices. Like the
 calorie numbers, it is a memory, never a budget.
 
 **Estimate a dish from a photo.** Under each dish is an "Estimate from a photo"
-button. When the food arrives, tap it and snap a picture of that dish. The app
+button. When the food arrives, tap it and snap a picture of that dish. If you
+have already added a photo of that dish, the button says "Estimate from your
+photo" and uses it - the newest one if there are several - so there is no need
+to take it again. The app
 estimates the calories and macros for it. If that dish is on the restaurant's
 digitized menu, the estimate (and a thumbnail of your photo) is saved onto the
 menu item too - so the next time you open that menu, the picture and the
@@ -2222,7 +2245,8 @@ add up as you log - a number for memory, never a budget.
 
 **Estimate the whole plate.** If your meal is not on a menu, there is also a
 "Estimate from a photo" option for the whole plate, which gives one set of
-numbers for the meal. You can edit any estimate by hand if you know the real
+numbers for the meal. If the visit already has photos, it shows them and asks
+which one shows the food, or you can take a new one. You can edit any estimate by hand if you know the real
 figures.
 
 **Photos and notes.** Attach photos of the visit and jot down any notes.
@@ -4501,6 +4525,19 @@ async function idbPutBlob(path, blob){
 }
 
 const PHOTO_CACHE = new Map();   // path -> Promise<blobUrl>
+// The bytes of a photo already on a visit: a fresh pick is still in memory; a
+// saved one comes from the on-device cache, else the backend. Used so an
+// estimate can reuse a photo instead of asking for it again (2026-10-07).
+async function photoSlotBlob(cfg, slot){
+  if (!slot) return null;
+  if (slot.kind === "pending") return slot.blob || null;
+  if (slot.kind === "existing" && slot.path){
+    try { const cached = await idbGetBlob(slot.path); if (cached) return cached; } catch(e){}
+    return await ghGetRawFile(cfg, slot.path);
+  }
+  return null;
+}
+
 function getPhotoBlobUrl(cfg, path){
   if (!path) return Promise.resolve(null);
   if (PHOTO_CACHE.has(path)) return PHOTO_CACHE.get(path);
@@ -8062,7 +8099,9 @@ function App({openShare}){
     let nextRests = restaurants;
     if (!rest){
       rest = { id: uid("rest"), name: name, cuisine: "",
-               location: sv.city || "", address: sv.address || "",
+               // A share made before 2026-10-07 from a place abroad carried no
+               // city; its address usually still says where it is.
+               location: sv.city || cityFromAddress(sv.address || ""), address: sv.address || "",
                phone: "", website: "", notes: "", favorite: false,
                wishlist: false, added_date: todayISO(),
                google_place_id: sv.google_place_id || undefined };
@@ -8580,6 +8619,35 @@ function App({openShare}){
             } else throw err;
           }
           logMsg("SYNC","Migrated menus to v1.3 multi-menu shape");
+        }
+      }
+
+      // Cities for places added abroad (2026-10-07). cityFromAddress read US
+      // addresses only, so places added from a search outside the US were saved
+      // with no city. Fill a BLANK city from the address; a city somebody typed
+      // is never touched. Runs every sync, writes only when something changed.
+      {
+        let filled = 0;
+        const withCity = (nextR || []).map(r => {
+          if (!r || (r.location || "").trim() || !r.address) return r;
+          const c = cityFromAddress(r.address);
+          if (!c) return r;
+          filled++;
+          return Object.assign({}, r, { location: c });
+        });
+        if (filled){
+          try {
+            nextShas[FILES.restaurants] = await ghPutFile(
+              cfg, FILES.restaurants, withCity, nextShas[FILES.restaurants]);
+          } catch(err){
+            if (err.conflict){
+              const fresh = await ghGetFile(cfg, FILES.restaurants);
+              nextShas[FILES.restaurants] = await ghPutFile(
+                cfg, FILES.restaurants, withCity, fresh.sha);
+            } else throw err;
+          }
+          nextR = withCity;
+          logMsg("SYNC", "Filled the city on " + filled + " place(s) from their address");
         }
       }
 
@@ -18989,13 +19057,21 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   const [nutIngStr, setNutIngStr] = useState("");   // comma-separated editor buffer
   const nutFileRef = useRef(null);
 
+  const [platePick, setPlatePick] = useState(false);   // "which photo shows the food?"
   async function onPickNutritionPhoto(e){
     const file = e.target.files && e.target.files[0];
     if (nutFileRef.current) nutFileRef.current.value = "";   // allow re-picking same file
     if (!file) return;
+    await estimatePlate(async ()=> file);
+  }
+  // A photo already on the visit, chosen from the thumbnails.
+  function estimatePlateFromSlot(slot){ setPlatePick(false); return estimatePlate(()=> photoSlotBlob(cfg, slot)); }
+  async function estimatePlate(getImage){
     if (!configComplete(cfg)){ setNutErr("Set up your account in Settings first."); return; }
     setNutBusy(true); setNutErr(null);
     try {
+      const file = await getImage();
+      if (!file) throw new Error("Couldn't open that photo. Try taking a new one.");
       const est = await estimateNutrition(cfg, file);
       est.source = "photo_estimate";
       est.estimated_at = todayISO();
@@ -19056,7 +19132,8 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
 
   // apply an estimate to a dish, and (if it maps to a menu item) propagate the
   // numbers + photo thumbnail up to that menu item so it shows on the menu page
-  function applyDishEstimate(dishName, est, blob, match){
+  // alreadyKept: the image IS one of this dish's photos, so it is not added again.
+  function applyDishEstimate(dishName, est, blob, match, alreadyKept){
     let photoPath = null;
     if (match && blob){
       photoPath = menuItemPhotoPath(match.menuId,
@@ -19067,7 +19144,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     // something typed by hand or ordered off-menu used the picture for the
     // estimate and then dropped it. Keep it as a dish photo: somebody who just
     // photographed their dinner did not mean to throw the photo away.
-    if (!photoPath && blob){
+    if (!photoPath && blob && !alreadyKept){
       const key = (dishName || "").trim().toLowerCase();
       setDishPics(prev => {
         const cur = prev[key] || [];
@@ -19118,6 +19195,16 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     const dishName = pendingDishRef.current;
     if (dishPhotoRef.current) dishPhotoRef.current.value = "";
     if (!file || !dishName) return;
+    await estimateDish(dishName, async ()=> file, false);
+  }
+  // The dish already has its own photo: use the newest, so adding a better
+  // shot and tapping again uses that one rather than looping on the first.
+  function estimateDishFromOwnPhoto(dishName){
+    const pics = dishPicsFor(dishName);
+    const slot = pics[pics.length - 1];
+    return estimateDish(dishName, ()=> photoSlotBlob(cfg, slot), true);
+  }
+  async function estimateDish(dishName, getImage, alreadyKept){
     if (!configComplete(cfg)){
       setDishNutErr(x => Object.assign({}, x, { [dishName]:"Set up your account in Settings." }));
       return;
@@ -19125,6 +19212,8 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     setDishNutErr(x => Object.assign({}, x, { [dishName]:null }));
     setDishNutBusy(x => Object.assign({}, x, { [dishName]:true }));
     try {
+      const file = await getImage();
+      if (!file) throw new Error("Couldn't open that photo. Try adding it again.");
       const est = await estimateNutrition(cfg, file);
       est.source = "photo_estimate";
       est.estimated_at = todayISO();
@@ -19133,9 +19222,9 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       if (match && match.item.nutrition && match.item.nutrition.kcal){
         // existing estimate on the menu item -> ask which to keep
         setConflict({ dishName:dishName, incoming:est, photoBlob:blob,
-          existing:match.item.nutrition, match:match });
+          existing:match.item.nutrition, match:match, kept:alreadyKept });
       } else {
-        applyDishEstimate(dishName, est, blob, match);
+        applyDishEstimate(dishName, est, blob, match, alreadyKept);
       }
     } catch(err){
       setDishNutErr(x => Object.assign({}, x, { [dishName]:err.message || "Could not estimate." }));
@@ -19146,7 +19235,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
 
   function resolveConflictUsePhoto(){
     if (!conflict) return;
-    applyDishEstimate(conflict.dishName, conflict.incoming, conflict.photoBlob, conflict.match);
+    applyDishEstimate(conflict.dishName, conflict.incoming, conflict.photoBlob, conflict.match, conflict.kept);
     setConflict(null);
   }
   function resolveConflictKeepCurrent(){
@@ -20202,8 +20291,10 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                       </span>
                     ) : (
                       <>
-                        <button className="dish-cam" onClick={()=> startDishPhoto(d.name)}>
-                          <Icon name="camera" size={13} color="var(--accent)" />Estimate from a photo
+                        <button className="dish-cam" onClick={()=> dishPicsFor(d.name).length
+                            ? estimateDishFromOwnPhoto(d.name) : startDishPhoto(d.name)}>
+                          <Icon name="camera" size={13} color="var(--accent)" />
+                          {dishPicsFor(d.name).length ? "Estimate from your photo" : "Estimate from a photo"}
                         </button>
                         <button className="dish-cam" onClick={()=> estimateDishNoPhoto(d.name)}>
                           <Icon name="sparkle" size={13} color="var(--accent)" />Estimate without a photo
@@ -20291,11 +20382,39 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
 
           {!nutrition && (
             <div>
+              {/* With photos on the visit, offer them first (2026-10-07): it was
+                  asking for a picture that was already sitting there. */}
               <button className="btn ghost" disabled={nutBusy}
-                onClick={()=> { if (!nutBusy && nutFileRef.current) nutFileRef.current.click(); }}>
+                onClick={()=> {
+                  if (nutBusy) return;
+                  if (photoSlots.length) setPlatePick(v => !v);
+                  else if (nutFileRef.current) nutFileRef.current.click();
+                }}>
                 {nutBusy ? <span className="spin" /> : <Icon name="sparkle" size={16} />}
-                {nutBusy ? "Estimating..." : "Estimate from a photo"}
+                {nutBusy ? "Estimating..." : (photoSlots.length ? "Estimate from your photo" : "Estimate from a photo")}
               </button>
+              {platePick && photoSlots.length && !nutBusy ? (
+                <div className="card" style={{marginTop:8, padding:"10px 12px"}}>
+                  <div className="small muted" style={{marginBottom:8}}>Which photo shows the food?</div>
+                  <div className="row" style={{gap:8, flexWrap:"wrap"}}>
+                    {photoSlots.map((sl, k)=>(
+                      <button key={k} type="button" className="pick-thumb"
+                        aria-label={"Estimate from photo " + (k + 1)}
+                        onClick={()=> estimatePlateFromSlot(sl)}>
+                        {sl.kind === "existing"
+                          ? <PhotoImg cfg={cfg} path={sl.path} className="pick-thumb-img" />
+                          : <img src={sl.previewUrl} alt="" className="pick-thumb-img" />}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="row" style={{gap:8, marginTop:10}}>
+                    <button className="btn ghost sm" onClick={()=> {
+                      setPlatePick(false); if (nutFileRef.current) nutFileRef.current.click(); }}>
+                      Take a new photo</button>
+                    <button className="btn ghost sm" onClick={()=> setPlatePick(false)}>Cancel</button>
+                  </div>
+                </div>
+              ) : null}
               <div className="tiny faint" style={{marginTop:6}}>
                 Just for memory and curiosity - no targets, no budgets.
               </div>
