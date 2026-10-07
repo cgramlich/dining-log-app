@@ -1116,7 +1116,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.493.0";
+const APP_VERSION   = "1.494.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -4866,7 +4866,7 @@ function trKey(name, desc){ return String(name || "").trim() + TR_SEP + String(d
 
 // Only decides whether to OFFER the toggle; the translation request itself
 // confirms the language, and an English menu then hides it for good.
-const FOREIGN_RE = /[\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00fc\u00e0\u00e8\u00ec\u00f2\u00f9\u00e2\u00ea\u00ee\u00f4\u00fb\u00e7\u00e3\u00f5\u00e4\u00f6\u00df\u00bf\u00a1]|\b(de|del|con|las|los|el|al|y|du|des|les|aux|au|et|di|della|alla|alle|und|mit|der|die|das|com|da|do|ao)\b/i;
+const FOREIGN_RE = /[\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1\u00fc\u00e0\u00e8\u00ec\u00f2\u00f9\u00e2\u00ea\u00ee\u00f4\u00fb\u00e7\u00e3\u00f5\u00e4\u00f6\u00df\u00bf\u00a1]|\b(de|del|con|las|los|el|al|y|du|des|les|aux|au|et|di|della|alla|alle|ai|agli|allo|dei|delle|degli|il|e|nel|sul|sulla|und|mit|der|die|das|com|da|do|ao)\b/i;
 function menuLooksForeign(menu){
   const items = [];
   ((menu && menu.sections) || []).forEach(sec => (sec.items || []).forEach(it => items.push(it)));
@@ -5025,11 +5025,14 @@ async function digitizeMenu(cfg, dataUrls){
     "menu's own language exactly as printed. Never translate; the app shows "+
     "English separately when the diner asks for it.\n"+
     "- TWO LANGUAGES: if the menu prints the SAME dishes in two languages (for "+
-    "example Spanish pages and English pages), list each dish ONCE, in the local "+
+    "example Spanish pages and English pages, or Italian and English on the same "+
+    "line), list each dish ONCE, in the local "+
     "(non-English) language, and add the menu's own English as \"name_en\" and "+
     "\"description_en\" on that item (and \"name_en\" on its section). Copy the "+
     "printed English word for word; never write your own. Leave them out where "+
-    "no English is printed, and on any menu printed in only one language.\n"+
+    "no English is printed, and on any menu printed in only one language. If it "+
+    "prints MORE than two languages, keep the local one, take the English, and "+
+    "ignore the rest.\n"+
     "- price: a string exactly as printed (e.g. \"$12.95\", \"6.25 ea / 2 for 11.50\", "+
     "\"MP\"); empty string if none.\n"+
     "- A menu may price ONE dish across several sizes or styles in a grid. Keep "+
@@ -5257,11 +5260,14 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
     "menu's own language exactly as printed. Never translate; the app shows "+
     "English separately when the diner asks for it.\n"+
     "- TWO LANGUAGES: if the menu prints the SAME dishes in two languages (for "+
-    "example Spanish pages and English pages), list each dish ONCE, in the local "+
+    "example Spanish pages and English pages, or Italian and English on the same "+
+    "line), list each dish ONCE, in the local "+
     "(non-English) language, and add the menu's own English as \"name_en\" and "+
     "\"description_en\" on that item (and \"name_en\" on its section). Copy the "+
     "printed English word for word; never write your own. Leave them out where "+
-    "no English is printed, and on any menu printed in only one language.\n"+
+    "no English is printed, and on any menu printed in only one language. If it "+
+    "prints MORE than two languages, keep the local one, take the English, and "+
+    "ignore the rest.\n"+
     "- price: a string exactly as written (e.g. \"$12.95\", \"MP\"); empty string if none.\n"+
     "- A menu may price ONE dish across several sizes or styles in a grid. Keep "+
     "every number attached to its own label so no price is ambiguous, e.g. "+
@@ -7246,9 +7252,11 @@ async function fetchDeployedVersion(){
 
 // Reload onto a cache-busting URL so the CDN and the app cache both
 // fetch the new file instead of serving the stale one.
+// "_upd", NOT "v": "?v=" is also a vote link, and from August to October 2026
+// every banner update could open "?v=1.493.0" as a dead vote called "1".
 function applyUpdate(version){
   const base = location.origin + location.pathname;
-  location.replace(base + "?v=" + encodeURIComponent(version || Date.now()));
+  location.replace(base + "?_upd=" + encodeURIComponent(version || Date.now()));
 }
 
 // ---------------------------------------------------------------------------
@@ -30061,16 +30069,21 @@ class ErrorBoundary extends React.Component {
     if (vm) publishedVisit = decodeVisitPayload(vm[1]);
   } catch(e){ publishedVisit = null; }
   // Group-order links (?g=<code>) render the no-account guest screen.
+  // Codes must END cleanly: a value like "1.493.0" is a version, not a code.
   let groupCode = null;
   try {
-    const gm = (location.search || "").match(/[?&]g=([A-Za-z0-9]+)/);
+    const gm = (location.search || "").match(/[?&]g=([A-Za-z0-9]+)(?=&|#|$)/);
     if (gm) groupCode = gm[1];
   } catch(e){ groupCode = null; }
   // Vote links (?v=<code>) render the ballot - same shell, no account either.
+  // An older copy of the app reloads onto "?v=<version>" after an update; that
+  // is not a vote. Strict match, and a version-shaped value is cleaned off the
+  // address bar so a later manual refresh starts clean (2026-10-07).
   let voteCode = null;
   try {
-    const vm2 = (location.search || "").match(/[?&]v=([A-Za-z0-9]+)/);
+    const vm2 = (location.search || "").match(/[?&]v=([A-Za-z0-9]+)(?=&|#|$)/);
     if (vm2) voteCode = vm2[1];
+    if (/[?&](v|_upd)=\d+\.\d+/.test(location.search || "")) history.replaceState(null, "", location.pathname);
   } catch(e){ voteCode = null; }
   // Password-reset links land here with a recovery session in the hash.
   let recovery = null;
