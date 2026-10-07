@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.493.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.128.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.493.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.494.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.129.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.494.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,36 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The vote that could never be cast (2026-10-07, app 1.494.0 / backend 0.129.0 / DB)
+
+Chris tapped the update banner and got "Where shall we eat?" as an error. Reading the server log
+through the Railway plugin unrolled three faults:
+
+1. **Update reload collided with vote links.** `applyUpdate` reloads onto a cache-busting param; it
+   was `?v=<version>` since June, and vote links became `?v=<code>` on 2026-08-09. The router's
+   `[?&]v=([A-Za-z0-9]+)` read "1.493.0" as vote "1" -> GET /api/group/1 -> 404. Now `?_upd=`, and the
+   `v=` / `g=` patterns require the code to end cleanly (`(?=&|#|$)`) because the OLD copy performs the
+   reload and the NEW copy parses it; a version-shaped `v=` / `_upd=` is stripped from the address bar.
+   `isDeadVote` had masked it: it only drops a code after one failure per device.
+2. **No vote ballot could ever save.** `group_orders.id` is uuid; `sql/group_vote.sql` created
+   `group_vote_ballots.order_id` as **bigint**. 0 ballots ever, 1 vote created. The vote feature had
+   never been tested with real people (see the MenuCaptain memory), which is how it survived.
+3. **`group_order_views` never existed live** (`sql/group_seen.sql`, 2026-08-01, never run, and also
+   bigint). So "who has opened this order" never worked ("seen not recorded" in the log), and the 30-day
+   retention sweep died on it every night (log failures back to 2026-09-30; likely since it shipped
+   2026-09-22). The retention promise in the privacy labels was not being kept.
+
+Fixed: migration `group_order_id_types_uuid` (Chris's yes; both tables empty) makes both uuid, creates
+the views table with RLS and a service_role grant; repo scripts corrected and the migration kept as
+`sql/group_order_id_types_uuid.sql`. The sweep now skips a missing child table (PGRST205) instead of
+aborting; any other error still raises. After the redeploy the sweep cleared **46** sessions past
+retention to **0**. Swept every table the code names against the live schema: only `device_tokens`
+(push) is missing, and push was removed for v1, so it is noted, not built.
+
+**Italy (same release):** detection gains Italian function words (ai, agli, allo, dei, delle, degli,
+il, e, nel, sul, sulla), tested on plain Italian (offered) vs an English Italian-American menu (not);
+the two-languages rule covers same-line Italian/English and keeps local + English when 3+ languages.
 
 ### Menus printed in two languages; Show English at the top (2026-10-07, 1.493.0)
 
