@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.491.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.492.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.128.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.491.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.492.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,27 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Places abroad get their city; photo estimates reuse the photo (2026-10-07, 1.492.0)
+
+**Cities.** `cityFromAddress` recognised only a US "City, ST 12345" segment, so every place quick-added
+from a search outside the US (Chris, Barcelona) was saved with `location: ""`: no city on the place,
+its visits, shared visits (`city: rest.location`) or the city chips. The server's `/api/places/details`
+always read cities worldwide from `addressComponents`; only search/nearby quick-adds used the client
+parser. Still confidence-gated (a postcode must anchor it; blank beats a guess), now: US and Canada
+(city is the segment before), postcode-first in the LAST THREE segments only (Europe, Latin America;
+trailing 2-letter province dropped), city-then-postcode (UK, Japan). Earlier segments are the street,
+where "1234 Something" is a house number. 19 addresses checked. A sync-time backfill fills BLANK
+`location` from the address and writes only when something changed; a typed city is never touched.
+`sv.city || cityFromAddress(sv.address)` when logging a visit from someone else's share. Share links
+already sent are snapshots and keep the old (blank) city.
+
+**Photo estimates.** Both visit-form estimates always opened the picker even with photos present.
+Dish: with dish photos the button reads "Estimate from your photo" and uses the NEWEST (a better shot
+added later wins; `alreadyKept` stops it being re-added as a dish photo; the conflict path carries the
+flag). Whole plate: thumbnails of the visit's photos, "Which photo shows the food?", plus "Take a new
+photo". Guessing the cover was the road not taken (a group-shot cover would loop). `photoSlotBlob`
+loads a pending slot from memory or a saved one from the IndexedDB cache, else `ghGetRawFile`.
 
 ### Show English on a menu in another language (2026-10-07, app 1.491.0 / backend 0.128.0)
 
