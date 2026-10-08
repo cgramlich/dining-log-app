@@ -604,6 +604,13 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       color:var(--text-faint); font-weight:600;
       margin:10px 0 5px;
     }
+    /* The picker's section headers are buttons now (collapsed by default). */
+    .pick-sec-head{display:flex; justify-content:space-between; align-items:center; width:100%;
+      background:none; border:none; border-bottom:1px solid var(--line-soft); padding:9px 2px;
+      margin:0; cursor:pointer; text-align:left; font-family:inherit;}
+    .pick-sec-head + .chips{margin:8px 0 6px;}
+    .pick-sec-ct{letter-spacing:0; font-weight:500;}
+    .pick-sec-on{letter-spacing:0.02em; color:var(--accent); text-transform:none; font-size:12px;}
     .toast{
       position:fixed; left:50%; transform:translateX(-50%);
       bottom:calc(94px + env(safe-area-inset-bottom)); z-index:90;
@@ -1116,7 +1123,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.496.0";
+const APP_VERSION   = "1.497.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -5028,6 +5035,10 @@ async function digitizeMenu(cfg, dataUrls){
     "history, founders, origins, philosophy - copy it word for word, keeping "+
     "paragraph breaks. Not dish descriptions, not hours, address, allergy or "+
     "gratuity notices. null if there is none. Never write one yourself.\n"+
+    "- ALTERNATIVES: when one printed line lists several separate dishes as "+
+    "choices (a sides line like \"French fries / Roasted potatoes / Seasonal "+
+    "salad\"), list each as its own item with that line's price. A single dish "+
+    "whose name contains a slash (\"Surf / turf\") stays one item.\n"+
     "- LANGUAGE: keep every section name, dish name and description in the "+
     "menu's own language exactly as printed. Never translate; the app shows "+
     "English separately when the diner asks for it.\n"+
@@ -5263,6 +5274,10 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
     "history, founders, origins, philosophy - copy it word for word, keeping "+
     "paragraph breaks. Not dish descriptions, not hours, address, allergy or "+
     "gratuity notices. null if there is none. Never write one yourself.\n"+
+    "- ALTERNATIVES: when one printed line lists several separate dishes as "+
+    "choices (a sides line like \"French fries / Roasted potatoes / Seasonal "+
+    "salad\"), list each as its own item with that line's price. A single dish "+
+    "whose name contains a slash (\"Surf / turf\") stays one item.\n"+
     "- LANGUAGE: keep every section name, dish name and description in the "+
     "menu's own language exactly as printed. Never translate; the app shows "+
     "English separately when the diner asks for it.\n"+
@@ -19474,6 +19489,13 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   // dishes sharing one name - and only the first survived. Within one section a
   // repeat really is a repeat, so that dedup stays.
   const menusForRest = menus[restId] || [];
+  // A printed line of alternatives ("French fries / Roasted potatoes / Seasonal
+  // salad") is several choices, not one dish. Three or more " / " parts only:
+  // two-part names are where real dishes with a slash live ("Surf / turf").
+  function choiceParts(name){
+    const parts = String(name || "").split(/\s+\/\s+/).map(x => x.trim()).filter(Boolean);
+    return (parts.length >= 3 && parts.every(x => x.length <= 60)) ? parts : [String(name || "").trim()];
+  }
   const menuGroups = menusForRest.map(m => {
     // Which names live in more than one section? Those are ambiguous on their
     // own, so they carry their section into the visit - you want the diary to
@@ -19492,8 +19514,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       const sName = s.name || "";
       const seen = new Set();             // per SECTION, not per menu
       const items = [];
-      (s.items || []).forEach(it => {
-        const raw = (it.name || "").trim();
+      (s.items || []).forEach(it => choiceParts(it.name).forEach(raw => {
         const key = raw.toLowerCase();
         if (!key || seen.has(key)) return;
         seen.add(key);
@@ -19501,7 +19522,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
         // label is what the chip shows (the section heading is right above it,
         // so no need to repeat it); value is what gets logged.
         items.push({ label: raw, value: ambiguous ? (raw + " (" + sName + ")") : raw });
-      });
+      }));
       if (items.length > 0){
         sectionGroups.push({ name:sName, items:items });
       }
@@ -19634,6 +19655,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
   // the real dish name). Keeps price, verdict, estimate, and photo intact.
   const [editDish,setEditDish] = useState(null);   // null | {orig, draft, err}
   const [showFullMenu,setShowFullMenu] = useState(false);  // collapse the big menu wall
+  const [pickOpen, setPickOpen] = useState(null);   // "menu:section" open in the picker; all start closed
   const [noteOpen,setNoteOpen] = useState({});     // dish name -> note editor open
   function saveDishRename(){
     if (!editDish) return;
@@ -20326,13 +20348,28 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   <div className="tiny faint" style={{marginBottom:6}}>
                     Tap from {g.label}:
                   </div>
-                  {g.sections.map((s, si) => (
+                  {g.sections.map((s, si) => {
+                    // Sections start collapsed, one open at a time (2026-10-07),
+                    // and a closed header says how many you picked from it.
+                    // A single-section menu has no header and stays open.
+                    const multi = g.sections.length > 1;
+                    const k = gi + ":" + si;
+                    const open = !multi || pickOpen === k;
+                    const nOn = s.items.filter(it => dishNames.indexOf(it.value) !== -1).length;
+                    return (
                     <div key={si}>
-                      {/* show section header only when there are 2+ sections in
-                          this menu - otherwise the menu label alone is context */}
-                      {g.sections.length > 1 && (
-                        <div className="section-subhead">{s.name || "Other"}</div>
+                      {multi && (
+                        <button type="button" className="section-subhead pick-sec-head" aria-expanded={open}
+                          onClick={()=> setPickOpen(o => o === k ? null : k)}>
+                          <span>{s.name || "Other"}</span>
+                          <span className="row" style={{gap:8, alignItems:"center"}}>
+                            {nOn ? <span className="pick-sec-on">{nOn} picked</span>
+                                 : <span className="pick-sec-ct">{s.items.length}</span>}
+                            <Chevron open={open} size={14} color="#80715f" />
+                          </span>
+                        </button>
                       )}
+                      {open && (
                       <div className="chips">
                         {s.items.map((it,i)=>(
                           <span key={i}
@@ -20344,8 +20381,10 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                           </span>
                         ))}
                       </div>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ))}
             </div>
