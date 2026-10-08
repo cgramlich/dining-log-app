@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.496.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.497.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.129.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.496.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.497.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,17 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Dish picker: collapsed sections; "/" lists become choices (2026-10-07, 1.497.0)
+
+- Visit-form picker sections start collapsed, one open at a time (`pickOpen`, "menu:section"); a closed
+  header shows "N picked". Single-section menus have no header and stay open.
+- `choiceParts`: a line with 3+ " / "-separated parts (each <= 60 chars) becomes separate chips; two-part
+  names stay whole ("Surf / turf"), unspaced slashes untouched ("AC/DC"). Known imperfection: "Red /
+  white / rose wine" -> Red, white, rose wine. Picker only; the saved menu keeps the printed line, so
+  `findMenuItem` won't ground a split part's estimate in a menu description.
+- Both scan prompts gained an ALTERNATIVES rule (choices on one line -> separate items with the line's
+  price; a single slash-named dish stays one), so fresh scans fix it at the source.
 
 ### A quiet Translate link on menus that look English (2026-10-07, 1.496.0)
 
