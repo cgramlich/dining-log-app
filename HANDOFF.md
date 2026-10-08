@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.497.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.498.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.129.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.497.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.498.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,16 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Split is findable: info dot + a split icon per section (2026-10-07, 1.498.0)
+
+Chris found Split "not that obvious". An InfoDot sits beside the Split button; each section header in
+MenuView gets a split icon (`onSplitSection`, passed only by MenuDetail and only with 2+ sections) that
+opens a one-line panel under the section, name prefilled from the section, calling the same
+`onSplitMenu([si], name)`. `.msec-head` was a lone `<button>`; it is now inside `.msec-headrow` beside
+the icon button (no nested buttons). **Icon: new `split` (our own drawing, a stem branching into two
+arrows).** Rendering showed `nodes` reads as Share almost everywhere, so it no longer marks Split.
+Group order still uses `nodes`.
 
 ### Dish picker: collapsed sections; "/" lists become choices (2026-10-07, 1.497.0)
 
