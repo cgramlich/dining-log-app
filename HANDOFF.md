@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.500.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.129.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.500.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.501.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.130.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.501.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,19 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Who a visit was shared with (2026-10-08, app 1.501.0 / backend 0.130.0)
+
+Chris asked how to see who he shared a visit with. In-app sends were already stored (`shares`, payload
+carries the visit's shared-record id as `sv`) but never shown; visit LINK opens were not counted at all
+(only place links were; I had told him otherwise, and corrected it before building).
+`GET /api/shares/activity` returns `{sv: {to:[names], opened, saved}}` for all the caller's shared visits
+in one call (History draws every card), scoped to `created_by` / `from_user_id`. The public visit page
+now records anonymous `share_events` (kind "visit", slug = sv): "opened" per load in
+PublishedVisitLoader, "saved" when someone starts their own visit from a PUBLIC link. History shows
+"Sent to ... - link opened N times - saved once" under each shared visit. Counting started 2026-10-08;
+3 of 10 early visit sends predate the `sv` id and cannot be matched. Known: the sharer opening their own
+link counts. Not on the place page's visit list yet, History only.
 
 ### Renaming a menu dish fixes it in your visits there (2026-10-08, 1.500.0)
 
