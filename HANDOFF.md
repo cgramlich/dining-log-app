@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.498.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.499.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.129.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.498.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.499.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,15 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Move a whole menu into another (2026-10-07, 1.499.0)
+
+The way back after a split: `splitMenuSections` refuses to move a menu's last section, so a
+one-section split-off menu could never rejoin Main. MenuDetail gets "Move into" (shown when
+`otherMenus` is non-empty; target preselected when there is one): App's `onMergeInto` appends the
+source's sections to the target, `mergeTranslation`s any translation, removes the source, opens the
+target and flashes "Moved into ...". Road not taken: letting Split move the last section out (hides
+the way back). New `merge` icon (our own drawing).
 
 ### Split is findable: info dot + a split icon per section (2026-10-07, 1.498.0)
 
