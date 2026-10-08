@@ -1128,7 +1128,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.502.0";
+const APP_VERSION   = "1.503.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1920,7 +1920,10 @@ the screenshot. It is read exactly like a photo of a paper menu. If you do paste
 one of those links, the app says so straight away and gives you the button.
 
 **Renaming a dish on a visit.** In Edit visit, tap a dish's name (the small pencil
-beside it) to rename it. Its rating, note, photos and estimate stay with it.
+beside it) to rename it. Its rating, note, photos and estimate stay with it. If
+the dish is on this place's menu, tick **Also fix it on the menu** to correct a
+typo there and in your other visits too; leave it unticked for a personal note
+like "medium rare".
 
 **Fixing a scanned dish name.** If the scan misread a dish or two, open the menu
 and tap **Edit dishes** - each dish name becomes editable, so you can fix a
@@ -8130,6 +8133,57 @@ function App({openShare}){
   }
   // Remember which shared record a visit belongs to, so re-sharing it reuses
   // the same table instead of opening a second one.
+  // Rename a dish on a menu, and the same dish in visits to that place
+  // (2026-10-08). Shared by Edit dishes and by Rename dish on a visit.
+  function renameMenuDish(rid, mid, si, ii, name){
+    // Fix a scanned dish name (OCR typo), by section + item index.
+    const nm = (name || "").trim().slice(0, 120);
+    if (!nm) return;
+    const list = menus[rid] || [];
+    const srcMenu = list.find(m => m.menu_id === mid) || {};
+    const srcSec = (srcMenu.sections || [])[si] || {};
+    const oldName = String(((srcSec.items || [])[ii] || {}).name || "").trim();
+    const nextList = list.map(m => {
+      if (m.menu_id !== mid) return m;
+      const sections = (m.sections || []).map((s, sidx) =>
+        sidx !== si ? s : Object.assign({}, s, {
+          items: s.items.map((it, iidx) =>
+            iidx !== ii ? it : Object.assign({}, it, { name:nm })),
+        }));
+      return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
+    });
+    // The same typo sits in what you logged from this line (2026-10-08,
+    // "Beef Filler"): rename it in visits to THIS place - exact old name,
+    // plus the "Name (Section)" form the picker logs for a name that
+    // appears in two sections. Other places and hand-typed variants stay.
+    let nextV = null, touched = 0;
+    if (oldName && oldName.toLowerCase() !== nm.toLowerCase()){
+      const lo = oldName.toLowerCase();
+      const vs = ((visitsRef && visitsRef.current) || visits || []).map(v => {
+        if (!v || v.restaurant_id !== rid || !Array.isArray(v.dishes)) return v;
+        let hit = false;
+        const ds = v.dishes.map(d => {
+          const n = String((d && d.name) || "").trim();
+          const nl = n.toLowerCase();
+          if (nl === lo){ hit = true; return Object.assign({}, d, { name: nm }); }
+          if (nl.indexOf(lo + " (") === 0 && n.slice(-1) === ")"){
+            hit = true; return Object.assign({}, d, { name: nm + n.slice(oldName.length) });
+          }
+          return d;
+        });
+        if (!hit) return v;
+        touched++;
+        return Object.assign({}, v, { dishes: ds });
+      });
+      if (touched) nextV = vs;
+    }
+    commit(nextV
+      ? { menus: Object.assign({}, menus, { [rid]:nextList }), visits: nextV }
+      : { menus: Object.assign({}, menus, { [rid]:nextList }) },
+      nextV ? ["menus","visits"] : ["menus"]);
+    if (touched) flash("Also renamed in " + touched + " visit" + (touched === 1 ? "" : "s"));
+  }
+
   function linkVisitToShared(visitId, svId){
     if (!visitId || !svId) return;
     const next = visitsRef.current.map(v => v.id === visitId ? Object.assign({}, v, { sv: svId }) : v);
@@ -9882,55 +9936,7 @@ function App({openShare}){
             });
             commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
           }}
-          onRenameItem={(si, ii, name)=>{
-            // Fix a scanned dish name (OCR typo), by section + item index.
-            const nm = (name || "").trim().slice(0, 120);
-            if (!nm) return;
-            const rid = overlay.restaurantId, mid = overlay.menuId;
-            const list = menus[rid] || [];
-            const srcMenu = list.find(m => m.menu_id === mid) || {};
-            const srcSec = (srcMenu.sections || [])[si] || {};
-            const oldName = String(((srcSec.items || [])[ii] || {}).name || "").trim();
-            const nextList = list.map(m => {
-              if (m.menu_id !== mid) return m;
-              const sections = (m.sections || []).map((s, sidx) =>
-                sidx !== si ? s : Object.assign({}, s, {
-                  items: s.items.map((it, iidx) =>
-                    iidx !== ii ? it : Object.assign({}, it, { name:nm })),
-                }));
-              return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
-            });
-            // The same typo sits in what you logged from this line (2026-10-08,
-            // "Beef Filler"): rename it in visits to THIS place - exact old name,
-            // plus the "Name (Section)" form the picker logs for a name that
-            // appears in two sections. Other places and hand-typed variants stay.
-            let nextV = null, touched = 0;
-            if (oldName && oldName.toLowerCase() !== nm.toLowerCase()){
-              const lo = oldName.toLowerCase();
-              const vs = ((visitsRef && visitsRef.current) || visits || []).map(v => {
-                if (!v || v.restaurant_id !== rid || !Array.isArray(v.dishes)) return v;
-                let hit = false;
-                const ds = v.dishes.map(d => {
-                  const n = String((d && d.name) || "").trim();
-                  const nl = n.toLowerCase();
-                  if (nl === lo){ hit = true; return Object.assign({}, d, { name: nm }); }
-                  if (nl.indexOf(lo + " (") === 0 && n.slice(-1) === ")"){
-                    hit = true; return Object.assign({}, d, { name: nm + n.slice(oldName.length) });
-                  }
-                  return d;
-                });
-                if (!hit) return v;
-                touched++;
-                return Object.assign({}, v, { dishes: ds });
-              });
-              if (touched) nextV = vs;
-            }
-            commit(nextV
-              ? { menus: Object.assign({}, menus, { [rid]:nextList }), visits: nextV }
-              : { menus: Object.assign({}, menus, { [rid]:nextList }) },
-              nextV ? ["menus","visits"] : ["menus"]);
-            if (touched) flash("Also renamed in " + touched + " visit" + (touched === 1 ? "" : "s"));
-          }}
+          onRenameItem={(si, ii, name)=> renameMenuDish(overlay.restaurantId, overlay.menuId, si, ii, name)}
           onHome={()=> setOverlay(null)} />
       )}
 
@@ -10167,6 +10173,7 @@ function App({openShare}){
             commit({ visits:next }, ["visits"]);
             setOverlay(overlay.returnTo || null); flash("Visit removed");
           } : null}
+          onRenameMenuDish={(match, nm)=> match && renameMenuDish(match.restId, match.menuId, match.si, match.ii, nm)}
           onPropagateDishNutrition={async (match, est, photoPath, blob)=>{
             // upload the dish thumbnail, then write numbers + thumbnail onto the
             // matched menu item so it shows on the menu page on the return trip.
@@ -18924,7 +18931,7 @@ function PeopleTag({ value, onChange, roster }){
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, onScanMenu, onAddBranch, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, seedFromSplit, seedVisit, onUpgrade}){
+function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, onScanMenu, onAddBranch, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, onRenameMenuDish, seedFromSplit, seedVisit, onUpgrade}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [expOpen, setExpOpen] = useState(false);               // expense sheet over this visit
   const [saving, setSaving] = useState(false);                 // save in flight
@@ -19825,6 +19832,11 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       setEditDish(ed => Object.assign({}, ed, {err:"You already have a dish with that name."}));
       return;
     }
+    // Ticked "Also fix it on the menu": the same rename as Edit dishes, which
+    // also corrects the dish in your other visits here.
+    if (editDish.fixMenu && editDish.match && onRenameMenuDish && next !== editDish.orig){
+      onRenameMenuDish(editDish.match, next);
+    }
     setDishes(d => d.map(x => x.name === editDish.orig
       ? Object.assign({}, x, { name: next }) : x));
     // The dish's photos are filed under its (lowercased) name, so they move with
@@ -20592,7 +20604,8 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                 <div key={i} className="dish-item">
                   <div className="dish-row">
                     <span className="dish-row-name"
-                      onClick={()=> setEditDish({ orig:d.name, draft:d.name, err:"" })}
+                      onClick={()=> setEditDish({ orig:d.name, draft:d.name, err:"",
+                                                  match: findMenuItem(d.name), fixMenu:false })}
                       style={{cursor:"pointer"}}>
                       {d.name}{dishShareLabel(d)}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}
                       {/* The name was always tappable to rename; nothing said so (2026-10-08). */}
@@ -20989,6 +21002,17 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   <div className="tiny faint" style={{marginTop:6}}>
                     Price, rating, note, photos and any estimate stay with the dish.
                   </div>
+                  {/* Unticked by default: a typo should travel to the menu, a
+                      personal note ("medium rare") should not. */}
+                  {editDish.match && onRenameMenuDish ? (
+                    <label className="row" style={{gap:8, alignItems:"flex-start", marginTop:10, cursor:"pointer"}}>
+                      <input type="checkbox" checked={!!editDish.fixMenu} style={{marginTop:2}}
+                        onChange={e=> setEditDish(ed => Object.assign({}, ed, { fixMenu: e.target.checked }))} />
+                      <span className="small">Also fix it on the menu
+                        <span className="tiny faint" style={{display:"block"}}>For a typo. Your other visits here are corrected too.</span>
+                      </span>
+                    </label>
+                  ) : null}
                 </div>
                 <div className="row" style={{gap:9, marginTop:12}}>
                   <button className="btn ghost" onClick={()=> setEditDish(null)}>Cancel</button>
