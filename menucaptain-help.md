@@ -618,6 +618,11 @@ liked without naming a winner. Drinks are counted separately from food, using
 the section they sit in on the menu, so a cocktail competes to be your most
 loved drink rather than your most loved dish.
 
+**Who you shared a visit with.** In History, a visit you have shared shows who
+you sent it to in the app, and - for a link - how many times it has been opened
+and saved. Link counts are anonymous: the app never records who opened a link,
+only how many times. Counting began on 8 October 2026.
+
 Open **Your Year in Food** from the **You** tab, or from
 **Settings** - either way you get a recap built entirely from what you have
 logged - a calm look back rather than a scoreboard.

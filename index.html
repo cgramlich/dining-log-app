@@ -1128,7 +1128,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.500.0";
+const APP_VERSION   = "1.501.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2341,6 +2341,11 @@ not that it is your favourite. Until something repeats, the card lists what you
 liked without naming a winner. Drinks are counted separately from food, using
 the section they sit in on the menu, so a cocktail competes to be your most
 loved drink rather than your most loved dish.
+
+**Who you shared a visit with.** In History, a visit you have shared shows who
+you sent it to in the app, and - for a link - how many times it has been opened
+and saved. Link counts are anonymous: the app never records who opened a link,
+only how many times. Counting began on 8 October 2026.
 
 Open **Your Year in Food** from the **You** tab, or from
 **Settings** - either way you get a recap built entirely from what you have
@@ -10927,6 +10932,17 @@ function VisitSplit({split, cfg, receipt, onSeeItemized, merchant, date}){
 }
 
 function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace, onToggleLoved, onShareVisit}){
+  // Who each shared visit went to + link counts (2026-10-08). One fetch; a
+  // failure just leaves the lines off - History never depends on it.
+  const [shareAct, setShareAct] = useState({});
+  useEffect(()=>{
+    if (!configComplete(cfg)) return;
+    let alive = true;
+    fetchShareActivity(cfg).then(a => { if (alive) setShareAct(a); })
+      .catch(e => logMsg("SHARE", "activity load failed: " + e.message));
+    return ()=> { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg && cfg.userId]);
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [lovedOnly, setLovedOnly] = useState(false);   // show only visits with an "Again" dish
@@ -11146,6 +11162,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
               <div className="small muted" style={{marginTop:8}}>With {v.companions.map(p => personDisplay(p)).join(", ")}</div>
             ) : null}
             {v.sv ? <SharedWith svId={v.sv} /> : null}
+            {v.sv ? <ShareActivity act={shareAct[v.sv]} /> : null}
             {v.split ? (
               <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
                 merchant={v.restaurant_name} date={v.date}
@@ -22204,7 +22221,11 @@ function PublishedVisitLoader({slug}){
     fetchSharedVisit(slug).then(enc => {
       if (!alive) return;
       const d = decodeVisitPayload(enc);
-      if (d){ setData(d); setState("ready"); }
+      if (d){
+        setData(d); setState("ready");
+        // Anonymous open count for the sharer (2026-10-08), as place links do.
+        if (d.sv) shareEvent("visit", d.sv, "opened");
+      }
       else { setErr("This link looks broken."); setState("error"); }
     }).catch(e => { if (alive){ setErr((e && e.message) || "Couldn't load this visit."); setState("error"); } });
     return ()=> { alive = false; };
@@ -22376,6 +22397,7 @@ function PublishedVisit({data, onSaved, onLogVisit}){
       // in - the seed hand-off below exists for the PUBLIC link viewer, where
       // there is no app running yet.
       if (onLogVisit){ onLogVisit(seed); return; }
+      if (data.sv) shareEvent("visit", data.sv, "saved");   // public link only; counted, never named
       try { localStorage.setItem("mc_logvisit_seed", JSON.stringify(seed)); } catch(e){}
       location.href = home;   // into the app; it reads the seed and opens the logger
     } catch(e){ setSaveState("err"); setSaveMsg((e && e.message) || "Could not start your visit."); }
@@ -28009,6 +28031,32 @@ function companionKey(p){
 // A visit two people were at shows the other person by name. This is the whole
 // point of joining rather than logging separately: the record knows you were
 // together, so both diaries say so.
+// Who you sent your shared visits to, and anonymous link counts, for every
+// shared visit in one request (History draws them all at once). 2026-10-08.
+async function fetchShareActivity(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/shares/activity", { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("activity " + res.status);
+  const j = await res.json();
+  return (j && j.activity) || {};
+}
+function ShareActivity({ act }){
+  if (!act) return null;
+  const bits = [];
+  if ((act.to || []).length) bits.push("Sent to " + act.to.join(", "));
+  if (act.opened) bits.push("link opened " + act.opened + (act.opened === 1 ? " time" : " times"));
+  if (act.saved) bits.push("saved " + (act.saved === 1 ? "once" : act.saved + " times"));
+  if (!bits.length) return null;
+  const text = bits.join("  \u00b7  ");
+  return (
+    <div className="tiny faint" style={{marginTop:6}}>
+      <span className="row" style={{gap:5, alignItems:"center"}}>
+        <Icon name="share" size={13} color="var(--text-faint)" />
+        {text.charAt(0).toUpperCase() + text.slice(1)}
+      </span>
+    </div>
+  );
+}
+
 function SharedWith({ svId }){
   const others = sharedVisitOthers(svId);
   if (!others.length) return null;
