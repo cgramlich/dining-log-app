@@ -485,6 +485,11 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     .msec-head .nm{font-family:'Fraunces',serif; font-size:16.5px; font-weight:600; letter-spacing:0.01em;}
     .msec-head .ct{font-size:12px; color:var(--text-faint);}
+    /* Section header = the fold toggle plus, on your own menus, a split icon. */
+    .msec-headrow{display:flex; align-items:center; gap:2px;}
+    .msec-split{flex:none; background:none; border:none; padding:8px; margin-right:-4px;
+      cursor:pointer; border-radius:8px; display:flex; align-items:center;}
+    .msec-split:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
     .mitem{padding:9px 2px 11px; border-top:1px dashed var(--line-soft);}
     .mitem .ihead{display:flex; justify-content:space-between; gap:12px; align-items:baseline;}
     .mitem .inm{font-weight:500; font-size:15px; flex:1 1 auto; min-width:0;}
@@ -1123,7 +1128,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.497.0";
+const APP_VERSION   = "1.498.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1967,7 +1972,9 @@ photo**): you see the text it read before anything is saved.
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.
 Open the menu and tap **Split** to move sections into a menu of their own: tick
-the ones to move, name where they are going, and the rest stay put. Type the
+the ones to move, name where they are going, and the rest stay put. To move just
+one section, tap the small split icon beside its heading; the new menu's name
+starts as the section's own. Type the
 name of a menu you already have and they join it instead of starting a new one.
 You cannot move every section out, because that would leave an empty menu - rename
 it instead.
@@ -6538,6 +6545,7 @@ function Icon({name, size, color, fill}){
     sparkle: <path d="M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3Z"/>,
     heart:   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
     nodes:   <g><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5L15.4 6.5"/><path d="M8.6 13.5L15.4 17.5"/></g>,
+    split:   <g><path d="M12 21v-8"/><path d="M12 13 6 6"/><path d="m12 13 6-7"/><path d="M10 6H6v4"/><path d="M14 6h4v4"/></g>,   /* a stem branching in two: Split. "nodes" reads as Share */
     // Two figures = friends / connections. Deliberately distinct from `nodes`,
     // which is the share-network glyph used for group orders.
     people:  <g><path d="M16.5 20v-1.8a3.7 3.7 0 0 0-3.7-3.7H6.2A3.7 3.7 0 0 0 2.5 18.2V20"/><circle cx="9.5" cy="7.3" r="3.7"/><path d="M21.5 20v-1.8a3.7 3.7 0 0 0-2.8-3.6"/><path d="M15.6 3.9a3.7 3.7 0 0 1 0 7.2"/></g>,
@@ -13519,8 +13527,17 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
                                setSplitting(v => !v); setRenaming(false); }}
                 title="Move sections into their own menu">
                 <span className="row" style={{gap:5, alignItems:"center"}}>
-                  <Icon name="nodes" size={15} />Split</span>
+                  <Icon name="split" size={15} />Split</span>
               </button>
+            )}
+            {onSplitMenu && (menu.sections || []).length > 1 && (
+              <InfoDot title="Split a menu">
+                <span className="idl">Moves sections into a menu of their own - handy when one link
+                  brought in dinner, drinks and brunch as a single menu.</span>
+                <span className="idl">Tap Split to move several at once, or the split icon beside any
+                  section to move just that one.</span>
+                <span className="idl">Name a menu you already have and the sections join it.</span>
+              </InfoDot>
             )}
             <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
               onClick={()=> setConfirmDel(c => !c)} title="Delete this menu">
@@ -13763,6 +13780,8 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           onSaveItemTags={onSaveItemTags}
           onSaveItemSig={onSaveItemSig}
           showEnglish={showEn}
+          onSplitSection={onSplitMenu && (menu.sections || []).length > 1
+            ? (si, name)=> onSplitMenu([si], name) : null}
           onHadThis={onHadThis}
           hadToday={(function(){
             const t = todayISO(), out = {};
@@ -13784,7 +13803,9 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish}){
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection}){
+  // Per-section split (2026-10-07): {si, name} while that section's panel is open.
+  const [secSplit, setSecSplit] = useState(null);
   // Show English: the switch lives in MenuDetail's place card (moved there
   // 2026-10-07 because it was hard to find); this view only renders it.
   const tr = (menu && menu.translation && menu.translation.lang && menu.translation.lang !== "en")
@@ -13962,8 +13983,9 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
         const secOpen = !!q || fold.isOpen(i);
         return (
         <div key={i} className="msec">
+          <div className="msec-headrow">
           <button type="button" className="msec-head" aria-expanded={secOpen}
-            style={{width:"100%", textAlign:"left"}}
+            style={{flex:1, minWidth:0, textAlign:"left"}}
             onClick={()=> fold.toggle(i)}>
             <span className="nm">{s.name}
               {showEn && tr.sec && tr.sec[String(s.name || "").trim()] && !sameText(tr.sec[String(s.name || "").trim()], s.name)
@@ -13974,6 +13996,31 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
               <Chevron open={secOpen} size={16} color="#80715f" />
             </span>
           </button>
+          {onSplitSection ? (
+            <button type="button" className="msec-split"
+              aria-label={"Move " + (s.name || "this section") + " into its own menu"}
+              title="Move this section into its own menu"
+              onClick={()=> setSecSplit(ss => (ss && ss.si === i) ? null
+                : { si:i, name:String(s.name || "").trim() })}>
+              <Icon name="split" size={15} color="var(--text-dim)" />
+            </button>
+          ) : null}
+          </div>
+          {secSplit && secSplit.si === i ? (
+            <div className="card" style={{margin:"4px 0 10px", padding:"11px 13px"}}>
+              <div className="small" style={{marginBottom:8}}>
+                Move <strong>{s.name || "this section"}</strong> into its own menu, called:</div>
+              <ClearInput value={secSplit.name} placeholder="Menu name (e.g. Desserts)"
+                onChange={e=> setSecSplit(Object.assign({}, secSplit, { name: e.target.value }))} />
+              <div className="tiny faint" style={{marginTop:6}}>
+                Type the name of a menu you already have to add it there instead.</div>
+              <div className="row" style={{gap:8, marginTop:10}}>
+                <button className="btn ghost sm" onClick={()=> setSecSplit(null)}>Cancel</button>
+                <button className="btn primary sm" disabled={!(secSplit.name || "").trim()}
+                  onClick={()=>{ onSplitSection(i, secSplit.name.trim()); setSecSplit(null); }}>Move</button>
+              </div>
+            </div>
+          ) : null}
           {secOpen && items.map(({it,oj})=>{
             const key = i + ":" + oj;
             // Menu-first photos: a real shot of THIS dish (the item's own photo,

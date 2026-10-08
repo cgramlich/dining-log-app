@@ -248,7 +248,9 @@ photo**): you see the text it read before anything is saved.
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.
 Open the menu and tap **Split** to move sections into a menu of their own: tick
-the ones to move, name where they are going, and the rest stay put. Type the
+the ones to move, name where they are going, and the rest stay put. To move just
+one section, tap the small split icon beside its heading; the new menu's name
+starts as the section's own. Type the
 name of a menu you already have and they join it instead of starting a new one.
 You cannot move every section out, because that would leave an empty menu - rename
 it instead.
