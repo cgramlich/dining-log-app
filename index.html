@@ -1128,7 +1128,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.501.0";
+const APP_VERSION   = "1.502.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1918,6 +1918,9 @@ their listings, so pasting that link won't work - but you can see the menu, so
 screenshot it. Add a menu, choose **I have the menu or a screenshot**, and pick
 the screenshot. It is read exactly like a photo of a paper menu. If you do paste
 one of those links, the app says so straight away and gives you the button.
+
+**Renaming a dish on a visit.** In Edit visit, tap a dish's name (the small pencil
+beside it) to rename it. Its rating, note, photos and estimate stay with it.
 
 **Fixing a scanned dish name.** If the scan misread a dish or two, open the menu
 and tap **Edit dishes** - each dish name becomes editable, so you can fix a
@@ -19824,6 +19827,19 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     }
     setDishes(d => d.map(x => x.name === editDish.orig
       ? Object.assign({}, x, { name: next }) : x));
+    // The dish's photos are filed under its (lowercased) name, so they move with
+    // it. Before 2026-10-08 they stayed under the old name and were dropped on
+    // save - a rename quietly lost the dish's pictures.
+    const oldKey = (editDish.orig || "").trim().toLowerCase(), newKey = next.toLowerCase();
+    if (oldKey !== newKey){
+      setDishPics(prev => {
+        if (!prev[oldKey]) return prev;
+        const out = Object.assign({}, prev);
+        out[newKey] = (out[newKey] || []).concat(out[oldKey]).slice(0, MAX_DISH_PHOTOS);
+        delete out[oldKey];
+        return out;
+      });
+    }
     logMsg("VISIT","Renamed dish '" + editDish.orig + "' -> '" + next + "'");
     setEditDish(null);
   }
@@ -20578,7 +20594,10 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                     <span className="dish-row-name"
                       onClick={()=> setEditDish({ orig:d.name, draft:d.name, err:"" })}
                       style={{cursor:"pointer"}}>
-                      {d.name}{dishShareLabel(d)}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}</span>
+                      {d.name}{dishShareLabel(d)}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}
+                      {/* The name was always tappable to rename; nothing said so (2026-10-08). */}
+                      <span style={{marginLeft:6, verticalAlign:"-1px", display:"inline-flex"}} aria-hidden="true">
+                        <Icon name="edit" size={12} color="var(--text-faint)" /></span></span>
                     <div className="dish-verdict">
                       <button
                         className={"verdict-btn loved" + (d.verdict==="loved" ? " on" : "")}
@@ -20968,7 +20987,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                     <div className="small" style={{color:"#e7a99e", marginTop:6}}>{editDish.err}</div>
                   )}
                   <div className="tiny faint" style={{marginTop:6}}>
-                    Price, rating, and any estimate stay with the dish.
+                    Price, rating, note, photos and any estimate stay with the dish.
                   </div>
                 </div>
                 <div className="row" style={{gap:9, marginTop:12}}>

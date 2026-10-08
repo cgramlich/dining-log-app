@@ -195,6 +195,9 @@ screenshot it. Add a menu, choose **I have the menu or a screenshot**, and pick
 the screenshot. It is read exactly like a photo of a paper menu. If you do paste
 one of those links, the app says so straight away and gives you the button.
 
+**Renaming a dish on a visit.** In Edit visit, tap a dish's name (the small pencil
+beside it) to rename it. Its rating, note, photos and estimate stay with it.
+
 **Fixing a scanned dish name.** If the scan misread a dish or two, open the menu
 and tap **Edit dishes** - each dish name becomes editable, so you can fix a
 typo in place. Visits you already logged here with that dish are corrected too. Changes save as you go, and each dish keeps its price and tags.
