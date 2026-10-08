@@ -394,7 +394,7 @@ one-section split-off menu could never rejoin Main. MenuDetail gets "Move into" 
 `otherMenus` is non-empty; target preselected when there is one): App's `onMergeInto` appends the
 source's sections to the target, `mergeTranslation`s any translation, removes the source, opens the
 target and flashes "Moved into ...". Road not taken: letting Split move the last section out (hides
-the way back). New `merge` icon (our own drawing).
+the way back). New `merge` icon (our own drawing). **Confirmed working on Chris's phone 2026-10-07.**
 
 ### Split is findable: info dot + a split icon per section (2026-10-07, 1.498.0)
 
