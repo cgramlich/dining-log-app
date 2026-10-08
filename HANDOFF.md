@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.499.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.500.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.129.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.499.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.500.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,14 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Renaming a menu dish fixes it in your visits there (2026-10-08, 1.500.0)
+
+"Beef Fillet" scanned as "Beef Filler" and was already logged. `onRenameItem` now also renames that dish
+in visits to the SAME place (exact old name, plus the picker's "Name (Section)" form), reads visits via
+`visitsRef` (a rename straight after logging sees the new visit), and toasts the count. Other places
+and hand-typed variants are untouched. Not done: teaching the scan to "correct" misreadings, which
+would fight the copy-as-printed rule and could "fix" real unusual names.
 
 ### Move a whole menu into another (2026-10-07, 1.499.0)
 
