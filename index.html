@@ -1128,7 +1128,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.499.0";
+const APP_VERSION   = "1.500.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1921,7 +1921,7 @@ one of those links, the app says so straight away and gives you the button.
 
 **Fixing a scanned dish name.** If the scan misread a dish or two, open the menu
 and tap **Edit dishes** - each dish name becomes editable, so you can fix a
-typo in place. Changes save as you go, and each dish keeps its price and tags.
+typo in place. Visits you already logged here with that dish are corrected too. Changes save as you go, and each dish keeps its price and tags.
 
 **More than one menu.** A place can have several menus (for example Dinner,
 Brunch, and Drinks). When you scan a menu that has more than one section, the
@@ -9880,6 +9880,9 @@ function App({openShare}){
             if (!nm) return;
             const rid = overlay.restaurantId, mid = overlay.menuId;
             const list = menus[rid] || [];
+            const srcMenu = list.find(m => m.menu_id === mid) || {};
+            const srcSec = (srcMenu.sections || [])[si] || {};
+            const oldName = String(((srcSec.items || [])[ii] || {}).name || "").trim();
             const nextList = list.map(m => {
               if (m.menu_id !== mid) return m;
               const sections = (m.sections || []).map((s, sidx) =>
@@ -9889,7 +9892,36 @@ function App({openShare}){
                 }));
               return Object.assign({}, m, { sections:sections, last_updated:todayISO() });
             });
-            commit({ menus: Object.assign({}, menus, { [rid]:nextList }) }, ["menus"]);
+            // The same typo sits in what you logged from this line (2026-10-08,
+            // "Beef Filler"): rename it in visits to THIS place - exact old name,
+            // plus the "Name (Section)" form the picker logs for a name that
+            // appears in two sections. Other places and hand-typed variants stay.
+            let nextV = null, touched = 0;
+            if (oldName && oldName.toLowerCase() !== nm.toLowerCase()){
+              const lo = oldName.toLowerCase();
+              const vs = ((visitsRef && visitsRef.current) || visits || []).map(v => {
+                if (!v || v.restaurant_id !== rid || !Array.isArray(v.dishes)) return v;
+                let hit = false;
+                const ds = v.dishes.map(d => {
+                  const n = String((d && d.name) || "").trim();
+                  const nl = n.toLowerCase();
+                  if (nl === lo){ hit = true; return Object.assign({}, d, { name: nm }); }
+                  if (nl.indexOf(lo + " (") === 0 && n.slice(-1) === ")"){
+                    hit = true; return Object.assign({}, d, { name: nm + n.slice(oldName.length) });
+                  }
+                  return d;
+                });
+                if (!hit) return v;
+                touched++;
+                return Object.assign({}, v, { dishes: ds });
+              });
+              if (touched) nextV = vs;
+            }
+            commit(nextV
+              ? { menus: Object.assign({}, menus, { [rid]:nextList }), visits: nextV }
+              : { menus: Object.assign({}, menus, { [rid]:nextList }) },
+              nextV ? ["menus","visits"] : ["menus"]);
+            if (touched) flash("Also renamed in " + touched + " visit" + (touched === 1 ? "" : "s"));
           }}
           onHome={()=> setOverlay(null)} />
       )}
