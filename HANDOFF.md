@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.501.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.502.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.130.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.501.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.502.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,14 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Visit dish rename keeps its photos; a pencil says it's tappable (2026-10-08, 1.502.0)
+
+Tapping a dish name in Edit visit has long opened "Rename dish" (`editDish` / `saveDishRename`); nothing
+signalled it, and I told Chris it didn't exist before checking. Now a small pencil follows each name.
+**Bug found while checking:** dish photos live in `dishPics` keyed by the lowercased name and the rename
+never moved them, so renaming a dish with photos dropped them on save. `saveDishRename` now moves the
+entry (capped at `MAX_DISH_PHOTOS`).
 
 ### Who a visit was shared with (2026-10-08, app 1.501.0 / backend 0.130.0)
 
