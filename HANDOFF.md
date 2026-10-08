@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.502.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.503.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.130.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.502.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.503.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,15 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A visit rename can fix the menu too (2026-10-08, 1.503.0)
+
+When a visit dish's old name matches an item on this place's menu (`findMenuItem`), the Rename dish box
+offers "Also fix it on the menu", **unticked by default** (a typo should travel; "medium rare" should
+not). Ticked, VisitForm calls `onRenameMenuDish(match, name)` -> App's `renameMenuDish(rid, mid, si, ii,
+name)`, the same function Edit dishes now uses (extracted from the MenuDetail JSX), which renames the
+menu item and cascades to visits at that place. Road not taken: always fix the menu (personal tweaks
+would leak onto it).
 
 ### Visit dish rename keeps its photos; a pencil says it's tappable (2026-10-08, 1.502.0)
 
