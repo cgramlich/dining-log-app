@@ -1128,7 +1128,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.498.0";
+const APP_VERSION   = "1.499.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1974,7 +1974,9 @@ back their whole page at once - dinner, lunch, drinks and brunch in one menu.
 Open the menu and tap **Split** to move sections into a menu of their own: tick
 the ones to move, name where they are going, and the rest stay put. To move just
 one section, tap the small split icon beside its heading; the new menu's name
-starts as the section's own. Type the
+starts as the section's own. To put a menu back, open it and tap **Move into**:
+pick the menu it should join, and all its sections move there and the empty
+menu is removed. Type the
 name of a menu you already have and they join it instead of starting a new one.
 You cannot move every section out, because that would leave an empty menu - rename
 it instead.
@@ -6546,6 +6548,7 @@ function Icon({name, size, color, fill}){
     heart:   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
     nodes:   <g><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5L15.4 6.5"/><path d="M8.6 13.5L15.4 17.5"/></g>,
     split:   <g><path d="M12 21v-8"/><path d="M12 13 6 6"/><path d="m12 13 6-7"/><path d="M10 6H6v4"/><path d="M14 6h4v4"/></g>,   /* a stem branching in two: Split. "nodes" reads as Share */
+    merge:   <g><path d="M6 20l6-8 6 8"/><path d="M12 12V3"/><path d="M8 7l4-4 4 4"/></g>,   /* two branches joining one stem: Move into */
     // Two figures = friends / connections. Deliberately distinct from `nodes`,
     // which is the share-network glyph used for group orders.
     people:  <g><path d="M16.5 20v-1.8a3.7 3.7 0 0 0-3.7-3.7H6.2A3.7 3.7 0 0 0 2.5 18.2V20"/><circle cx="9.5" cy="7.3" r="3.7"/><path d="M21.5 20v-1.8a3.7 3.7 0 0 0-2.8-3.6"/><path d="M15.6 3.9a3.7 3.7 0 0 1 0 7.2"/></g>,
@@ -9722,6 +9725,28 @@ function App({openShare}){
               m.menu_id === overlay.menuId ? Object.assign({}, m, { label:lbl, last_updated:todayISO() }) : m);
             commit({ menus: Object.assign({}, menus, { [overlay.restaurantId]:restMenus }) }, ["menus"]);
             flash("Menu renamed");
+          }}
+          otherMenus={(menus[overlay.restaurantId] || [])
+            .filter(m => m.menu_id !== overlay.menuId)
+            .map(m => ({ id: m.menu_id, label: m.label }))}
+          onMergeInto={(targetId)=>{
+            // The way back after a split: every section joins the target, a saved
+            // translation is merged (keyed by wording, so nothing collides), the
+            // emptied menu goes, and you land on the target.
+            const rid = overlay.restaurantId, mid = overlay.menuId;
+            const list = menus[rid] || [];
+            const src = list.find(m => m.menu_id === mid);
+            const dst = list.find(m => m.menu_id === targetId);
+            if (!src || !dst || mid === targetId) return;
+            const merged = Object.assign({}, dst, {
+              sections: (dst.sections || []).concat(src.sections || []),
+              translation: mergeTranslation(dst.translation, src.translation),
+              last_updated: todayISO() });
+            const restMenus = list.filter(m => m.menu_id !== mid)
+              .map(m => m.menu_id === targetId ? merged : m);
+            commit({ menus: Object.assign({}, menus, { [rid]: restMenus }) }, ["menus"]);
+            setOverlay({ type:"menuDetail", restaurantId: rid, menuId: targetId });
+            flash("Moved into " + menuDisplayLabel(dst.label || "Menu"));
           }}
           onSplitMenu={(idxs, newLabel)=>{
             const rid = overlay.restaurantId;
@@ -13308,7 +13333,10 @@ function splitMenuSections(list, menuId, idxs, rawLabel){
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, onHome}){
+function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome}){
+  // Move into another menu (2026-10-07): the way back after a split.
+  const [merging, setMerging]   = useState(false);
+  const [mergeTo, setMergeTo]   = useState(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
@@ -13530,6 +13558,15 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
                   <Icon name="split" size={15} />Split</span>
               </button>
             )}
+            {onMergeInto && (otherMenus || []).length > 0 && (
+              <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
+                onClick={()=>{ setMergeTo((otherMenus.length === 1) ? otherMenus[0].id : null);
+                               setMerging(v => !v); setSplitting(false); setRenaming(false); }}
+                title="Move this menu's sections into another menu">
+                <span className="row" style={{gap:5, alignItems:"center"}}>
+                  <Icon name="merge" size={15} />Move into</span>
+              </button>
+            )}
             {onSplitMenu && (menu.sections || []).length > 1 && (
               <InfoDot title="Split a menu">
                 <span className="idl">Moves sections into a menu of their own - handy when one link
@@ -13545,6 +13582,30 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
                 color={confirmDel ? "#d9604e" : "#80715f"} />
             </button>
         </div>
+
+        {merging && (otherMenus || []).length > 0 && (
+          <div className="card" style={{marginBottom:10}}>
+            <div className="small" style={{fontWeight:600, marginBottom:4}}>Move {menuDisplayLabel(menu.label || "Menu")} into</div>
+            <div className="tiny faint" style={{marginBottom:9}}>
+              All {(menu.sections || []).length === 1 ? "of its section" : "its " + (menu.sections || []).length + " sections"} join the menu you pick, and this one is removed.
+            </div>
+            <div className="chips" style={{gap:6, marginBottom:10}}>
+              {otherMenus.map(om => (
+                <button key={om.id} type="button" className={"chip pick" + (mergeTo === om.id ? " on" : "")}
+                  aria-pressed={mergeTo === om.id} onClick={()=> setMergeTo(om.id)}>
+                  {menuDisplayLabel(om.label || "Menu")}
+                </button>
+              ))}
+            </div>
+            <div className="row" style={{gap:8}}>
+              <button className="btn ghost sm" onClick={()=> setMerging(false)}>Cancel</button>
+              <button className="btn primary sm" disabled={!mergeTo}
+                onClick={()=>{ if (mergeTo){ onMergeInto(mergeTo); setMerging(false); } }}>
+                {mergeTo ? "Move into " + menuDisplayLabel(((otherMenus.find(o => o.id === mergeTo) || {}).label) || "Menu") : "Pick a menu"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {splitting && (
           <div className="card" style={{marginBottom:10}}>

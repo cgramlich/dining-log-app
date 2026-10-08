@@ -250,7 +250,9 @@ back their whole page at once - dinner, lunch, drinks and brunch in one menu.
 Open the menu and tap **Split** to move sections into a menu of their own: tick
 the ones to move, name where they are going, and the rest stay put. To move just
 one section, tap the small split icon beside its heading; the new menu's name
-starts as the section's own. Type the
+starts as the section's own. To put a menu back, open it and tap **Move into**:
+pick the menu it should join, and all its sections move there and the empty
+menu is removed. Type the
 name of a menu you already have and they join it instead of starting a new one.
 You cannot move every section out, because that would leave an empty menu - rename
 it instead.
