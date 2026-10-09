@@ -240,7 +240,8 @@ saved, so it is instant after that. The English sits under each original line,
 so you can still point at the menu when you order, and searching finds dishes
 by their English too. Tap **Show English** again to hide it; your choice is
 remembered on this device. A small flag marks each pair: the restaurant's country on
-the original dish name, the US flag on the English. Help me order and Explain the menu always answer in
+the original, the US flag on the English - on the dish name when the name was
+translated, otherwise on the description. Help me order and Explain the menu always answer in
 English, whether or not you have translated. When a menu prints its own English
 (a board with Spanish on top and English below, say), scanning it keeps one copy
 in the local language and uses the restaurant's English for Show English - no

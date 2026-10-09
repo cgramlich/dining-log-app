@@ -1130,7 +1130,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.504.0";
+const APP_VERSION   = "1.505.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1966,7 +1966,8 @@ saved, so it is instant after that. The English sits under each original line,
 so you can still point at the menu when you order, and searching finds dishes
 by their English too. Tap **Show English** again to hide it; your choice is
 remembered on this device. A small flag marks each pair: the restaurant's country on
-the original dish name, the US flag on the English. Help me order and Explain the menu always answer in
+the original, the US flag on the English - on the dish name when the name was
+translated, otherwise on the description. Help me order and Explain the menu always answer in
 English, whether or not you have translated. When a menu prints its own English
 (a board with Spanish on top and English below, say), scanning it keeps one copy
 in the local language and uses the restaurant's English for Show English - no
@@ -14276,9 +14277,27 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                   ? <div className="ien">{flags && flags.to ? <span className="flag" aria-hidden="true">{flags.to}</span> : null}{enFor(it)[0]}</div> : null}
                 {it.price && isWidePrice(it.price)
                   ? <div className="iprl">{it.price}</div> : null}
-                {it.description && <div className="idesc">{it.description}</div>}
-                {showEn && enFor(it) && enFor(it)[1] && !sameText(enFor(it)[1], it.description)
-                  ? <div className="idesc idesc-en">{enFor(it)[1]}</div> : null}
+                {/* Flags mark ONE pair per dish, on whichever line was translated
+                    (2026-10-09): Italian names like "Paccheri" stay Italian, so on a
+                    typical menu the translation lives in the description and
+                    name-only flags never appeared. */}
+                {(function(){
+                  const en = showEn ? enFor(it) : null;
+                  const nameMarked = !!(en && en[0] && !sameText(en[0], it.name));
+                  const descPair = !!(en && en[1] && it.description && !sameText(en[1], it.description));
+                  const flagDesc = descPair && !nameMarked && flags;
+                  return (
+                    <>
+                      {it.description && <div className="idesc">
+                        {flagDesc && flags.from ? <span className="flag" aria-hidden="true">{flags.from}</span> : null}
+                        {it.description}</div>}
+                      {en && en[1] && !sameText(en[1], it.description)
+                        ? <div className="idesc idesc-en">
+                            {flagDesc && flags.to ? <span className="flag" aria-hidden="true">{flags.to}</span> : null}
+                            {en[1]}</div> : null}
+                    </>
+                  );
+                })()}
                 {!editTags && it.tags && it.tags.length > 0 && (
                   <div className="chips" style={{marginTop:6}}>
                     {it.tags.map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
