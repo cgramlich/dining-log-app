@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.503.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.504.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.130.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.503.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.504.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,16 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Flags on Show English (2026-10-09, 1.504.0)
+
+Chris's idea. When Show English is on, the original dish name carries the restaurant's country flag and
+the English name the US flag; the Show English button shows both. Dish NAMES only (descriptions would be
+hundreds of flags). Origin flag = `countryCodeFromAddress(restaurant.address)` (last address segment,
+accents folded, English and local spellings in `COUNTRY_CODES`), NOT the menu's language: a Spanish menu
+in Mexico gets Mexico's flag. Unknown country -> no flag; a US place -> no origin flag (US on both lines
+says nothing). `flagEmoji` builds regional-indicator pairs so the source stays ASCII. Windows renders
+flag emoji as letters; check on a phone.
 
 ### A visit rename can fix the menu too (2026-10-08, 1.503.0)
 
