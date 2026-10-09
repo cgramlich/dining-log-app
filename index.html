@@ -509,6 +509,8 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
        italics, so the printed wording stays the thing you point at. */
     .mitem .ien{font-size:13.5px; color:var(--text); font-style:italic; margin-top:2px; opacity:0.85;}
     .mitem .idesc-en{font-style:italic;}
+    /* Show English flags: place's country on the original, US on the English. */
+    .flag{margin-right:6px; font-style:normal; display:inline-block;}
     .msec-head .nm-en{display:block; font-family:inherit; font-size:12.5px; font-weight:500;
       font-style:italic; color:var(--text-dim); letter-spacing:0; margin-top:1px;}
 
@@ -1128,7 +1130,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.503.0";
+const APP_VERSION   = "1.504.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1963,7 +1965,8 @@ counts as one AI request, or one per hundred-odd dishes on a very long menu) and
 saved, so it is instant after that. The English sits under each original line,
 so you can still point at the menu when you order, and searching finds dishes
 by their English too. Tap **Show English** again to hide it; your choice is
-remembered on this device. Help me order and Explain the menu always answer in
+remembered on this device. A small flag marks each pair: the restaurant's country on
+the original dish name, the US flag on the English. Help me order and Explain the menu always answer in
 English, whether or not you have translated. When a menu prints its own English
 (a board with Spanish on top and English below, say), scanning it keeps one copy
 in the local language and uses the restaurant's English for Show English - no
@@ -4907,6 +4910,35 @@ function menuLooksForeign(menu){
   if (items.length < 3) return false;
   const hits = items.filter(it => FOREIGN_RE.test((it.name || "") + " " + (it.description || ""))).length;
   return hits / items.length >= 0.3;     // a few French dish names on an English menu stay under this
+}
+
+// The restaurant's country from its saved address (last segment, English or
+// local spelling), for the Show English flags (2026-10-09). "" when unknown:
+// no flag beats a wrong one.
+const COUNTRY_CODES = {
+  "spain":"ES","espana":"ES","espanya":"ES","italy":"IT","italia":"IT","france":"FR",
+  "germany":"DE","deutschland":"DE","portugal":"PT","mexico":"MX","netherlands":"NL",
+  "nederland":"NL","the netherlands":"NL","belgium":"BE","belgie":"BE","belgique":"BE",
+  "switzerland":"CH","schweiz":"CH","suisse":"CH","svizzera":"CH","austria":"AT",
+  "osterreich":"AT","greece":"GR","japan":"JP","united kingdom":"GB","uk":"GB",
+  "ireland":"IE","canada":"CA","argentina":"AR","brazil":"BR","brasil":"BR","peru":"PE",
+  "colombia":"CO","chile":"CL","croatia":"HR","hrvatska":"HR","czechia":"CZ",
+  "czech republic":"CZ","poland":"PL","polska":"PL","denmark":"DK","danmark":"DK",
+  "sweden":"SE","sverige":"SE","norway":"NO","norge":"NO","turkey":"TR","turkiye":"TR",
+  "thailand":"TH","vietnam":"VN","viet nam":"VN","south korea":"KR","china":"CN",
+  "morocco":"MA","malta":"MT","monaco":"MC","hungary":"HU","magyarorszag":"HU",
+  "iceland":"IS","finland":"FI","suomi":"FI","usa":"US","united states":"US",
+};
+function countryCodeFromAddress(addr){
+  const parts = String(addr || "").split(",").map(x => x.trim()).filter(Boolean);
+  if (!parts.length) return "";
+  const last = parts[parts.length - 1].normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return COUNTRY_CODES[last] || "";
+}
+// "ES" -> the Spanish flag, as two regional-indicator characters.
+function flagEmoji(cc){
+  if (!/^[A-Z]{2}$/.test(cc || "")) return "";
+  return String.fromCodePoint(0x1F1A5 + cc.charCodeAt(0), 0x1F1A5 + cc.charCodeAt(1));
 }
 
 function mergeTranslation(a, b){
@@ -13417,6 +13449,12 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   const canTranslate = !!(menu && onSaveTranslation && !knownEnglish);
   const looksForeign = !!(trOf || (menu && menuLooksForeign(menu)));
   const showEn = !!(enOn && trOf);
+  // Flags (2026-10-09): the place's country for the original, the US for English.
+  // A US place (a Spanish menu in Dallas, say) would show the US flag on both
+  // lines, which says nothing, so the original carries none there.
+  const ccFrom = countryCodeFromAddress(restaurant && restaurant.address);
+  const flagFrom = (ccFrom && ccFrom !== "US") ? flagEmoji(ccFrom) : "";
+  const flagTo = flagEmoji("US");
   function setEnPref(on){ setEnOn(on); try { localStorage.setItem("mc_menu_en", on ? "1" : "0"); } catch(e){} }
   async function toggleEnglish(){
     setTrErr(""); setTrNote("");
@@ -13579,7 +13617,8 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
               {trBusy
                 ? <span className="row" style={{gap:6, alignItems:"center"}}><span className="spin" />
                     {trProg && trProg.total > 1 ? trProg.n + " of " + trProg.total : "Translating"}</span>
-                : "Show English"}
+                : <span>{flagFrom ? <span className="flag" aria-hidden="true">{flagFrom}{" \u2192 "}</span> : null}
+                    <span className="flag" aria-hidden="true">{flagTo}</span>Show English</span>}
             </button>
           ) : canTranslate ? (
             <button type="button" className="tiny" disabled={trBusy} onClick={toggleEnglish}
@@ -13900,6 +13939,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           onSaveItemTags={onSaveItemTags}
           onSaveItemSig={onSaveItemSig}
           showEnglish={showEn}
+          flags={{ from: flagFrom, to: flagTo }}
           onSplitSection={onSplitMenu && (menu.sections || []).length > 1
             ? (si, name)=> onSplitMenu([si], name) : null}
           onHadThis={onHadThis}
@@ -13923,7 +13963,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection}){
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, flags}){
   // Per-section split (2026-10-07): {si, name} while that section's panel is open.
   const [secSplit, setSecSplit] = useState(null);
   // Show English: the switch lives in MenuDetail's place card (moved there
@@ -14162,7 +14202,10 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                       onBlur={e=>{ const v = (e.target.value || "").trim(); if (v && v !== it.name) onRenameItem(i, oj, v); }}
                       style={{flex:1, minWidth:0, padding:"5px 9px", fontSize:14.5, marginRight:8}} />
                   ) : (
-                    <span className="inm">{it.name}</span>
+                    <span className="inm">
+                      {showEn && flags && flags.from && enFor(it) && enFor(it)[0] && !sameText(enFor(it)[0], it.name)
+                        ? <span className="flag" aria-hidden="true">{flags.from}</span> : null}
+                      {it.name}</span>
                   )}
                   {it.price && !isWidePrice(it.price)
                     ? <span className="ipr">{it.price}</span>
@@ -14230,7 +14273,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                   </div>
                 ) : null}
                 {showEn && enFor(it) && enFor(it)[0] && !sameText(enFor(it)[0], it.name)
-                  ? <div className="ien">{enFor(it)[0]}</div> : null}
+                  ? <div className="ien">{flags && flags.to ? <span className="flag" aria-hidden="true">{flags.to}</span> : null}{enFor(it)[0]}</div> : null}
                 {it.price && isWidePrice(it.price)
                   ? <div className="iprl">{it.price}</div> : null}
                 {it.description && <div className="idesc">{it.description}</div>}
