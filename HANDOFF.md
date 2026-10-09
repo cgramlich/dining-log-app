@@ -393,7 +393,7 @@ Chris's idea. When Show English is on, the original dish name carries the restau
 the English name the US flag; the Show English button shows both. Dish NAMES only (descriptions would be
 hundreds of flags). **Corrected in 1.505.0:** one pair per dish on whichever line was translated - the
 name when its English differs, otherwise the description - because Italian dish names stay Italian and
-name-only flags never appeared on Chris's first Italian menu. Origin flag = `countryCodeFromAddress(restaurant.address)` (last address segment,
+name-only flags never appeared on Chris's first Italian menu. **Confirmed working on Chris's phone 2026-10-09.** Origin flag = `countryCodeFromAddress(restaurant.address)` (last address segment,
 accents folded, English and local spellings in `COUNTRY_CODES`), NOT the menu's language: a Spanish menu
 in Mexico gets Mexico's flag. Unknown country -> no flag; a US place -> no origin flag (US on both lines
 says nothing). `flagEmoji` builds regional-indicator pairs so the source stays ASCII. Windows renders
