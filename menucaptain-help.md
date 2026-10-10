@@ -735,6 +735,12 @@ place, your star rating alongside Google's, what you had, the photos, who you
 were with, and the menu. It never carries your private notes or what you spent,
 and the dish list is names only - no per-dish notes and no prices you paid.
 
+**What makes it special.** If you have logged anything about the place itself,
+the share sheet offers **Include what makes this place special**, ticked by
+default: your About this place (with its sources), the signature dish, your
+specials and off-menu tips, and the restaurant's own story, each labelled by
+whose words it is. Untick it to send just the meal.
+
 **Say something about it.** The share sheet has a note field, and whatever you
 write sits at the top of the page they open - "loved going to dinner after mass
 with the family". It is the one part written for the reader rather than for you,

@@ -1089,6 +1089,14 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .pub-mitem .iprl{ font-size:12.5px; color:var(--text-dim); margin-top:3px;
                       line-height:1.45; overflow-wrap:anywhere; }
     .pub-mitem .idesc{ font-size:12.5px; color:var(--text-faint); margin-top:3px; line-height:1.4; }
+    /* "What makes it special" on a shared visit. */
+    .pub-special{ margin:18px 0 6px; padding:14px 15px; border:1px solid var(--line); border-radius:12px;
+      background:var(--surface); text-align:left; }
+    .pub-special-h{ font-family:'Fraunces',serif; font-size:17px; margin-bottom:4px; }
+    .pub-special-part{ padding-top:11px; margin-top:11px; border-top:1px solid var(--line-soft); }
+    .pub-special-part:first-of-type{ border-top:none; margin-top:4px; padding-top:4px; }
+    .pub-special-lbl{ font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; font-weight:600;
+      color:var(--accent); margin-bottom:6px; }
     /* special-instructions note that appears under a picked dish */
     .pub-note{ display:block; width:100%; margin:-2px 0 8px; padding:9px 11px;
       background:var(--surface); border:1px solid var(--line); border-radius:9px;
@@ -1130,7 +1138,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.505.0";
+const APP_VERSION   = "1.506.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2460,6 +2468,12 @@ works for people who have never heard of the app. Either way it carries the
 place, your star rating alongside Google's, what you had, the photos, who you
 were with, and the menu. It never carries your private notes or what you spent,
 and the dish list is names only - no per-dish notes and no prices you paid.
+
+**What makes it special.** If you have logged anything about the place itself,
+the share sheet offers **Include what makes this place special**, ticked by
+default: your About this place (with its sources), the signature dish, your
+specials and off-menu tips, and the restaurant's own story, each labelled by
+whose words it is. Untick it to send just the meal.
 
 **Say something about it.** The share sheet has a note field, and whatever you
 write sits at the top of the page they open - "loved going to dinner after mass
@@ -3853,7 +3867,7 @@ function firstNameOf(name){
   return String(name || "").trim().split(/\s+/)[0] || "";
 }
 
-async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, note, onLinkShared){
+async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, note, onLinkShared, special){
   if (!visit){ return; }
   if (setBusy) setBusy(true);
   if (setErr) setErr(null);
@@ -3861,7 +3875,7 @@ async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, not
     const photoUrls = await signVisitPhotos(cfg, (visit.photos || []).filter(Boolean));
     const heroUrl   = await signVisitHero(cfg, visit, restaurant);
     const rest      = await fillGoogleRating(cfg, restaurant);
-    const payload = buildVisitPayload(visit, rest, menuList, photoUrls, heroUrl, note);
+    const payload = buildVisitPayload(visit, rest, menuList, photoUrls, heroUrl, note, special);
     // A link recipient should be able to JOIN, same as a friend - so the link
     // path opens the shared record too. Best-effort: the link still works if it
     // fails, it just is not joinable.
@@ -4042,7 +4056,53 @@ function buildPlacePayload(restaurant, menu, lovedNames){
      { k:"v", v:1, r,cu,c,a,gpid,lat,lng, dt, rt, g:{r,n}, ppl:[names],
        ate:[{n,y}] (y:2 loved, y:1 again), ph:[urls], hero,
        s:[ { n, i:[ { n,d,p,t } ] } ] } */
-function buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl, note){
+/* What you have logged about the PLACE that is worth passing on with a visit
+   (2026-10-10): About this place + its sources, the signature dish, specials
+   and off-menu tips, and the restaurant's own printed story. Never the private
+   Notes field. null when there is nothing, so callers can hide the switch. */
+function visitSpecial(restaurant, menuList){
+  if (!restaurant) return null;
+  const sp = {};
+  const ab = String(restaurant.story || "").trim();
+  if (ab){
+    sp.ab = ab.slice(0, 1200);
+    const src = (Array.isArray(restaurant.story_sources) ? restaurant.story_sources : [])
+      .filter(x => x && /^https?:\/\//i.test(x.url || "")).slice(0, 3)
+      .map(x => ({ t: String(x.title || "").trim().slice(0, 80), u: String(x.url).slice(0, 300) }));
+    if (src.length) sp.src = src;
+  }
+  const sig = [];
+  (menuList || []).forEach(mn => ((mn && mn.sections) || []).forEach(sec => ((sec && sec.items) || []).forEach(it => {
+    const n = String((it && it.name) || "").trim();
+    if (it && it.sig && n && sig.indexOf(n) === -1) sig.push(n);
+  })));
+  if (sig.length) sp.sig = sig.slice(0, 5);
+  const off = (Array.isArray(restaurant.offmenu) ? restaurant.offmenu : [])
+    .filter(x => x && String(x.name || "").trim()).slice(0, 8)
+    .map(x => {
+      const e = { n: String(x.name).trim() };
+      if (x.price) e.p = String(x.price).trim();
+      if (x.note)  e.d = String(x.note).trim().slice(0, 200);
+      return e;
+    });
+  if (off.length) sp.off = off;
+  const own = String(restaurant.house_story || "").trim();
+  if (own) sp.own = own.slice(0, 1200);
+  return Object.keys(sp).length ? sp : null;
+}
+// "About this place, the signature dish, 2 specials and their own story"
+function visitSpecialSummary(sp){
+  if (!sp) return "";
+  const bits = [];
+  if (sp.ab) bits.push("About this place");
+  if (sp.sig) bits.push(sp.sig.length === 1 ? "the signature dish" : sp.sig.length + " signature dishes");
+  if (sp.off) bits.push(sp.off.length === 1 ? "1 special" : sp.off.length + " specials");
+  if (sp.own) bits.push("their own story");
+  if (bits.length <= 1) return bits.join("");
+  return bits.slice(0, -1).join(", ") + " and " + bits[bits.length - 1];
+}
+
+function buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl, note, special){
   const usable = (menuList || []).filter(m => m && (m.sections || []).length);
   const combined = usable.length ? (usable.length === 1 ? usable[0] : combineGroupMenus(usable)) : null;
   const sections = (((combined && combined.sections) || []).map(s => ({
@@ -4093,6 +4153,11 @@ function buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl, note
   else if (heroUrl) o.hero = heroUrl;
   const msg = (note || "").trim();
   if (msg) o.msg = msg.slice(0, 280);
+  // On unless the sharer switched it off (special === false).
+  if (special !== false){
+    const sp = visitSpecial(restaurant, menuList);
+    if (sp) o.sp = sp;
+  }
   if (sections.length) o.s = sections;
   return o;
 }
@@ -12881,8 +12946,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               <InfoDot title="In their words">
                 <span className="idl">The story this restaurant prints about itself, picked up from
                   its menu or a page you photographed{r.house_story_at ? " on " + r.house_story_at : ""}.</span>
-                <span className="idl">It is their description, not yours or a friend's. It stays
-                  private to you and is not included when you share the place.</span>
+                <span className="idl">It is their description, not yours or a friend's. Sharing the
+                  place does not include it. Sharing a visit does, labelled as the restaurant's
+                  own words, unless you switch that off on the share sheet.</span>
                 <span className="idl">A newer menu or page with a story replaces it.</span>
               </InfoDot>
             </div>
@@ -20231,7 +20297,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                   onClose={()=> setShowShare(false)} />
               ) : null}
               <div className="tiny faint">
-                Sends the place, your star rating, what you had, the photos, who you were with, and the menu - never your private notes or what you spent.
+                Sends the place, your star rating, what you had, the photos, who you were with, and the menu, plus what makes the place special if you have logged any - never your private notes or what you spent.
               </div>
               {shareErr ? <div className="tiny" style={{color:"var(--accent)"}}>{shareErr}</div> : null}
             </div>
@@ -22621,6 +22687,55 @@ function PublishedVisit({data, onSaved, onLogVisit}){
               {data.ate.some(d => d.y === 2) && data.ate.some(d => d.y === 1)
                 ? <span>{"  \u00b7  "}</span> : null}
               {data.ate.some(d => d.y === 1) ? <span>highlighted = would order again</span> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* What makes the place special (2026-10-10): what the sharer has logged
+          about the PLACE, right after the meal. Each part is labelled by whose
+          words it is, so the restaurant's own copy never reads as the sharer's. */}
+      {data.sp ? (
+        <div className="pub-special">
+          <div className="pub-special-h">What makes it special</div>
+          {data.sp.ab ? (
+            <div className="pub-special-part">
+              <div className="pub-special-lbl">About this place</div>
+              <div className="small" style={{whiteSpace:"pre-wrap", lineHeight:1.5}}>{data.sp.ab}</div>
+              {Array.isArray(data.sp.src) && data.sp.src.length ? (
+                <div className="tiny faint" style={{marginTop:6}}>
+                  Sources:{" "}
+                  {data.sp.src.map((x, i)=>(
+                    <span key={i}>{i ? ", " : ""}
+                      <a href={x.u} target="_blank" rel="noopener noreferrer" style={{color:"var(--accent)"}}>{x.t || "link"}</a></span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {Array.isArray(data.sp.sig) && data.sp.sig.length ? (
+            <div className="pub-special-part">
+              <div className="pub-special-lbl">Known for</div>
+              <div className="chips">
+                {data.sp.sig.map((n, i)=> <span key={i} className="chip dish">{"\u2605 "}{n}</span>)}
+              </div>
+            </div>
+          ) : null}
+          {Array.isArray(data.sp.off) && data.sp.off.length ? (
+            <div className="pub-special-part">
+              <div className="pub-special-lbl">Not on the menu / specials</div>
+              {data.sp.off.map((x, i)=>(
+                <div key={i} style={{marginTop: i ? 7 : 0}}>
+                  <div className="small" style={{fontWeight:600}}>{x.n}{x.p ? <span className="tiny faint">{"  " + x.p}</span> : null}</div>
+                  {x.d ? <div className="tiny faint" style={{marginTop:1}}>{x.d}</div> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {data.sp.own ? (
+            <div className="pub-special-part">
+              <div className="pub-special-lbl">In their words{" "}<span style={{textTransform:"none", letterSpacing:0, fontWeight:400}}>- from the restaurant</span></div>
+              <div className="small muted" style={{whiteSpace:"pre-wrap", lineHeight:1.5, fontStyle:"italic"}}>{data.sp.own}</div>
             </div>
           ) : null}
         </div>
@@ -28811,6 +28926,9 @@ function VisitShareSheet({cfg, visit, restaurant, menuList, onClose, onLinkShare
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState("");
   const [note, setNote] = useState("");   // a line for the people you send it to
+  // What makes the place special (2026-10-10): on by default, one switch.
+  const special = visitSpecial(restaurant, menuList);
+  const [withSpecial, setWithSpecial] = useState(true);
   const place = (restaurant && restaurant.name) || (visit && visit.restaurant_name) || "this visit";
   return (
     <div className="sheet-bg" onClick={onClose}>
@@ -28825,18 +28943,29 @@ function VisitShareSheet({cfg, visit, restaurant, menuList, onClose, onLinkShare
             placeholder="We really had a great time catching up with you tonight" />
           <span className="tiny faint">Optional. Sits at the top of what they see.</span>
         </label>
+        {special ? (
+          <label className="row" style={{gap:9, alignItems:"flex-start", marginBottom:12, cursor:"pointer"}}>
+            <input type="checkbox" checked={withSpecial} style={{marginTop:3}}
+              onChange={e=> setWithSpecial(e.target.checked)} />
+            <span className="small">Include what makes this place special
+              <span className="tiny faint" style={{display:"block", marginTop:2}}>
+                {visitSpecialSummary(special)}</span>
+            </span>
+          </label>
+        ) : null}
         <div style={{marginBottom:9}}>
           <SendVisitToConnection cfg={cfg} visit={visit} restaurant={restaurant}
-            menuList={menuList} label="Send to a friend" onLinkShared={onLinkShared} note={note} />
+            menuList={menuList} label="Send to a friend" onLinkShared={onLinkShared} note={note}
+            special={withSpecial} />
         </div>
         <button className="btn ghost" style={{width:"100%"}} disabled={busy}
-          onClick={()=> shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, note, onLinkShared)}>
+          onClick={()=> shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, note, onLinkShared, withSpecial)}>
           {busy ? <span className="spin" />
             : <span className="row" style={{gap:6, justifyContent:"center"}}>
                 <Icon name="share" size={16} />Share a link with anyone</span>}
         </button>
         <div className="tiny faint" style={{marginTop:8}}>
-          Sends the place, your star rating, what you had, the photos, who you were with, and the menu - never your private notes or what you spent.
+          Sends the place, your star rating, what you had, the photos, who you were with, and the menu{special && withSpecial ? ", plus what makes it special" : ""} - never your private notes or what you spent.
         </div>
         {err ? <div className="tiny" style={{marginTop:6, color:"var(--danger)"}}>{err}</div> : null}
         <button className="btn ghost" style={{width:"100%", marginTop:12}} onClick={onClose}>Close</button>
@@ -29135,7 +29264,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
 // Send a VISIT straight to accepted connections (in-app, not a public link).
 // Signs the meal photos, builds the same shareable visit blob, and drops it in
 // each connection's "Shared with you" inbox (kind "visit").
-function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkShared, note}){
+function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkShared, note, special}){
   const [open, setOpen]   = useState(false);
   const [conns, setConns] = useState(null);
   const [pick, setPick]   = useState({});
@@ -29157,7 +29286,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
       const photoUrls = await signVisitPhotos(cfg, (visit.photos || []).filter(Boolean));
       const heroUrl   = await signVisitHero(cfg, visit, restaurant);
       const rest      = await fillGoogleRating(cfg, restaurant);
-      const payload = buildVisitPayload(visit, rest, menuList || [], photoUrls, heroUrl, note);
+      const payload = buildVisitPayload(visit, rest, menuList || [], photoUrls, heroUrl, note, special);
       // Open (or reuse) the shared record, so anyone who was actually there can
       // JOIN this visit instead of starting a disconnected one of their own.
       let svId = (visit && visit.sv) || "";
