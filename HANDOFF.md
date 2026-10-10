@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.505.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.506.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.130.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.505.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.506.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,19 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A shared visit says what makes the place special (2026-10-10, 1.506.0)
+
+Chris wanted to share more than the meal. `visitSpecial(restaurant, menuList)` builds
+`{ab, src[], sig[], off[], own}` = About this place (<=1200 chars) + up to 3 http(s) sources, signature
+dishes (`it.sig`, <=5), off-menu / specials (<=8), and the restaurant's own `house_story` (<=1200);
+`buildVisitPayload(..., special)` adds it as `o.sp` unless `special === false`. VisitShareSheet shows one
+checkbox, default on, with `visitSpecialSummary` listing exactly what goes; both share paths pass it.
+PublishedVisit renders a "What makes it special" card after the meal, each part labelled by whose words
+it is. **Decision recorded:** `house_story` was private by design (it is the restaurant's text); Chris
+chose to include it on VISIT shares, labelled "from the restaurant". Place shares still do not carry it.
+The private `notes` field is never sent (asserted with the switch on and off). No new data category
+for the store privacy answers: a shared visit already carried user-authored content.
 
 ### Flags on Show English (2026-10-09, 1.504.0)
 
