@@ -1171,7 +1171,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.509.0";
+const APP_VERSION   = "1.510.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1951,7 +1951,9 @@ everything else stays your own private record.
 
 **Scanning a menu.** Use "Scan or find a menu" and take or pick photos of the
 physical menu. The app reads it and turns it into a clean, digital menu -
-sections, dish names, descriptions, prices, and tags. This is what powers
+sections, dish names, descriptions, prices, and tags. A menu that needs several
+photos is read with all its pages at the same time, so four pages take about as
+long as one, and it still counts as one scan. This is what powers
 "Help me order" and the calorie estimates. Prefer not to photograph it? **Find
 the menu for me** looks on the restaurant's website and reads the menu in for
 you - and if no website is on file, you can simply type it in. You can also
@@ -5186,15 +5188,21 @@ async function translateMenu(cfg, menu, onProgress){
 /* ============================================================
    ANTHROPIC VISION - menu digitization
    ============================================================ */
-async function digitizeMenu(cfg, dataUrls){
-  // dataUrls: array of "data:image/jpeg;base64,..." strings.
-  const prompt =
-    "You are a menu digitization assistant. Extract the COMPLETE menu from the "+
-    "attached photo(s) into structured JSON. The photos may be multiple pages or "+
-    "sections of the SAME restaurant menu - merge them into one menu.\n\n"+
+// The instructions for reading a menu photo. `onePage` is the variant used
+// when the photos of a menu are read separately and at the same time: the
+// model sees ONE page and is told so, says which language the page is in, and
+// marks dishes that carry on a section begun on the page before.
+function menuScanPrompt(onePage){
+  return (onePage
+    ? "You are a menu digitization assistant. This photo is ONE PAGE of a "+
+      "restaurant menu; the other pages are being read separately. Extract "+
+      "everything on THIS page into structured JSON.\n\n"
+    : "You are a menu digitization assistant. Extract the COMPLETE menu from the "+
+      "attached photo(s) into structured JSON. The photos may be multiple pages or "+
+      "sections of the SAME restaurant menu - merge them into one menu.\n\n")+
     "Return ONLY valid JSON. No markdown, no commentary. Keep the response "+
     "compact so it is not truncated. Schema:\n"+
-    '{"restaurant_name": string or null, "house_story": string or null, "sections":[{"name":string,'+
+    '{'+(onePage ? '"lang": string or null, ' : '')+'"restaurant_name": string or null, "house_story": string or null, "sections":[{"name":string,'+
     '"items":[{"name":string,"description":string,"price":string,'+
     '"tags":[string],"notes":string,"calories":number or null}]}]}\n\n'+
     "Rules:\n"+
@@ -5247,7 +5255,133 @@ async function digitizeMenu(cfg, dataUrls){
     "descriptions of multiple dishes; that is fine and expected.\n"+
     "- Only digitize actual food and drink menus. Ignore unrelated pages such "+
     "as advertisements, brochures, or directories of other businesses.\n"+
-    "- If text is unclear, give your best reading.";
+    "- If text is unclear, give your best reading."+
+    (onePage
+      ? "\n- lang: the two-letter code of the language most DISH NAMES on this "+
+        "page are printed in (\"it\", \"es\", \"fr\", \"en\"...). null if the page "+
+        "has no dishes.\n"+
+        "- CONTINUED SECTION: if the page begins with dishes that carry on a "+
+        "section started on the previous page (there is no heading above them), "+
+        "put them in a FIRST section whose name is \"\" (an empty string). Do not "+
+        "invent a heading for them."
+      : "");
+}
+
+// The server reads at most this many pages at once (SCAN_PAGES_MAX there).
+const SCAN_PAGES_MAX = 8;
+
+// Two readings of the same printed line: same dish name and same price.
+// Overlapping photos produce these, and one request used to fold them itself.
+function menuPageItemKey(it){
+  const nm = String((it && it.name) || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const pr = String((it && it.price) || "").replace(/[^0-9.,]/g, "").replace(/[.,]0+$/, "");
+  return nm + "|" + pr;
+}
+
+// Pure: fold pages that were read separately into one menu, in photo order.
+// - a first section named "" on a page carries on the previous page's last section;
+// - sections with the same name (any page) are one section;
+// - a dish read twice (overlapping photos) is kept once, the fuller reading wins.
+function mergeMenuPages(pages){
+  const out = { restaurant_name: null, house_story: null, sections: [] };
+  const byName = {};
+  (pages || []).forEach(pg => {
+    if (!pg) return;
+    if (!out.restaurant_name && pg.restaurant_name) out.restaurant_name = pg.restaurant_name;
+    const story = (typeof pg.house_story === "string") ? pg.house_story.trim() : "";
+    if (story.length > String(out.house_story || "").length) out.house_story = story;
+    (pg.sections || []).forEach((sec, si) => {
+      const nm = String((sec && sec.name) || "").trim();
+      const items = ((sec && sec.items) || []).filter(it => it && String(it.name || "").trim());
+      if (!items.length) return;
+      let tgt;
+      if (!nm && si === 0 && out.sections.length){
+        tgt = out.sections[out.sections.length - 1];
+      } else if (nm && byName[nm.toLowerCase()]){
+        tgt = byName[nm.toLowerCase()];
+      } else {
+        tgt = { name: nm, items: [] };
+        if (sec.name_en) tgt.name_en = sec.name_en;
+        out.sections.push(tgt);
+        if (nm) byName[nm.toLowerCase()] = tgt;
+      }
+      const have = {};
+      tgt.items.forEach(it => { have[menuPageItemKey(it)] = it; });
+      items.forEach(it => {
+        const k = menuPageItemKey(it), prev = have[k];
+        if (!prev){ tgt.items.push(it); have[k] = it; }
+        else if (String(it.description || "").length > String(prev.description || "").length){
+          Object.assign(prev, it);
+        }
+      });
+    });
+  });
+  return out;
+}
+
+// Pages of one menu printed in different languages are almost always the SAME
+// dishes twice (Italian pages, then English pages). Read apart, every dish
+// would be listed in both. Only one request that sees all the pages can pair
+// them, so this case goes back to the old way.
+function menuPagesDisagreeOnLanguage(pages){
+  const seen = {};
+  (pages || []).forEach(pg => {
+    const has = ((pg && pg.sections) || []).some(sec => ((sec && sec.items) || []).length);
+    const lang = String((pg && pg.lang) || "").trim().toLowerCase().slice(0, 2);
+    if (has && lang) seen[lang] = true;
+  });
+  return Object.keys(seen).length > 1;
+}
+
+// Read the photos of one menu at the same time, one request each, through the
+// server's fan-out (ONE counted scan - see the server's SCAN PAGES note for
+// why this is not N relay calls). Throws on anything that makes the result
+// untrustworthy; digitizeMenu then falls back to the single request.
+async function digitizeMenuByPage(cfg, dataUrls){
+  const prompt = menuScanPrompt(true);
+  const pages = dataUrls.map(u => ({ messages:[{ role:"user", content:[
+    { type:"image", source:{ type:"base64", media_type:"image/jpeg", data:u.split(",")[1] } },
+    { type:"text", text:prompt },
+  ] }] }));
+  logMsg("VISION","Reading " + dataUrls.length + " pages at the same time");
+  const res = await fetch(apiBase(cfg) + "/api/ai/scan-pages", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body:JSON.stringify({ max_tokens:32000, pages:pages }),
+  });
+  if (!res.ok) throw new Error("server answered " + res.status);
+  const json = await res.json();
+  const got = (json && json.pages) || [];
+  if (got.length !== dataUrls.length) throw new Error("expected " + dataUrls.length + " pages, got " + got.length);
+  const raws = got.map((pg, i) => {
+    if (!pg || pg.error) throw new Error("page " + (i + 1) + " was not read");
+    if (pg.stop_reason === "max_tokens") throw new Error("page " + (i + 1) + " ran out of room");
+    const text = (pg.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+    const parsed = parseJsonLoose(text);
+    if (!Array.isArray(parsed.sections)) throw new Error("page " + (i + 1) + " had no sections");
+    return parsed;
+  });
+  if (menuPagesDisagreeOnLanguage(raws)) throw new Error("the pages are in different languages");
+  const merged = mergeMenuPages(raws);
+  logMsg("VISION","Merged " + raws.length + " pages into " + merged.sections.length + " section(s)");
+  return finishDigitizedMenu(merged);
+}
+
+async function digitizeMenu(cfg, dataUrls){
+  // dataUrls: array of "data:image/jpeg;base64,..." strings.
+  // Several photos: read the pages at the same time (2026-10-11). The wait is
+  // then about the slowest page instead of the sum. If that cannot be trusted
+  // for ANY reason, read them the old way below - one request, all photos -
+  // so a scan is never worse than it was. Cost of a fallback: the pages were
+  // already read once, so that scan counts twice against the allowance.
+  if (dataUrls.length >= 2 && dataUrls.length <= SCAN_PAGES_MAX){
+    try { return await digitizeMenuByPage(cfg, dataUrls); }
+    catch(err){
+      logMsg("VISION","Pages not read separately (" + ((err && err.message) || "no reason given") +
+             ") - reading all photos in one request");
+    }
+  }
+  const prompt = menuScanPrompt(false);
 
   const content = dataUrls.map(u => ({
     type:"image",
@@ -5311,6 +5445,12 @@ async function digitizeMenu(cfg, dataUrls){
     throw new Error("The digitized menu came back incomplete or malformed. " +
                     "Try again, or scan fewer pages at once.");
   }
+  return finishDigitizedMenu(parsed);
+}
+
+// The model's JSON -> the menu the app stores. Shared by the single request
+// and the merged pages, so both produce exactly the same shape.
+function finishDigitizedMenu(parsed){
   if (!Array.isArray(parsed.sections)) throw new Error("Model response had no sections array");
   // normalize so downstream rendering is safe
   const printed = printedEnglish(parsed.sections);   // before the normalizer drops *_en

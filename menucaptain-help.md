@@ -184,7 +184,9 @@ everything else stays your own private record.
 
 **Scanning a menu.** Use "Scan or find a menu" and take or pick photos of the
 physical menu. The app reads it and turns it into a clean, digital menu -
-sections, dish names, descriptions, prices, and tags. This is what powers
+sections, dish names, descriptions, prices, and tags. A menu that needs several
+photos is read with all its pages at the same time, so four pages take about as
+long as one, and it still counts as one scan. This is what powers
 "Help me order" and the calorie estimates. Prefer not to photograph it? **Find
 the menu for me** looks on the restaurant's website and reads the menu in for
 you - and if no website is on file, you can simply type it in. You can also
