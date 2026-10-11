@@ -23,7 +23,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 | Piece | Version | Where |
 |---|---|---|
 | Web app | **1.509.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.133.0** | Railway, `/health` reports `db connected` |
+| Backend | **0.134.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.509.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -393,6 +393,60 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Sonnet 5.5 for every AI task; scans skip up-front thinking; calls are timed (2026-10-11, backend 0.134.0)
+
+Chris: menu scans "take a while", should we move to a newer model? **Decision (his): Sonnet 5.5 across
+the board.** He was offered scans-first and "stay on Sonnet 5, fix thinking only" (my recommendation
+once the price turned out equal) and chose the full move.
+
+**Measured before changing anything** (Railway log, 22 scans, 10-08 to 10-11, by pairing `POST relay`
+with the next `relay success` for the same user): median about 56 s, 9 of 22 over 80 s, longest 210 s.
+With the `[COST]` line's token counts: **about 135 output tokens a second**, and a scan is 4,000 to
+17,000 output tokens. Scan time is output size divided by that rate.
+
+**What was configured before: nothing.** The relay sent model, max_tokens, messages and system only.
+So every task ran on the provider default, which on Sonnet 5 AND 5.5 is **adaptive thinking at high
+effort** (Anthropic's thinking table, read 2026-10-11): the model reasons privately first when it judges
+that useful, billed as output. Evidence it was happening on scans: the SAME photo scanned twice cost
+17,234 output tokens then 11,904; another pair 11,296 then 9,088. Strong evidence, not proof.
+
+**What changed:**
+- `AI_MODELS_BUILTIN`: all 8 tasks -> `claude-sonnet-5-5`. Alias `sonnet` -> 5.5; new alias `sonnet-5`.
+  **Revert with no deploy: `AI_MODEL_DEFAULT=sonnet-5` in Railway** (or `AI_MODEL_OCR_MENU=...` for one).
+- `_thinking_kwargs(task, model)`: for `AI_TRANSCRIBE_TASKS` (ocr_menu, ocr_receipt, translate_menu)
+  it sends the setting that stops up-front thinking. **Each model spells it differently and rejects
+  the others with a 400:** Sonnet 5.5 = `{"type":"between_tools"}` ("disabled" is a 400); Sonnet 5,
+  Opus 5, Sonnet 4.6 = `{"type":"disabled"}`; Opus 5.5 cannot turn it off, so nothing is sent; any
+  other model gets nothing. Judgement tasks (help_me_order, explain_menu, estimates, place_about) are
+  unchanged. Effort is left at the default everywhere. Switch back: `AI_TRANSCRIBE_THINKING=on`.
+- **Fail-safe in the relay**, because neither setting could be tried against the real provider before
+  release (the key is only in Railway): a 400 while a thinking setting was sent retries once without
+  it; a 404 on the model falls back to `claude-sonnet-5`. Both log `[AI] ... refused` / `not found` as
+  errors. Grep for those after the first real scans.
+- Relay success line: `[AI] relay success user=.. task=.. model=.. secs=.. in=.. out=.. stop_reason=..`.
+- **Cost table corrected.** `AI_PRICES["claude-sonnet-5"]` said $3/$15; the real price is $2/$10 (the
+  rise planned for 2026-09-01 was cancelled, per the pricing page). Recorded cost ran 50% HIGH for six
+  weeks (a scan logged 19-28 cents, really 13-18). 5.5 added at $2/$10. `_price_for` now takes the
+  LONGEST matching prefix, since `claude-sonnet-5-5` also starts with `claude-sonnet-5`.
+
+**Verified:** 26 checks on the real sections with a stand-in provider (`scratchpad/test_sonnet55.py`);
+live log shows `models in force: ['claude-sonnet-5-5']` and `up-front thinking on scans/translations:
+off`. **NOT verified: a real AI call on 5.5.** Nothing has run on it yet; the first scan is the test.
+Compare its `secs` and `out` with the baseline above, and read the menu it produced for missed dishes
+or wrong prices before calling it better. If quality drops, revert first, investigate second.
+
+**Found on the way, not fixed:**
+- **Thinking counts toward `max_tokens`.** Help me order asks for 700 and group help for 400, with
+  thinking on. One Help me order call on 10-10 20:00Z stopped at exactly 700 (`stop_reason=max_tokens`),
+  so an answer was cut off. 5.5's effort levels are recalibrated and may think more. Watch the new
+  success line for `stop_reason=max_tokens`; the fix is headroom on those calls or a lower effort.
+- **Bigger speed levers than the model:** every photo goes in ONE request and the phone waits for the
+  whole answer (no progress shown); and the digitizer's JSON repeats empty keys on every dish
+  (`notes`, `calories`, `tags`). Reading pages in parallel, showing dishes as they arrive, or a leaner
+  output shape would each cut the wait more than a model swap. Not built; propose before building.
+- The app's advisory `VISION_MODEL` constant in `index.html` still says `claude-sonnet-4-6`. Harmless:
+  the server routes by task and ignores it.
 
 ### Firecrawl credits: who is spending them is UNKNOWN; the balance is now read every 15 minutes (2026-10-11, backend 0.133.0)
 

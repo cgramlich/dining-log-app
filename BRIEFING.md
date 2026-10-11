@@ -46,13 +46,13 @@ find.
 | Figure | Value | As of |
 |---|---|---|
 | Web app | v1.509.0, live | 2026-10-11 |
-| Backend | v0.133.0, live | 2026-10-11 |
+| Backend | v0.134.0, live | 2026-10-11 |
 | Front end | a single HTML file, ~1.41 MB, no build step | 2026-09-25 |
 | Backend | ~7,600 lines of Python (FastAPI) | 2026-09-25 |
 | Free tier | 75 AI calls + 15 Discovery lookups, lifetime | current |
 | Pro | $2.99/month or $19.99/year | current, live in Stripe |
 | Cost of a fully-consumed free tier | ~$2.30 per user | modelled |
-| AI model, all six tasks | Claude Sonnet 5 | since 2026-08 |
+| AI model, all eight tasks | Claude Sonnet 5.5 | since 2026-10-11 (Sonnet 5 from 2026-08) |
 | Versions shipped in the fortnight to 2026-09-06 | 40+, each from real use | 2026-09-06 |
 | Versions shipped since 2026-09-06 | 43, every one from real use | 2026-09-28 |
 
