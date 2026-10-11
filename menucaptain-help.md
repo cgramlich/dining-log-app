@@ -1164,6 +1164,11 @@ Questions or trouble? Email **support@menucaptain.com**.
 
 ## If something stops working
 
+- **Photos will not upload on a weak signal.** When you save a visit, a photo
+  that does not get through is tried again by itself, and if your phone has no
+  connection the app waits for it to come back. Keep the screen open. If it
+  still cannot finish, the Save button returns with everything you entered
+  still there; tap Save again and only the photos that are missing are sent.
 - **You signed up but never got a confirmation email.** There isn't one - your
   account works the moment you create it. If the app asks you to sign in again,
   you probably created the account in your browser (from a link someone sent) and

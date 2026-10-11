@@ -1171,7 +1171,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.510.0";
+const APP_VERSION   = "1.511.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2931,6 +2931,11 @@ Questions or trouble? Email **support@menucaptain.com**.
 
 ## If something stops working
 
+- **Photos will not upload on a weak signal.** When you save a visit, a photo
+  that does not get through is tried again by itself, and if your phone has no
+  connection the app waits for it to come back. Keep the screen open. If it
+  still cannot finish, the Save button returns with everything you entered
+  still there; tap Save again and only the photos that are missing are sent.
 - **You signed up but never got a confirmation email.** There isn't one - your
   account works the moment you create it. If the app asks you to sign in again,
   you probably created the account in your browser (from a link someone sent) and
@@ -4578,6 +4583,105 @@ async function ghGetRawFile(cfg, path){
 /* Generous, because a photo on a phone connection is genuinely slow - but
    finite, because "no limit" means "hangs for ever" the one time it stalls. */
 const PHOTO_UPLOAD_TIMEOUT_MS = 60000;
+
+/* ---- photo uploads that survive a dropped connection (2026-10-11) ----------
+   A photo that never got through is tried again by itself: twice, after 2 s
+   and then 5 s - the waits and the wording FitnessCaptain's gym scan uses
+   (v0.153.4), so the two apps say the same thing for the same event. A refusal
+   from the server is NOT retried; asking again would get the same answer.
+   If the phone is offline there is nothing to try, so it waits for the
+   connection to come back (up to three minutes) and then carries on. */
+const PHOTO_RETRY_WAITS_MS = [2000, 5000];
+const PHOTO_OFFLINE_WAIT_MS = 180000;
+
+// One id per photo for as long as its blob lives, so a second tap on Save
+// asks for the SAME file paths as the first. Ids used to be minted inside
+// save(), so every attempt re-sent every photo to a new path and left the
+// earlier copies stranded in storage.
+const _photoIds = new WeakMap();
+function stablePhotoId(blob, prefix){
+  let id = blob ? _photoIds.get(blob) : null;
+  if (!id){
+    id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    if (blob) _photoIds.set(blob, id);
+  }
+  return prefix + id;
+}
+// Paths already uploaded in this session: never sent twice.
+const _photosUploaded = new Set();
+
+// Resolves true when the phone is (or comes back) online, false after maxMs.
+function waitForOnline(maxMs){
+  return new Promise(resolve => {
+    if (typeof navigator === "undefined" || navigator.onLine !== false){ resolve(true); return; }
+    let over = false;
+    const finish = (ok)=>{
+      if (over) return;
+      over = true;
+      window.removeEventListener("online", cameBack);
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    const cameBack = ()=> finish(true);
+    const timer = setTimeout(()=> finish(false), maxMs);
+    window.addEventListener("online", cameBack);
+  });
+}
+
+// Put one photo, trying again when it never got through. onNote(text) is told
+// what is happening so the screen can say it; "" is never sent from here - the
+// caller clears the note when the photo lands.
+async function putPhotoWithRetry(cfg, u, sha, onNote){
+  const tries = PHOTO_RETRY_WAITS_MS.length + 1;
+  for (let attempt = 0; ; attempt++){
+    try {
+      return await ghPutBinaryFile(cfg, u.path, u.blob, sha);
+    } catch(err){
+      if (!(err && err.transport) || attempt >= PHOTO_RETRY_WAITS_MS.length) throw err;
+      if (typeof navigator !== "undefined" && navigator.onLine === false){
+        logMsg("SAVE","Photo upload dropped and the phone is offline - waiting for a connection");
+        if (onNote) onNote("No connection - waiting for it to come back");
+        const back = await waitForOnline(PHOTO_OFFLINE_WAIT_MS);
+        if (!back){
+          const gone = new Error("There has been no connection for " +
+            Math.round(PHOTO_OFFLINE_WAIT_MS/60000) + " minutes.");
+          gone.transport = true;
+          throw gone;
+        }
+        // "online" fires when the radio attaches, a moment before requests work.
+        await sleep(1500);
+      } else {
+        await sleep(PHOTO_RETRY_WAITS_MS[attempt]);
+      }
+      logMsg("SAVE","Photo upload dropped, retry " + (attempt + 1) + " of " + PHOTO_RETRY_WAITS_MS.length);
+      if (onNote) onNote("The connection dropped - trying again (" + (attempt + 2) + " of " + tries + ")");
+    }
+  }
+}
+
+// Upload a batch in order. onProgress(n, total, note): note is "" while a photo
+// is simply uploading, and says what is happening while one is being retried.
+// Resumable: a path that already went up in this session is skipped, so a
+// second Save after a failure sends only what is still missing.
+async function uploadPhotosResumable(cfg, uploads, shas, onProgress){
+  let done = 0;
+  for (const u of uploads){
+    const n = ++done;
+    // Before, not after: the wait happens during this photo, so that is when
+    // its number should be on screen.
+    if (onProgress) onProgress(n, uploads.length, "");
+    if (_photosUploaded.has(u.path)) continue;
+    shas[u.path] = await putPhotoWithRetry(cfg, u, shas[u.path],
+      (note)=> { if (onProgress) onProgress(n, uploads.length, note); });
+    _photosUploaded.add(u.path);
+    // bust any stale cache entry and seed the new bytes so the UI
+    // can render the upload immediately without a round-trip
+    invalidatePhoto(u.path);
+    seedPhoto(u.path, u.blob);
+  }
+  return shas;
+}
+
 async function ghPutBinaryFile(cfg, path, blob, sha){
   // Track B: upload a photo to the backend (Supabase Storage). sha unused.
   const b64 = await blobToBase64(blob);
@@ -4600,11 +4704,15 @@ async function ghPutBinaryFile(cfg, path, blob, sha){
     const aborted = (err && (err.name === "AbortError" || (ctl && ctl.signal.aborted)));
     logMsg("ERROR", "Backend photo upload " + (aborted ? "timed out" : "network failure")
                     + ": " + ((err && err.message) || "?"));
-    throw new Error(aborted
+    const out = new Error(aborted
       ? ("That photo took more than " + Math.round(PHOTO_UPLOAD_TIMEOUT_MS/1000)
-         + " seconds to upload - the connection is probably too weak. It is saved on "
-         + "your phone; try again on better signal.")
-      : "Network error reaching the server");
+         + " seconds to upload - the connection is probably too weak.")
+      : "The connection dropped before the photo got through.");
+    // Lets a caller tell "never got through" from a refusal by the server:
+    // only the first is worth trying again (same flag as FitnessCaptain's
+    // transportError).
+    out.transport = true;
+    throw out;
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -9147,18 +9255,8 @@ function App({openShare}){
     if (!uploads || !uploads.length) return [];
     if (!configComplete(config)) throw new Error("Not configured");
     const nextShas = Object.assign({}, liveRef.current.shas);
-    let done = 0;
-    for (const u of uploads){
-      // Before, not after: the wait happens during this photo, so that is when
-      // its number should be on screen.
-      if (onProgress) onProgress(++done, uploads.length);
-      const newSha = await ghPutBinaryFile(config, u.path, u.blob, nextShas[u.path]);
-      nextShas[u.path] = newSha;
-      // bust any stale cache entry and seed the new bytes so the UI
-      // can render the upload immediately without a round-trip
-      invalidatePhoto(u.path);
-      seedPhoto(u.path, u.blob);
-    }
+    // Retries a dropped photo and skips ones already sent (2026-10-11).
+    await uploadPhotosResumable(config, uploads, nextShas, onProgress);
     setLive({ shas:nextShas });
     setShas(nextShas);
     persist({ shas:nextShas });
@@ -10431,8 +10529,15 @@ function App({openShare}){
                 logMsg("SAVE","Uploaded " + pendingUploads.length + " visit photo(s)");
               } catch(err){
                 logMsg("ERROR","Visit photo upload failed: " + err.message);
-                flash("Photo upload failed - " + err.message);
-                return;  // abort save; user can retry
+                // THROW, never return. This used to `return`, which the form
+                // read as "saved": it stayed on "Uploading photo 2 of 5" for
+                // ever with nothing behind it, and the only way out was Cancel,
+                // which threw the entry away (Chris, 2026-10-11). Throwing
+                // lands in VisitForm's catch, which gives the Save button back
+                // with everything still typed in.
+                throw new Error("a photo would not upload. " + err.message +
+                  " Everything you entered is still here. Tap Save to try again; photos that " +
+                  "already went up are not sent twice.");
               }
             }
 
@@ -19397,6 +19502,11 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       { [key]: (prev[key] || []).filter((_, i) => i !== idx) }));
   }
   const [saveStep, setSaveStep] = useState("");                // "Photo 2 of 5"
+  const [saveNote, setSaveNote] = useState("");                // "The connection dropped - trying again (2 of 3)"
+  // A NEW visit's id, minted once. It used to be minted inside save(), so a
+  // second Save after a failed upload asked for a different visit id and
+  // therefore different photo paths, and re-sent every photo.
+  const newVisitIdRef = useRef(null);
   const [saveWhy, setSaveWhy] = useState("");                  // why Save did nothing
   const [companions, setCompanions] = useState(()=> {
     if (existing && Array.isArray(existing.companions)) return existing.companions;
@@ -20301,18 +20411,21 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     }
     setSaveWhy("");
     const r = restaurants.find(x => x.id === restId);
-    const vid = existing ? existing.id : uid("visit");
+    if (!existing && !newVisitIdRef.current) newVisitIdRef.current = uid("visit");
+    const vid = existing ? existing.id : newVisitIdRef.current;
 
     // Compute final paths and pending uploads. Pending blobs each get a
-    // fresh short photo_id so deletes don't shift any other photo's path
-    // (every photo file is at a unique stable path for its lifetime).
+    // short photo_id of their own so deletes don't shift any other photo's
+    // path (every photo file is at a unique stable path for its lifetime).
+    // The id belongs to the blob (stablePhotoId), not to this call, so a
+    // retried Save names the same files.
     const finalPaths = [];
     const pendingUploads = [];
     photoSlots.forEach(s => {
       if (s.kind === "existing"){
         finalPaths.push(s.path);
       } else if (s.kind === "pending"){
-        const photoId = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+        const photoId = stablePhotoId(s.blob, "p");
         const path = visitPhotoPath(vid, photoId);
         finalPaths.push(path);
         pendingUploads.push({ path:path, blob:s.blob });
@@ -20327,7 +20440,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       const out = [];
       (dishPics[key] || []).forEach(sl => {
         if (sl.kind === "existing"){ out.push(sl.path); return; }
-        const dpid = "d" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+        const dpid = stablePhotoId(sl.blob, "d");
         const dpath = "photos/dishes/" + vid + "_" + dpid + ".jpg";
         out.push(dpath);
         pendingUploads.push({ path: dpath, blob: sl.blob });
@@ -20344,7 +20457,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     const resolveReceiptSlot = (slot, suffix) => {
       if (!slot) return null;
       if (slot.kind === "existing") return slot.path;
-      const rpid = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+      const rpid = stablePhotoId(slot.blob, "p");
       const rpath = "photos/receipts/" + vid + "_" + suffix + "_" + rpid + ".jpg";
       pendingUploads.push({ path: rpath, blob: slot.blob });
       return rpath;
@@ -20396,12 +20509,13 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     setSaveStep(pendingUploads.length ? "Photo 1 of " + pendingUploads.length : "");
     try {
       await onSave(rec, { pendingUploads: pendingUploads,
-        onProgress: (i, n)=> setSaveStep("Photo " + i + " of " + n) });
+        onProgress: (i, n, note)=> { setSaveStep("Photo " + i + " of " + n); setSaveNote(note || ""); } });
     } catch(err){
       const why = (err && err.message) || "no reason given";
       logMsg("ERROR", "Visit save failed: " + why);
       setSaveWhy("Could not save this visit - " + why);
-      setSaving(false); setSaveStep("");
+      setSaving(false); setSaveStep(""); setSaveNote("");
+      try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch(e){ }
       return;
     }
     // Deliberately not cleared on success: the form is closing, and clearing it
@@ -20686,7 +20800,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
           {!photoBusy && saving && saveStep ? (
             <div className="tiny" style={{marginTop:6, color:"var(--accent)"}}>
               <span className="spin" style={{marginRight:6}} />
-              Uploading {saveStep.toLowerCase()}. Keep this screen open.
+              Uploading {saveStep.toLowerCase()}. {saveNote ? saveNote + ". " : ""}Keep this screen open.
             </div>
           ) : null}
           {!photoBusy && !saving && photoSlots.some(s => s.kind === "pending") && (
