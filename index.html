@@ -1171,7 +1171,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.511.0";
+const APP_VERSION   = "1.512.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2590,10 +2590,16 @@ a friend something you like.
 ## Sharing a place
 
 On a place's page, tap the **share** icon at the top to open the Share sheet.
-It offers four ways to share:
+It offers these ways to share:
 
-- **Send to a friend** - sends the place (with its menu) straight to a
-  MenuCaptain friend; it appears under their "Shared with you."
+- **Send this place to a friend** - a recommendation, straight to a MenuCaptain
+  friend's "Shared with you": the place, your star rating beside Google's, the
+  dishes you loved, any off-menu tips, and its menu to browse. Photos from your
+  visits there go too unless you untick the box. It does not include what you
+  had on a particular night or who you were with.
+- **Share your visit** - shown when you have been there. This is the one with
+  the photos, your stars, what you had and who you were with, from your most
+  recent visit. Share an earlier visit from History.
 - **Share a link** - a recommendation link anyone can open, app or not: the
   place, its menu to browse, and a few dishes you loved. Signed-in friends can
   save the place to their own list in one tap.
@@ -4088,6 +4094,51 @@ function buildPlacePayload(restaurant, menu, lovedNames){
       return e;
     });
   if (off.length) o.off = off;
+  return o;
+}
+
+// Pure: up to `max` photo paths from the visits at one place, newest visit
+// first, no repeats. Receipt and per-dish photos live elsewhere on a visit and
+// are never included.
+function placeVisitPhotoPaths(visits, max){
+  const vs = (visits || []).filter(Boolean).slice().sort((a, b) =>
+    (b.date || "").localeCompare(a.date || "") || ((b.logged_at || 0) - (a.logged_at || 0)));
+  const out = [];
+  vs.forEach(v => (v.photos || []).forEach(ph => {
+    if (ph && out.length < max && out.indexOf(ph) === -1) out.push(ph);
+  }));
+  return out;
+}
+
+// Pure: what a place carries when it is SENT TO A FRIEND inside the app
+// (2026-10-11). A recommendation, k:"p" - the place, your rating beside
+// Google's, the dishes you loved, off-menu tips, and the menu to browse.
+// Until this date the in-app send used the menu-pick payload (k:"m") and
+// arrived as "A menu on MenuCaptain - send your picks back" with none of that.
+// `extras`: { rating, photoUrls (signed, from your visits), heroUrl (the place's
+// own photo, used only when there are no visit photos), by, byn }.
+function buildPlaceSharePayload(restaurant, menuList, lovedNames, extras){
+  const usable = (menuList || []).filter(x => x && (x.sections || []).length);
+  // No menu -> null. combineGroupMenus merges menus; it must not be handed
+  // an empty list to invent one from.
+  const combined = !usable.length ? null
+    : (usable.length === 1 ? usable[0] : combineGroupMenus(usable));
+  const o = buildPlacePayload(restaurant, combined, lovedNames);
+  const r = restaurant || {}, x = extras || {};
+  if (r.address) o.a = r.address;
+  if (r.google_place_id) o.gpid = r.google_place_id;
+  if (r.lat != null) o.lat = r.lat;
+  if (r.lng != null) o.lng = r.lng;
+  if (typeof x.rating === "number" && x.rating > 0) o.rt = Math.round(x.rating * 2) / 2;
+  if (typeof r.g_rating === "number"){
+    o.g = { r: r.g_rating };
+    if (typeof r.g_rating_count === "number") o.g.n = r.g_rating_count;
+  }
+  const ph = (x.photoUrls || []).filter(Boolean).slice(0, 6);
+  if (ph.length) o.ph = ph;
+  else if (x.heroUrl) o.hero = x.heroUrl;
+  if (x.by) o.by = x.by;
+  if (x.byn) o.byn = x.byn;
   return o;
 }
 
@@ -10066,6 +10117,7 @@ function App({openShare}){
           cfg={config}
           replies={replies.threads} onRepliesChanged={refreshReplies}
           replyDoors={(meta && meta.reply_doors) || []}
+          onLinkVisitShared={linkVisitToShared}
           onClose={()=> setOverlay(null)}
           onLogVisit={()=> setOverlay({ type:"logVisit", restaurantId:overlay.id,
             returnTo:{ type:"restaurant", id:overlay.id } })}
@@ -12616,10 +12668,12 @@ function OffMenuCard({ place, onSave }){
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onRescanMenu, onOpenVisit,
-                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onSaveOffMenu, onAddPhotos, onToggleVisitLoved, onUpgrade, onSaveHouseStory, onHome, replies, onRepliesChanged, replyDoors}){
+                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onSaveOffMenu, onAddPhotos, onToggleVisitLoved, onUpgrade, onSaveHouseStory, onHome, replies, onRepliesChanged, replyDoors, onLinkVisitShared}){
   const [confirmDel, setConfirmDel] = useState(false);
   // Conversations about this place (2026-10-11), held as { uid, key }.
   const [replyTalk, setReplyTalk] = useState(null);
+  // "Share your visit" chosen from the place's Share sheet: the visit to share.
+  const [shareVisitObj, setShareVisitObj] = useState(null);
   // "In their words" from a photographed page (2026-10-07): a story page has no
   // dishes, so it could only ever arrive by accident inside a menu scan.
   const storyFileRef = useRef(null);
@@ -13440,9 +13494,16 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           </div>
         ) : null}
 
+        {shareVisitObj ? (
+          <VisitShareSheet cfg={cfg} visit={shareVisitObj} restaurant={r} menuList={menuList}
+            onLinkShared={(svId)=> { if (onLinkVisitShared) onLinkVisitShared(shareVisitObj.id, svId); }}
+            onClose={()=> setShareVisitObj(null)} />
+        ) : null}
         {shareSheet ? (
           <ShareSheet cfg={cfg} restaurant={r} menuList={menuList} initialView={shareSheet}
             onShareCard={share} cardBusy={shareBusy} lovedDishes={lovedDishes}
+            visits={visits}
+            onShareVisit={(v)=> { setShareSheet(null); setShareVisitObj(v); }}
             onClose={()=> setShareSheet(null)}
             onShared={()=> {
               // Quiet for this visit only, deliberately NOT persisted. Next load,
@@ -26721,6 +26782,9 @@ function SignupBridge({ home, compact }){
 function PublishedMenu({data, onSaved}){
   const home = location.origin + location.pathname;
   const isPlace = !!(data && data.k === "p");   // place recommendation (browse) vs menu-pick (send back)
+  // A place sent by a friend can carry their photos (2026-10-11): -1 = closed.
+  const [placeLb, setPlaceLb] = useState(-1);
+  const placePhotos = (isPlace && Array.isArray(data.ph)) ? data.ph.filter(Boolean) : [];
   // picks: "si:ii" -> dish name (object so order-of-tap is stable enough)
   const [picks, setPicks] = useState({});
   const [notes, setNotes] = useState({});  // "si:ii" -> special-instructions note
@@ -26859,6 +26923,53 @@ function PublishedMenu({data, onSaved}){
           ? "Somewhere worth a visit - here's the menu, and a few dishes worth ordering."
           : "Tap the dishes you'd like, then send your picks back."}
       </div>
+
+      {/* A place from a friend (2026-10-11): their rating beside Google's, and
+          their pictures. Same layout as a shared visit, so the two read alike.
+          A link share carries neither, so nothing renders for it. */}
+      {isPlace && ((typeof data.rt === "number" && data.rt > 0) || (data.g && typeof data.g.r === "number")) ? (
+        <div className="row" style={{gap:18, justifyContent:"center", margin:"2px 0 12px", flexWrap:"wrap"}}>
+          {typeof data.rt === "number" && data.rt > 0 ? (
+            <span style={{textAlign:"center"}}>
+              <span style={{letterSpacing:2, color:"var(--accent)", fontSize:17}}>
+                {"\u2605".repeat(Math.floor(data.rt))}{data.rt % 1 >= 0.5 ? "\u00bd" : ""}</span>
+              <span className="tiny faint" style={{display:"block", marginTop:1}}>
+                {firstNameOf(data.byn)
+                  ? firstNameOf(data.byn) + "\u2019s rating"
+                  : "the sharer\u2019s rating"}</span>
+            </span>
+          ) : null}
+          {data.g && typeof data.g.r === "number" ? (
+            <span style={{textAlign:"center"}}>
+              <span style={{fontSize:17, fontWeight:600}}>{data.g.r.toFixed(1)}</span>
+              <span className="tiny faint" style={{display:"block", marginTop:1}}>
+                on Google{data.g.n ? " (" + data.g.n.toLocaleString() + " reviews)" : ""}</span>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {isPlace && placePhotos.length === 0 && data.hero ? (
+        <div style={{margin:"0 0 14px", borderRadius:14, overflow:"hidden"}}>
+          <img src={data.hero} alt="" loading="lazy"
+               style={{width:"100%", display:"block", maxHeight:260, objectFit:"cover"}} />
+        </div>
+      ) : null}
+      {placePhotos.length > 0 ? (
+        <div className="visit-photos" style={{justifyContent:"center", margin:"0 0 14px"}}>
+          {placePhotos.map((u, i)=>(
+            <div key={i} className="visit-photo tap" onClick={()=> setPlaceLb(i)}>
+              <img src={u} alt="" style={{width:"100%", height:"100%", objectFit:"cover"}} loading="lazy" />
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {placeLb >= 0 && placePhotos[placeLb] ? (
+        <div style={{position:"fixed", inset:0, zIndex:90, background:"rgba(0,0,0,0.92)",
+             display:"flex", alignItems:"center", justifyContent:"center", padding:16}}
+             onClick={()=> setPlaceLb(-1)}>
+          <img src={placePhotos[placeLb]} alt="" style={{maxWidth:"100%", maxHeight:"100%", objectFit:"contain"}} />
+        </div>
+      ) : null}
 
       {/* Nothing is asked of the reader here. This page is a recommendation
           from somebody they know; the menu has to come first. The signup
@@ -29651,7 +29762,7 @@ function VisitShareSheet({cfg, visit, restaurant, menuList, onClose, onLinkShare
   );
 }
 
-function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, onShareCard, cardBusy, lovedDishes}){
+function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, onShareCard, cardBusy, lovedDishes, visits, onShareVisit}){
   const placeId = restaurant && restaurant.google_place_id;
   const [view, setView]         = useState(initialView || "main");   // main | community
   const [linkBusy, setLinkBusy] = useState(false);
@@ -29746,7 +29857,21 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
             <div style={{fontFamily:"'Fraunces',serif", fontSize:22, fontWeight:600, lineHeight:1.1, marginBottom:14}}>
               Share this place
             </div>
-            <ShareToConnectionButton cfg={cfg} restaurant={restaurant} menuList={menuList} wide />
+            <ShareToConnectionButton cfg={cfg} restaurant={restaurant} menuList={menuList} wide
+              lovedDishes={lovedDishes} visits={visits} />
+            {/* The visit is the one with your photos, what you had and who you
+                were with. This sheet never mentioned it, and Chris sent the
+                place to ten friends believing it was the visit (2026-10-11). */}
+            {(()=>{
+              const last = (visits || []).filter(Boolean).slice().sort((a, b) =>
+                (b.date || "").localeCompare(a.date || "") || ((b.logged_at || 0) - (a.logged_at || 0)))[0];
+              if (!last || !onShareVisit) return null;
+              return (
+                <Opt icon="camera" title="Share your visit"
+                  sub={"Your photos, your stars and what you had" + (last.date ? " - " + fmtDate(last.date) : "")}
+                  onClick={()=> onShareVisit(last)} />
+              );
+            })()}
             {shareableCount > 0 ? (
               <>
                 <Opt icon="link" title="Share a link"
@@ -29827,8 +29952,14 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
   );
 }
 
-function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
+function ShareToConnectionButton({cfg, restaurant, menuList, wide, lovedDishes, visits}){
   const [open, setOpen]   = useState(false);
+  // Photos from your visits here go with the place unless you untick this.
+  // On by default: the same choice Chris made for "what makes it special".
+  const [withPhotos, setWithPhotos] = useState(true);
+  const photoPaths = placeVisitPhotoPaths(visits, 6);
+  const lovedNames = (lovedDishes || []).map(d => (d && d.name) || d).filter(Boolean);
+  const myRating = placeRating(restaurant, visits);
   const [conns, setConns] = useState(null);
   const [pick, setPick]   = useState({});
   const [busy, setBusy]   = useState(false);
@@ -29848,15 +29979,20 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
   async function send(){
     const ids = Object.keys(pick).filter(k => pick[k]);
     if (!ids.length) return;
-    const usable = (menuList || []).filter(m => m && (m.sections || []).length);
-    // No menu -> no sections. buildMenuPayload handles a null menu and the
-    // reader defaults sections to []. Do NOT hand combineGroupMenus an empty
-    // list; it is written to merge menus, not to invent one.
-    const combined = !usable.length ? null
-      : (usable.length === 1 ? usable[0] : combineGroupMenus(usable));
-    const payload = buildMenuPayload(restaurant, combined);
     setBusy(true); setMsg("");
     try {
+      // Signed like a visit's photos (30-day links to your own files). If the
+      // signing fails the place still sends, just without pictures.
+      const photoUrls = (withPhotos && photoPaths.length) ? await signVisitPhotos(cfg, photoPaths) : [];
+      // The place's own saved photo, only when there are no visit photos.
+      // Never Google's photo: its terms allow showing it in the app, not
+      // handing it on (see signVisitHero).
+      const heroUrl = (!photoUrls.length && restaurant.photo)
+        ? ((await signVisitPhotos(cfg, [restaurant.photo]))[0] || "") : "";
+      const rest = await fillGoogleRating(cfg, restaurant);
+      const me = await myShareIdentity(cfg);
+      const payload = buildPlaceSharePayload(rest, menuList, lovedNames,
+        { rating: myRating, photoUrls: photoUrls, heroUrl: heroUrl, by: me.u, byn: me.n });
       const r = await sendShare(cfg, ids, "place", restaurant.name, payload);
       setMsg("Sent to " + (r.sent || 0)); setMsgErr(false);
       setPick({});
@@ -29876,8 +30012,8 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
             <Icon name="nodes" size={18} color="var(--accent)" />
           </span>
           <span style={{flex:1, minWidth:0}}>
-            <span className="small" style={{fontWeight:600, display:"block"}}>Send to a friend</span>
-            <span className="tiny faint" style={{display:"block", marginTop:2}}>Right into a friend's MenuCaptain</span>
+            <span className="small" style={{fontWeight:600, display:"block"}}>Send this place to a friend</span>
+            <span className="tiny faint" style={{display:"block", marginTop:2}}>Your rating, the dishes you loved and the menu</span>
           </span>
           <Icon name="chev" size={15} color="var(--text-faint)" />
         </button>
@@ -29899,10 +30035,27 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide}){
             <div className="small muted" style={{marginBottom:10}}>
               {/* Say which of the two they are actually getting, so nobody
                   expects a menu that was never there to send. */}
-              {hasMenu
-                ? "They will get the place and its menu in their “Shared with you” inbox."
-                : "They will get the place in their “Shared with you” inbox. You have no menu saved here yet, so there is none to send."}
+              {(()=>{
+                const parts = ["the place"];
+                if (myRating > 0) parts.push("your rating");
+                if (lovedNames.length) parts.push("the dishes you loved");
+                if (hasMenu) parts.push("its menu");
+                const list = parts.length > 1
+                  ? parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1] : parts[0];
+                return "They will get " + list + " in their “Shared with you” inbox." +
+                  (hasMenu ? "" : " You have no menu saved here yet, so there is none to send.") +
+                  " This sends the place, not a visit: what you had and who you were with stay with you.";
+              })()}
             </div>
+            {photoPaths.length ? (
+              <label className="row" style={{gap:8, alignItems:"flex-start", margin:"0 0 12px", cursor:"pointer"}}>
+                <input type="checkbox" checked={withPhotos} style={{marginTop:2}}
+                  onChange={e=> setWithPhotos(e.target.checked)} />
+                <span className="small">Include {photoPaths.length === 1 ? "the photo" : "the " + photoPaths.length + " newest photos"} from your visits here
+                  <span className="tiny faint" style={{display:"block"}}>Untick to send the place without your pictures.</span>
+                </span>
+              </label>
+            ) : null}
             {conns === null ? (
               <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
             ) : conns.length === 0 ? (

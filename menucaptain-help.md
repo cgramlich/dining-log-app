@@ -823,10 +823,16 @@ a friend something you like.
 ## Sharing a place
 
 On a place's page, tap the **share** icon at the top to open the Share sheet.
-It offers four ways to share:
+It offers these ways to share:
 
-- **Send to a friend** - sends the place (with its menu) straight to a
-  MenuCaptain friend; it appears under their "Shared with you."
+- **Send this place to a friend** - a recommendation, straight to a MenuCaptain
+  friend's "Shared with you": the place, your star rating beside Google's, the
+  dishes you loved, any off-menu tips, and its menu to browse. Photos from your
+  visits there go too unless you untick the box. It does not include what you
+  had on a particular night or who you were with.
+- **Share your visit** - shown when you have been there. This is the one with
+  the photos, your stars, what you had and who you were with, from your most
+  recent visit. Share an earlier visit from History.
 - **Share a link** - a recommendation link anyone can open, app or not: the
   place, its menu to browse, and a few dishes you loved. Signed-in friends can
   save the place to their own list in one tap.
