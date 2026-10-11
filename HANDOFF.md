@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.510.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.511.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.135.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.510.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.511.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -394,6 +394,56 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### A photo that will not upload no longer freezes the visit form (2026-10-11, app 1.511.0)
+
+Chris: on a bad connection the photos stop, a better connection never resumes them, "you gotta cancel
+out and restart". He then pointed at FitnessCaptain's fix of the same day and said "fix it".
+
+**Cause.** In the visit `onSave` (App), a failed `uploadPhotoBatch` did `flash(...); return;`. A normal
+return reads as success to `VisitForm.save`: its `catch` never ran, `saving` stayed true, and the form
+showed "Uploading photo 2 of 5. Keep this screen open." for ever with nothing behind it. Cancel was the
+only exit and lost the entry. There was also no retry of any kind, and every Save minted NEW ids.
+
+**Fix, on FitnessCaptain's pattern (its gym scan, v0.153.4: retry transport failures only, twice, after
+2 s and 5 s, and say so):**
+- `ghPutBinaryFile` marks a network failure or timeout with `err.transport = true`. A refusal from
+  the server (any HTTP status) is not marked and is never retried.
+- `putPhotoWithRetry` retries a transport failure after `PHOTO_RETRY_WAITS_MS = [2000, 5000]`, telling
+  the screen "The connection dropped - trying again (2 of 3)". If `navigator.onLine === false` it calls
+  `waitForOnline(PHOTO_OFFLINE_WAIT_MS)` (3 minutes), shows "No connection - waiting for it to come
+  back", then pauses 1.5 s (the `online` event fires before requests work) and retries.
+- `uploadPhotosResumable(cfg, uploads, shas, onProgress)` is the batch loop, now a top-level function
+  so it can be tested; `App.uploadPhotoBatch` calls it. `onProgress(n, total, note)` gained the note.
+  `_photosUploaded` (a Set of paths, this session) makes a second Save send only what is missing.
+- **Stable names**, without which "skip what already uploaded" could not work: `stablePhotoId(blob,
+  prefix)` (a WeakMap) gives each pending photo one id for its life, and `newVisitIdRef` gives a NEW
+  visit one id for the life of the form. Both used to be minted inside `save()`, so every attempt
+  re-sent everything to new paths and left the earlier copies stranded in storage.
+- The visit `onSave` now **throws** on a failed upload; `VisitForm`'s catch clears `saving`, shows why
+  under the header (`saveWhy`), and scrolls to it. `saveNote` carries the retry wording to the
+  "Uploading photo 2 of 5." line.
+
+**Where MenuCaptain differs from the sibling, on purpose:** it uploads photos one at a time, so it
+retries only the photo that dropped; and a retry cannot double-spend, because putting a photo again
+overwrites the same file (FitnessCaptain's retried scan can run twice). Photo quality was NOT lowered:
+FitnessCaptain's shots are only read by the model, these are keepsakes.
+
+**Covers every photo save**, since all go through `uploadPhotoBatch`: place photo, menu thumbnails,
+adding photos to a visit. Their own failure handling was already non-sticking (a toast).
+
+**Verified:** 19 checks on the real functions cut out of `index.html`, against a pretend network
+(`scratchpad/test_uploadfix.js`): drop twice then succeed, drop three times and give up, second Save
+skips what went up, a 413 is not retried, offline then back, the offline limit, stable ids.
+**NOT run: the form itself.** The unlock path (`onSave` throws -> `VisitForm` catch) was verified by
+reading. First real weak-signal save should confirm the Save button comes back.
+
+**Road not taken (offered, not chosen):** save the visit first and upload photos in the background,
+so the screen need not stay open. It needs photos kept on the phone across a reload and a queue.
+
+**Tool note:** `verify_names.js` flagged the first `new WeakMap()` as an undefined name. It now ignores
+the ECMAScript standard built-ins (a fixed list of the language's own names, not an app allow-list).
+Browser objects are deliberately still checked.
+
 ### A menu with several photos is read with its pages at the same time (2026-10-11, app 1.510.0, backend 0.135.0)
 
 Chris asked what "side by side" meant, liked it, and said "build it". Before: `digitizeMenu` put every
@@ -434,15 +484,7 @@ provider's rate limit on this account, and whether per-page reading is as accura
 reading. Read the first real merged menu against the paper.
 
 **Diagnosed the same day, NOT fixed (Chris dismissed the card; do not build without his word):**
-- **Photo upload leaves the visit form stuck.** In the visit `onSave` (App), a failed
-  `uploadPhotoBatch` does `flash(...); return;` - it returns normally, so `VisitForm.save`'s `catch`
-  never runs and `saving` stays true: the form shows "Uploading photo 2 of 5. Keep this screen open."
-  for ever with nothing retrying. The only exit is Cancel, which loses the entry. The same
-  `return;  // abort save; user can retry` is in the restaurant-photo save. Also: no retry at all (one
-  dropped photo ends the batch; 60 s timeout each), and a retry would re-send photos that already
-  uploaded. Proposed: throw so the form unlocks with its entry intact; retry each photo and wait for
-  the `online` event when offline; skip paths already uploaded this session. Bigger option: save the
-  visit first and upload photos in the background.
+- ~~Photo upload leaves the visit form stuck.~~ **FIXED in 1.511.0, see the section above.**
 - **There is no record of what you sent.** `GET /api/shares` lists only what was sent TO you, and a
   `shares` row is deleted when the friend saves or dismisses it. The History line "Sent to <name>"
   (`/api/shares/activity`) reads those same rows, so a name DISAPPEARS once that friend deals with the
