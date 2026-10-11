@@ -1171,7 +1171,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.508.0";
+const APP_VERSION   = "1.509.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2521,6 +2521,10 @@ or **Been there**, or write a few words. Your friend sees a banner on Home and,
 for a visit, a line right on that visit in History, and can write back. Each
 conversation is about one shared thing, and they are all kept under **Replies**
 at the top of Shared with you, even after you save or dismiss the item itself.
+Replies about a place or its menu also show on that place's page, for both of
+you. And if you saved something a friend sent before saying anything, the saved
+place (or the visit, if you were there too) shows **shared this with you - Reply**
+so you can still start.
 Only friends can reply to each other. The first reply also sends an email; after
 that it stays quiet until the conversation has been read. To remove a
 conversation, swipe it or open it and tap **Delete this conversation** - it goes
@@ -8278,6 +8282,16 @@ function App({openShare}){
       .catch(()=>{});
     refreshReplies();   // replies live in the same inbox, so they refresh with it
   }
+  // Saving a friend's share leaves a door behind so a conversation about it can
+  // still be started later. One per person per subject; rides on meta like
+  // friend names do, so it follows the account to another phone.
+  function keepReplyDoor(door){
+    if (!door || !door.uid || !door.key) return;
+    const cur = (metaRef.current && metaRef.current.reply_doors) || [];
+    const rest = cur.filter(d => !(d && d.uid === door.uid && d.key === door.key));
+    saveMeta(Object.assign({}, metaRef.current, { reply_doors: [door].concat(rest).slice(0, 200) }));
+    logMsg("REPLY", "kept a door for " + door.kind);
+  }
   function refreshReplies(){
     if (!configComplete(config)) return;
     fetchReplies(config)
@@ -9361,6 +9375,7 @@ function App({openShare}){
               }}
               onShareVisit={(v)=> setOverlay({ type:"shareVisitSheet", visit:v })}
               replies={replies.threads} onRepliesChanged={refreshReplies}
+              replyDoors={(meta && meta.reply_doors) || []}
               onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
           </>
         )}
@@ -9786,7 +9801,7 @@ function App({openShare}){
           onClose={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "shares" && (
-        <ShareInbox config={config}
+        <ShareInbox config={config} onKeepDoor={keepReplyDoor}
           onClose={()=> { setOverlay(null); refreshShares(); }}
           onHome={()=> { setOverlay(null); refreshShares(); }}
           onLogVisit={(seed)=>{
@@ -9811,6 +9826,8 @@ function App({openShare}){
           menus={menus[overlay.id] || []}
           visits={visitsFor(overlay.id)}
           cfg={config}
+          replies={replies.threads} onRepliesChanged={refreshReplies}
+          replyDoors={(meta && meta.reply_doors) || []}
           onClose={()=> setOverlay(null)}
           onLogVisit={()=> setOverlay({ type:"logVisit", restaurantId:overlay.id,
             returnTo:{ type:"restaurant", id:overlay.id } })}
@@ -11119,12 +11136,17 @@ function VisitSplit({split, cfg, receipt, onSeeItemized, merchant, date}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace, onToggleLoved, onShareVisit, replies, onRepliesChanged}){
+function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace, onToggleLoved, onShareVisit, replies, onRepliesChanged, replyDoors}){
   // Friends' replies about a visit, found by its shared-record id (2026-10-10).
-  // The open conversation is held by id so a refresh flows into it.
+  // The open conversation is held as { uid, key } (person + subject), not by a
+  // thread id, so it can be opened before anything has been said and a refresh
+  // flows into it once the first reply lands.
   const [talk, setTalk] = useState(null);
   const replyThreads = replies || [];
-  const talkThread = talk ? (replyThreads.find(t => t.thread === talk) || null) : null;
+  const doorList = replyDoors || [];
+  const hasThread = (uid, key)=> replyThreads.some(t => t.with_user_id === uid && t.subject_key === key);
+  const talkThread = talk ? (replyThreads.find(t => t.with_user_id === talk.uid && t.subject_key === talk.key) || null) : null;
+  const talkDoor = talk ? (doorList.find(d => d && d.uid === talk.uid && d.key === talk.key) || null) : null;
   // Who each shared visit went to + link counts (2026-10-08). One fetch; a
   // failure just leaves the lines off - History never depends on it.
   const [shareAct, setShareAct] = useState({});
@@ -11357,7 +11379,11 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             {v.sv ? <SharedWith svId={v.sv} /> : null}
             {v.sv ? <ShareActivity act={shareAct[v.sv]} /> : null}
             {v.sv ? <ReplyPreviews threads={replyThreads.filter(t => t.subject_key === "visit:" + v.sv)}
-                      onOpen={(t)=> setTalk(t.thread)} /> : null}
+                      onOpen={(t)=> setTalk({ uid: t.with_user_id, key: t.subject_key })} /> : null}
+            {v.sv ? doorList.filter(d => d && d.key === "visit:" + v.sv && !hasThread(d.uid, d.key)).map(d => (
+              <ReplyStarter key={d.uid + "|" + d.key} name={replyDoorName(d)}
+                onOpen={()=> setTalk({ uid: d.uid, key: d.key })} />
+            )) : null}
             {v.split ? (
               <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
                 merchant={v.restaurant_name} date={v.date}
@@ -11373,7 +11399,10 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
           </div>
         );
       })}
-      <ReplySheet cfg={cfg} thread={talkThread} onClose={()=> setTalk(null)} onChanged={onRepliesChanged} />
+      <ReplySheet cfg={cfg} thread={talkThread}
+        start={talkDoor ? { toUserId: talkDoor.uid, toName: replyDoorName(talkDoor),
+                            subject: { kind: talkDoor.kind, key: talkDoor.key, title: talkDoor.title } } : null}
+        onClose={()=> setTalk(null)} onChanged={onRepliesChanged} />
       {lightbox && (
         <PhotoLightbox cfg={cfg} paths={lightbox.paths} index={lightbox.index}
           onClose={()=> setLightbox(null)} />
@@ -12342,8 +12371,10 @@ function OffMenuCard({ place, onSave }){
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onRescanMenu, onOpenVisit,
-                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onSaveOffMenu, onAddPhotos, onToggleVisitLoved, onUpgrade, onSaveHouseStory, onHome}){
+                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onSaveOffMenu, onAddPhotos, onToggleVisitLoved, onUpgrade, onSaveHouseStory, onHome, replies, onRepliesChanged, replyDoors}){
   const [confirmDel, setConfirmDel] = useState(false);
+  // Conversations about this place (2026-10-11), held as { uid, key }.
+  const [replyTalk, setReplyTalk] = useState(null);
   // "In their words" from a photographed page (2026-10-07): a story page has no
   // dishes, so it could only ever arrive by accident inside a menu scan.
   const storyFileRef = useRef(null);
@@ -12770,6 +12801,35 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           {r.cuisine || "Restaurant"}
           {r.location ? "  \u00b7  " + r.location : ""}
         </div>
+        {/* Replies about this place, for both people (2026-10-11). If YOU shared
+            it, they are found by the place's own name and city. If it was
+            shared WITH you and you saved it, the door kept at save time says
+            who sent it and which conversation it belongs to - that also covers
+            a place saved from a friend's VISIT, whose subject is the visit. */}
+        {(()=>{
+          const all = replies || [];
+          const keys = replyKeysForPlace(r, menus);
+          const doors = replyDoorsForPlace(replyDoors, r);
+          const isDoor = (uid, key)=> doors.some(d => d.uid === uid && d.key === key);
+          const here = all.filter(t => keys.indexOf(t.subject_key) !== -1 || isDoor(t.with_user_id, t.subject_key));
+          const starters = doors.filter(d => !all.some(t => t.with_user_id === d.uid && t.subject_key === d.key));
+          const openThread = replyTalk ? (all.find(t => t.with_user_id === replyTalk.uid && t.subject_key === replyTalk.key) || null) : null;
+          const openDoor = replyTalk ? (doors.find(d => d.uid === replyTalk.uid && d.key === replyTalk.key) || null) : null;
+          if (!here.length && !starters.length && !replyTalk) return null;
+          return (
+            <div style={{marginTop:8}}>
+              <ReplyPreviews threads={here} onOpen={(t)=> setReplyTalk({ uid: t.with_user_id, key: t.subject_key })} />
+              {starters.map(d => (
+                <ReplyStarter key={d.uid + "|" + d.key} name={replyDoorName(d)}
+                  onOpen={()=> setReplyTalk({ uid: d.uid, key: d.key })} />
+              ))}
+              <ReplySheet cfg={cfg} thread={openThread}
+                start={openDoor ? { toUserId: openDoor.uid, toName: replyDoorName(openDoor), canReact: true,
+                                    subject: { kind: openDoor.kind, key: openDoor.key, title: openDoor.title } } : null}
+                onClose={()=> setReplyTalk(null)} onChanged={onRepliesChanged} />
+            </div>
+          );
+        })()}
 
         <div style={{marginTop:12}}>
           <span className="small faint">Your rating</span>
@@ -29043,6 +29103,38 @@ function replySubject(kind, payload, title){
   }
   return { kind:"place", title: title || name || "A place", key:"place:" + where };
 }
+// A "door" is what lets a friend reply AFTER they saved the thing: saving
+// deletes the inbox item the reply box lived on (2026-10-11). It records who
+// shared it and the conversation's subject, and is kept in the friend's own
+// synced settings (meta.reply_doors), newest first.
+function replyDoorFor(share){
+  const p = (share && share.payload) || {};
+  const subj = replySubject(share.kind, p, share.title);
+  return { uid: share.from_user_id, name: share.from || "", kind: subj.kind, key: subj.key,
+           title: subj.title, place: replySlug(p.r || ""), city: replySlug(p.c || ""),
+           at: new Date().toISOString().slice(0, 10) };
+}
+// The exact subject keys a share of THIS place or one of its menus carries, so
+// the place page can find its conversations. Built the same way replySubject
+// builds them on the other phone: from the place's name and city.
+function replyKeysForPlace(restaurant, menuList){
+  const r = restaurant || {};
+  const where = replySlug(r.name) + (r.location ? ":" + replySlug(r.location) : "");
+  const keys = ["place:" + where, "menu:" + where];
+  (menuList || []).forEach(x => { if (x && x.label) keys.push("menu:" + where + ":" + replySlug(x.label)); });
+  return keys;
+}
+// Doors that belong to this saved place: same name, and the same city unless
+// one side has none recorded.
+function replyDoorsForPlace(doors, restaurant){
+  const r = restaurant || {};
+  const nm = replySlug(r.name), city = replySlug(r.location || "");
+  if (!nm) return [];
+  return (doors || []).filter(d => d && d.uid && d.key && d.place === nm && (!d.city || !city || d.city === city));
+}
+function replyDoorName(d){
+  return getConnName(d && d.uid) || (d && d.name) || "A friend";
+}
 function replyWhen(iso){
   const t = Date.parse(iso || "");
   if (!t) return "";
@@ -29210,19 +29302,35 @@ function ReplyPreviews({threads, onOpen}){
   );
 }
 
-// A conversation in a bottom sheet (History). Shared with you shows the same
-// thing full-screen.
-function ReplySheet({cfg, thread, onClose, onChanged}){
-  if (!thread) return null;
-  const name = replyName(thread);
+// The way in when nothing has been said yet: "<name> shared this with you".
+function ReplyStarter({name, onOpen}){
+  return (
+    <button type="button" className="reply-preview" onClick={(e)=>{ e.stopPropagation(); onOpen(); }}>
+      <span style={{flex:"none", display:"inline-flex"}}><Icon name="reply" size={14} color="var(--accent)" /></span>
+      <span className="reply-preview-t"><b>{name}</b> shared this with you</span>
+      <span className="reply-preview-go">Reply</span>
+    </button>
+  );
+}
+
+// A conversation in a bottom sheet (History and the place page). Shared with
+// you shows the same thing full-screen.
+// `start` = { toUserId, toName, subject, canReact } opens it with nothing said
+// yet (from a door); once the first reply lands, `thread` takes over.
+function ReplySheet({cfg, thread, start, onClose, onChanged}){
+  if (!thread && !start) return null;
+  const name = thread ? replyName(thread) : start.toName;
+  const subject = thread
+    ? { kind: thread.subject_kind, key: thread.subject_key, title: thread.subject_title }
+    : start.subject;
   return (
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" onClick={e=> e.stopPropagation()}>
         <div className="grip" />
         <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:2}}>{name}</div>
-        <div className="tiny faint" style={{marginBottom:12}}>About {thread.subject_title || "something you shared"}</div>
-        <ReplyThread cfg={cfg} thread={thread} toUserId={thread.with_user_id} toName={name}
-          subject={{ kind: thread.subject_kind, key: thread.subject_key, title: thread.subject_title }}
+        <div className="tiny faint" style={{marginBottom:12}}>About {subject.title || "something shared"}</div>
+        <ReplyThread cfg={cfg} thread={thread} toUserId={thread ? thread.with_user_id : start.toUserId} toName={name}
+          subject={subject} canReact={!!(start && start.canReact)}
           onChanged={onChanged} />
         <button className="btn ghost" style={{width:"100%", marginTop:12}} onClick={onClose}>Close</button>
       </div>
@@ -29686,7 +29794,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
 
 // "Shared with you" inbox overlay: received places/lists; tap to view (reuses
 // the public viewers, which include "Save to my places"), or dismiss.
-function ShareInbox({config, onClose, onHome, onLogVisit}){
+function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
   const [reporting, setReporting] = useState(null);   // the share being reported
   const [shares, setShares] = useState(null);
   const [open, setOpen]     = useState(null);   // the share being viewed
@@ -29715,6 +29823,12 @@ function ShareInbox({config, onClose, onHome, onLogVisit}){
   async function clearOpened(){
     const cur = open;
     if (!cur || !cur.id) return;
+    // The item is about to go, and the reply box lives on it. Leave a door so
+    // the saved place or visit can still open a conversation (2026-10-11).
+    // Dismiss does NOT do this: dismissing is saying "not for me".
+    if (onKeepDoor && cur.from_user_id && cur.kind !== "joined"){
+      try { onKeepDoor(replyDoorFor(cur)); } catch(e){ logMsg("ERROR", "keep door failed: " + e.message); }
+    }
     try { await dismissShare(config, cur.id); await load(); } catch(e){ /* badge will catch up on next load */ }
   }
   async function remove(id){ setBusyId(id); setNote(""); try { await dismissShare(config, id); await load(); } catch(e){ setNote("Couldn't dismiss that just now - try again."); } finally { setBusyId(null); } }

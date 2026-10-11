@@ -754,6 +754,10 @@ or **Been there**, or write a few words. Your friend sees a banner on Home and,
 for a visit, a line right on that visit in History, and can write back. Each
 conversation is about one shared thing, and they are all kept under **Replies**
 at the top of Shared with you, even after you save or dismiss the item itself.
+Replies about a place or its menu also show on that place's page, for both of
+you. And if you saved something a friend sent before saying anything, the saved
+place (or the visit, if you were there too) shows **shared this with you - Reply**
+so you can still start.
 Only friends can reply to each other. The first reply also sends an email; after
 that it stays quiet until the conversation has been read. To remove a
 conversation, swipe it or open it and tap **Delete this conversation** - it goes
