@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.507.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.130.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.507.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.508.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.131.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.508.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -60,6 +60,13 @@ Check the front end still compiles (do this after every edit):
 
 ```bash
 cd /c/Users/cjgra/menucaptain-native-build && node verify_compile.js
+```
+
+Then check no name is used that is never defined (a typo or a moved function compiles fine and
+throws on the phone). It compares the working file with the last commit, so run it BEFORE committing:
+
+```bash
+cd /c/Users/cjgra/menucaptain-native-build && node verify_names.js
 ```
 
 Deploy the web app — bump `APP_VERSION` in `index.html` **and** `VERSION` in `sw.js` to the same
@@ -386,6 +393,61 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Replies between friends, attached to what was shared (2026-10-10, app 1.508.0, backend 0.131.0)
+
+Chris asked whether the app had messaging with friends. It did not. Offered: replies on a shared item,
+reactions only, full chat, or nothing. **He chose replies on a shared item.** Full chat was the road not
+taken: phone notifications are off, so loose messages would sit unseen, and it raises more store
+questions. A conversation here is always two friends + one SUBJECT (a visit, place, menu or list).
+
+**The finding that shaped it:** a `shares` row is an inbox item. `ShareInbox.clearOpened` and Dismiss
+DELETE it. A reply hung on that row would vanish the moment the friend saved the thing. So replies have
+their own table and name their subject by a key the app builds (`replySubject`): `visit:<shared visit
+id>`, `place:<name slug>:<city slug>`, `menu:...`, `list:<title slug>`, plus a title snapshot.
+
+- **Table `share_replies`** (`sql/share_replies.sql`), applied live 2026-10-10 with Chris's yes and
+  verified: RLS on, 0 policies, anon/authenticated no access, service_role full. `thread` =
+  `<lower uid>|<higher uid>|<subject_key>`, built by the backend only. Both user columns cascade from
+  `auth.users`, so account deletion removes them.
+- **Backend:** `POST /api/replies`, `GET /api/replies` (all the caller's threads + unread count),
+  `POST /api/replies/read`, `POST /api/replies/delete`. Friends only = accepted connection and no block
+  either way (`_reply_friends`); both refusals are the same 403 so a block is never revealed. Reading is
+  filtered the same way, so unfriending or blocking HIDES a thread without deleting evidence. Delete is
+  two deletes pinned to the caller as sender / recipient; either person removes it for both (same rule
+  as a share). Body max 500. `reply` is a new report kind: only the recipient can report, and the report
+  note carries the words (`[reply said] ...`) because a thread can be deleted before anyone looks.
+- **Email (Chris's choice): first unread only.** A reply emails the other person only when they have
+  nothing unread in that thread; checked BEFORE the insert; a failed check sends nothing. Push is called
+  too but is inert (no `device_tokens` table).
+- **App:** `ReplyThread` (messages, reaction chips when `canReact`, input, per-message report) is used
+  in three places: a card at the top of the page opened from Shared with you (`tail={3}` folds older
+  replies so the thread never buries the thing shared); a **Replies** section at the top of Shared with
+  you (opens full-screen, swipe or button to delete); and `ReplyPreviews` + `ReplySheet` on a visit in
+  History for the sharer (matched by `visit:<v.sv>`). App holds `replies {threads, unread}`, refreshed
+  with `refreshShares`; a Home banner shows when unread changes; the app-icon badge counts it.
+  Reactions: Want to go / Looks great / Been there. Only the person it was shared WITH gets the chips.
+
+**Verified:** 31 checks on the real backend section against an in-memory database
+(`scratchpad/test_replies.py`: friends only, block hides both ways, third person sees nothing, one
+email per unread stretch, escaping, report, delete). The real components rendered in the preview with a
+fake server: react, send by Enter, read-marking, refusal message, report sheet, delete, a new thread on
+a place. Live endpoints answer 401 without a sign-in. **NOT verified: two real accounts end to end, and
+the real email.** First real use should check both.
+
+**Known gaps, on purpose for v1:** a friend who saved a share WITHOUT replying first has no place to
+start a conversation later (only the sharer's visit or an existing thread opens one). The sharer of a
+place, menu or list sees replies only under Replies, not on the place page. No per-message delete.
+
+**Privacy policy updated in the same release, wording approved by Chris:** replies added; the
+shared-visit description corrected (it DOES carry the star rating and dish names); in-app account
+deletion described as it is; effective date 2026-10-10. **Store privacy answers:** typed messages
+between users are a new content type ("other user content" / messages). Re-check the App Store and
+Play data-safety answers before submitting.
+
+**New tool: `menucaptain-native-build/verify_names.js`.** Fails when the working `index.html` uses a
+name it never defines that the last commit did not (a typo, or a function moved while still called).
+The compile check cannot see those. Run it after `verify_compile.js`, before committing.
 
 ### Sign-up: one email box, a two-way switch, and no talk of a confirmation email (2026-10-10, 1.507.0)
 
