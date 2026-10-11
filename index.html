@@ -606,6 +606,15 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       margin:3px 0 1px; font-size:12.5px; color:var(--accent);
       letter-spacing:0.01em;
     }
+    /* Sign in / Create account, side by side on the sign-in screen. The
+       chosen side is outlined, not filled, so the one filled button on the
+       screen stays the action. */
+    .auth-switch{display:flex; margin:0 0 16px; border:1px solid var(--line); border-radius:12px;
+      padding:4px; background:var(--bg-2);}
+    .auth-switch-btn{flex:1; padding:11px 8px; border:1px solid transparent; background:none; border-radius:9px;
+      font:inherit; font-weight:600; font-size:15px; color:var(--text-dim); cursor:pointer;}
+    .auth-switch-btn.on{background:var(--surface-2); color:var(--accent); border-color:var(--accent);}
+    .auth-switch-btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
     .section-subhead{
       font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase;
       color:var(--text-faint); font-weight:600;
@@ -1138,7 +1147,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.506.0";
+const APP_VERSION   = "1.507.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1748,10 +1757,11 @@ else's. Your places, visits, photos, and menus are yours alone.
 
 ## Getting set up
 
-Create an account with your email address and a password - right from the
-sign-in screen. You're in right away - no confirmation email to chase down. Because
-your email is how you'd recover the account, sign-up asks you to type it twice
-so a typo can't lock you out later. That is the whole setup.
+Create an account with your email address and a password - tap **Create account**
+at the top of the sign-in screen. You're in right away - no confirmation email to
+chase down. Because your email is how you'd recover the account, the app shows it
+back to you once ("Is this your email?") before creating anything, so a typo
+can't lock you out later. That is the whole setup.
 
 If you ever forget your password, tap "Forgot password" on the sign-in screen
 and the app emails you a reset link (so it's worth getting your email right at
@@ -8518,7 +8528,7 @@ function App({openShare}){
     let fresh = false;
     try { fresh = localStorage.getItem("mc_welcome_new") === "1";
           if (fresh) localStorage.removeItem("mc_welcome_new"); } catch(e){}
-    if (fresh) flash("You're in! There's no confirmation email to wait for.");
+    if (fresh) flash("Welcome! Your account is created and you're signed in.");
     // eslint-disable-next-line
   }, []);
 
@@ -30149,17 +30159,12 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   });
   const [mode,setMode]       = useState("signin");   // signin | signup | forgot
   const [email,setEmail]     = useState(initial ? (initial.email || "") : "");
-  const [email2,setEmail2]   = useState("");   // signup only: confirm-email typo guard
   // The read-back card: shown once for an address before its account is made.
   const [readBack,setReadBack] = useState(false);
   const [password,setPassword] = useState("");
   const [busy,setBusy]       = useState(false);
   const [err,setErr]         = useState("");
   const [info,setInfo]       = useState("");
-  // Email that signed up but has not confirmed yet (this device/session).
-  // WHY: lets sign-in failures explain "confirm first" instead of the
-  // misleading "invalid password", and lets the Sign in button dim.
-  const [pendingConfirmEmail,setPendingConfirmEmail] = useState("");
 
   async function signIn(){
     setErr("");
@@ -30179,17 +30184,9 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       });
       const data = await res.json().catch(()=> ({}));
       if (res.status === 400 || res.status === 401){
-        // WHY: Supabase reports an unconfirmed email as plain invalid
-        // credentials. If THIS device just signed this email up, the real
-        // reason is almost certainly the missing confirmation tap.
-        if (pendingConfirmEmail &&
-            email.trim().toLowerCase() === pendingConfirmEmail.toLowerCase()){
-          setErr("Your email may not be confirmed yet - tap the link we sent to " +
-                 email.trim() + " first. Already confirmed? Then double-check " +
-                 "your password.");
-        } else {
-          setErr("Invalid email or password.");
-        }
+        // No "confirm your email first" here: sign-up sends no email
+        // (2026-10-10), so the only honest reasons are these two.
+        setErr("That email and password don't match. Check both, or tap Forgot password.");
         setBusy(false); return;
       }
       if (!res.ok || !data.access_token || !data.user){
@@ -30219,11 +30216,10 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       setErr("Email and password are required."); return;
     }
     // Typo guard: your account (and every password reset) hangs on this email
-    // being right, and we no longer make you confirm it by tapping a link - so
-    // catch a fat-fingered address here before it locks you out of recovery.
-    if (email.trim().toLowerCase() !== email2.trim().toLowerCase()){
-      setErr("The two emails don't match - check for a typo."); return;
-    }
+    // being right, and no link is sent to prove it. The guard is the read-back
+    // card below. It used to be a second "Confirm email" box as well; that
+    // went 2026-10-10: people read the label as "go and confirm by email", and
+    // typing an address twice on a phone is where a new person gave up.
     if (password.length < 6){
       setErr("Password must be at least 6 characters."); return;
     }
@@ -30244,26 +30240,25 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       const data = await res.json().catch(()=> ({}));
       if (!res.ok){
         const msg = data.msg || data.error_description || data.message || "";
-        // WHY: Supabase throttles confirmation emails and returns raw
-        // plumbing copy ("you can only request this after N seconds").
-        // Translate it - the email almost certainly already went out.
         if (data.error_code === "user_already_exists" || /already (registered|exists)/i.test(msg)){
           // Their account is there and works. Switch to sign-in, keeping the
           // address they typed, and say what to do.
-          setMode("signin"); setEmail2(""); setReadBack(false);
+          setMode("signin"); setReadBack(false);
           setInfo("Good news - " + email.trim() + " already has an account. Sign in with it " +
                   "below, or tap Forgot password if you don't remember the password.");
         } else if (/only request this after/i.test(msg)){
-          setErr("We just sent your confirmation email - check your inbox " +
-                 "(and spam). You can request another one in a minute.");
-          setPendingConfirmEmail(email.trim());
+          // A rate limit ("you can only request this after N seconds"),
+          // usually from tapping Create twice. It used to be translated to
+          // "we just sent your confirmation email", which was false: no email
+          // is sent on sign-up.
+          setErr("Too many tries in a row. Wait a minute, then tap Create account again.");
         } else {
           setErr(msg || ("Could not create the account (" + res.status + ")."));
         }
         setBusy(false); return;
       }
       if (data.session && data.session.access_token && data.user){
-        // Email confirmation is off - we got a session, sign straight in.
+        // No email step: sign-up returns a session, so sign straight in.
         const cfg = {
           apiBase: base,
           userId: data.user.id,
@@ -30279,13 +30274,28 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         onSave(cfg);
         return;
       }
-      // Email confirmation is on - no session until the link is tapped.
-      logMsg("AUTH","Account created - confirmation email sent");
+      // No session came back. Sign-up sends no email, so do not invent one:
+      // sign in with what was just entered, and only if that fails ask them to.
+      logMsg("AUTH","Account created without a session - signing in directly");
+      try {
+        const r2 = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json", "apikey":SUPABASE_PUBLISHABLE_KEY },
+          body:JSON.stringify({ email:email.trim(), password:password }),
+        });
+        const d2 = await r2.json().catch(()=> ({}));
+        if (r2.ok && d2.access_token && d2.user){
+          try { localStorage.setItem("mc_welcome_new", "1"); } catch(e){}
+          setBusy(false);
+          onSave({ apiBase: base, userId: d2.user.id, email: d2.user.email || email.trim(),
+                   accessToken: d2.access_token, refreshToken: d2.refresh_token || "",
+                   expiresAt: d2.expires_at || (Math.floor(Date.now()/1000) + (d2.expires_in || 3600)) });
+          return;
+        }
+      } catch(e2){ /* fall through to the plain instruction */ }
       setBusy(false);
-      setMode("signin");
-      setPendingConfirmEmail(email.trim());
-      setInfo("Almost there - we sent a confirmation link to " + email.trim() +
-              ". Tap it, then sign in here.");
+      setMode("signin"); setReadBack(false);
+      setInfo("Your account is created. Sign in below with the email and password you just chose.");
     } catch(e){
       logMsg("ERROR","Sign-up network error: " + e.message);
       setErr("Network error creating the account. Check your connection.");
@@ -30319,9 +30329,9 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
   }
 
   const titles = {
-    signin:["Welcome","MenuCaptain keeps your places, menus, and visits in your private account so they sync across devices. Sign in to get started."],
-    signup:["Create your account","One account, all your devices. Your log stays private to you. " +
-            "There's no confirmation email to wait for - you're signed in as soon as you create it."],
+    signin:["Welcome","MenuCaptain keeps your places, menus, and visits in your private account so they sync across devices. Sign in, or create an account, to get started."],
+    signup:["Create your account","Just your email and a password. Your account is created the moment " +
+            "you finish, and you're signed in. No email to open, no link to tap."],
     forgot:["Reset your password","Enter your account email and we will send you a reset link."],
   };
   const primary = {
@@ -30329,13 +30339,11 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
     signup:{ label:"Create account",     busyLabel:"Creating...",        fn:signUp },
     forgot:{ label:"Send reset link",    busyLabel:"Sending...",         fn:sendReset },
   }[mode];
-  const switchTo = (m)=>{ setMode(m); setErr(""); setInfo(""); setEmail2(""); setReadBack(false); };
-  // Take the suggested domain. The confirm box usually holds the same slip, so
-  // it is fixed alongside rather than left to fail the match check.
+  const switchTo = (m)=>{ setMode(m); setErr(""); setInfo(""); setReadBack(false); };
+  // Take the suggested domain ("gmial.com" -> "gmail.com").
   function useSuggestedEmail(){
     const fix = emailDomainSuggestion(email);
     if (!fix) return;
-    if (email2.trim().toLowerCase() === email.trim().toLowerCase()) setEmail2(fix);
     setEmail(fix); setErr("");
   }
 
@@ -30383,6 +30391,19 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           </div>
         </div>
       )}
+      {/* Create account was a small text link under a Sign in form, so a
+          newcomer met a screen that looked like it was not for them
+          (2026-10-10). Both now sit above the form at equal weight. */}
+      {mode !== "forgot" ? (
+        <div className="auth-switch" role="tablist" aria-label="Sign in or create an account">
+          <button type="button" role="tab" aria-selected={mode === "signin"}
+            className={"auth-switch-btn" + (mode === "signin" ? " on" : "")}
+            onClick={()=> { if (mode !== "signin") switchTo("signin"); }}>Sign in</button>
+          <button type="button" role="tab" aria-selected={mode === "signup"}
+            className={"auth-switch-btn" + (mode === "signup" ? " on" : "")}
+            onClick={()=> { if (mode !== "signup") switchTo("signup"); }}>Create account</button>
+        </div>
+      ) : null}
       <label className="fld"><span className="lbl">Email</span>
         <ClearInput type="email" value={email}
           onChange={e=>{ setEmail(e.target.value); setReadBack(false); }}
@@ -30397,16 +30418,6 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           <span className="faint">?</span>
         </div>
       ) : null}
-      {mode === "signup" && (
-        <label className="fld"><span className="lbl">Confirm email</span>
-          <ClearInput type="email" value={email2} onChange={e=>setEmail2(e.target.value)}
-            autoCapitalize="none" autoComplete="email" placeholder="re-type your email"
-            onPaste={(e)=> e.preventDefault()} />
-          <span className="tiny faint" style={{marginTop:4, display:"block"}}>
-            This is how you'd recover your account, so we double-check it.
-          </span>
-        </label>
-      )}
       {mode !== "forgot" && (
         <label className="fld"><span className="lbl">Password</span>
           <PwInput value={password} onChange={e=>setPassword(e.target.value)}
@@ -30436,12 +30447,12 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       {mode === "signup" && readBack ? (
         <div className="card" style={{border:"1px solid var(--accent)", marginBottom:14,
              textAlign:"center"}}>
-          <div className="small muted" style={{marginBottom:6}}>Is this your email?</div>
+          <div className="small muted" style={{marginBottom:6}}>One check: is this your email?</div>
           <div style={{fontSize:20, fontWeight:600, color:"var(--text)", wordBreak:"break-all",
                lineHeight:1.3, marginBottom:8}}>{email.trim()}</div>
-          <div className="tiny faint" style={{marginBottom:12}}>
-            It's the only way back into your account if you forget your password,
-            so check every letter.
+          <div className="tiny faint" style={{marginBottom:12, lineHeight:1.6}}>
+            Check every letter: it's the only way back in if you forget your password.
+            Say yes and your account is created on the spot. Nothing is emailed to you.
           </div>
           {emailDomainSuggestion(email) ? (
             <>
@@ -30453,6 +30464,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
                 <Icon name="check" size={18} color="#1b1714" />Use {emailDomainSuggestion(email)}
               </button>
               <button type="button" className="btn ghost sm" disabled={busy}
+                style={{marginLeft:"auto", marginRight:"auto"}}
                 onClick={()=> signUp(true)}>
                 {busy ? "Creating..." : "No, keep " + email.trim()}
               </button>
@@ -30462,19 +30474,25 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
               <button type="button" className="btn primary" disabled={busy}
                 onClick={()=> signUp(true)}>
                 {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
-                {busy ? "Creating..." : "Yes, that's right"}
+                {busy ? "Creating..." : "Yes, create my account"}
               </button>
-              <button type="button" className="btn ghost sm" style={{marginTop:8}}
+              <button type="button" className="btn ghost sm"
+                style={{marginTop:8, marginLeft:"auto", marginRight:"auto"}}
                 onClick={()=> setReadBack(false)}>Let me fix it</button>
             </>
           )}
         </div>
       ) : null}
+      {/* The header that says "no email to confirm" has scrolled away by the
+          time the button is reached on a phone, so say it again here. */}
+      {mode === "signup" && !readBack ? (
+        <div className="tiny faint" style={{margin:"0 2px 10px", lineHeight:1.6, textAlign:"center"}}>
+          Next we show your email back to you to check. Say yes and the account is yours.
+          Nothing is emailed to you.
+        </div>
+      ) : null}
       {!(mode === "signup" && readBack) ? (
-      <button className="btn primary" disabled={busy} onClick={primary.fn}
-        style={(mode === "signin" && pendingConfirmEmail &&
-                email.trim().toLowerCase() === pendingConfirmEmail.toLowerCase())
-               ? {opacity:0.55} : undefined}>
+      <button className="btn primary" disabled={busy} onClick={primary.fn}>
         {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
         {busy ? primary.busyLabel : primary.label}
       </button>
@@ -30484,7 +30502,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         {mode === "signin" && (<span>
           <a href="#" onClick={(e)=>{e.preventDefault(); switchTo("forgot");}}>Forgot password?</a>
           <br/>
-          New here? <a href="#" onClick={(e)=>{e.preventDefault(); switchTo("signup");}}>Create an account</a>
+          New here? <a href="#" onClick={(e)=>{e.preventDefault(); switchTo("signup");}}>Create an account</a>. No email to confirm.
         </span>)}
         {mode === "signup" && (<span>
           Have an account? <a href="#" onClick={(e)=>{e.preventDefault(); switchTo("signin");}}>Sign in</a>

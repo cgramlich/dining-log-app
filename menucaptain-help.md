@@ -14,10 +14,11 @@ else's. Your places, visits, photos, and menus are yours alone.
 
 ## Getting set up
 
-Create an account with your email address and a password - right from the
-sign-in screen. You're in right away - no confirmation email to chase down. Because
-your email is how you'd recover the account, sign-up asks you to type it twice
-so a typo can't lock you out later. That is the whole setup.
+Create an account with your email address and a password - tap **Create account**
+at the top of the sign-in screen. You're in right away - no confirmation email to
+chase down. Because your email is how you'd recover the account, the app shows it
+back to you once ("Is this your email?") before creating anything, so a typo
+can't lock you out later. That is the whole setup.
 
 If you ever forget your password, tap "Forgot password" on the sign-in screen
 and the app emails you a reset link (so it's worth getting your email right at
