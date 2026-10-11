@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.509.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.134.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.509.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.510.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.135.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.510.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,61 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A menu with several photos is read with its pages at the same time (2026-10-11, app 1.510.0, backend 0.135.0)
+
+Chris asked what "side by side" meant, liked it, and said "build it". Before: `digitizeMenu` put every
+photo in ONE relay request, the model read them in turn, and the wait was the sum (about 135 output
+tokens a second). Now, for 2 to 8 photos:
+
+- **App:** `digitizeMenuByPage` sends one `{messages}` per photo to `POST /api/ai/scan-pages`, each with
+  the one-page prompt (`menuScanPrompt(true)`: "this is ONE PAGE", report `lang`, and put dishes that
+  carry on the previous page's section into a FIRST section named `""`). `mergeMenuPages` folds the
+  pages in photo order: the empty-named first section joins the previous page's last section;
+  same-named sections anywhere become one (case-insensitive); a dish read twice (overlapping photos,
+  same name and same price via `menuPageItemKey`, so "8" = "8,00") is kept once and the fuller
+  description wins; same name at a different price stays two dishes. `finishDigitizedMenu` (the old
+  tail of `digitizeMenu`, now shared) normalizes both paths to the same shape.
+- **Server:** `ai_scan_pages` fans out with `asyncio.gather`, 4 at a time (`_SCAN_PAGES_PARALLEL`), max
+  8 pages. **One `enforce_ai_limits` and one `record_usage` for the whole scan**, so it costs ONE call.
+  That is why it is a server endpoint and not N relay calls from the phone: the allowance counts
+  calls (Chris's 2026-09-22 choice, recorded at `MENU_TEXT_ONE_PASS`). A failed page is retried once
+  alone after the gather (parallel bursts are what trip a rate limit); still failing, it returns
+  `{"error"}` for that page. `_ai_call_failsafe` now holds the provider call + both fail-safes for the
+  relay and scan-pages alike. Log: `[AI] scan-pages done user=.. pages=.. ok=.. retried=.. secs=..
+  slowest=.. in=.. out=..`. **Switch off from Railway: `AI_SCAN_PAGES=off`** (404; the app falls back).
+- **Falls back to the old single request, never worse than before,** when: the server says no (404,
+  older server), a page errored or hit `max_tokens`, fewer pages came back than were sent, or
+  **the pages are in different languages** (`menuPagesDisagreeOnLanguage`). That last one is the
+  design constraint: only a request that sees every page can pair "the same dish in two languages";
+  read apart, every dish would be listed twice. **Cost of a fallback: the pages were already read, so
+  that scan counts as two calls.** Logged as `[VISION] Pages not read separately (<why>)`.
+- One photo, or more than 8, is read exactly as before.
+
+**Verified:** server, 17 checks on the real endpoint with timed stand-in calls (4 x 0.3 s took 0.31 s,
+never more than 4 in flight, one gate, one usage record, retry, kill switch); app, 22 checks on the
+real functions cut out of `index.html` by Babel source positions (`scratchpad/test_scanpages_front.js`).
+Live endpoint answers 401 with no sign-in. **NOT verified: a real multi-photo scan.** Unknowns only a
+real one can answer: whether the model reliably uses the empty section name for a continued section
+(if it invents a heading, the merge leaves a stray section), whether parallel calls hit the
+provider's rate limit on this account, and whether per-page reading is as accurate as whole-menu
+reading. Read the first real merged menu against the paper.
+
+**Diagnosed the same day, NOT fixed (Chris dismissed the card; do not build without his word):**
+- **Photo upload leaves the visit form stuck.** In the visit `onSave` (App), a failed
+  `uploadPhotoBatch` does `flash(...); return;` - it returns normally, so `VisitForm.save`'s `catch`
+  never runs and `saving` stays true: the form shows "Uploading photo 2 of 5. Keep this screen open."
+  for ever with nothing retrying. The only exit is Cancel, which loses the entry. The same
+  `return;  // abort save; user can retry` is in the restaurant-photo save. Also: no retry at all (one
+  dropped photo ends the batch; 60 s timeout each), and a retry would re-send photos that already
+  uploaded. Proposed: throw so the form unlocks with its entry intact; retry each photo and wait for
+  the `online` event when offline; skip paths already uploaded this session. Bigger option: save the
+  visit first and upload photos in the background.
+- **There is no record of what you sent.** `GET /api/shares` lists only what was sent TO you, and a
+  `shares` row is deleted when the friend saves or dismisses it. The History line "Sent to <name>"
+  (`/api/shares/activity`) reads those same rows, so a name DISAPPEARS once that friend deals with the
+  item; places, menus and lists show nothing at all. A real "Sent" list needs a durable record written
+  at send time (a small table, or rows marked handled instead of deleted): a live database change.
 
 ### Sonnet 5.5 for every AI task; scans skip up-front thinking; calls are timed (2026-10-11, backend 0.134.0)
 
