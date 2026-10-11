@@ -23,7 +23,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 | Piece | Version | Where |
 |---|---|---|
 | Web app | **1.509.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.132.0** | Railway, `/health` reports `db connected` |
+| Backend | **0.133.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.509.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -393,6 +393,36 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Firecrawl credits: who is spending them is UNKNOWN; the balance is now read every 15 minutes (2026-10-11, backend 0.133.0)
+
+The portfolio overview session asked whether this session's testing had spent Firecrawl credits: the
+balance fell from 141 to 95 between two of this session's deploys on 10-11 (01:42Z and 11:21Z) with
+no menu-from-link call on the live server. **Measured answer: not this session, not this server.**
+
+- This session's transcript: 4,635 tool calls, none a Firecrawl connector call, ever. It never runs the
+  backend locally and never reads the key; tests use stand-ins. In the 10-11 window, 111 tool calls,
+  none able to reach Firecrawl. On 10-07 it made no tool call between 01:05:39Z and 02:46:59Z, so it was
+  idle during the 02:02Z-02:07Z burn Firecrawl emailed about.
+- Railway deploy log, 10-11 01:30Z-11:30Z, filter `MENU` (case-insensitive: WEBMENU, FINDMENU, MENUPIC):
+  no scrape line. Four balance checks at cost 0.
+- **The "tied to deploys" pattern was a sampling artefact.** The balance was read only at startup, 60s
+  later and every 12 hours after startup, and each deploy restarts that clock, so a drop could only
+  surface at the next deploy.
+- **Search blind spot:** `_firecrawl_screenshot` logs under `[MENUPIC]` and its success line does not
+  contain the word "firecrawl". Filter `MENU`, not `WEBMENU`, to see every scrape path.
+
+**Change:** `_fc_credit_loop` now polls every 15 minutes (`_FC_CHECK_EVERY_S`), silently unless the
+number changes: `[FIRECRAWL] credits changed A -> B (-N) within the last 15 min` (a warning), plus one
+"unchanged" line every 12 hours (`_FC_HEARTBEAT_S`). Cost is 0 credits, measured at every startup; a
+nonzero cost still backs off to daily. 10 checks on the real section with a scripted balance series
+(`scratchpad/test_fc_watch.py`). **Not yet seen live:** a change line (needs a real drop).
+
+**Still open, not this session's to do:** read the Firecrawl dashboard's activity log (each request
+with time and URL), then check the other things on the same Firecrawl account: the connector used from
+claude.ai chats, the phone app or cloud sessions (same credits, no transcript on this PC), other apps'
+servers, and a second or leaked key. 95 credits were left at 11:21Z on 10-11; the period ends
+2026-10-25 19:35 UTC. At 0, menu import from a link stops working on sites that block a plain fetch.
 
 ### Replies: on the place page, a way in after saving first, and email links (2026-10-11, app 1.509.0, backend 0.132.0)
 
