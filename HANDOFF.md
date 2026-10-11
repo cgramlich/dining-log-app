@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.506.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.507.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.130.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.506.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.507.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -386,6 +386,38 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Sign-up: one email box, a two-way switch, and no talk of a confirmation email (2026-10-10, 1.507.0)
+
+Chris watched somebody sign up and it confused them: Create account was hard to find, the screen
+seemed to ask them to check their email, and nothing said the account was theirs once they finished.
+Re-checked first: `/auth/v1/settings` still reports `mailer_autoconfirm: true`, so no email is sent.
+
+- **Sign in / Create account is a two-way switch** (`.auth-switch`) above the Email field, hidden only
+  in the forgot-password view. Create account used to be a text link under a Sign in form. The chosen
+  side is outlined, not filled, so the one filled button on the screen stays the action.
+- **The second "Confirm email" box is gone** (`email2` state removed). Chris asked to pre-fill it; a
+  pre-filled box only copies the first and checks nothing, and its label read as "go and confirm by
+  email". He chose one box plus the read-back card. The typo guard is now `emailDomainSuggestion` and
+  the read-back card only. The card's button is "Yes, create my account" and its text says the account
+  is created on the spot and nothing is emailed. A line above the Create account button says the same,
+  because the header has scrolled away by then on a phone.
+- **Three false messages removed**, with `pendingConfirmEmail` and the dimmed Sign in button: the
+  rate-limit reply ("we just sent your confirmation email"), the no-session fallback ("we sent a
+  confirmation link") and the sign-in error ("your email may not be confirmed yet"). Wrong sign-in
+  now says "That email and password don't match. Check both, or tap Forgot password."
+- **No session back from sign-up** now signs in directly with the credentials just entered; only if
+  that fails does it switch to sign-in with "Your account is created. Sign in below...".
+
+**This reverses the 2026-09-28 note below** that the "confirmation is on" branch was left in place on
+purpose. Chris asked for it gone. **Tripwire: if email confirmation is ever turned back on in
+Supabase, restore a "check your email" path in `signUp` FIRST**, or new people will be told to sign in
+to an account that cannot sign in yet.
+
+Checked on the real component in the preview at phone width: switch, one email box, "Did you mean
+gmail.com?", the read-back card, no sideways scroll, and no network call before "Yes". **Not run:**
+the final "Yes, create my account" tap (it would create a real account) and a wrong-password sign-in
+(it would hit the live sign-in with a made-up address). Both are wording changes on existing paths.
 
 ### A shared visit says what makes the place special (2026-10-10, 1.506.0)
 
@@ -757,7 +789,8 @@ created, not when it fires.
 
 With confirmation off, a misspelt address makes an account that works perfectly until a password
 reset goes to an address that does not exist. The confirm-email box catches a random slip but not
-the SAME slip typed twice, nor autofill filling both boxes wrongly.
+the SAME slip typed twice, nor autofill filling both boxes wrongly. (That box was removed 2026-10-10,
+1.507.0; the two layers below are now the whole guard.)
 
 **Two layers, sign-up only:**
 - **`emailDomainSuggestion`** - "Did you mean gmail.com?", live under the Email field. Matches
@@ -812,6 +845,8 @@ and Sign in with Apple.
 **Stale comment corrected by this finding:** the sign-up code still carries a "confirmation is on"
 branch and copy ("we sent a confirmation link"). It is unreachable while autoconfirm is on, and
 left in place deliberately so that turning confirmation back on in Supabase still works.
+**SUPERSEDED 2026-10-10 (1.507.0): that branch and its copy were removed at Chris's request; see the
+tripwire in the 1.507.0 section.**
 
 ### About this place can be drafted from the web, with sources (2026-09-28)
 
