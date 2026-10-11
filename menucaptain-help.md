@@ -748,6 +748,17 @@ with the family". It is the one part written for the reader rather than for you,
 so it leads. This is not the private note on the visit; that one never leaves
 your phone.
 
+**Replying to a friend.** When a friend sends you a visit, place, menu or list,
+the page you open has a reply box at the top: tap **Want to go**, **Looks great**
+or **Been there**, or write a few words. Your friend sees a banner on Home and,
+for a visit, a line right on that visit in History, and can write back. Each
+conversation is about one shared thing, and they are all kept under **Replies**
+at the top of Shared with you, even after you save or dismiss the item itself.
+Only friends can reply to each other. The first reply also sends an email; after
+that it stays quiet until the conversation has been read. To remove a
+conversation, swipe it or open it and tap **Delete this conversation** - it goes
+for both of you. The &#8942; beside any reply reports it to us.
+
 **They can connect back to you.** A link you share carries your name (and your
 @handle behind it), so somebody who reads it and makes an account is offered you
 as a friend in one tap. Set a display name under Settings &rarr; Your profile and

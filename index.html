@@ -606,6 +606,30 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       margin:3px 0 1px; font-size:12.5px; color:var(--accent);
       letter-spacing:0.01em;
     }
+    /* ---- replies between friends (2026-10-10) ---- */
+    .reply-msgs{display:flex; flex-direction:column; gap:10px; margin:0 0 12px;}
+    .reply-msg{display:flex; flex-direction:column; align-items:flex-start; max-width:86%;}
+    .reply-msg.mine{align-self:flex-end; align-items:flex-end;}
+    .reply-bubble{background:var(--surface-2); border:1px solid var(--line); border-radius:14px 14px 14px 4px;
+      padding:8px 12px; font-size:14.5px; line-height:1.45; color:var(--text); overflow-wrap:anywhere;}
+    .reply-msg.mine .reply-bubble{background:rgba(224,118,74,0.16); border-color:rgba(224,118,74,0.45);
+      border-radius:14px 14px 4px 14px;}
+    .reply-bubble.react{font-weight:600; color:var(--accent);}
+    .reply-meta{font-size:11px; color:var(--text-faint); margin-top:3px; display:flex; align-items:center; gap:2px;}
+    .reply-more{background:none; border:none; color:var(--text-faint); font-size:15px; line-height:1;
+      padding:2px 6px; cursor:pointer;}
+    .reply-chips{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px;}
+    .reply-chip{background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:999px;
+      padding:8px 13px; font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;}
+    .reply-chip.on{border-color:var(--accent); color:var(--accent); background:rgba(224,118,74,0.10); cursor:default;}
+    .reply-row{display:flex; gap:8px; align-items:center;}
+    .reply-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent);
+      margin-right:6px; vertical-align:middle;}
+    .reply-preview{display:flex; align-items:center; gap:7px; width:100%; text-align:left; background:var(--surface);
+      border:1px solid var(--line); border-radius:10px; padding:7px 10px; margin-top:6px; font:inherit;
+      font-size:13px; color:var(--text); cursor:pointer;}
+    .reply-preview-t{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+    .reply-preview-go{flex:none; color:var(--accent); font-weight:600;}
     /* Sign in / Create account, side by side on the sign-in screen. The
        chosen side is outlined, not filled, so the one filled button on the
        screen stays the action. */
@@ -1147,7 +1171,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.507.0";
+const APP_VERSION   = "1.508.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2490,6 +2514,17 @@ write sits at the top of the page they open - "loved going to dinner after mass
 with the family". It is the one part written for the reader rather than for you,
 so it leads. This is not the private note on the visit; that one never leaves
 your phone.
+
+**Replying to a friend.** When a friend sends you a visit, place, menu or list,
+the page you open has a reply box at the top: tap **Want to go**, **Looks great**
+or **Been there**, or write a few words. Your friend sees a banner on Home and,
+for a visit, a line right on that visit in History, and can write back. Each
+conversation is about one shared thing, and they are all kept under **Replies**
+at the top of Shared with you, even after you save or dismiss the item itself.
+Only friends can reply to each other. The first reply also sends an email; after
+that it stays quiet until the conversation has been read. To remove a
+conversation, swipe it or open it and tap **Delete this conversation** - it goes
+for both of you. The &#8942; beside any reply reports it to us.
 
 **They can connect back to you.** A link you share carries your name (and your
 @handle behind it), so somebody who reads it and makes an account is offered you
@@ -6668,6 +6703,7 @@ function Icon({name, size, color, fill}){
     nodes:   <g><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5L15.4 6.5"/><path d="M8.6 13.5L15.4 17.5"/></g>,
     split:   <g><path d="M12 21v-8"/><path d="M12 13 6 6"/><path d="m12 13 6-7"/><path d="M10 6H6v4"/><path d="M14 6h4v4"/></g>,   /* a stem branching in two: Split. "nodes" reads as Share */
     merge:   <g><path d="M6 20l6-8 6 8"/><path d="M12 12V3"/><path d="M8 7l4-4 4 4"/></g>,   /* two branches joining one stem: Move into */
+    reply:   <path d="M4 5h16v11H9l-5 4Z"/>,   /* a speech bubble: a friend's reply */
     // Two figures = friends / connections. Deliberately distinct from `nodes`,
     // which is the share-network glyph used for group orders.
     people:  <g><path d="M16.5 20v-1.8a3.7 3.7 0 0 0-3.7-3.7H6.2A3.7 3.7 0 0 0 2.5 18.2V20"/><circle cx="9.5" cy="7.3" r="3.7"/><path d="M21.5 20v-1.8a3.7 3.7 0 0 0-2.8-3.6"/><path d="M15.6 3.9a3.7 3.7 0 0 1 0 7.2"/></g>,
@@ -8026,6 +8062,8 @@ function App({openShare}){
   const [reqSeen, setReqSeen]         = useState(0);          // request-count the user has dismissed/seen (banner re-shows if it grows)
   const [sharesSeen, setSharesSeen]   = useState(0);          // same idea for the "shared with you" inbox
   const [sharesCount, setSharesCount] = useState(0);          // items in the "Shared with you" inbox
+  const [replies, setReplies]         = useState({ threads:[], unread:0 });   // conversations about shared things
+  const [repliesSeen, setRepliesSeen] = useState(0);          // unread-reply count the banner was dismissed at
   const [invite, setInvite]     = useState(()=> { captureInviteFromUrl(); return readInvite(); });
   const [inviteBusy, setInviteBusy] = useState(false);
 
@@ -8238,6 +8276,13 @@ function App({openShare}){
     getShares(config)
       .then(d => setSharesCount(((d && d.shares) || []).length))
       .catch(()=>{});
+    refreshReplies();   // replies live in the same inbox, so they refresh with it
+  }
+  function refreshReplies(){
+    if (!configComplete(config)) return;
+    fetchReplies(config)
+      .then(d => setReplies({ threads: (d && d.threads) || [], unread: (d && d.unread) || 0 }))
+      .catch(e => logMsg("REPLY", "refresh failed: " + e.message));
   }
   // Remember which shared record a visit belongs to, so re-sharing it reuses
   // the same table instead of opening a second one.
@@ -8416,13 +8461,13 @@ function App({openShare}){
   // updates while the app is running; true closed-app push is a later phase.
   useEffect(()=>{
     try {
-      const n = (pendingReqs || 0) + (sharesCount || 0);
+      const n = (pendingReqs || 0) + (sharesCount || 0) + (replies.unread || 0);
       if (navigator.setAppBadge){
         if (n > 0) navigator.setAppBadge(n).catch(()=>{});
         else if (navigator.clearAppBadge) navigator.clearAppBadge().catch(()=>{});
       }
     } catch(e){}
-  },[pendingReqs, sharesCount]);
+  },[pendingReqs, sharesCount, replies.unread]);
 
   /* ---- startup --------------------------------------------- */
   useEffect(()=>{
@@ -9237,6 +9282,30 @@ function App({openShare}){
             </button>
           </div>
         )}
+        {replies.unread > 0 && replies.unread !== repliesSeen && (()=>{
+          const fresh = replies.threads.filter(t => t.unread > 0);
+          const one = fresh.length === 1 ? fresh[0] : null;
+          return (
+            <div className="req-banner"
+              onClick={()=>{ setRepliesSeen(replies.unread); setOverlay({ type:"shares" }); }}>
+              <span className="req-banner-ic"><Icon name="reply" size={18} color="#1b1714" /></span>
+              <div style={{flex:1, minWidth:0}}>
+                <div style={{fontWeight:600}}>
+                  {one ? replyName(one) + " replied"
+                       : replies.unread + " new repl" + (replies.unread > 1 ? "ies" : "y")}
+                </div>
+                <div className="tiny" style={{opacity:0.82, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                  {one ? "About " + (one.subject_title || "something you shared")
+                       : "From " + fresh.map(t => replyName(t)).filter((x, i, a) => a.indexOf(x) === i).join(", ")}
+                </div>
+              </div>
+              <button className="req-banner-x" aria-label="Dismiss"
+                onClick={(e)=>{ e.stopPropagation(); setRepliesSeen(replies.unread); }}>
+                <Icon name="close" size={15} color="#1b1714" />
+              </button>
+            </div>
+          );
+        })()}
         {sharesCount > 0 && sharesCount !== sharesSeen && (
           <div className="req-banner"
             onClick={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }}>
@@ -9291,6 +9360,7 @@ function App({openShare}){
                 commit({ visits: next }, ["visits"]);
               }}
               onShareVisit={(v)=> setOverlay({ type:"shareVisitSheet", visit:v })}
+              replies={replies.threads} onRepliesChanged={refreshReplies}
               onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
           </>
         )}
@@ -9420,7 +9490,7 @@ function App({openShare}){
             onOpenPassport={()=> setOverlay({ type:"passport" })}
             onOpenPeople={()=> setOverlay({ type:"people" })}
             onOpenLeaderboard={()=> setOverlay({ type:"leaderboard" })}
-            onOpenShares={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }} sharesCount={sharesCount}
+            onOpenShares={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }} sharesCount={sharesCount + (replies.unread || 0)}
             onOpenConnections={()=>{ setReqSeen(pendingReqs); setOverlay({ type:"connections" }); }}
             pendingReqs={pendingReqs}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
@@ -11049,7 +11119,12 @@ function VisitSplit({split, cfg, receipt, onSeeItemized, merchant, date}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace, onToggleLoved, onShareVisit}){
+function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace, onToggleLoved, onShareVisit, replies, onRepliesChanged}){
+  // Friends' replies about a visit, found by its shared-record id (2026-10-10).
+  // The open conversation is held by id so a refresh flows into it.
+  const [talk, setTalk] = useState(null);
+  const replyThreads = replies || [];
+  const talkThread = talk ? (replyThreads.find(t => t.thread === talk) || null) : null;
   // Who each shared visit went to + link counts (2026-10-08). One fetch; a
   // failure just leaves the lines off - History never depends on it.
   const [shareAct, setShareAct] = useState({});
@@ -11281,6 +11356,8 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
             ) : null}
             {v.sv ? <SharedWith svId={v.sv} /> : null}
             {v.sv ? <ShareActivity act={shareAct[v.sv]} /> : null}
+            {v.sv ? <ReplyPreviews threads={replyThreads.filter(t => t.subject_key === "visit:" + v.sv)}
+                      onOpen={(t)=> setTalk(t.thread)} /> : null}
             {v.split ? (
               <VisitSplit split={v.split} cfg={cfg} receipt={v.receipt}
                 merchant={v.restaurant_name} date={v.date}
@@ -11296,6 +11373,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
           </div>
         );
       })}
+      <ReplySheet cfg={cfg} thread={talkThread} onClose={()=> setTalk(null)} onChanged={onRepliesChanged} />
       {lightbox && (
         <PhotoLightbox cfg={cfg} paths={lightbox.paths} index={lightbox.index}
           onClose={()=> setLightbox(null)} />
@@ -28925,6 +29003,233 @@ async function dismissShare(cfg, id){
   return res.json();
 }
 
+// =============================================================================
+// REPLIES (2026-10-10): two friends talking about something one of them shared.
+// A conversation always hangs on a subject; there is no general chat (the road
+// not taken: with phone notifications off, loose messages would sit unseen).
+// =============================================================================
+const REPLY_REACTIONS = [
+  { id:"want",  label:"Want to go" },
+  { id:"great", label:"Looks great" },
+  { id:"been",  label:"Been there" },
+];
+function replyReactionLabel(id){
+  const r = REPLY_REACTIONS.find(x => x.id === id);
+  return r ? r.label : "";
+}
+function replySlug(x){
+  return String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+}
+// What a reply is about, as a key that is the same on both phones. It is built
+// from the shared thing itself, NOT from the inbox item's id: that item is
+// deleted the moment you save or dismiss it, and the conversation must not go
+// with it. A visit uses its shared-record id; a place, menu or list has no id
+// of its own in a share, so it is named by what it is.
+function replySubject(kind, payload, title){
+  const p = payload || {};
+  const name = String(p.r || title || "").trim();
+  if (kind === "visit"){
+    return { kind:"visit", title: title || name || "A visit",
+             key: p.sv ? "visit:" + p.sv : "visit:n:" + replySlug(name) + ":" + (p.dt || "") };
+  }
+  if (kind === "list"){
+    return { kind:"list", title: title || "A list", key:"list:" + replySlug(title || "list") };
+  }
+  const where = replySlug(name) + (p.c ? ":" + replySlug(p.c) : "");
+  if (kind === "menu"){
+    return { kind:"menu", title: title || name || "A menu",
+             key:"menu:" + where + (p.l ? ":" + replySlug(p.l) : "") };
+  }
+  return { kind:"place", title: title || name || "A place", key:"place:" + where };
+}
+function replyWhen(iso){
+  const t = Date.parse(iso || "");
+  if (!t) return "";
+  const mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 2) return "just now";
+  if (mins < 60) return mins + " min ago";
+  if (mins < 60 * 24) return Math.round(mins / 60) + " h ago";
+  return new Date(t).toLocaleDateString(undefined, { month:"short", day:"numeric" });
+}
+// Your own name for a friend wins, as it does everywhere else in the app.
+function replyName(t){
+  return getConnName(t && t.with_user_id) || (t && t.with) || "A friend";
+}
+async function fetchReplies(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/replies", { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("replies " + res.status);
+  return res.json();   // { threads:[{thread, with_user_id, with, subject_*, unread, messages:[]}], unread }
+}
+async function sendReply(cfg, body){
+  const res = await fetch(apiBase(cfg) + "/api/replies", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify(body),
+  });
+  const d = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((d && d.detail) || "Could not send that.");
+  return d;   // { ok, message }
+}
+async function markRepliesRead(cfg, thread){
+  const res = await fetch(apiBase(cfg) + "/api/replies/read", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ thread: thread }),
+  });
+  if (!res.ok) throw new Error("read " + res.status);
+}
+async function deleteReplyThread(cfg, thread){
+  const res = await fetch(apiBase(cfg) + "/api/replies/delete", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ thread: thread }),
+  });
+  if (!res.ok) throw new Error("Could not delete that.");
+}
+
+// One conversation: what has been said, and a box to answer. `thread` is null
+// before the first message; `subject` and `toUserId` say where a new one goes.
+// `canReact` shows the one-tap reactions - only on the page of the person the
+// thing was shared WITH (reacting "Want to go" to your own visit means nothing).
+// `tail` folds all but the last few messages behind "Show earlier": used where
+// the conversation sits above the shared thing and must not bury it.
+function ReplyThread({cfg, thread, toUserId, toName, subject, canReact, onChanged, tail}){
+  const [showAll, setShowAll] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState("");
+  const [sentNow, setSentNow]     = useState([]);     // shown at once, before the list reloads
+  const [reporting, setReporting] = useState(null);
+  const base = (thread && thread.messages) || [];
+  const msgs = base.concat(sentNow.filter(x => !base.some(b => b.id === x.id)));
+  const tid = thread && thread.thread;
+  const unread = (thread && thread.unread) || 0;
+  // Opening a conversation is reading it.
+  useEffect(()=>{
+    if (!tid || !unread) return;
+    markRepliesRead(cfg, tid).then(()=> { if (onChanged) onChanged(); })
+      .catch(e => logMsg("REPLY", "mark read failed: " + e.message));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tid, unread]);
+  const reacted = {};
+  msgs.forEach(x => { if (x.mine && x.reaction) reacted[x.reaction] = true; });
+  const folded = (tail && !showAll && msgs.length > tail) ? msgs.length - tail : 0;
+  const shown = folded ? msgs.slice(-tail) : msgs;
+  // `reaction` is a string only from a chip; the Send button and Enter pass
+  // nothing, so a click event can never be mistaken for one.
+  async function send(reaction){
+    const react = typeof reaction === "string" ? reaction : "";
+    const body = react ? "" : text.trim();
+    if ((!react && !body) || busy) return;
+    setBusy(true); setErr("");
+    try {
+      const d = await sendReply(cfg, { to_user_id: toUserId, subject_kind: subject.kind,
+        subject_key: subject.key, subject_title: subject.title,
+        reaction: react || null, body: body || null });
+      if (d && d.message) setSentNow(a => a.concat([d.message]));
+      if (!react) setText("");
+      logMsg("REPLY", "sent " + (react ? "reaction " + react : "text") + " about " + subject.kind);
+      if (onChanged) onChanged();
+    } catch(e){
+      logMsg("ERROR", "reply send failed: " + (e && e.message));
+      setErr((e && e.message) || "Could not send that. Try again.");
+    } finally { setBusy(false); }
+  }
+  return (
+    <div>
+      {folded ? (
+        <button type="button" className="linkbtn tiny"
+          style={{background:"none", border:0, padding:"0 0 10px", color:"var(--accent)", fontWeight:600, cursor:"pointer", font:"inherit", fontSize:12.5}}
+          onClick={()=> setShowAll(true)}>Show {folded} earlier</button>
+      ) : null}
+      {shown.length ? (
+        <div className="reply-msgs">
+          {shown.map(x => (
+            <div key={x.id} className={"reply-msg" + (x.mine ? " mine" : "")}>
+              <div className={"reply-bubble" + (!x.body ? " react" : "")}>
+                {x.body || replyReactionLabel(x.reaction)}
+              </div>
+              <div className="reply-meta">
+                <span>{x.mine ? "You" : toName}{replyWhen(x.at) ? " \u00b7 " + replyWhen(x.at) : ""}</span>
+                {!x.mine ? (
+                  <button type="button" className="reply-more" aria-label="Report this reply"
+                    title="Report this reply" onClick={()=> setReporting(x)}>&#8942;</button>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {canReact ? (
+        <div className="reply-chips">
+          {REPLY_REACTIONS.map(r => (
+            <button key={r.id} type="button" className={"reply-chip" + (reacted[r.id] ? " on" : "")}
+              disabled={busy || !!reacted[r.id]} onClick={()=> send(r.id)}>
+              {reacted[r.id] ? "\u2713 " : ""}{r.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="reply-row">
+        <ClearInput value={text} maxLength={500} placeholder={"Write to " + toName} style={{flex:1}}
+          onChange={e=> setText(e.target.value)}
+          onKeyDown={e=> { if (e.key === "Enter"){ e.preventDefault(); send(); } }} />
+        <button type="button" className="btn primary sm" style={{flex:"none"}}
+          disabled={busy || !text.trim()} onClick={()=> send()}>
+          {busy ? <span className="spin" /> : "Send"}
+        </button>
+      </div>
+      {err ? <div className="tiny" style={{color:"var(--danger)", marginTop:6}}>{err}</div> : null}
+      {reporting ? (
+        <ReportSheet cfg={cfg} kind="reply" targetId={String(reporting.id)} targetUser={toUserId}
+          what={"A reply from " + toName} onClose={()=> setReporting(null)} />
+      ) : null}
+    </div>
+  );
+}
+
+// On a visit in History: the latest line of each friend's conversation about it.
+function ReplyPreviews({threads, onOpen}){
+  if (!threads || !threads.length) return null;
+  return (
+    <div>
+      {threads.map(t => {
+        const last = t.messages[t.messages.length - 1] || {};
+        return (
+          <button key={t.thread} type="button" className="reply-preview"
+            onClick={(e)=>{ e.stopPropagation(); onOpen(t); }}>
+            <span style={{flex:"none", display:"inline-flex"}}><Icon name="reply" size={14} color="var(--accent)" /></span>
+            <span className="reply-preview-t">
+              {t.unread ? <span className="reply-dot" /> : null}
+              <b>{last.mine ? "To " + replyName(t) : replyName(t)}</b>{" "}
+              {last.body || replyReactionLabel(last.reaction)}
+            </span>
+            <span className="reply-preview-go">Reply</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// A conversation in a bottom sheet (History). Shared with you shows the same
+// thing full-screen.
+function ReplySheet({cfg, thread, onClose, onChanged}){
+  if (!thread) return null;
+  const name = replyName(thread);
+  return (
+    <div className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={e=> e.stopPropagation()}>
+        <div className="grip" />
+        <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:2}}>{name}</div>
+        <div className="tiny faint" style={{marginBottom:12}}>About {thread.subject_title || "something you shared"}</div>
+        <ReplyThread cfg={cfg} thread={thread} toUserId={thread.with_user_id} toName={name}
+          subject={{ kind: thread.subject_kind, key: thread.subject_key, title: thread.subject_title }}
+          onChanged={onChanged} />
+        <button className="btn ghost" style={{width:"100%", marginTop:12}} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
 // Button + picker to send a place (with its menu) to accepted connections.
 // One "Share" entry point for a place: send to a connection, share a public link,
 // or add your menu(s) to the community library. Opened from the place page and the
@@ -29388,8 +29693,23 @@ function ShareInbox({config, onClose, onHome, onLogVisit}){
   const [busyId, setBusyId] = useState(null);
   const [loadFail, setLoadFail] = useState(false);
   async function load(){ setLoadFail(false); try { const d = await getShares(config); setShares((d && d.shares) || []); } catch(e){ setLoadFail(true); } }
-  useEffect(()=>{ load(); /* eslint-disable-next-line */ },[]);
+  // Conversations about shared things (2026-10-10). They outlive the inbox
+  // item they started from, so they load on their own and are listed first.
+  const [threads, setThreads] = useState([]);
+  const [talk, setTalk] = useState(null);       // id of the conversation being read
+  function loadReplies(){
+    fetchReplies(config).then(d => setThreads((d && d.threads) || []))
+      .catch(e => logMsg("REPLY", "inbox load failed: " + e.message));
+  }
+  useEffect(()=>{ load(); loadReplies(); /* eslint-disable-next-line */ },[]);
   const [note, setNote] = useState("");
+  // Either person may delete a conversation, and it goes for both - the same
+  // rule as removing a share. Asked first, because the other side loses it too.
+  async function removeThread(t){
+    if (!confirm("Delete this conversation? It is removed for both of you.")) return;
+    try { await deleteReplyThread(config, t.thread); setTalk(null); loadReplies(); }
+    catch(e){ setNote("Couldn't delete that just now - try again."); }
+  }
   // Saving a share IS dealing with it: retire the inbox item so the badge
   // stops nagging. The viewer stays open - you may still want to browse it.
   async function clearOpened(){
@@ -29399,13 +29719,51 @@ function ShareInbox({config, onClose, onHome, onLogVisit}){
   }
   async function remove(id){ setBusyId(id); setNote(""); try { await dismissShare(config, id); await load(); } catch(e){ setNote("Couldn't dismiss that just now - try again."); } finally { setBusyId(null); } }
 
+  const talkThread = talk ? (threads.find(t => t.thread === talk) || null) : null;
+  if (talkThread){
+    const nm = replyName(talkThread);
+    return (
+      <div className="overlay">
+        <div className="ovhead">
+          <BackBtn onClick={()=> setTalk(null)} />
+          <h2>{nm}</h2><HomeBtn onHome={onHome} />
+        </div>
+        <div className="ovbody">
+          <div className="small muted" style={{marginBottom:14}}>
+            About {talkThread.subject_title || "something shared"}
+          </div>
+          <ReplyThread cfg={config} thread={talkThread} toUserId={talkThread.with_user_id} toName={nm}
+            subject={{ kind: talkThread.subject_kind, key: talkThread.subject_key, title: talkThread.subject_title }}
+            onChanged={loadReplies} />
+          {note ? <div className="tiny" style={{color:"var(--danger)", marginTop:10}}>{note}</div> : null}
+          <div style={{marginTop:22, textAlign:"center"}}>
+            <button type="button" className="btn ghost sm" style={{margin:"0 auto"}}
+              onClick={()=> removeThread(talkThread)}>Delete this conversation</button>
+            <div className="tiny faint" style={{marginTop:6}}>Removes it for both of you.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (open){
+    // The reply box sits on the page of the thing itself. `joined` rows are
+    // news with nothing to open, so they never reach here.
+    const fromName = getConnName(open.from_user_id) || open.from || "your friend";
+    const subj = replySubject(open.kind, open.payload, open.title);
+    const openThread = threads.find(t => t.with_user_id === open.from_user_id && t.subject_key === subj.key) || null;
     return (
       <div style={{position:"fixed", inset:0, zIndex:70, background:"var(--bg)", overflowY:"auto"}}>
         <div style={{maxWidth:600, margin:"0 auto"}}>
           <button className="btn ghost sm" style={{margin:"12px 16px 0"}} onClick={()=> setOpen(null)}>
             <Icon name="back" size={14} /> Back
           </button>
+          {open.from_user_id ? (
+            <div className="card" style={{margin:"12px 16px 4px"}}>
+              <div style={{fontWeight:600, marginBottom:10}}>Tell {fromName} what you think</div>
+              <ReplyThread cfg={config} thread={openThread} toUserId={open.from_user_id} toName={fromName}
+                subject={subj} canReact tail={3} onChanged={loadReplies} />
+            </div>
+          ) : null}
           {open.kind === "list" ? <PublishedList data={open.payload} />
             : open.kind === "visit" ? <PublishedVisit data={open.payload} onSaved={clearOpened}
                 onLogVisit={onLogVisit ? (seed)=>{
@@ -29437,17 +29795,43 @@ function ShareInbox({config, onClose, onHome, onLogVisit}){
             onClose={()=> setReporting(null)} />
         ) : null}
         {note ? <div className="tiny" style={{color:"var(--danger)", margin:"0 0 8px"}}>{note}</div> : null}
+        {threads.length ? (
+          <div style={{marginBottom:16}}>
+            <div className="section-subhead">Replies</div>
+            {threads.map(t => {
+              const last = t.messages[t.messages.length - 1] || {};
+              return (
+                <SwipeToDelete key={t.thread} onDelete={()=> removeThread(t)}>
+                  <div className="card" style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}
+                    onClick={()=> setTalk(t.thread)}>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                        {t.unread ? <span className="reply-dot" /> : null}{replyName(t)}
+                        <span className="tiny faint" style={{fontWeight:400}}> &middot; {t.subject_title || "Something shared"}</span>
+                      </div>
+                      <div className="tiny faint" style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                        {last.mine ? "You: " : ""}{last.body || replyReactionLabel(last.reaction)}
+                      </div>
+                    </div>
+                    <span style={{flex:"none", display:"inline-flex"}}><Icon name="chev" size={18} color="var(--text-faint)" /></span>
+                  </div>
+                </SwipeToDelete>
+              );
+            })}
+            {shares && shares.length ? <div className="section-subhead" style={{marginTop:16}}>Shared with you</div> : null}
+          </div>
+        ) : null}
         {loadFail ? (
           <div className="small" style={{padding:"10px 2px", color:"var(--danger)"}}>
             Couldn't load what's been shared with you. <a href="#" onClick={(e)=>{ e.preventDefault(); load(); }}>Try again</a>
           </div>
         ) : shares === null ? (
           <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
-        ) : shares.length === 0 ? (
+        ) : shares.length === 0 ? (threads.length ? null : (
           <div className="small faint" style={{padding:"4px 2px"}}>
-            Nothing shared with you yet. When a connection sends you a place or list, it shows up here.
+            Nothing shared with you yet. When a friend sends you a place, menu, or visit, it shows up here.
           </div>
-        ) : shares.map(s => {
+        )) : shares.map(s => {
           // "Joined" is news, not a thing to open: someone you shared a visit
           // with confirmed they were there too. It reads and clears in one row.
           if (s.kind === "joined"){
