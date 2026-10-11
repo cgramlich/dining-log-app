@@ -418,11 +418,26 @@ number changes: `[FIRECRAWL] credits changed A -> B (-N) within the last 15 min`
 nonzero cost still backs off to daily. 10 checks on the real section with a scripted balance series
 (`scratchpad/test_fc_watch.py`). **Not yet seen live:** a change line (needs a real drop).
 
-**Still open, not this session's to do:** read the Firecrawl dashboard's activity log (each request
-with time and URL), then check the other things on the same Firecrawl account: the connector used from
-claude.ai chats, the phone app or cloud sessions (same credits, no transcript on this PC), other apps'
-servers, and a second or leaked key. 95 credits were left at 11:21Z on 10-11; the period ends
-2026-10-25 19:35 UTC. At 0, menu import from a link stops working on sites that block a plain fetch.
+**SOLVED later on 2026-10-11 (reported by the portfolio overview session from Firecrawl's own activity
+log; not re-read by this session):** the spender was Chris's own research through the Firecrawl
+connector in claude.ai and phone chats, on the same Firecrawl account as MenuCaptain's key. 905 used:
+connector 865 (one research run = 725), ChatGPT/Codex 36, **MenuCaptain's own API use 4**.
+
+**Decisions, all Chris, 2026-10-11, in this session:**
+- **No second Firecrawl account and no new key** ("I don't wanna mess around with A new API"). The
+  overview session had recorded "separate accounts"; he reversed it here. MenuCaptain stays on the one
+  shared account with the key already in Railway. Nothing changed on the server.
+- **The connector stays on, and Claude asks before every use** ("I can use fire crawl It absolutely
+  needs it, but it should ask"). For this session that replaces the old standing rule "never use the
+  Firecrawl connector": it may be used when a page cannot be read any other way, after a card with a
+  credit estimate. Built-in WebSearch/WebFetch still come first.
+- Looked up for the account question and still true: Firecrawl's terms (updated 2026-10-07) are silent
+  on second accounts; Hobby is 5,000 credits for $19/month or $190/year (pricing page, 2026-10-11).
+
+**What that means for the app:** the 1,000 monthly credits remain shared with Chris's research. 95 were
+left at 13:31Z on 10-11; the period ends 2026-10-25 19:35 UTC. At 0, menu import from a link stops
+working on sites that block a plain fetch (camera scans are unaffected). The 15-minute watch is the
+early warning: `/health` shows `menu_link_credits` low/out, and the log times every change.
 
 ### Replies: on the place page, a way in after saving first, and email links (2026-10-11, app 1.509.0, backend 0.132.0)
 
