@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.508.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.131.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.508.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.509.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.132.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.509.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -394,6 +394,50 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### Replies: on the place page, a way in after saving first, and email links (2026-10-11, app 1.509.0, backend 0.132.0)
+
+Chris asked for the first two known gaps of replies to be closed together, and reported an email link.
+
+**1. A way in after saving first.** Saving a share deletes the inbox item, and the reply box lived on
+it, so a friend who saved before saying anything was stuck. `ShareInbox.clearOpened` (every save path,
+including "I was there") now calls `onKeepDoor(replyDoorFor(share))` BEFORE the delete. A **door** =
+`{uid, name, kind, key, title, place, city, at}`: who shared it, the conversation's subject, and the
+place's name/city slugs. App's `keepReplyDoor` stores doors in **`meta.reply_doors`** (one per person per
+subject, newest first, cap 200) through `saveMeta`, so they sync with the account like `conn_names`.
+**Dismiss leaves no door** (dismissing means "not for me"). Shares saved before 1.509.0 have no door.
+Road not taken: stamping `shared_from` onto the saved restaurant record. The save code writes
+restaurants in five branches across two components (new, existing match, want-to-try, log-my-visit,
+PublishedMenu), each straight to the server; one hook in the inbox was far less to get wrong.
+
+**2. Replies on the place page.** `RestaurantDetail` shows, under the cuisine line, every conversation
+about this place: for the SHARER by exact subject key (`replyKeysForPlace`: `place:<where>`,
+`menu:<where>`, `menu:<where>:<label>` for each menu, where = name slug + city slug, the same recipe
+`replySubject` uses on the friend's phone), and for the FRIEND by door (`replyDoorsForPlace`: same name,
+same city unless either side has none). A door with no conversation yet renders `ReplyStarter`
+("<name> shared this with you - Reply"), which opens `ReplySheet` with `start` (reaction chips on).
+A door also covers a place saved from a friend's VISIT ("Want to try"): its subject stays the visit.
+History does the same for a joined visit (door key `visit:<sv>`). Both hold the open conversation as
+`{uid, key}` (person + subject), not a thread id, so it can open before anything is said.
+**Limit:** if the sharer renames the place or changes its city after sharing, their place page no
+longer finds the conversation (it is still under Replies). Keys are built from current name + city.
+
+**3. Email links (backend 0.132.0).** Chris tapped the button in an "accepted your friend request" email
+and met a bare sign-in page. **On iPhone a web link cannot open a home-screen web app**; the browser has
+its own storage and sign-in. That only ends with the store build (universal links). The fixable part:
+the three friend-request emails and the share email linked to bare `APP_URL`, so the sign-in page gave
+no explanation and left the reader on Home. They now use `?open=connections` / `?open=shares`, which
+the app already handles (`arrivedFor` card: "this opened in your browser, sign in once", then straight
+to the screen). Still bare: the group-order "placed" email (no `?open=` destination for an order).
+
+**Verified in the preview** with the real components and the real place-page block sliced out of
+`RestaurantDetail`: sharer sees only this place's conversation (another place's is not shown); a door
+shows one starter (a door for another place is not shown); the starter opens an empty sheet with
+chips; the first reply uses the door's subject key and the starter becomes a preview line; a place
+saved from a visit replies under `visit:<sv>`; saving in the real ShareInbox hands over a correct
+door and Dismiss hands over none. `verify_names.js` clean. **NOT verified:** App's `keepReplyDoor` /
+`saveMeta` write and the History starter (wiring only, not run signed-in); two real accounts; the
+real emails.
+
 ### Replies between friends, attached to what was shared (2026-10-10, app 1.508.0, backend 0.131.0)
 
 Chris asked whether the app had messaging with friends. It did not. Offered: replies on a shared item,
@@ -435,9 +479,9 @@ fake server: react, send by Enter, read-marking, refusal message, report sheet, 
 a place. Live endpoints answer 401 without a sign-in. **NOT verified: two real accounts end to end, and
 the real email.** First real use should check both.
 
-**Known gaps, on purpose for v1:** a friend who saved a share WITHOUT replying first has no place to
-start a conversation later (only the sharer's visit or an existing thread opens one). The sharer of a
-place, menu or list sees replies only under Replies, not on the place page. No per-message delete.
+**Known gaps, on purpose for v1:** ~~a friend who saved a share WITHOUT replying first has no place to
+start a conversation later; the sharer of a place sees replies only under Replies~~ **both closed in
+1.509.0, see the section above.** Still open: no per-message delete.
 
 **Privacy policy updated in the same release, wording approved by Chris:** replies added; the
 shared-visit description corrected (it DOES carry the star rating and dish names); in-app account
