@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.511.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.135.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.511.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.512.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.136.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.512.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -394,6 +394,47 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### A place sent to a friend is a recommendation with pictures; the Share sheet offers the visit (2026-10-11, app 1.512.0)
+
+Chris sent a screenshot of what a friend received: "This is what a shared visit in the app looks like,
+and I don't see any pictures". **It was a PLACE share.** Railway log: `[SHARE] ... sent place to 10` at
+15:55Z; no `sent visit` since 10-10. He said "Both" to the two fixes.
+
+**1. The in-app place share was a bare menu.** `ShareToConnectionButton.send` built
+`buildMenuPayload` (k:"m") and sent it as kind "place", so the friend saw "A menu on MenuCaptain - tap
+the dishes you'd like, then send your picks back", with no photo, rating or loved dishes. (I told Chris
+the LINK version already showed photo and rating. Wrong: it showed loved dishes and off-menu tips only.)
+- `buildPlaceSharePayload(restaurant, menuList, lovedNames, extras)` (pure) now builds k:"p":
+  `buildPlacePayload` (place, combined menu, `loved`, `off`) + `a`, `gpid`, `lat`, `lng`, `rt` (your
+  place rating, to the half star, from `placeRating`), `g` (Google's), `ph` (up to 6 signed URLs) or
+  `hero`, `by`/`byn`. Private notes, About this place and `house_story` do NOT travel (asserted).
+- **Photos:** `placeVisitPhotoPaths(visits, 6)` = newest visit first, no repeats; receipt and per-dish
+  photos are never taken. A tick box in the picker, **on by default** (Chris's earlier choice for "what
+  makes it special"), says how many. Unticked or none: the place's own saved photo as `hero`. **Never
+  Google's photo** (its terms do not allow handing it on; see `signVisitHero`). Signed for 30 days, like
+  a visit's. `fillGoogleRating` may spend one Places details call at send time, as the visit share does.
+- `PublishedMenu` in place mode renders the rating row (stars with a half) and the photo grid with a
+  tap-to-enlarge, the same layout as a shared visit. Link shares carry neither, so nothing renders.
+- **Lost on purpose:** the in-app place share no longer offers "tap dishes and send your picks back".
+  That flow still exists on a MENU link share and in group orders.
+
+**2. The place's Share sheet never mentioned the visit.** `ShareSheet` takes `visits` and
+`onShareVisit`; when there is a visit it shows **Share your visit** (most recent, with its date) under
+**Send this place to a friend**, each with a line saying what it carries. `RestaurantDetail` renders
+`VisitShareSheet` for it (`shareVisitObj`) and passes `onLinkVisitShared` -> App's `linkVisitToShared`.
+The picker text ends "This sends the place, not a visit: what you had and who you were with stay with
+you."
+
+**Privacy policy** (wording approved by Chris by card): the place line now lists rating, loved dishes,
+off-menu tips and the photos; effective date 2026-10-11.
+
+**Verified:** 17 checks on the real payload builders (`scratchpad/test_placeshare.js`); the REAL
+friend's page rendered in the preview from a real payload via `?menu=` (rating, Google score, three
+photos, loved dishes, off-menu, menu; no sideways scroll). **NOT run:** the Share sheet and picker
+(they need a signed-in app); verified by compile, the undefined-name check and reading.
+
+**Still true:** there is no list of what you have sent (see the finding below).
+
 ### A photo that will not upload no longer freezes the visit form (2026-10-11, app 1.511.0)
 
 Chris: on a bad connection the photos stop, a better connection never resumes them, "you gotta cancel
@@ -527,9 +568,18 @@ that useful, billed as output. Evidence it was happening on scans: the SAME phot
   weeks (a scan logged 19-28 cents, really 13-18). 5.5 added at $2/$10. `_price_for` now takes the
   LONGEST matching prefix, since `claude-sonnet-5-5` also starts with `claude-sonnet-5`.
 
-**Verified:** 26 checks on the real sections with a stand-in provider (`scratchpad/test_sonnet55.py`);
+**FIRST REAL CALLS, 2026-10-11 evening (Railway log, filter `secs=`):** both new settings were
+accepted by the provider: no `refused` and no `not found` line, so neither fail-safe fired. One real
+menu scan: `task=ocr_menu secs=24.3 in=15608 out=5198` = **214 output tokens a second, against about
+135 on Sonnet 5**, and a far smaller answer than the 10,000-17,000 tokens scans were costing (no
+thinking tokens). Chris, the same evening: "scanning has gotten a lot faster". Other tasks:
+help_me_order 4.0 s, estimate_photo 2.3-4.0 s, all `end_turn`. One scan is one data point; quality was
+judged by Chris using it, not checked against paper. That scan went through the relay (one request),
+so **scan-pages has still not run for real**.
+
+**Verified before release:** 26 checks on the real sections with a stand-in provider (`scratchpad/test_sonnet55.py`);
 live log shows `models in force: ['claude-sonnet-5-5']` and `up-front thinking on scans/translations:
-off`. **NOT verified: a real AI call on 5.5.** Nothing has run on it yet; the first scan is the test.
+off`. **(At release:) NOT verified: a real AI call on 5.5.** Nothing has run on it yet; the first scan is the test.
 Compare its `secs` and `out` with the baseline above, and read the menu it produced for missed dishes
 or wrong prices before calling it better. If quality drops, revert first, investigate second.
 
@@ -563,7 +613,12 @@ no menu-from-link call on the live server. **Measured answer: not this session, 
 - **Search blind spot:** `_firecrawl_screenshot` logs under `[MENUPIC]` and its success line does not
   contain the word "firecrawl". Filter `MENU`, not `WEBMENU`, to see every scrape path.
 
-**Change:** `_fc_credit_loop` now polls every 15 minutes (`_FC_CHECK_EVERY_S`), silently unless the
+**SUPERSEDED the same evening (backend 0.136.0): back to every 12 hours.** Chris: "you don't have to
+check fire crawl every 15 minutes. That seems excessive." The spender had been found by then. Each
+12-hour reading logs one line (the change, or "unchanged"). To time a drain again, set
+`FIRECRAWL_CHECK_MINUTES` in Railway for a while (floor 5; a typo falls back to 12 h); no code change.
+
+**Change (as first built, 0.133.0):** `_fc_credit_loop` polled every 15 minutes (`_FC_CHECK_EVERY_S`), silently unless the
 number changes: `[FIRECRAWL] credits changed A -> B (-N) within the last 15 min` (a warning), plus one
 "unchanged" line every 12 hours (`_FC_HEARTBEAT_S`). Cost is 0 credits, measured at every startup; a
 nonzero cost still backs off to daily. 10 checks on the real section with a scripted balance series
