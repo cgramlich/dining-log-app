@@ -474,6 +474,11 @@ one web app, released as now, with the source kept in files by area.
 - Web app: needs a step before upload that joins the area files and translates them into the single
   `index.html` that is uploaded, so the live site and GitHub Pages do not change. Level 1 (files joined
   in order, same code as today) is low risk. Level 2 (strict boundaries between areas) is a long job.
+- **CORRECTION, same day: this step already exists for the store app.** `build.js` in
+  `menucaptain-native-build` has always translated the code ahead of time into `www/app.js` and
+  dropped Babel ("no CDN, no runtime Babel"). So the store build does not pay the 0.8 s; only the
+  WEBSITE does. Chris was first told the step would be new. Doing it for the website means reusing
+  that script's steps 1-3, not inventing anything.
 - A translate-only step, with no reorganising, gets the speed above by itself. `retainLines` would
   keep error line numbers matching the source. Its risk is a forgotten step uploading a stale file
   (the same family as the stale-stamp bug), so it needs a check before upload.
