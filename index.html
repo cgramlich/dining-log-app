@@ -1171,7 +1171,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.513.0";
+const APP_VERSION   = "1.514.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2494,6 +2494,12 @@ works for people who have never heard of the app. Either way it carries the
 place, your star rating alongside Google's, what you had, the photos, who you
 were with, and the menu. It never carries your private notes or what you spent,
 and the dish list is names only - no per-dish notes and no prices you paid.
+
+**Sending to several friends at once.** In the list of friends, tick as many as
+you like, or tap **Select all** at the top; tap it again to clear them. The
+button says how many will get it - **Send to 10** - before you press it. The
+same list appears when you send a place and when you invite friends to a group
+order.
 
 **What makes it special.** If you have logged anything about the place itself,
 the share sheet offers **Include what makes this place special**, ticked by
@@ -24486,6 +24492,7 @@ function GroupInvitePicker({cfg, code}){
             <div className="small muted" style={{marginBottom:10}}>
               They'll see this order in their app and can join as themselves.
             </div>
+            <PickAllRow conns={conns} pick={pick} setPick={setPick} />
             {conns === null ? (
               <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
             ) : conns.length === 0 ? (
@@ -24511,7 +24518,7 @@ function GroupInvitePicker({cfg, code}){
             <div className="row" style={{gap:9, marginTop:14}}>
               <button className="btn ghost" onClick={()=> setOpen(false)}>Close</button>
               <button className="btn primary" disabled={busy || !Object.keys(pick).some(k=>pick[k])} onClick={send}>
-                {busy ? <span className="spin" /> : "Invite"}
+                {busy ? <span className="spin" /> : ("Invite" + (pickCount(pick) > 1 ? " " + pickCount(pick) : ""))}
               </button>
             </div>
             {msg ? <div className="tiny" style={{marginTop:8, color: msgErr ? "var(--danger)" : "var(--ok)"}}>{msg}</div> : null}
@@ -28494,6 +28501,45 @@ function adoptPublishedVenmo(connections){
   });
 }
 
+/* "Select all" for the friend pickers: sending a place, sending a visit, and
+   inviting friends to a group order. Chris, 2026-10-12: "the share friends
+   inside the app function should allow for a select all function" - the day
+   before he had sent one place to ten people, a tap at a time.
+
+   One row at the top of the list rather than a button beside the title, so it
+   reads and behaves like the rows under it: ticked when everyone is ticked,
+   and a second tap clears everyone. Hidden with fewer than two friends, where
+   it would only repeat the single row below it.
+
+   Selecting everyone makes a slip expensive: each friend gets the item AND an
+   email about it, and a send cannot be taken back. So the button now says how
+   many, "Send to 10", before you press it (see pickCount). */
+// Pure: the friends in the list, whether all of them are ticked, and what the
+// ticks should become if the row is tapped. Built from the LIST, never from
+// the old ticks, so somebody who has left the list cannot stay ticked.
+function pickAllToggle(conns, pick){
+  const ids = (conns || []).map(c => c && c.user_id).filter(Boolean);
+  const all = ids.length > 0 && ids.every(id => !!(pick && pick[id]));
+  const next = {};
+  if (!all) ids.forEach(id => { next[id] = true; });
+  return { ids: ids, all: all, next: next };
+}
+// Pure: how many friends are ticked.
+function pickCount(pick){
+  return Object.keys(pick || {}).filter(k => pick[k]).length;
+}
+function PickAllRow({conns, pick, setPick}){
+  const t = pickAllToggle(conns, pick);
+  if (t.ids.length < 2) return null;
+  return (
+    <div className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+      onClick={()=> setPick(t.next)}>
+      <span className="go-check" style={{flex:"none"}}>{t.all ? "\u2713" : ""}</span>
+      <span style={{flex:1, minWidth:0, fontWeight:600}}>Select all
+        <span className="tiny faint" style={{fontWeight:400}}>{" " + t.ids.length + " friends"}</span></span>
+    </div>
+  );
+}
 function connLabel(c){
   // Your own name for them wins over their profile name - this is your address
   // book. Clearing it falls back to their display name, then to the handle.
@@ -29951,6 +29997,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide, lovedDishes, 
                 </span>
               </label>
             ) : null}
+            <PickAllRow conns={conns} pick={pick} setPick={setPick} />
             {conns === null ? (
               <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
             ) : conns.length === 0 ? (
@@ -29975,7 +30022,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide, lovedDishes, 
             <div className="row" style={{gap:9, marginTop:14}}>
               <button className="btn ghost" onClick={()=> setOpen(false)}>Close</button>
               <button className="btn primary" disabled={busy || !Object.keys(pick).some(k=>pick[k])} onClick={send}>
-                {busy ? <span className="spin" /> : "Send"}
+                {busy ? <span className="spin" /> : ("Send" + (pickCount(pick) > 1 ? " to " + pickCount(pick) : ""))}
               </button>
             </div>
             {msg ? <div className="tiny" style={{marginTop:8, color: msgErr ? "var(--danger)" : "var(--ok)"}}>{msg}</div> : null}
@@ -30059,6 +30106,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
               They'll get it in their &ldquo;Shared with you&rdquo; inbox - the place, the menu,
               your rating, what you had, and the photos. Never your private notes or what you spent.
             </div>
+            <PickAllRow conns={conns} pick={pick} setPick={setPick} />
             {conns === null ? (
               <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
             ) : conns.length === 0 ? (
@@ -30083,7 +30131,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
             <div className="row" style={{gap:9, marginTop:14}}>
               <button className="btn ghost" onClick={()=> setOpen(false)}>Close</button>
               <button className="btn primary" disabled={busy || !Object.keys(pick).some(k=>pick[k])} onClick={send}>
-                {busy ? <span className="spin" /> : "Send"}
+                {busy ? <span className="spin" /> : ("Send" + (pickCount(pick) > 1 ? " to " + pickCount(pick) : ""))}
               </button>
             </div>
             {msg ? <div className="tiny" style={{marginTop:8, color: msgErr ? "var(--danger)" : "var(--ok)"}}>{msg}</div> : null}

@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.513.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.514.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.136.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.513.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.514.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,32 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### "Select all" in the friend pickers (2026-10-12, app 1.514.0)
+
+Chris: "The [share] friends inside the app function should allow for a select all function." The day
+before he had sent one place to ten friends a tap at a time. No backend change.
+
+- **Where:** the three places that list your friends with tick boxes: `ShareToConnectionButton` (send
+  a place), `SendVisitToConnection` (send a visit) and `GroupInvitePicker` (invite friends to a group
+  order). He asked for the share ones; the invite one got it too because it is the same list doing
+  the same job.
+- **What:** `PickAllRow`, one row at the top of the list, "Select all N friends". Ticked when everyone
+  is ticked; a tap then clears everyone. Hidden with fewer than two friends. It is a row, not a
+  button beside the title, so it reads and behaves like the rows under it.
+- **`pickAllToggle(conns, pick)`** (pure) builds the new ticks from the LIST, never from the old
+  ticks, so somebody who has left the list cannot stay ticked.
+- **The button now says how many:** "Send to 10" / "Invite 10" when more than one is ticked
+  (`pickCount`). Added because selecting everyone makes a slip expensive: each friend gets the item
+  AND an email, and a send cannot be taken back.
+- Guide: a short "Sending to several friends at once" paragraph under Sharing a visit.
+
+**Verified.** `scratchpad/test_pickall.js`, 13 checks on the real helpers and source. Then the real
+changed app, opened locally signed in with three stand-in friends (the 1.513.0 method below, plus a
+static file at `<apiBase>/api/connections` returning `{connections:[...]}` so the picker has friends
+to show): Select all ticks all three and the button reads "Send to 3"; unticking one gives "Send to 2"
+and unticks the row; a tap when all are ticked clears them and disables Send. **Not checked:** an
+actual send to several friends after the change, and a real phone.
 
 ### Specials and things not on the menu live on Log a visit only (2026-10-12, app 1.513.0)
 

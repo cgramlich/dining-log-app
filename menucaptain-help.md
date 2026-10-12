@@ -728,6 +728,12 @@ place, your star rating alongside Google's, what you had, the photos, who you
 were with, and the menu. It never carries your private notes or what you spent,
 and the dish list is names only - no per-dish notes and no prices you paid.
 
+**Sending to several friends at once.** In the list of friends, tick as many as
+you like, or tap **Select all** at the top; tap it again to clear them. The
+button says how many will get it - **Send to 10** - before you press it. The
+same list appears when you send a place and when you invite friends to a group
+order.
+
 **What makes it special.** If you have logged anything about the place itself,
 the share sheet offers **Include what makes this place special**, ticked by
 default: your About this place (with its sources), the signature dish, and
