@@ -1171,7 +1171,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.512.0";
+const APP_VERSION   = "1.513.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2100,7 +2100,7 @@ the app tidies up your old copy so there's no stale duplicate.
 
 ## What only the locals know
 
-Two kinds of thing a menu will not tell you, and both live where you need them.
+Things a menu will not tell you, kept on the place where you need them.
 
 **In their words.** Some menus print a story about the restaurant itself - who
 founded it, where the recipes come from. When you scan a menu like that, the app
@@ -2115,10 +2115,9 @@ mark a dish as a **Signature**. It then shows a star and a line under the dish
 name wherever that menu appears, so the thing this place is known for is obvious
 at the moment you are choosing rather than after you have ordered.
 
-**Off the menu.** The drink the regulars ask for by name. The dish they will
-make if you know to ask. Tonight's special. On a restaurant page, just under
-the menus, there is a **Not on the menu / specials** card - tap **+ Add**, give it
-a name, and optionally a price and a note on how to ask for it or why it matters.
+**Specials and things not on the menu.** These belong to the visit you had them
+on, not to the place. When you log a visit, type the name under **What you had**
+and tap **Add** - see **Something not on the menu** under Logging a visit.
 
 **About this place, drafted for you.** In a place's Edit screen, under **About
 this place**, tap **Suggest from the web**. It searches the web and drafts two
@@ -2130,17 +2129,6 @@ the place. The sources it used are listed under the About card with the date,
 so you can see where every claim came from. If little has been written about a
 place it says so rather than making something up. It uses 3 of your AI
 allowance, because a web search costs about three ordinary AI requests.
-
-These live on the *place*, not on one menu, because a bar with a food menu, a
-brunch menu and a drinks list has one set of things that are on none of them.
-They also join the dish suggestions when you log a visit, so once you have
-learned about something you never have to type its name from memory again.
-
-Each one is dated and carries a **Still true** link. Tap it when you confirm the
-thing still exists; after about six months without confirmation the app says so.
-This matters more here than anywhere else in the app - a tip that has gone stale
-sends somebody to ask a bartender, out loud, for something that no longer
-exists.
 
 -----
 
@@ -2234,9 +2222,11 @@ open it and tap any item to add it. Adding a dish by tapping it from the menu is
 the better habit - it makes the rest of the features line up correctly (see the
 photo estimate below).
 
-**Something not on the menu.** A special, an off-menu ask, a dish the scan
-missed - type it and the list offers **Add "whatever you typed"**. It goes on
-the visit like any other dish.
+**Something not on the menu.** Tonight's special, something they made because
+you asked, a dish the scan missed - type it under **What you had** and tap
+**Add** (the list also offers **Add "whatever you typed"**). It goes on the visit
+like any other dish, so a friend you share the visit with sees it in what you
+had, and it is offered again the next time you log a visit at that place.
 
 **Two dishes with the same name.** Some places list one dish under several
 headings - a pancake house might have the same berry special as a pancake, a
@@ -2507,9 +2497,8 @@ and the dish list is names only - no per-dish notes and no prices you paid.
 
 **What makes it special.** If you have logged anything about the place itself,
 the share sheet offers **Include what makes this place special**, ticked by
-default: your About this place (with its sources), the signature dish, your
-specials and off-menu tips, and the restaurant's own story, each labelled by
-whose words it is. Untick it to send just the meal.
+default: your About this place (with its sources), the signature dish, and
+the restaurant's own story, each labelled by whose words it is. Untick it to send just the meal.
 
 **Say something about it.** The share sheet has a note field, and whatever you
 write sits at the top of the page they open - "loved going to dinner after mass
@@ -2594,7 +2583,7 @@ It offers these ways to share:
 
 - **Send this place to a friend** - a recommendation, straight to a MenuCaptain
   friend's "Shared with you": the place, your star rating beside Google's, the
-  dishes you loved, any off-menu tips, and its menu to browse. Photos from your
+  dishes you loved, and its menu to browse. Photos from your
   visits there go too unless you untick the box. It does not include what you
   had on a particular night or who you were with.
 - **Share your visit** - shown when you have been there. This is the one with
@@ -4080,20 +4069,13 @@ function buildPlacePayload(restaurant, menu, lovedNames){
   delete o.l;   // a place share isn't a single named menu
   const loved = (lovedNames || []).map(n => (n || "").trim()).filter(Boolean);
   if (loved.length) o.loved = loved.slice(0, 8);
-  // Things you can order here that are on no menu. Sent with the date each was
-  // last confirmed, so the reader can weigh a tip that has gone quiet rather
-  // than trusting it blind.
-  const off = ((restaurant && restaurant.offmenu) || [])
-    .filter(x => x && (x.name || "").trim())
-    .slice(0, 8)
-    .map(x => {
-      const e = { n: String(x.name).trim() };
-      if (x.price) e.p = String(x.price).trim();
-      if (x.note)  e.d = String(x.note).trim().slice(0, 200);
-      if (x.at)    e.at = x.at;
-      return e;
-    });
-  if (off.length) o.off = off;
+  // NOT SENT since 1.513.0: `off`, the place's "Not on the menu / specials"
+  // tips. Chris, 2026-10-12: a special belongs to the visit you had it on, so
+  // the box on the place page went, and with it the only thing that fed this.
+  // The road not taken was to keep sending them, filled from what is typed
+  // while logging a visit. Rejected: a special from months ago would read as a
+  // standing tip, and a friend would ask for it out loud. PublishedMenu still
+  // DRAWS `off`, for places shared before this.
   return o;
 }
 
@@ -4112,7 +4094,7 @@ function placeVisitPhotoPaths(visits, max){
 
 // Pure: what a place carries when it is SENT TO A FRIEND inside the app
 // (2026-10-11). A recommendation, k:"p" - the place, your rating beside
-// Google's, the dishes you loved, off-menu tips, and the menu to browse.
+// Google's, the dishes you loved, and the menu to browse.
 // Until this date the in-app send used the menu-pick payload (k:"m") and
 // arrived as "A menu on MenuCaptain - send your picks back" with none of that.
 // `extras`: { rating, photoUrls (signed, from your visits), heroUrl (the place's
@@ -4164,9 +4146,12 @@ function buildPlaceSharePayload(restaurant, menuList, lovedNames, extras){
        ate:[{n,y}] (y:2 loved, y:1 again), ph:[urls], hero,
        s:[ { n, i:[ { n,d,p,t } ] } ] } */
 /* What you have logged about the PLACE that is worth passing on with a visit
-   (2026-10-10): About this place + its sources, the signature dish, specials
-   and off-menu tips, and the restaurant's own printed story. Never the private
-   Notes field. null when there is nothing, so callers can hide the switch. */
+   (2026-10-10): About this place + its sources, the signature dish, and the
+   restaurant's own printed story. Never the private Notes field. null when
+   there is nothing, so callers can hide the switch. Until 1.513.0 it also
+   carried the place's off-menu tips as `off`; buildPlacePayload says why that
+   stopped. A special now travels as a dish in `ate`, like anything else you
+   had. */
 function visitSpecial(restaurant, menuList){
   if (!restaurant) return null;
   const sp = {};
@@ -4184,26 +4169,16 @@ function visitSpecial(restaurant, menuList){
     if (it && it.sig && n && sig.indexOf(n) === -1) sig.push(n);
   })));
   if (sig.length) sp.sig = sig.slice(0, 5);
-  const off = (Array.isArray(restaurant.offmenu) ? restaurant.offmenu : [])
-    .filter(x => x && String(x.name || "").trim()).slice(0, 8)
-    .map(x => {
-      const e = { n: String(x.name).trim() };
-      if (x.price) e.p = String(x.price).trim();
-      if (x.note)  e.d = String(x.note).trim().slice(0, 200);
-      return e;
-    });
-  if (off.length) sp.off = off;
   const own = String(restaurant.house_story || "").trim();
   if (own) sp.own = own.slice(0, 1200);
   return Object.keys(sp).length ? sp : null;
 }
-// "About this place, the signature dish, 2 specials and their own story"
+// "About this place, the signature dish and their own story"
 function visitSpecialSummary(sp){
   if (!sp) return "";
   const bits = [];
   if (sp.ab) bits.push("About this place");
   if (sp.sig) bits.push(sp.sig.length === 1 ? "the signature dish" : sp.sig.length + " signature dishes");
-  if (sp.off) bits.push(sp.off.length === 1 ? "1 special" : sp.off.length + " specials");
   if (sp.own) bits.push("their own story");
   if (bits.length <= 1) return bits.join("");
   return bits.slice(0, -1).join(", ") + " and " + bits[bits.length - 1];
@@ -10153,13 +10128,6 @@ function App({openShare}){
             const next = restaurants.map(x => x.id === overlay.id ? Object.assign({}, x, patch) : x);
             commit({ restaurants: next }, ["restaurants"]);
           }}
-          onSaveOffMenu={(next)=>{
-            // Off-menu items belong to the PLACE - a bar with three menus has
-            // one set of things that are on none of them.
-            const nx = restaurants.map(x => x.id === overlay.id
-              ? Object.assign({}, x, { offmenu: next }) : x);
-            commit({ restaurants: nx }, ["restaurants"]);
-          }}
           onAddMenu={()=> setOverlay({ type:"scanMenu", restaurantId:overlay.id })}
           onImportCommunityMenus={(newMenus)=>{
             const cur = menus[overlay.id] || [];
@@ -12576,99 +12544,19 @@ function myUsualAt(visits, restId, limit){
   return out.slice(0, limit || 3);
 }
 
-/* The things you can order here that are not on any menu.
-
-   Deliberately blank-slate rather than hidden when empty: an empty box that
-   says what belongs in it is how somebody learns the feature exists, and this
-   is knowledge the app can only get by being asked for it. */
-function OffMenuCard({ place, onSave }){
-  const list = Array.isArray(place && place.offmenu) ? place.offmenu : [];
-  const [open, setOpen]   = useState(false);
-  const [name, setName]   = useState("");
-  const [price, setPrice] = useState("");
-  const [note, setNote]   = useState("");
-  if (!onSave) return null;
-
-  function add(){
-    const nm = (name || "").trim();
-    if (!nm) return;
-    onSave(list.concat([{
-      name: nm,
-      price: (price || "").trim() || null,
-      note: (note || "").trim() || null,
-      at: todayISO(),          // dated, so a stale tip can be recognised as one
-    }]));
-    setName(""); setPrice(""); setNote(""); setOpen(false);
-  }
-  function drop(i){ onSave(list.filter((_, k) => k !== i)); }
-  function confirmStill(i){
-    onSave(list.map((x, k) => k !== i ? x : Object.assign({}, x, { at: todayISO() })));
-  }
-
-  return (
-    <div className="card" style={{marginTop:14, padding:"14px 15px"}}>
-      <div className="between" style={{alignItems:"center", marginBottom: list.length ? 10 : 6}}>
-        <span className="lbl" style={{margin:0}}>Not on the menu / specials</span>
-        <button className="btn ghost sm" style={{flex:"none", padding:"4px 11px"}}
-          onClick={()=> setOpen(o => !o)}>{open ? "Cancel" : "+ Add"}</button>
-      </div>
-
-      {list.length ? (
-        <div style={{display:"grid", gap:9}}>
-          {list.map((x, i)=>{
-            // Six months without confirmation is not proof it is gone, so this
-            // nudges rather than hides. Deleting stays the reader's call.
-            const stale = !x.at || ((Date.now() - new Date(x.at).getTime()) > 1000*60*60*24*180);
-            return (
-              <div key={i} style={{borderTop: i ? "1px solid var(--line-soft)" : "none",
-                   paddingTop: i ? 9 : 0}}>
-                <div className="between" style={{alignItems:"baseline", gap:8}}>
-                  <span className="small" style={{fontWeight:600}}>{x.name}</span>
-                  {x.price ? <span className="tiny faint">{x.price}</span> : null}
-                </div>
-                {x.note ? <div className="tiny muted" style={{marginTop:2}}>{x.note}</div> : null}
-                <div className="tiny faint" style={{marginTop:4}}>
-                  {stale
-                    ? <span>Added {x.at || "a while ago"} - still true? </span>
-                    : <span>Added {x.at}. </span>}
-                  <a href="#" style={{color:"var(--accent)"}}
-                     onClick={(e)=>{ e.preventDefault(); confirmStill(i); }}>Still true</a>
-                  {"  ·  "}
-                  <a href="#" style={{color:"var(--text-faint)"}}
-                     onClick={(e)=>{ e.preventDefault(); drop(i); }}>Remove</a>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="tiny faint">
-          Tonight's special, the drink the locals order by name, the dish they will
-          make if you ask. The things you would never learn from the menu.
-        </div>
-      )}
-
-      {open ? (
-        <div style={{marginTop:12, display:"grid", gap:8}}>
-          <ClearInput value={name} onChange={e=>setName(e.target.value)}
-            placeholder="What is it called?" />
-          <ClearInput value={price} onChange={e=>setPrice(e.target.value)}
-            placeholder="Price, if you know it (optional)" />
-          <textarea className="input" value={note} onChange={e=>setNote(e.target.value)}
-            style={{minHeight:70, lineHeight:1.5}}
-            placeholder="How to ask for it, or why it matters (optional)" />
-          <button className="btn primary sm" onClick={add} disabled={!name.trim()}>
-            Add to this place
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
+/* REMOVED in 1.513.0: OffMenuCard, the "Not on the menu / specials" box that
+   sat under the menus on a place page (name, price, how to ask, and a "Still
+   true" date). Chris, 2026-10-12: "I don't think we should have specials or
+   not on the menu on the place page... it's on the log a visit page." A
+   special belongs to the visit you had it on, and Log a visit already took a
+   typed dish. In the whole app the box held 2 tips, from one person.
+   What stayed: `offmenu` on a place is still READ when logging a visit, so
+   the names already saved are still offered. Nothing writes it now, and it
+   is no longer sent in a share. */
 
 function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                            onEdit, onAddMenu, onImportCommunityMenus, onOpenMenu, onRescanMenu, onOpenVisit,
-                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onSaveOffMenu, onAddPhotos, onToggleVisitLoved, onUpgrade, onSaveHouseStory, onHome, replies, onRepliesChanged, replyDoors, onLinkVisitShared}){
+                           onToggleFav, onToggleWishlist, onSetMyRating, onDelete, onDeleteMenuById, onSaveItemNutrition, onSplitVisit, onStartGroup, onEnrich, onLinkGoogle, onSetMenuOrder, onStampMeta, onAddPhotos, onToggleVisitLoved, onUpgrade, onSaveHouseStory, onHome, replies, onRepliesChanged, replyDoors, onLinkVisitShared}){
   const [confirmDel, setConfirmDel] = useState(false);
   // Conversations about this place (2026-10-11), held as { uid, key }.
   const [replyTalk, setReplyTalk] = useState(null);
@@ -13668,9 +13556,6 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           return menuList.slice(0, menuMainCount).map(m => card(m, false))
             .concat(orderedNonMain.map(m => card(m, true)));
         })()}
-
-        {/* After the menus, not before them: this is what ISN'T on them. */}
-        <OffMenuCard place={r} onSave={onSaveOffMenu} />
 
         {menuList.length > 0 ? (
           <CommunityMenuPanel cfg={cfg} restaurant={r} localMenus={menuList}
@@ -20323,10 +20208,9 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     const add = n => { const k = (n || "").trim().toLowerCase();
                        if (k && !seen.has(k)) seen.set(k, n); };
     menuPickNames.forEach(add);
-    // Things you can order here that are not printed anywhere. They belong in
-    // the pool for the same reason the menu does: you can actually order them.
-    // Without this you would learn about the off-menu drink, then have to type
-    // its name from memory every time you had it.
+    // Off-menu tips saved on the place before 1.513.0, when a place page had a
+    // box for them. Nothing writes `offmenu` any more, but what is already
+    // there stays in the pool so those names are still one tap away.
     const rHere = (restaurants || []).find(x => x.id === restId);
     ((rHere && rHere.offmenu) || []).forEach(x => { if (x && x.name) add(x.name); });
     (visits || []).forEach(v => {
@@ -21014,6 +20898,13 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                 </div>
               );
             })()}
+          </div>
+          {/* Said before you type, not only after. Until 1.513.0 a place page
+              had a "Not on the menu / specials" box, and this page said nothing
+              until you had typed something that matched no dish. This is now
+              the one place a special goes, so it has to say so. */}
+          <div className="tiny faint" style={{marginTop:6}}>
+            Had a special, or something not on the menu? Type it in and tap Add.
           </div>
           {usuals.filter(n => dishNames.indexOf(n) === -1).length > 0 && (
             <div style={{marginTop:10}}>
@@ -23184,6 +23075,8 @@ function PublishedVisit({data, onSaved, onLogVisit}){
               </div>
             </div>
           ) : null}
+          {/* Not sent since 1.513.0 (see buildPlacePayload). Still drawn, for
+              visits shared before then. */}
           {Array.isArray(data.sp.off) && data.sp.off.length ? (
             <div className="pub-special-part">
               <div className="pub-special-lbl">Not on the menu / specials</div>
@@ -27025,7 +26918,9 @@ function PublishedMenu({data, onSaved}){
 
       {/* Not on any menu, so it cannot be checked against one. Says plainly
           whose word it is and how old, because a reader who takes it for the
-          restaurant's own list will ask out loud for something discontinued. */}
+          restaurant's own list will ask out loud for something discontinued.
+          Not sent since 1.513.0 (see buildPlacePayload). Still drawn, for
+          places shared before then. */}
       {isPlace && Array.isArray(data.off) && data.off.length > 0 ? (
         <div className="card" style={{marginBottom:14}}>
           <div className="pub-cta-title" style={{textAlign:"left", marginBottom:4}}>

@@ -333,7 +333,7 @@ the app tidies up your old copy so there's no stale duplicate.
 
 ## What only the locals know
 
-Two kinds of thing a menu will not tell you, and both live where you need them.
+Things a menu will not tell you, kept on the place where you need them.
 
 **In their words.** Some menus print a story about the restaurant itself - who
 founded it, where the recipes come from. When you scan a menu like that, the app
@@ -348,10 +348,9 @@ mark a dish as a **Signature**. It then shows a star and a line under the dish
 name wherever that menu appears, so the thing this place is known for is obvious
 at the moment you are choosing rather than after you have ordered.
 
-**Off the menu.** The drink the regulars ask for by name. The dish they will
-make if you know to ask. Tonight's special. On a restaurant page, just under
-the menus, there is a **Not on the menu / specials** card - tap **+ Add**, give it
-a name, and optionally a price and a note on how to ask for it or why it matters.
+**Specials and things not on the menu.** These belong to the visit you had them
+on, not to the place. When you log a visit, type the name under **What you had**
+and tap **Add** - see **Something not on the menu** under Logging a visit.
 
 **About this place, drafted for you.** In a place's Edit screen, under **About
 this place**, tap **Suggest from the web**. It searches the web and drafts two
@@ -363,17 +362,6 @@ the place. The sources it used are listed under the About card with the date,
 so you can see where every claim came from. If little has been written about a
 place it says so rather than making something up. It uses 3 of your AI
 allowance, because a web search costs about three ordinary AI requests.
-
-These live on the *place*, not on one menu, because a bar with a food menu, a
-brunch menu and a drinks list has one set of things that are on none of them.
-They also join the dish suggestions when you log a visit, so once you have
-learned about something you never have to type its name from memory again.
-
-Each one is dated and carries a **Still true** link. Tap it when you confirm the
-thing still exists; after about six months without confirmation the app says so.
-This matters more here than anywhere else in the app - a tip that has gone stale
-sends somebody to ask a bartender, out loud, for something that no longer
-exists.
 
 -----
 
@@ -467,9 +455,11 @@ open it and tap any item to add it. Adding a dish by tapping it from the menu is
 the better habit - it makes the rest of the features line up correctly (see the
 photo estimate below).
 
-**Something not on the menu.** A special, an off-menu ask, a dish the scan
-missed - type it and the list offers **Add "whatever you typed"**. It goes on
-the visit like any other dish.
+**Something not on the menu.** Tonight's special, something they made because
+you asked, a dish the scan missed - type it under **What you had** and tap
+**Add** (the list also offers **Add "whatever you typed"**). It goes on the visit
+like any other dish, so a friend you share the visit with sees it in what you
+had, and it is offered again the next time you log a visit at that place.
 
 **Two dishes with the same name.** Some places list one dish under several
 headings - a pancake house might have the same berry special as a pancake, a
@@ -740,9 +730,8 @@ and the dish list is names only - no per-dish notes and no prices you paid.
 
 **What makes it special.** If you have logged anything about the place itself,
 the share sheet offers **Include what makes this place special**, ticked by
-default: your About this place (with its sources), the signature dish, your
-specials and off-menu tips, and the restaurant's own story, each labelled by
-whose words it is. Untick it to send just the meal.
+default: your About this place (with its sources), the signature dish, and
+the restaurant's own story, each labelled by whose words it is. Untick it to send just the meal.
 
 **Say something about it.** The share sheet has a note field, and whatever you
 write sits at the top of the page they open - "loved going to dinner after mass
@@ -827,7 +816,7 @@ It offers these ways to share:
 
 - **Send this place to a friend** - a recommendation, straight to a MenuCaptain
   friend's "Shared with you": the place, your star rating beside Google's, the
-  dishes you loved, any off-menu tips, and its menu to browse. Photos from your
+  dishes you loved, and its menu to browse. Photos from your
   visits there go too unless you untick the box. It does not include what you
   had on a particular night or who you were with.
 - **Share your visit** - shown when you have been there. This is the one with

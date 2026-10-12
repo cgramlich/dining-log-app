@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.512.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.513.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.136.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.512.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.513.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,60 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Specials and things not on the menu live on Log a visit only (2026-10-12, app 1.513.0)
+
+Chris: "I don't think we should have specials or not on the menu on the place page. The more I think
+about it, it's on the log a visit page, so we need to switch those up." By card he chose "Log a visit
+only". He then asked what "the separate tips section" meant, was shown the card a friend sees, and
+said "Go remove the box". No backend change.
+
+**What went.**
+- `OffMenuCard`, the "Not on the menu / specials" box under the menus on a place page (name, price,
+  how to ask, a "Still true" date), and its `onSaveOffMenu` wiring in App. A comment stands where the
+  component was.
+- `off` in `buildPlacePayload` (a place shared by link or inside the app) and `sp.off` in
+  `visitSpecial` (the "what makes this place special" part of a shared visit). `visitSpecialSummary`
+  no longer counts specials, and a place whose only "special" content was old tips offers no tick box.
+
+**What stayed, on purpose.**
+- `restaurant.offmenu` is still READ in the visit form's dish pool, so names saved earlier are still
+  offered when logging a visit. Nothing writes it. When this shipped the whole app held 2 tips, on 2
+  places, from one person, out of 158 places (aggregate query, 2026-10-12). Those two can no longer be
+  seen or removed anywhere; that was accepted over keeping a box for two rows.
+- `PublishedMenu` still DRAWS `data.off` and `data.sp.off`, so shares sent before 1.513.0 show what
+  they carried.
+- Log a visit already took a typed dish (`Add "x"` / "Not on the menu - a special, perhaps"). New: a
+  line under the dish box that says so BEFORE you type: "Had a special, or something not on the menu?
+  Type it in and tap Add."
+
+**The road not taken:** keep the friend's tips card, filled from what is typed while logging a visit.
+Rejected: a special from months ago would read as a standing tip, and a friend would ask for it.
+
+**Guide and policy.** HELP_DOC: "Off the menu" became a pointer to Logging a visit; the two "these live
+on the place" and "Still true" paragraphs went; "Something not on the menu" now says where to type it
+and that a friend sees it in what you had; both share descriptions dropped "off-menu tips".
+`privacy.html`: the place line dropped "any off-menu tips you recorded"; effective 2026-10-12. The card
+option Chris chose named the policy change; the exact sentence was shown to him at release.
+
+**Verified.** `scratchpad/test_specials.js`: 14 checks on the real builders and source, and the same
+test FAILED 9 of them against 1.512.0. Then the real changed app was opened locally, signed in on
+stand-in data, with one old tip seeded on the place: the place page shows no box; Log a visit shows the
+line; typing "Truf" offers the old tip; typing an unknown dish offers the Add row and puts it on the
+visit. **Not checked:** a real phone, and a real share sent after the change.
+
+**New, reusable: opening the app signed in, locally, with no account.** Until now anything behind
+sign-in was "verified by reading". Make a COPY of `index.html` with `API_BASE_DEFAULT` and
+`SUPABASE_URL` replaced by a dead local path (so it cannot reach the live systems), serve it from the
+harness, and seed two `localStorage` keys on that origin before loading:
+`dininglog_config` = `{apiBase, userId, email, accessToken, refreshToken:"", expiresAt}` with
+`expiresAt` far ahead (so no token refresh is attempted), and `dininglog_data` =
+`{restaurants:[...], menus:{<placeId>:[...]}, visits:[], locations:[], shas:{}, dirty:{}}`. The app
+boots from that cache and shows "Backend GET failed (404)", which is expected. Remove both keys after.
+
+**Found, not built (Chris asked the same day):** the "Photos from your visits" strip on a place page
+is every photo from every visit there, meal and per-dish, first 12, NOT sorted by date, and a tap
+opens the photo viewer on that strip, not a visit. He taps it expecting his most recent visit.
 
 ### Measured: translating the code in the browser costs about 0.8 s per fresh open (2026-10-12, no release)
 
