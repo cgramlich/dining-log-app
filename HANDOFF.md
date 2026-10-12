@@ -394,6 +394,37 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### Measured: translating the code in the browser costs about 0.8 s per fresh open (2026-10-12, no release)
+
+Chris was told the one-file app is "monolithic" and asked whether to split it. Nothing was built. Two
+things were established so the question does not have to be re-argued from scratch.
+
+**The measurement.** Two copies of the committed `index.html` (1.512.0) were served locally with the
+same probe (time until `#root` first has a child), signed out, warm cache, four loads each, alternating:
+- **Today's page** (Babel in the browser, `data-presets="react"`): app drawn at **832-956 ms**.
+- **The same code translated once beforehand, Babel's library tag removed:** **23-39 ms**.
+- Same screen in both, no new console errors. Babel's own run on the 1.5 MB script took 690-860 ms in
+  Node on the same PC, so nearly all of the gap is the translation itself.
+- Also: the library is 588 KB compressed that a first visit no longer downloads, and the page shrinks
+  from 431 KB to 381 KB compressed.
+- **Limits:** the PC is a very fast desktop (i9-14900KF). No phone was measured; phones will be at
+  least this slow and most will be slower. The cost is paid when the app starts fresh, not when it is
+  brought back from the background. Only the signed-out screen was timed.
+- To redo it: extract the `text/babel` block, `Babel.transform(code, {presets:["react"]})` with
+  7.23.6, write it back as a plain `<script>`, drop the Babel `<script src>` tag, and compare.
+
+**The shape, if this is ever reorganised: a modular monolith, never microservices.** One backend and
+one web app, released as now, with the source kept in files by area.
+- Backend: FastAPI routers, one area per release, no new tools. The tests that cut sections out of
+  `main.py` by text search would need adjusting.
+- Web app: needs a step before upload that joins the area files and translates them into the single
+  `index.html` that is uploaded, so the live site and GitHub Pages do not change. Level 1 (files joined
+  in order, same code as today) is low risk. Level 2 (strict boundaries between areas) is a long job.
+- A translate-only step, with no reorganising, gets the speed above by itself. `retainLines` would
+  keep error line numbers matching the source. Its risk is a forgotten step uploading a stale file
+  (the same family as the stale-stamp bug), so it needs a check before upload.
+- Not before TestFlight is through. Not started; Chris has not asked for it.
+
 ### A starter kit was cut for a separate companion app (2026-10-12, no release)
 
 **Nothing in MenuCaptain changed.** A copy of the app, the backend and the database layout, taken at
