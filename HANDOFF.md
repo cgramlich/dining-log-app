@@ -423,7 +423,8 @@ one web app, released as now, with the source kept in files by area.
 - A translate-only step, with no reorganising, gets the speed above by itself. `retainLines` would
   keep error line numbers matching the source. Its risk is a forgotten step uploading a stale file
   (the same family as the stale-stamp bug), so it needs a check before upload.
-- Not before TestFlight is through. Not started; Chris has not asked for it.
+- Not before TestFlight is through. **PARKED.** Chris, 2026-10-12: "Put down for later consideration",
+  not committed to. Nothing was built. Do not start it or re-propose it unprompted.
 
 ### A starter kit was cut for a separate companion app (2026-10-12, no release)
 
