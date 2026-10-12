@@ -394,6 +394,35 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### A starter kit was cut for a separate companion app (2026-10-12, no release)
+
+**Nothing in MenuCaptain changed.** A copy of the app, the backend and the database layout, taken at
+app 1.512.0 / backend 0.136.0, was made for a separate app that has its own builder, its own repo and
+its own accounts. It is a copy, not a fork: no shared history, no link back. Every address, project id,
+key and user id was replaced by a placeholder and a scan of every file confirmed none is left. The
+builder and the plain-English record are in the private notes (MenuCaptain Log, 2026-10-12).
+
+**What that means for this session:**
+- That project is not ours to edit and must never be pointed at MenuCaptain's systems. Nothing is
+  pushed between the two. Ideas travel in words, through Chris, in both directions.
+- When a bug is fixed here in code the copy also has (sign-in, connections, shares and replies, photo
+  uploads, the AI relay and its meters, the table and function locks), tell Chris so it can be passed on.
+
+**Facts the work established, useful here too:**
+- The database has **30** public tables (an earlier count of 31 was wrong), 3 functions of ours, 4
+  triggers, one private bucket. `sql/` in the backend repo has NO single file that rebuilds the
+  layout; the kit's `00_base_schema.sql` is the only one. It was run in a throwaway Postgres 16 with
+  stand-ins for the Supabase-only parts and matched the live layout table by table. It has not been
+  run on a real Supabase project.
+- Sign-up signs a new person straight in and sends no email, so it depends on "Confirm email" being
+  OFF in Supabase. A new project has it on.
+- The copy reads three things from settings that this backend still writes into the source:
+  `OWNER_USER_IDS`, the CORS origin list, and the publish repo (`PUBLISH_REPO_OWNER` / `PUBLISH_REPO`
+  / `PUBLISH_BASE_URL`, with publishing off unless all are set). Candidates to bring back here; NOT
+  done, and not needed while there is one owner and one domain.
+- Found, not changed: the guide's worked example of a shared page uses a real name and handle. Raised
+  with Chris.
+
 ### A place sent to a friend is a recommendation with pictures; the Share sheet offers the visit (2026-10-11, app 1.512.0)
 
 Chris sent a screenshot of what a friend received: "This is what a shared visit in the app looks like,
