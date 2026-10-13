@@ -265,7 +265,9 @@ back their whole page at once - dinner, lunch, drinks and brunch in one menu.
 Open the menu and tap **Split** to move sections into a menu of their own: tick
 the ones to move, name where they are going, and the rest stay put. To move just
 one section, tap the small split icon beside its heading; the new menu's name
-starts as the section's own. To put a menu back, open it and tap **Move into**:
+starts as the section's own. The same icon can remove a section you do not need
+- one that was scanned twice, say: tap **Delete this section instead**, and it
+asks once before it goes. To put a menu back, open it and tap **Move into**:
 pick the menu it should join, and all its sections move there and the empty
 menu is removed. Type the
 name of a menu you already have and they join it instead of starting a new one.
@@ -737,7 +739,8 @@ back to their own name.
 
 **Sharing a visit.** Right after you save a new visit, the **Visit logged** message
 at the bottom has a **Share it** button - the quickest way. Later, open a logged
-visit and tap **Share your visit**. One
+visit and tap **Share your visit**, or tap **Share this visit** on the visit's
+card on its place page. One
 sheet, two ways: **Send to a friend** puts it in another MenuCaptain user's
 "Shared with you" inbox, and **Share a link with anyone** makes a page that
 works for people who have never heard of the app. Either way it carries the

@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.517.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.137.1** | Railway, `/health` reports `db connected` |
-| Native shell | **1.517.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.518.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.138.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.518.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,68 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A renamed menu keeps its shared copy; a section can be deleted (2026-10-13, app 1.518.0, backend 0.138.0)
+
+**1. Renamed menus and the community library.** Chris shared a dessert menu, corrected its name, and
+the app wanted it shared again: "it's basically the same menu, so try to figure out how to reconcile
+that".
+
+*Cause.* `community_menus` is unique on (place_id, LABEL, contributor_id), and the app decides "have I
+shared this?" by comparing labels. A local rename therefore made the menu look unshared in three
+places at once: the place page's share nudge, the Share sheet's pre-ticked list, and "Menus shared
+here", where his own old-named copy appeared as pullable and labelled "From another diner". The only
+existing tidy-up (`/prune`) runs AFTER a re-share, so it needed him to do the thing he was objecting to.
+
+*Fix.* The label is the only thing that changed, so the CONTENTS identify the menu.
+- Backend: `POST /api/community/menus/reconcile {place_id, menus:[{label, names}]}`. `_plan_reconcile`
+  (pure): for each of the caller's copies whose label matches no menu the phone holds, score dish-name
+  overlap (Jaccard, lower-cased, spaces collapsed) against each of the phone's menus. At
+  `COMMUNITY_SAME_MENU` (0.8) or better, with one clear best match, the copy's label is MOVED to the
+  new name. If the caller already has a copy under that name, the old one is dropped instead. Only
+  rows with `contributor_id` = the caller are ever touched.
+- App: `communityListReconciled(cfg, placeId, localMenus)` replaces the plain list call in the share
+  nudge, `CommunityMenuPanel.load` and `ShareSheet`. It reads the library; only if one of YOUR copies
+  is an orphan (`communityHasOrphan`) does it send `communityLocalSummary` and read again. Best effort:
+  on failure the plain list comes back and share-again still works. The nudge effect's deps now
+  include the labels, so a rename is picked up without reopening the page.
+- A copy of yours that matches nothing (a menu you deleted) stays in the library, and the panel now
+  says "You shared this. It is no longer among your menus." rather than calling it another diner's.
+
+*Cautious on purpose.* Wrongly merging two menus would publish one under the other's name to everyone.
+Below 0.8, or with two equal matches, nothing happens. *The road not taken:* a stable id per
+contribution kept on the phone. Exact, but nothing already shared has one, so it could not have fixed
+the copies that exist.
+
+**2. Delete a section.** Chris: a section can be moved into a menu of its own, "but also there should
+be just a delete option when I've done something accidentally redundant".
+- `deleteMenuSection(list, menuId, idx)` (pure): null for a missing menu, a bad index, or a menu's
+  ONLY section (that is deleting the menu, which has its own button).
+- The section's split icon now opens "Move ... / Delete this section instead". Delete is a second tap
+  with the item count and "This cannot be undone". Offered only when the menu has more than one
+  section. Visits are untouched: a dish logged from the section stays on the visit by name.
+- `onDeleteSection` is wired App -> MenuDetail -> MenuView, beside `onSplitMenu`.
+
+**3. Share a visit from its card on the place page.** Chris sent a screenshot of "Visits here" on a
+place page: "I can't share from here the visit". A visit could be shared from History, from inside
+the visit, and (since 1.512.0) from the place's Share sheet, but not from the card where its photos
+are. The card's button row now has **Share this visit**, which opens the same `VisitShareSheet`
+(`setShareVisitObj(v)`, already wired in `RestaurantDetail`).
+
+**Found while deploying, NOT fixed: the backend's libraries are not pinned.** `requirements.txt` uses
+`>=` everywhere. Most deploys reuse a cached layer and take about 30 seconds. The 0.138.0 deploy
+rebuilt from nothing: it took 9 minutes (17:26 to 17:35 UTC) and pulled the newest of everything
+(starlette 1.8.0, pydantic 2.14.1, new `httpx2` / `httpcore2` packages, and so on). It started
+cleanly and `/health` is fine, but any cold build can pick up a breaking release with no code change
+on our side. Pinning to the versions now running (a lock file) would stop that.
+
+**Verified.** Backend `scratchpad/test_reconcile.py`: 17 checks (someone else's copy with the same old
+name is not touched; a copy at another place is not touched; half-different contents are not merged;
+calling twice changes nothing). App `scratchpad/test_rename_delete.js`: 24 checks, including the real
+`communityListReconciled` flow against stand-in network calls. Delete-section tapped through in the
+real app locally: confirm, Keep it, then delete, and the saved data showed the section gone.
+**Not checked:** the real rename case on his phone. It should resolve itself the next time he opens
+that place: watch for `[COMMUNITY] reconciled user=... renamed=1` in the Railway log.
 
 ### The screen is "Sharing", and a Sent row counts friends instead of naming them (2026-10-13, app 1.517.0)
 

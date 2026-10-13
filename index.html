@@ -1174,7 +1174,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.517.0";
+const APP_VERSION   = "1.518.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1276,6 +1276,71 @@ async function communityShareMenu(cfg, payload){
   const data = await res.json().catch(()=> ({}));
   if (!res.ok) throw new Error(data.detail || ("share failed (" + res.status + ")"));
   return data;
+}
+/* A renamed menu is still the same menu (2026-10-13).
+
+   The library files what you share under the menu's NAME, and the app decides
+   "have I shared this?" by comparing names. So fixing a menu's name made it
+   look unshared: the place page nudged to share it again, the Share sheet
+   ticked it, and your old-named copy sat under "Menus shared here" labelled
+   as another diner's. Chris shared a dessert menu, corrected its name, and
+   was asked to share it again.
+
+   When one of YOUR copies here is filed under a name none of your menus has,
+   the app sends the dish names of your menus at this place, and the backend
+   moves that copy to the new name when the dishes match (see
+   /api/community/menus/reconcile for the rule and why it is cautious). */
+// Pure: the dish names on each of your OWN menus at a place (never one you
+// pulled from the library). What the backend needs to recognise a rename.
+function communityLocalSummary(localMenus){
+  return (localMenus || []).filter(mn => mn && (mn.sections || []).length
+      && mn.source !== "community" && mn.source !== "shared")
+    .map(mn => {
+      const names = [];
+      (mn.sections || []).forEach(sec => ((sec && sec.items) || []).forEach(it => {
+        const n = String((it && it.name) || "").trim();
+        if (n) names.push(n);
+      }));
+      return { label: String(mn.label || "Main").trim() || "Main", names: names };
+    }).filter(x => x.names.length);
+}
+// Pure: is one of YOUR shared copies here filed under a name that none of the
+// menus you hold has? That is what a rename (or a deleted menu) leaves behind.
+function communityHasOrphan(list, localMenus){
+  const labels = new Set((localMenus || []).filter(Boolean)
+    .map(mn => String(mn.label || "Main").trim().toLowerCase()));
+  return (list || []).some(cm => cm && cm.mine
+    && !labels.has(String(cm.label || "Main").trim().toLowerCase()));
+}
+async function communityReconcile(cfg, placeId, menusSummary){
+  const headers = await authHeaders(cfg);
+  headers["Content-Type"] = "application/json";
+  const res = await fetch(apiBase(cfg) + "/api/community/menus/reconcile", {
+    method:"POST", headers,
+    body: JSON.stringify({ place_id: placeId, menus: menusSummary || [] }),
+  });
+  if (!res.ok) throw new Error("reconcile " + res.status);
+  return res.json();   // { ok, renamed:[{from,to}], removed }
+}
+// The library for a place, AFTER carrying over any rename of yours. Every
+// screen that asks "what is shared here?" goes through this, so none of them
+// can act on the stale answer. Reconciling is best effort: if it fails, the
+// plain list is still returned and the old behaviour (share again) still works.
+async function communityListReconciled(cfg, placeId, localMenus){
+  let list = await communityListMenus(cfg, placeId);
+  if (!communityHasOrphan(list, localMenus)) return list;
+  const mine = communityLocalSummary(localMenus);
+  if (!mine.length) return list;
+  try {
+    const r = await communityReconcile(cfg, placeId, mine);
+    const renamed = (r && r.renamed) || [];
+    if (renamed.length || (r && r.removed)){
+      logMsg("COMMUNITY", "carried a rename over: " + renamed.map(x => x.from + " -> " + x.to).join(", ")
+        + ((r && r.removed) ? " (removed " + r.removed + " leftover)" : ""));
+      list = await communityListMenus(cfg, placeId);
+    }
+  } catch(e){ logMsg("COMMUNITY", "reconcile failed: " + e.message); }
+  return list;
 }
 async function communityPruneMine(cfg, placeId, keepLabels){
   // Remove YOUR OWN shared copies for this place whose label isn't in keepLabels
@@ -2035,7 +2100,9 @@ back their whole page at once - dinner, lunch, drinks and brunch in one menu.
 Open the menu and tap **Split** to move sections into a menu of their own: tick
 the ones to move, name where they are going, and the rest stay put. To move just
 one section, tap the small split icon beside its heading; the new menu's name
-starts as the section's own. To put a menu back, open it and tap **Move into**:
+starts as the section's own. The same icon can remove a section you do not need
+- one that was scanned twice, say: tap **Delete this section instead**, and it
+asks once before it goes. To put a menu back, open it and tap **Move into**:
 pick the menu it should join, and all its sections move there and the empty
 menu is removed. Type the
 name of a menu you already have and they join it instead of starting a new one.
@@ -2507,7 +2574,8 @@ back to their own name.
 
 **Sharing a visit.** Right after you save a new visit, the **Visit logged** message
 at the bottom has a **Share it** button - the quickest way. Later, open a logged
-visit and tap **Share your visit**. One
+visit and tap **Share your visit**, or tap **Share this visit** on the visit's
+card on its place page. One
 sheet, two ways: **Send to a friend** puts it in another MenuCaptain user's
 "Shared with you" inbox, and **Share a link with anyone** makes a page that
 works for people who have never heard of the app. Either way it carries the
@@ -10408,6 +10476,13 @@ function App({openShare}){
             commit({ menus: Object.assign({}, menus, { [rid]:next }) }, ["menus"]);
             flash(idxs.length + (idxs.length === 1 ? " section moved" : " sections moved"));
           }}
+          onDeleteSection={(idx)=>{
+            const rid = overlay.restaurantId;
+            const next = deleteMenuSection(menus[rid] || [], overlay.menuId, idx);
+            if (!next) return;      // nothing safe to delete: say nothing, write nothing
+            commit({ menus: Object.assign({}, menus, { [rid]:next }) }, ["menus"]);
+            flash("Section deleted");
+          }}
           onSaveItemNutrition={(si, ii, nutrition)=>{
             // cache the per-item estimate onto the menu item in the repo so it
             // computes only once. Identify the item by section + item index.
@@ -12502,7 +12577,7 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, initialOpen,
 
   async function load(){
     setBusy(true); setErr("");
-    try { setList(await communityListMenus(cfg, placeId)); }
+    try { setList(await communityListReconciled(cfg, placeId, localMenus)); }
     catch(e){ setErr("Couldn't load community menus right now."); setList(null); }
     setBusy(false);
   }
@@ -12590,9 +12665,14 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, initialOpen,
                       </span>
                     </div>
                     <div className="tiny" style={{display:"flex", gap:10, alignItems:"center", paddingLeft:26, marginTop:1}}>
-                      {age.stale
-                        ? <span style={{color:"var(--amber)"}}>May be outdated - double-check</span>
-                        : <span className="faint">From another diner &middot; not verified</span>}
+                      {/* Yours, but under a name you no longer use and with
+                          dishes that match none of your menus (a menu you
+                          deleted, say). Never call your own share a stranger's. */}
+                      {cm.mine
+                        ? <span className="faint">You shared this. It is no longer among your menus.</span>
+                        : age.stale
+                          ? <span style={{color:"var(--amber)"}}>May be outdated - double-check</span>
+                          : <span className="faint">From another diner &middot; not verified</span>}
                       <span style={{flex:1}} />
                       {isReported
                         ? <span className="faint">Reported, thanks</span>
@@ -12775,12 +12855,16 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     if (!pid || !shareable.length || shareNudgeOff){ setNudgeCommLabels(new Set()); return; }
     (async ()=>{
       try {
-        const l = await communityListMenus(cfg, pid);
+        const l = await communityListReconciled(cfg, pid, menus);
         if (alive) setNudgeCommLabels(new Set((l || []).map(cm => (cm.label || "").trim().toLowerCase())));
       } catch(e){ if (alive) setNudgeCommLabels(new Set()); }
     })();
     return ()=> { alive = false; };
-  }, [restaurant && restaurant.google_place_id, (menus || []).length, shareNudgeOff]);
+  // The names are in the list as well as the count: renaming a menu changes
+  // neither the place nor how many menus there are, and without this the nudge
+  // kept its old answer until the page was reopened.
+  }, [restaurant && restaurant.google_place_id, (menus || []).length, shareNudgeOff,
+      (menus || []).map(mn => (mn && mn.label) || "").join("|")]);
   if (!restaurant){
     return (
       <div className="overlay">
@@ -13785,6 +13869,14 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                     if (addPhotoRef.current) addPhotoRef.current.click();
                   }}><Icon name="camera" size={15} />Add photo</button>
                 ) : null}
+                {/* Share, on the visit itself. Until 1.518.0 a visit could be
+                    shared from History, from inside the visit, and (since
+                    1.512.0) from the place's own Share sheet, but not from
+                    this card, which is where you are looking at its photos.
+                    Opens the same sheet as the others: a friend, or a link. */}
+                <button className="btn ghost sm" style={{flex:"none"}}
+                  onClick={(e)=>{ e.stopPropagation(); setShareVisitObj(v); }}>
+                  <Icon name="share" size={15} />Share this visit</button>
                 {!v.split && onSplitVisit && ((v.receipt && v.receipt.total) || (v.dishes||[]).some(d=>parsePrice(d.price))) ? (
                   <button className="btn ghost sm" style={{flex:"none"}} onClick={(e)=>{ e.stopPropagation(); onSplitVisit(v); }}>Split the check</button>
                 ) : null}
@@ -13935,6 +14027,27 @@ function AiText({ text }){
   );
 }
 
+/* Delete ONE section from a menu. Returns the whole replacement list for that
+   restaurant, or null when there is nothing safe to do: no such menu, no such
+   section, or it is the menu's only section (deleting that is deleting the
+   menu, which has its own button and its own confirmation).
+
+   Chris, 2026-10-13: a section could be moved into a menu of its own, "but
+   also there should be just a delete option when I've done something
+   accidentally redundant" - the same section scanned twice, or left behind
+   in the main menu after it was scanned separately.
+
+   Visits are untouched: a dish you logged from this section stays on the
+   visit by name, it just no longer points at a menu section. */
+function deleteMenuSection(list, menuId, idx){
+  const src = (list || []).find(x => x && x.menu_id === menuId);
+  const secs = (src && src.sections) || [];
+  if (!src || typeof idx !== "number" || idx < 0 || idx >= secs.length || secs.length < 2) return null;
+  return list.map(x => x.menu_id === menuId
+    ? Object.assign({}, x, { sections: secs.filter((_s, i) => i !== idx), last_updated: todayISO() })
+    : x);
+}
+
 /* Move chosen sections out of one menu into another, by name. Returns the
    whole replacement list for that restaurant, or null when the move is not a
    move: nothing chosen, no name, or every section leaving (that is a rename,
@@ -13972,7 +14085,7 @@ function splitMenuSections(list, menuId, idxs, rawLabel){
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
-function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome}){
+function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onDeleteSection, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome}){
   // Move into another menu (2026-10-07): the way back after a split.
   const [merging, setMerging]   = useState(false);
   const [mergeTo, setMergeTo]   = useState(null);
@@ -14490,6 +14603,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           flags={{ from: flagFrom, to: flagTo }}
           onSplitSection={onSplitMenu && (menu.sections || []).length > 1
             ? (si, name)=> onSplitMenu([si], name) : null}
+          onDeleteSection={onDeleteSection && (menu.sections || []).length > 1 ? onDeleteSection : null}
           onHadThis={onHadThis}
           hadToday={(function(){
             const t = todayISO(), out = {};
@@ -14511,7 +14625,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, flags}){
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags}){
   // Per-section split (2026-10-07): {si, name} while that section's panel is open.
   const [secSplit, setSecSplit] = useState(null);
   // Show English: the switch lives in MenuDetail's place card (moved there
@@ -14706,8 +14820,8 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
           </button>
           {onSplitSection ? (
             <button type="button" className="msec-split"
-              aria-label={"Move " + (s.name || "this section") + " into its own menu"}
-              title="Move this section into its own menu"
+              aria-label={"Move or delete " + (s.name || "this section")}
+              title="Move this section into its own menu, or delete it"
               onClick={()=> setSecSplit(ss => (ss && ss.si === i) ? null
                 : { si:i, name:String(s.name || "").trim() })}>
               <Icon name="split" size={15} color="var(--text-dim)" />
@@ -14727,6 +14841,31 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                 <button className="btn primary sm" disabled={!(secSplit.name || "").trim()}
                   onClick={()=>{ onSplitSection(i, secSplit.name.trim()); setSecSplit(null); }}>Move</button>
               </div>
+              {/* Deleting sits under moving, behind one more tap, and counts
+                  what it will take: moving is the common wish and can be put
+                  back, deleting cannot. */}
+              {onDeleteSection ? (
+                <div style={{marginTop:12, paddingTop:10, borderTop:"1px solid var(--line-soft)"}}>
+                  {secSplit.del ? (
+                    <div>
+                      <div className="small" style={{marginBottom:8}}>
+                        Delete <strong>{s.name || "this section"}</strong> and its {(s.items || []).length}{" "}
+                        {(s.items || []).length === 1 ? "item" : "items"}? This cannot be undone.
+                      </div>
+                      <div className="row" style={{gap:8}}>
+                        <button className="btn ghost sm"
+                          onClick={()=> setSecSplit(Object.assign({}, secSplit, { del:false }))}>Keep it</button>
+                        <button className="btn ghost sm" style={{color:"var(--danger)"}}
+                          onClick={()=>{ onDeleteSection(i); setSecSplit(null); }}>Delete section</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <a href="#" className="tiny" style={{color:"var(--danger)"}}
+                       onClick={(e)=>{ e.preventDefault(); setSecSplit(Object.assign({}, secSplit, { del:true })); }}>
+                      Delete this section instead</a>
+                  )}
+                </div>
+              ) : null}
             </div>
           ) : null}
           {secOpen && items.map(({it,oj})=>{
@@ -29898,7 +30037,7 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
   useEffect(()=>{
     let alive = true;
     if (view !== "community" || commList !== null || !placeId) return;
-    (async ()=>{ try { const l = await communityListMenus(cfg, placeId); if (alive) setCommList(l || []); }
+    (async ()=>{ try { const l = await communityListReconciled(cfg, placeId, menuList); if (alive) setCommList(l || []); }
                  catch(e){ if (alive) setCommList([]); } })();
     return ()=> { alive = false; };
   }, [view]);
