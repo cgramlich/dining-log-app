@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.516.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.517.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.137.1** | Railway, `/health` reports `db connected` |
-| Native shell | **1.516.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.517.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,29 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The screen is "Sharing", and a Sent row counts friends instead of naming them (2026-10-13, app 1.517.0)
+
+Chris, looking at the real Sent list on his phone the same day it shipped: he sends to everyone and
+the friend list is growing, so show fewer names with all of them a tap away; and the screen is called
+"Shared with you" but now runs both ways, so it is really "Sharing". No backend change.
+
+- **Sent rows.** `sentToLine`: one or two friends are named; three or more read "to 10 friends".
+  For one day (1.516.0) it named two and said "and 8 more": every row led with the same two names and
+  told him nothing, and three names wrapped to a second line. Each row now has a `Chevron`, because
+  nothing showed that a tap lists every name. Tapping still shows all the names and Remove.
+- **The screen** (`ShareInbox`) is titled **Sharing**. Inside: **Replies**, **Shared with you** (what
+  friends sent, now ALWAYS headed, with "Nothing waiting..." when empty) and **Sent**. Both ways in
+  are relabelled: the You-tab entry and the + sheet item read "Sharing".
+- **Left alone on purpose:** the Home banner ("3 things shared with you"), the picker's "in their
+  Shared with you inbox", and the backend's push and email titles. Those are about what a friend
+  SENT you, which is still the name of that section.
+- Guide: the three places that told you to open "Shared with you" now say "Sharing".
+
+**Verified.** `scratchpad/test_sent_strip.js` (27 checks now). The real changed app opened locally on
+stand-in data: the screen reads Sharing / Shared with you / Sent, a send to ten reads "to 10 friends"
+with an arrow, a tap lists all ten. At phone width (375) nothing runs past the edge. **Not checked:**
+his phone.
 
 ### The Sent list, and the place page's photo strip put in order (2026-10-13, app 1.516.0, backend 0.137.1)
 

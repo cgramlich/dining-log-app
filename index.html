@@ -1174,7 +1174,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.516.0";
+const APP_VERSION   = "1.517.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2401,9 +2401,9 @@ you sent it to in the app, and - for a link - how many times it has been opened
 and saved. Link counts are anonymous: the app never records who opened a link,
 only how many times. Counting began on 8 October 2026.
 
-**Everything you have sent.** Open **Shared with you** and scroll to **Sent**: each
+**Everything you have sent.** Open **Sharing** and scroll to **Sent**: each
 place or visit you have sent to friends inside the app, who it went to, and
-when. Tap an entry to see every name. **Remove from this list** takes it off
+when. A send to three or more friends shows how many; tap it to see every name. **Remove from this list** takes it off
 your list only - your friends keep what you sent. The list began on 13 October
 2026, with whatever was still waiting in a friend's inbox that day; anything a
 friend had already saved or dismissed before then is not in it. It does not
@@ -2480,7 +2480,9 @@ Settings, under Your profile). Open **Friends** - at the top of the
 **You** tab, or from the **+** button - to find friends by their handle
 and send or accept requests. Once connected you can send a place, a menu, or a
 visit straight to a friend from any Share sheet, and anything they send you
-appears under **Shared with you**, with a banner on Home so you never miss it.
+appears in **Sharing**, under **Shared with you**, with a banner on Home so you
+never miss it. **Sharing** is on the **You** tab and under the **+** button; it
+also holds your **Replies** and everything you have **Sent**.
 
 **If someone is a problem.** Every person and every shared item has a &#8942;
 button. **Report** tells us what is wrong and a person reads it. **Block** is
@@ -2535,7 +2537,7 @@ the page you open has a reply box at the top: tap **Want to go**, **Looks great*
 or **Been there**, or write a few words. Your friend sees a banner on Home and,
 for a visit, a line right on that visit in History, and can write back. Each
 conversation is about one shared thing, and they are all kept under **Replies**
-at the top of Shared with you, even after you save or dismiss the item itself.
+at the top of Sharing, even after you save or dismiss the item itself.
 Replies about a place or its menu also show on that place's page, for both of
 you. And if you saved something a friend sent before saying anything, the saved
 place (or the visit, if you were there too) shows **shared this with you - Reply**
@@ -11305,8 +11307,8 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
         <div className="yif-entry tap" onClick={onOpenShares}>
           <span className="yif-entry-ic"><Icon name="share" size={16} color="var(--accent)" /></span>
           <span className="yif-entry-tx">
-            <span className="yif-entry-t">Shared with you</span>
-            <span className="yif-entry-s">Places, menus, and visits your friends sent</span>
+            <span className="yif-entry-t">Sharing</span>
+            <span className="yif-entry-s">What friends sent you, and what you sent</span>
           </span>
           {sharesCount > 0 ? (
             <span style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9, background:"var(--danger)",
@@ -18256,9 +18258,9 @@ function ActionSheet({onClose, onPick, pendingReqs, sharesCount}){
         <Item what="groupStart" icon="nodes"   t1="Start a group order"  t2="Everyone adds what they want" />
         {/* Connections also lives in Settings, but people look for friends
             here - and a pending request is worth surfacing on the + button. */}
-        <Item what="shares" icon="share" t1="Shared with you"
+        <Item what="shares" icon="share" t1="Sharing"
           t2={sharesCount ? ("A friend sent you " + sharesCount + " thing" + (sharesCount > 1 ? "s" : ""))
-                          : "Places, menus, and visits from friends"}
+                          : "What friends sent you, and what you sent"}
           badge={sharesCount || 0} />
         <Item what="connections" icon="people" t1="Find friends"
           t2={pendingReqs ? ("You have " + pendingReqs + " request" + (pendingReqs > 1 ? "s" : "") + " waiting")
@@ -30337,15 +30339,20 @@ async function removeSentShare(cfg, ids){
   if (!res.ok) throw new Error("remove " + res.status);
   return res.json();
 }
-// Pure: "to Anna" / "to Anna and Ben" / "to Anna, Ben and Cara" /
-// "to Anna, Ben and 8 more". Three names fit a phone line; a fourth does not.
+// Pure: who a sent entry went to, for its one-line summary. One or two friends
+// are named; three or more are counted ("to 10 friends") and the names wait
+// behind a tap.
+//
+// For one day (1.516.0) it named two and said "and 8 more". Chris sends to
+// everyone, so every row led with the same two names and told him nothing,
+// and three names wrapped onto a second line (2026-10-13). The count is what
+// differs from row to row, so the count is what the row shows.
 function sentToLine(names){
   const n = (names || []).filter(Boolean);
   if (!n.length) return "";
   if (n.length === 1) return "to " + n[0];
   if (n.length === 2) return "to " + n[0] + " and " + n[1];
-  if (n.length === 3) return "to " + n[0] + ", " + n[1] + " and " + n[2];
-  return "to " + n[0] + ", " + n[1] + " and " + (n.length - 2) + " more";
+  return "to " + n.length + " friends";
 }
 // Pure: the names on one entry. Your own name for a friend wins over their
 // profile name, as it does everywhere else in the app; `ownName` looks it up.
@@ -30399,12 +30406,20 @@ function SentList({cfg}){
         return (
           <div key={key} className="card" style={{cursor:"pointer"}}
             onClick={()=> setOpenKey(open ? null : key)}>
-            <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
-              {e.title || ("A " + sentKindLabel(e.kind).toLowerCase())}
-            </div>
-            <div className="tiny faint">
-              {sentKindLabel(e.kind)}{"  \u00b7  "}{replyWhen(e.created_at)}{"  \u00b7  "}
-              {open ? ("to " + names.length + (names.length === 1 ? " friend" : " friends")) : sentToLine(names)}
+            {/* The arrow is what says "there is more behind this": without it
+                nothing showed that a tap lists every name. */}
+            <div style={{display:"flex", alignItems:"center", gap:10}}>
+              <div style={{flex:1, minWidth:0}}>
+                <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                  {e.title || ("A " + sentKindLabel(e.kind).toLowerCase())}
+                </div>
+                <div className="tiny faint">
+                  {sentKindLabel(e.kind)}{"  \u00b7  "}{replyWhen(e.created_at)}{"  \u00b7  "}{sentToLine(names)}
+                </div>
+              </div>
+              <span style={{flex:"none", display:"inline-flex"}}>
+                <Chevron open={open} size={16} color="var(--text-faint)" />
+              </span>
             </div>
             {open ? (
               <div style={{marginTop:9}} onClick={(ev)=> ev.stopPropagation()}>
@@ -30539,7 +30554,10 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
     <div className="overlay">
       <div className="ovhead">
         <BackBtn onClick={onClose} />
-        <h2>Shared with you</h2><HomeBtn onHome={onHome} />
+        {/* "Sharing", not "Shared with you": since 1.516.0 this screen also
+            lists what YOU sent. "Shared with you" is now the name of the one
+            section that is about what friends sent (Chris, 2026-10-13). */}
+        <h2>Sharing</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody">
         {reporting ? (
@@ -30572,20 +30590,22 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
                 </SwipeToDelete>
               );
             })}
-            {shares && shares.length ? <div className="section-subhead" style={{marginTop:16}}>Shared with you</div> : null}
           </div>
         ) : null}
+        {/* Always headed now: under a screen called "Sharing" an unlabelled
+            list would not say which direction it is. */}
+        <div className="section-subhead">Shared with you</div>
         {loadFail ? (
           <div className="small" style={{padding:"10px 2px", color:"var(--danger)"}}>
             Couldn't load what's been shared with you. <a href="#" onClick={(e)=>{ e.preventDefault(); load(); }}>Try again</a>
           </div>
         ) : shares === null ? (
           <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
-        ) : shares.length === 0 ? (threads.length ? null : (
+        ) : shares.length === 0 ? (
           <div className="small faint" style={{padding:"4px 2px"}}>
-            Nothing shared with you yet. When a friend sends you a place, menu, or visit, it shows up here.
+            Nothing waiting. When a friend sends you a place, menu, or visit, it shows up here.
           </div>
-        )) : shares.map(s => {
+        ) : shares.map(s => {
           // "Joined" is news, not a thing to open: someone you shared a visit
           // with confirmed they were there too. It reads and clears in one row.
           if (s.kind === "joined"){

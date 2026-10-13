@@ -631,9 +631,9 @@ you sent it to in the app, and - for a link - how many times it has been opened
 and saved. Link counts are anonymous: the app never records who opened a link,
 only how many times. Counting began on 8 October 2026.
 
-**Everything you have sent.** Open **Shared with you** and scroll to **Sent**: each
+**Everything you have sent.** Open **Sharing** and scroll to **Sent**: each
 place or visit you have sent to friends inside the app, who it went to, and
-when. Tap an entry to see every name. **Remove from this list** takes it off
+when. A send to three or more friends shows how many; tap it to see every name. **Remove from this list** takes it off
 your list only - your friends keep what you sent. The list began on 13 October
 2026, with whatever was still waiting in a friend's inbox that day; anything a
 friend had already saved or dismissed before then is not in it. It does not
@@ -710,7 +710,9 @@ Settings, under Your profile). Open **Friends** - at the top of the
 **You** tab, or from the **+** button - to find friends by their handle
 and send or accept requests. Once connected you can send a place, a menu, or a
 visit straight to a friend from any Share sheet, and anything they send you
-appears under **Shared with you**, with a banner on Home so you never miss it.
+appears in **Sharing**, under **Shared with you**, with a banner on Home so you
+never miss it. **Sharing** is on the **You** tab and under the **+** button; it
+also holds your **Replies** and everything you have **Sent**.
 
 **If someone is a problem.** Every person and every shared item has a &#8942;
 button. **Report** tells us what is wrong and a person reads it. **Block** is
@@ -765,7 +767,7 @@ the page you open has a reply box at the top: tap **Want to go**, **Looks great*
 or **Been there**, or write a few words. Your friend sees a banner on Home and,
 for a visit, a line right on that visit in History, and can write back. Each
 conversation is about one shared thing, and they are all kept under **Replies**
-at the top of Shared with you, even after you save or dismiss the item itself.
+at the top of Sharing, even after you save or dismiss the item itself.
 Replies about a place or its menu also show on that place's page, for both of
 you. And if you saved something a friend sent before saying anything, the saved
 place (or the visit, if you were there too) shows **shared this with you - Reply**
