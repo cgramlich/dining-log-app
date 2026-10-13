@@ -1174,7 +1174,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.519.0";
+const APP_VERSION   = "1.520.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2715,6 +2715,13 @@ instructions ("no onions," "dressing on the side"). They then tap **Send my
 picks** to fire their own share sheet with the list ready to text back to you,
 each note in parentheses - "Avocado Toast (no onions)". No account, just a quick
 answer back.
+
+**When the menu came from a friend inside the app.** Open it from **Sharing**,
+tap **+** beside the dishes you would like, and the button reads **Send to**
+followed by their name. Your picks go straight back to them as a reply in the
+app, notes included, and show up under **Replies** for both of you. **or send by
+text** is still there underneath. A reply holds about 500 characters, so a very
+long list ends with "and 4 more".
 
 The shared page is only the menu - your own private calorie estimates are never
 part of it. As with a published list, treat the link as public: anyone who has
@@ -26994,7 +27001,44 @@ function SignupBridge({ home, compact }){
   );
 }
 
-function PublishedMenu({data, onSaved}){
+/* Your picks from a friend's menu, as ONE reply inside the app (2026-10-13).
+
+   The pick screen was built for a link anyone can open, with no app and no
+   account, so "Send my picks" could only hand you a text to send yourself.
+   Chris, looking at a menu a friend had sent him in the app: "why can't I send
+   my picks back in the app itself as a reply". Replies between friends have
+   existed since 2026-10-10, so now it does.
+
+   A reply holds PICKS_REPLY_MAX characters (the backend cuts at the same
+   number, mid-word and without a word about it). So a long list is ended
+   cleanly here, with a count of what did not fit. */
+const PICKS_REPLY_MAX = 500;
+// Pure. list: [{ name, note }] in the order they were tapped.
+function picksReplyText(list, max){
+  const cap = max || PICKS_REPLY_MAX;
+  const parts = (list || []).map(x => {
+    const n = String((x && x.name) || "").trim();
+    const note = String((x && x.note) || "").trim();
+    return n ? (note ? n + " (" + note + ")" : n) : "";
+  }).filter(Boolean);
+  if (!parts.length) return "";
+  const head = "My picks: ";
+  const all = head + parts.join(", ");
+  if (all.length <= cap) return all;
+  for (let keep = parts.length - 1; keep >= 1; keep--){
+    const text = head + parts.slice(0, keep).join(", ") + " and " + (parts.length - keep) + " more";
+    if (text.length <= cap) return text;
+  }
+  // The first pick alone is too long (a very long note). Cut it, and still
+  // say how many others there were.
+  const tail = parts.length > 1 ? " and " + (parts.length - 1) + " more" : "";
+  return (head + parts[0]).slice(0, Math.max(0, cap - tail.length - 3)) + "..." + tail;
+}
+
+// `onSendPicks(text)` and `sendToName` are passed only when this menu was
+// opened from a friend's share inside the app: then the picks can go back to
+// that friend as a reply. Without them (a public link) picks go out as a text.
+function PublishedMenu({data, onSaved, onSendPicks, sendToName}){
   const home = location.origin + location.pathname;
   const isPlace = !!(data && data.k === "p");   // place recommendation (browse) vs menu-pick (send back)
   // A place sent by a friend can carry their photos (2026-10-11): -1 = closed.
@@ -27037,12 +27081,24 @@ function PublishedMenu({data, onSaved}){
       if (!nt[key]) return nt;
       const n = Object.assign({}, nt); delete n[key]; return n;
     });
-    setSent(false);
+    setSent(false); setSentApp(false);
+  }
+  // Inside the app: the picks go to the friend who sent the menu, as a reply.
+  const [sending, setSending] = useState(false);
+  const [sentApp, setSentApp] = useState(false);
+  const [sendErr, setSendErr] = useState("");
+  async function sendPicksInApp(){
+    if (!pickNames.length || sending) return;
+    const list = Object.keys(picks).map(k => ({ name: picks[k], note: notes[k] }));
+    setSending(true); setSendErr("");
+    try { await onSendPicks(picksReplyText(list)); setSentApp(true); }
+    catch(e){ setSendErr("Couldn't send that. Try again, or send by text."); }
+    finally { setSending(false); }
   }
 
   function setNote(key, val){
     setNotes(n => Object.assign({}, n, { [key]: val }));
-    setSent(false);
+    setSent(false); setSentApp(false);
   }
 
   async function sendPicks(){
@@ -27136,7 +27192,9 @@ function PublishedMenu({data, onSaved}){
       <div className="pub-hint">
         {isPlace
           ? "Somewhere worth a visit - here's the menu, and a few dishes worth ordering."
-          : "Tap the dishes you'd like, then send your picks back."}
+          : (onSendPicks
+              ? "Tap + beside the dishes you'd like, then send your picks to " + (sendToName || "your friend") + "."
+              : "Tap + beside the dishes you'd like, then send your picks back.")}
       </div>
 
       {/* A place from a friend (2026-10-11): their rating beside Google's, and
@@ -27321,7 +27379,8 @@ function PublishedMenu({data, onSaved}){
                 <React.Fragment key={ii}>
                 <div className={"pub-mitem" + (on ? " on" : "")}
                   onClick={()=> toggle(si, ii, it.n)}>
-                  <div className="pub-mitem-tick">{on ? "\u2713" : "+"}</div>
+                  <div className="pub-mitem-tick" role="img"
+                    aria-label={on ? "Picked" : "Pick this dish"}>{on ? "\u2713" : "+"}</div>
                   <div style={{flex:1, minWidth:0}}>
                     <div className="pub-mitem-head">
                       <span className="inm">{it.n}</span>
@@ -27363,7 +27422,7 @@ function PublishedMenu({data, onSaved}){
       </div>
 
       {/* leave room so the fixed tray never covers the footer */}
-      {pickNames.length > 0 && <div style={{height:78}} />}
+      {pickNames.length > 0 && <div style={{height: onSendPicks ? 104 : 78}} />}
 
       {pickNames.length > 0 && (
         <div className="pick-tray">
@@ -27371,9 +27430,27 @@ function PublishedMenu({data, onSaved}){
             <div className="pick-tray-ct">{pickNames.length} pick{pickNames.length === 1 ? "" : "s"}</div>
             <div className="pick-tray-names">{pickNames.join(", ")}</div>
           </div>
-          <button className="btn primary sm" style={{flex:"none"}} onClick={sendPicks}>
-            {sent ? "Sent \u2713" : "Send my picks"}
-          </button>
+          {onSendPicks ? (
+            // From a friend, in the app: one tap sends them back as a reply.
+            // Text stays, smaller, for the friend who rarely opens the app.
+            <div style={{flex:"none", maxWidth:"52%", textAlign:"right"}}>
+              <button className="btn primary sm" disabled={sending} onClick={sendPicksInApp}
+                style={{maxWidth:"100%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                {sending ? <span className="spin" />
+                  : sentApp ? "Sent \u2713" : "Send to " + (sendToName || "your friend")}
+              </button>
+              <div className="tiny" style={{marginTop:5}}>
+                <a href="#" style={{color:"var(--text-faint)"}}
+                   onClick={(e)=>{ e.preventDefault(); sendPicks(); }}>
+                  {sent ? "Sent by text \u2713" : "or send by text"}</a>
+              </div>
+              {sendErr ? <div className="tiny" style={{color:"var(--danger)", marginTop:3}}>{sendErr}</div> : null}
+            </div>
+          ) : (
+            <button className="btn primary sm" style={{flex:"none"}} onClick={sendPicks}>
+              {sent ? "Sent \u2713" : "Send my picks"}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -30692,7 +30769,15 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
                   clearOpened();
                   onLogVisit(Object.assign({}, seed, { people: people }));
                 } : null} />
-            : <PublishedMenu data={open.payload} onSaved={clearOpened} />}
+            : <PublishedMenu data={open.payload} onSaved={clearOpened}
+                sendToName={fromName}
+                onSendPicks={open.from_user_id ? (async (text)=>{
+                  // The same conversation the reply box above writes to, so
+                  // the picks appear there the moment they are sent.
+                  await sendReply(config, { to_user_id: open.from_user_id, subject_kind: subj.kind,
+                    subject_key: subj.key, subject_title: subj.title, body: text });
+                  loadReplies();
+                }) : null} />}
         </div>
       </div>
     );

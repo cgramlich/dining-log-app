@@ -881,6 +881,13 @@ picks** to fire their own share sheet with the list ready to text back to you,
 each note in parentheses - "Avocado Toast (no onions)". No account, just a quick
 answer back.
 
+**When the menu came from a friend inside the app.** Open it from **Sharing**,
+tap **+** beside the dishes you would like, and the button reads **Send to**
+followed by their name. Your picks go straight back to them as a reply in the
+app, notes included, and show up under **Replies** for both of you. **or send by
+text** is still there underneath. A reply holds about 500 characters, so a very
+long list ends with "and 4 more".
+
 The shared page is only the menu - your own private calorie estimates are never
 part of it. As with a published list, treat the link as public: anyone who has
 it can open that menu page.

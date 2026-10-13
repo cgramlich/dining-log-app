@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.519.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.520.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.138.1** | Railway, `/health` reports `db connected` |
-| Native shell | **1.519.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.520.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,36 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Picks from a friend's menu go back as a reply in the app (2026-10-13, app 1.520.0)
+
+Chris, on a menu a friend had sent him inside the app, first asked what the + beside each dish means,
+then: "why can't I send my picks back in the app itself as a reply". By card he chose in-app first,
+with text as a backup. No backend change: it reuses `POST /api/replies`.
+
+- **What the + is.** `PublishedMenu` in menu mode (`k:"m"`, not a place recommendation): tap a dish to
+  pick it, a note box opens, a tray at the bottom counts the picks. "Send my picks" could only open
+  the phone's share sheet with a text, because the screen was built for a public link with no account
+  behind it. The one line explaining + sat at the top and scrolled away.
+- **Now, opened from Sharing with a known sender:** `ShareInbox` passes `onSendPicks` and `sendToName`.
+  The tray's main button reads **Send to <name>** and posts ONE reply
+  (`picksReplyText`: "My picks: Dish (note), Dish") on the same subject the reply box above writes
+  to, then reloads replies, so the picks show there at once. **or send by text** stays underneath.
+- **A public link** gets neither prop and keeps the single "Send my picks" button.
+- **The 500-character cap.** The backend cuts a reply at `REPLY_BODY_MAX` mid-word and silently.
+  `picksReplyText` ends a long list cleanly with "and N more" (`PICKS_REPLY_MAX = 500`; keep the two in
+  step). One enormous note is cut with "..." and the others still counted.
+- **Clarity:** the hint now reads "Tap + beside the dishes you'd like, then send your picks to
+  <name>." and the + / tick carry "Pick this dish" / "Picked" for screen readers.
+- Changing a pick or a note clears "Sent", so a changed list can be sent again.
+
+**Verified.** `scratchpad/test_picks.js`, 18 checks on the real helper and source. Then the real
+changed app opened locally at phone width with a stand-in menu from a stand-in friend: hint names
+her; two picks and a note; the tray reads "Send to Anna / or send by text" and fits in 375px; the
+request that left carried the right friend, subject and "My picks: Roasted duck (no beetroot),
+Barbecued octopus"; the button read "Sent" and reset when a third dish was picked. The reply endpoint
+itself was stood in for (the static test server cannot take a POST). **Not checked:** a real friend
+receiving real picks, and a real phone.
 
 ### The backend's libraries are pinned; a visit holds 10 photos (2026-10-13, backend 0.138.1, app 1.519.0)
 
