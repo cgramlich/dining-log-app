@@ -779,6 +779,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; }
     .lb-count{ position:absolute; top:calc(20px + env(safe-area-inset-top)); left:0; right:0;
       text-align:center; color:#cdbfa8; font-size:13px; letter-spacing:0.02em; pointer-events:none; }
+    .lb-cap{ position:absolute; left:0; right:0; bottom:calc(16px + env(safe-area-inset-bottom));
+      display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;
+      padding:0 16px; color:#cdbfa8; font-size:13px; }
     .lb-nav{ position:absolute; top:50%; transform:translateY(-50%); width:46px; height:46px;
       border-radius:50%; background:rgba(255,255,255,0.10); border:none;
       display:flex; align-items:center; justify-content:center; cursor:pointer; }
@@ -1171,7 +1174,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.515.0";
+const APP_VERSION   = "1.516.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1874,6 +1877,10 @@ by when you added them, newest or oldest first, and takes over from Sort until
 you set it back to **Any**.
 Pick **All cities** or **All cuisines** to clear a filter.
 
+**Photos from your visits.** A place page shows the photos from your visits
+there, most recent visit first. Tap one to see it full screen: under it is the
+date of the visit it came from, and **Open this visit** takes you there.
+
 -----
 
 ## Map
@@ -2393,6 +2400,14 @@ loved drink rather than your most loved dish.
 you sent it to in the app, and - for a link - how many times it has been opened
 and saved. Link counts are anonymous: the app never records who opened a link,
 only how many times. Counting began on 8 October 2026.
+
+**Everything you have sent.** Open **Shared with you** and scroll to **Sent**: each
+place or visit you have sent to friends inside the app, who it went to, and
+when. Tap an entry to see every name. **Remove from this list** takes it off
+your list only - your friends keep what you sent. The list began on 13 October
+2026, with whatever was still waiting in a friend's inbox that day; anything a
+friend had already saved or dismissed before then is not in it. It does not
+record whether a friend opened or saved what you sent.
 
 Open **Your Year in Food** from the **You** tab, or from
 **Settings** - either way you get a recap built entirely from what you have
@@ -4086,6 +4101,31 @@ function buildPlacePayload(restaurant, menu, lovedNames){
   // standing tip, and a friend would ask for it out loud. PublishedMenu still
   // DRAWS `off`, for places shared before this.
   return o;
+}
+
+// Pure: the photos for a place page's strip, NEWEST VISIT FIRST, each one
+// remembering the visit it came from. A visit's meal photos, then its
+// per-dish photos. No repeats.
+//
+// Until 1.516.0 the strip was built in whatever order the visits happened to
+// be stored, with nothing to say which visit a photo belonged to. Chris kept
+// tapping it expecting his most recent visit (2026-10-12). It is still every
+// visit's photos - a place's gallery - but the latest is now first, and the
+// viewer names the visit and offers a way to it.
+function placeStripPhotos(visits, max){
+  const vs = (visits || []).filter(Boolean).slice().sort((a, b) =>
+    (b.date || "").localeCompare(a.date || "") || ((b.logged_at || 0) - (a.logged_at || 0)));
+  const out = []; const seen = new Set();
+  const take = (p, v) => {
+    if (!p || seen.has(p) || out.length >= max) return;
+    seen.add(p);
+    out.push({ path: p, visitId: v.id, date: v.date || "" });
+  };
+  vs.forEach(v => {
+    (Array.isArray(v.photos) ? v.photos : []).forEach(p => take(p, v));
+    (Array.isArray(v.dishes) ? v.dishes : []).forEach(d => take(d && d.photo, v));
+  });
+  return out;
 }
 
 // Pure: up to `max` photo paths from the visits at one place, newest visit
@@ -7546,7 +7586,10 @@ const MAX_VISIT_PHOTOS = 8;
 // Full-screen photo viewer. Tap a visit photo anywhere to open it big; swipe or
 // tap the arrows to move between that visit's photos; tap the backdrop, the X,
 // or press Escape to close.
-function PhotoLightbox({ cfg, paths, index, onClose }){
+// `captions` is optional and runs parallel to `paths`: { text, onOpen } per
+// photo, drawn under it. Callers that pass it must pass paths with no blanks,
+// because blanks are dropped below and the two lists would slip out of step.
+function PhotoLightbox({ cfg, paths, index, onClose, captions }){
   const list = (paths || []).filter(Boolean);
   const [i, setI] = useState(() =>
     Math.min(Math.max(0, index || 0), Math.max(0, list.length - 1)));
@@ -7611,6 +7654,15 @@ function PhotoLightbox({ cfg, paths, index, onClose }){
           ? <img className="photo-img lb-img" src={list[i]} alt="" />
           : <PhotoImg cfg={cfg} path={list[i]} className="lb-img" />}
       </div>
+      {captions && captions[i] ? (
+        <div className="lb-cap" onClick={e=> e.stopPropagation()}>
+          <span>{captions[i].text}</span>
+          {captions[i].onOpen ? (
+            <button className="btn ghost sm" style={{flex:"none"}}
+              onClick={()=> captions[i].onOpen()}>Open this visit</button>
+          ) : null}
+        </div>
+      ) : null}
       {list.length > 1 && i > 0 && (
         <button className="lb-nav prev" onClick={e=>{ e.stopPropagation(); go(-1); }} aria-label="Previous">
           <Icon name="back" size={24} color="#f0e6d6" />
@@ -11751,7 +11803,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
         onClose={()=> setTalk(null)} onChanged={onRepliesChanged} />
       {lightbox && (
         <PhotoLightbox cfg={cfg} paths={lightbox.paths} index={lightbox.index}
-          onClose={()=> setLightbox(null)} />
+          captions={lightbox.caps} onClose={()=> setLightbox(null)} />
       )}
     </div>
   );
@@ -12932,11 +12984,18 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     return m[pl] || "";
   };
   // Photos from this place's visits - a quick picture gallery, no API cost.
-  const visitPhotos = [];
-  (visits || []).forEach(v => {
-    (Array.isArray(v.photos) ? v.photos : []).forEach(p => { if (p) visitPhotos.push(p); });
-    (Array.isArray(v.dishes) ? v.dishes : []).forEach(d => { if (d && d.photo) visitPhotos.push(d.photo); });
-  });
+  // Newest visit first (see placeStripPhotos).
+  const stripPhotos = placeStripPhotos(visits, 12);
+  const visitPhotos = stripPhotos.map(x => x.path);
+  // Under each photo in the viewer: which visit it is from, and a way to it.
+  const stripCaps = stripPhotos.map(x => ({
+    text: x.date ? ("From your visit on " + fmtDate(x.date)) : "From one of your visits",
+    onOpen: onOpenVisit ? (()=>{
+      const v = (visits || []).find(y => y && y.id === x.visitId);
+      setLightbox(null);
+      if (v) onOpenVisit(v);
+    }) : null,
+  }));
 
   // ---- dish memory: what to order again here -------------------------
   // For each distinct dish (case-insensitive), we go by its MOST RECENT
@@ -13302,9 +13361,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   decoration rather than something you could look at. Opens the
                   WHOLE strip so you can swipe the place's photos in one go,
                   not just the one you happened to tap. */}
-              {visitPhotos.slice(0, 12).map((p, i) => (
+              {visitPhotos.map((p, i) => (
                 <div key={i} className="visit-photo tap"
-                  onClick={()=> setLightbox({ paths: visitPhotos.slice(0, 12), index: i })}>
+                  onClick={()=> setLightbox({ paths: visitPhotos, index: i, caps: stripCaps })}>
                   <PhotoImg cfg={cfg} path={p} />
                 </div>
               ))}
@@ -13793,7 +13852,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
       )}
       {lightbox && (
         <PhotoLightbox cfg={cfg} paths={lightbox.paths} index={lightbox.index}
-          onClose={()=> setLightbox(null)} />
+          captions={lightbox.caps} onClose={()=> setLightbox(null)} />
       )}
     </div>
   );
@@ -30249,6 +30308,130 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
   );
 }
 
+/* The Sent list (2026-10-13).
+
+   Chris asked twice where he could see what he had shared and with whom. The
+   honest answer was "partly, and not for long": a visit in History said "Sent
+   to" with names, but each name dropped off when that friend saved or
+   dismissed it, and a place said nothing at all. The backend now keeps its own
+   slim record of each send (share_log), and this lists it.
+
+   It shows what, who and when. It does NOT show whether a friend opened or
+   saved the thing: that version was offered and declined, because it is a
+   read receipt and it would run both ways. */
+const SENT_LIST_SHOWN = 20;
+// null = this backend has no Sent list (older build), which hides the section
+// rather than showing an error for something that was never there.
+async function fetchSentShares(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/shares/sent", { headers: await authHeaders(cfg) });
+  if (res.status === 404 || res.status === 405) return null;
+  if (!res.ok) throw new Error("sent " + res.status);
+  const j = await res.json();
+  return (j && j.sent) || [];
+}
+async function removeSentShare(cfg, ids){
+  const res = await fetch(apiBase(cfg) + "/api/shares/sent/delete", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ ids: ids || [] }),
+  });
+  if (!res.ok) throw new Error("remove " + res.status);
+  return res.json();
+}
+// Pure: "to Anna" / "to Anna and Ben" / "to Anna, Ben and Cara" /
+// "to Anna, Ben and 8 more". Three names fit a phone line; a fourth does not.
+function sentToLine(names){
+  const n = (names || []).filter(Boolean);
+  if (!n.length) return "";
+  if (n.length === 1) return "to " + n[0];
+  if (n.length === 2) return "to " + n[0] + " and " + n[1];
+  if (n.length === 3) return "to " + n[0] + ", " + n[1] + " and " + n[2];
+  return "to " + n[0] + ", " + n[1] + " and " + (n.length - 2) + " more";
+}
+// Pure: the names on one entry. Your own name for a friend wins over their
+// profile name, as it does everywhere else in the app; `ownName` looks it up.
+function sentNames(entry, ownName){
+  const ids = (entry && entry.to_ids) || [];
+  return ((entry && entry.to) || []).map((nm, i) =>
+    (ownName && ids[i] && ownName(ids[i])) || nm || "A friend");
+}
+function sentKindLabel(kind){
+  return kind === "visit" ? "Visit" : kind === "list" ? "List" : kind === "menu" ? "Menu" : "Place";
+}
+function SentList({cfg}){
+  const [sent, setSent] = useState(undefined);   // undefined = loading, null = not offered
+  const [fail, setFail] = useState(false);
+  const [openKey, setOpenKey] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  function load(){
+    setFail(false);
+    fetchSentShares(cfg).then(setSent)
+      .catch(e => { setFail(true); logMsg("SHARE", "sent list failed: " + e.message); });
+  }
+  useEffect(()=>{ load(); /* eslint-disable-next-line */ }, []);
+  async function remove(entry){
+    if (busy) return;
+    setBusy(true);
+    try { await removeSentShare(cfg, entry.ids); setOpenKey(null); load(); }
+    catch(e){ setFail(true); logMsg("SHARE", "sent remove failed: " + e.message); }
+    finally { setBusy(false); }
+  }
+  if (sent === null) return null;
+  const list = sent || [];
+  const shown = showAll ? list : list.slice(0, SENT_LIST_SHOWN);
+  return (
+    <div style={{marginTop:22}}>
+      <div className="section-subhead">Sent</div>
+      {fail ? (
+        <div className="small" style={{padding:"6px 2px", color:"var(--danger)"}}>
+          Couldn't load what you have sent. <a href="#" onClick={(e)=>{ e.preventDefault(); load(); }}>Try again</a>
+        </div>
+      ) : sent === undefined ? (
+        <div className="empty" style={{padding:"16px 0"}}><span className="spin" /></div>
+      ) : !list.length ? (
+        <div className="small faint" style={{padding:"4px 2px"}}>
+          Nothing sent yet. When you send a place or a visit to a friend, it is listed here.
+        </div>
+      ) : shown.map(e => {
+        const key = (e.ids || []).join("-");
+        const names = sentNames(e, getConnName);
+        const open = openKey === key;
+        return (
+          <div key={key} className="card" style={{cursor:"pointer"}}
+            onClick={()=> setOpenKey(open ? null : key)}>
+            <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+              {e.title || ("A " + sentKindLabel(e.kind).toLowerCase())}
+            </div>
+            <div className="tiny faint">
+              {sentKindLabel(e.kind)}{"  \u00b7  "}{replyWhen(e.created_at)}{"  \u00b7  "}
+              {open ? ("to " + names.length + (names.length === 1 ? " friend" : " friends")) : sentToLine(names)}
+            </div>
+            {open ? (
+              <div style={{marginTop:9}} onClick={(ev)=> ev.stopPropagation()}>
+                <div className="chips">
+                  {names.map((n, i) => <span key={i} className="chip">{n}</span>)}
+                </div>
+                <div className="tiny faint" style={{marginTop:9}}>
+                  <a href="#" style={{color:"var(--text-faint)"}}
+                     onClick={(ev)=>{ ev.preventDefault(); remove(e); }}>
+                    {busy ? "Removing..." : "Remove from this list"}</a>
+                  {"  \u00b7  "}Your friends keep what you sent.
+                </div>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+      {!fail && list.length > shown.length ? (
+        <div style={{textAlign:"center", marginTop:8}}>
+          <button className="btn ghost sm" style={{margin:"0 auto"}}
+            onClick={()=> setShowAll(true)}>Show all {list.length}</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // "Shared with you" inbox overlay: received places/lists; tap to view (reuses
 // the public viewers, which include "Save to my places"), or dismiss.
 function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
@@ -30442,6 +30625,9 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
             </SwipeToDelete>
           );
         })}
+        {/* What YOU sent, under what was sent to you. Its own component: it
+            loads on its own and hides itself on a backend that has no list. */}
+        <SentList cfg={config} />
       </div>
     </div>
   );

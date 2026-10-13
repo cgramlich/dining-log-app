@@ -107,6 +107,10 @@ by when you added them, newest or oldest first, and takes over from Sort until
 you set it back to **Any**.
 Pick **All cities** or **All cuisines** to clear a filter.
 
+**Photos from your visits.** A place page shows the photos from your visits
+there, most recent visit first. Tap one to see it full screen: under it is the
+date of the visit it came from, and **Open this visit** takes you there.
+
 -----
 
 ## Map
@@ -626,6 +630,14 @@ loved drink rather than your most loved dish.
 you sent it to in the app, and - for a link - how many times it has been opened
 and saved. Link counts are anonymous: the app never records who opened a link,
 only how many times. Counting began on 8 October 2026.
+
+**Everything you have sent.** Open **Shared with you** and scroll to **Sent**: each
+place or visit you have sent to friends inside the app, who it went to, and
+when. Tap an entry to see every name. **Remove from this list** takes it off
+your list only - your friends keep what you sent. The list began on 13 October
+2026, with whatever was still waiting in a friend's inbox that day; anything a
+friend had already saved or dismissed before then is not in it. It does not
+record whether a friend opened or saved what you sent.
 
 Open **Your Year in Food** from the **You** tab, or from
 **Settings** - either way you get a recap built entirely from what you have

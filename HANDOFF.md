@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.515.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.136.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.515.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.516.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.137.1** | Railway, `/health` reports `db connected` |
+| Native shell | **1.516.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,76 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The Sent list, and the place page's photo strip put in order (2026-10-13, app 1.516.0, backend 0.137.1)
+
+Chris asked on 10-11 and again on 10-13 where he can see what he has shared and with whom, and on
+10-12 what the "Photos from your visits" strip is meant to be. Offered both; he said "Build and fix".
+The Sent list was approved by card, the option naming the new table, the backend release and the
+privacy sentence.
+
+**THE SENT LIST**
+
+*Why there was nothing.* A `shares` row is the friend's INBOX item and is deleted when they save or
+dismiss it. A visit in History said "Sent to" with names, but each name dropped off as that friend
+acted; a place said nothing; there was no list.
+
+*New table `share_log`* (`sql/share_log.sql`, applied live 2026-10-13 as migration `share_log`): one
+slim row per recipient, written at send time: `from_user_id`, `to_user_id`, `kind`, `title`,
+`subject_key`, `created_at`. Both user columns cascade from `auth.users`, so account deletion needs no
+extra step. RLS on, no policies, granted to `service_role`. Checked after applying: RLS on, 0
+policies, anon and authenticated cannot read, the backend can write.
+- **It holds no payload** (photos and contents are not kept twice) and **nothing about what the friend
+  did with it.** A version showing saved / dismissed / not yet opened was on the card and was NOT
+  chosen: it is a read receipt, in both directions.
+- `subject_key` = a visit's shared-record id (`sv`, the id its "Sent to" line is keyed by) or a
+  place's Google id. NULL for places sent before app 1.512.0, which carried no id; those list by title.
+- **Seeded** from the 52 rows then in inboxes (29 visits, 23 places, 14 sends, one sender). Anything a
+  friend had already saved or dismissed before 2026-10-13 is gone and is not in the list.
+
+*Backend 0.137.0, then 0.137.1.*
+- `POST /api/shares` also writes the log. **Best effort on purpose:** the items are already in the
+  inboxes, so a log failure warns (`sent-log insert FAILED`) and the send still succeeds.
+- `GET /api/shares/sent`: one entry per SEND. Rows from one send share one timestamp exactly (one
+  statement), so (created_at, kind, title) is the key (`_group_sent`). Returns `ids`, `to` (names, not
+  de-duplicated: two Annas are two people) and, from 0.137.1, `to_ids` so the app can show YOUR name
+  for a friend. Declared before `GET /api/shares` and the `{share_id}` route.
+- `POST /api/shares/sent/delete {ids}`: removes the caller's own entries only (scoped by
+  `from_user_id` in the same statement). It removes the RECORD; the friend keeps what was sent.
+- `/api/shares/activity` reads the log as well as the inbox rows, so a visit's "Sent to" line in
+  History stops losing names.
+
+*App 1.516.0.* `SentList` (its own component) at the bottom of the Shared with you screen, under a
+"Sent" heading: title, kind, when (`replyWhen`), and `sentToLine` ("to Anna, Ben and 8 more"). Tap to
+see every name and "Remove from this list". Shows 20, then "Show all N". On a backend with no list
+(404/405) it hides itself. `sentNames` prefers `getConnName(id)` over the profile name.
+
+*Privacy policy* (wording shown on the card): a paragraph under Sharing saying the record is kept, what
+is in it and what is not, and that it can be removed and goes with either account. Effective 2026-10-13.
+
+**THE PHOTO STRIP**
+
+*What it was.* Every photo from every visit at the place, meal and per-dish, the first 12, in whatever
+order the visits were stored, and a tap opened the viewer on that strip. Chris tapped it expecting his
+most recent visit.
+*What it is now.* `placeStripPhotos(visits, 12)` (pure): newest visit first (date, then `logged_at`), a
+visit's meal photos then its dish photos, no repeats, each remembering its visit. `PhotoLightbox` takes
+optional `captions` (parallel to `paths`, which must then have no blanks): under each photo, "From your
+visit on <date>" and **Open this visit**, which closes the viewer and calls `onOpenVisit`.
+*Not done:* making a tap go straight to the visit. It stays a gallery of the place.
+
+**Verified.** Backend: `scratchpad/test_sent.py`, 24 checks on the real shares section against a
+stand-in database (the log holds no payload; clearing an inbox keeps the name; another person's ids
+remove nothing; a failing log does not fail a send). Live: `/health` reports 0.137.1 and both new
+routes answer 401 without sign-in. App: `scratchpad/test_sent_strip.js`, 23 checks. Then the real
+changed app opened locally, signed in on stand-in data: the Sent section listed three sends, a tap
+showed all ten names; the strip started with the newest visit, the captions followed the visits, and
+"Open this visit" on a June photo opened the June visit. **Not checked:** a real send appearing in the
+real list, removing a real entry, and a real phone.
+
+**Local testing, one more trick.** A path that is both an endpoint and a prefix (`/api/shares` and
+`/api/shares/sent`) cannot be a file and a folder at once. Make it a folder holding `index.html` with
+the JSON in it: the static server answers the folder with that file.
 
 ### The dish search on Log a visit stopped at 8 and read names only (2026-10-13, app 1.515.0)
 
