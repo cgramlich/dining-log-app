@@ -1174,7 +1174,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.518.0";
+const APP_VERSION   = "1.519.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -7649,9 +7649,17 @@ function GooglePhoto({cfg, name, attribution, thumb}){
   );
 }
 
-// How many meal photos a single visit can hold (shared by the editor and the
-// quick "Add photo" on the visit card).
-const MAX_VISIT_PHOTOS = 8;
+// How many meal photos a single visit can hold (shared by the editor, the
+// quick "Add photo" on the visit card, and the page a friend sees).
+//
+// 10 since 1.519.0; it was 8. Chris asked (2026-10-13) after a dinner that had
+// more than eight worth keeping. The cost of two more is small: each photo is
+// shrunk to 1200px on its long edge before upload (resizeImageToBlob), so a
+// full visit grows by roughly half a megabyte, uploads resume if the signal
+// drops, and nothing on the backend counts photos per visit. The one number
+// that is NOT this one: a visit several people joined holds 24 between them
+// (SHARED_VISIT_PHOTO_MAX on the backend).
+const MAX_VISIT_PHOTOS = 10;
 
 // Full-screen photo viewer. Tap a visit photo anywhere to open it big; swipe or
 // tap the arrows to move between that visit's photos; tap the backdrop, the X,

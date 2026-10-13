@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.518.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.138.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.518.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.519.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.138.1** | Railway, `/health` reports `db connected` |
+| Native shell | **1.519.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,36 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The backend's libraries are pinned; a visit holds 10 photos (2026-10-13, backend 0.138.1, app 1.519.0)
+
+**1. Pinned libraries (backend 0.138.1).** Chris: "Lock the versions", after being told what the
+0.138.0 deploy had shown (see "Found while deploying" below).
+- `requirements.txt` now pins all **56** packages with `==`: the 10 that `main.py` asks for by name,
+  then the 46 they pull in. The versions are exactly the "Successfully installed" line of the live
+  0.138.0 build log, so nothing about what runs changed. The script that wrote the file read it back
+  and asserted the 56 pins equal the 56 installed.
+- `uvloop` carries `; sys_platform != "win32"` (it has no Windows build; an unmarked pin would break
+  `pip install` on this PC).
+- **To upgrade, on purpose:** change a version in that file, push, watch the build and `/health`, read
+  the startup log. One library at a time. Never go back to `>=`.
+- No dependency was ADDED. Two names in the pulled-in set were new to us and were checked on PyPI
+  2026-10-13: `httpx2` and `httpcore2` 2.13.1, both BSD-3-Clause, maintained by Pydantic. The rest of
+  the pulled-in set was not re-audited for licence here.
+- A change to `requirements.txt` always forces a full rebuild (several minutes, not 30 seconds).
+
+**2. Ten photos per visit (app 1.519.0).** Chris asked to consider 8 -> 10. `MAX_VISIT_PHOTOS = 10`.
+It is the one number: the visit form, the card's quick Add photo, and the page a friend sees all read
+it (6 uses, no hard-coded 8 anywhere). Cost of two more: photos are shrunk to 1200px on the long edge
+at JPEG 0.82 before upload, so a full visit grows by roughly half a megabyte; uploads resume; nothing
+on the backend counts photos per visit. Unrelated and unchanged: a visit several people joined holds
+24 between them (`SHARED_VISIT_PHOTO_MAX`). A friend on an older app version sees the first 8.
+
+**Verified.** Backend: see the deploy check recorded in the Log entry for this date. App: opened
+locally on stand-in data: a visit with 8 photos reads "Photos (8 / 10)" and still offers to add; a
+visit with 10 shows all 10 on its card. In the same session the 1.518.0 "Share this visit" button was
+tapped for real and opened the visit share sheet. **Small wart seen, not changed:** "Add photo" on a
+card whose visit is already full opens the picker first and only says it is full after you choose.
 
 ### A renamed menu keeps its shared copy; a section can be deleted (2026-10-13, app 1.518.0, backend 0.138.0)
 
