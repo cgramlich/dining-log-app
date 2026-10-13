@@ -457,8 +457,10 @@ remove nothing; a failing log does not fail a send). Live: `/health` reports 0.1
 routes answer 401 without sign-in. App: `scratchpad/test_sent_strip.js`, 23 checks. Then the real
 changed app opened locally, signed in on stand-in data: the Sent section listed three sends, a tap
 showed all ten names; the strip started with the newest visit, the captions followed the visits, and
-"Open this visit" on a June photo opened the June visit. **Not checked:** a real send appearing in the
-real list, removing a real entry, and a real phone.
+"Open this visit" on a June photo opened the June visit. **Confirmed on Chris's phone 2026-10-13 (his screenshot):** the Sent section
+lists his earlier sends under Replies, newest first, with kind, date and names. One place sent to
+ten on 10-11 shows eight: two friends had dealt with it before the seed, as expected. **Still not
+checked:** a NEW send appearing, removing an entry, and the photo strip on his phone.
 
 **Local testing, one more trick.** A path that is both an endpoint and a prefix (`/api/shares` and
 `/api/shares/sent`) cannot be a file and a folder at once. Make it a folder holding `index.html` with
