@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.514.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.515.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.136.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.514.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.515.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,45 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The dish search on Log a visit stopped at 8 and read names only (2026-10-13, app 1.515.0)
+
+Chris, at a place with three menus (45 + 122 + 27 = 194 items), could not find something he knew was
+on one of them and asked whether "What you had" only searches the main menu. **It always searched
+every menu at the place** (`menus[restId]`, all sections). What hid things was the matching. He was
+given the three causes and said "Fix the search". No backend change.
+
+**The three causes, all in `VisitForm`'s type-ahead:**
+1. `.slice(0, 8)` on the matches, in menu order. A short word filled its 8 from whichever menu came
+   first and gave no sign there were more.
+2. Only the dish NAME was searched, so typing an ingredient found nothing.
+3. Plain `toLowerCase().indexOf`, so "tiramisu" did not find "Tiramisù". (Least likely at his place:
+   5 of the 194 names have accents. Aggregate query, 2026-10-12.)
+
+**What it does now** (pure helpers above `dishIsDrink`): `foldText` (lower case, accents removed),
+`searchDishes(query, pool, meta, exclude)`, `canonicalDish(typed, pool)`.
+- Ranked: the name starts with it; a word in the name starts with it; somewhere in the name; every
+  typed word in the name in any order; every typed word in the name OR the description. Ties keep menu
+  order. A description match carries `why` (the description), shown under the name.
+- All matches are listed, up to `DISH_SEARCH_SHOWN` (40), then "N more - keep typing to narrow it
+  down". The list is taller (300px).
+- Each row says which menu it is on when the place has more than one (`dishMeta`: name -> menu, desc;
+  `menuGroups` items now carry `desc`).
+- Typing a dish and pressing Add logs the MENU'S spelling when exactly one name here matches apart
+  from case or accents ("tiramisu" -> "Tiramisù", keeping its section). Two candidates are left alone.
+
+**The road not taken:** typo-tolerant (fuzzy) matching. A list that is hard to predict, and a wrong
+near-match logged as what you ate is worse than no match.
+
+**Known and accepted:** a description match is a plain substring, so "gin" also finds a drink whose
+description says "ginger". It is ranked last and shows the description, so the reason is visible.
+
+**Verified.** `scratchpad/test_dishsearch.js`: 29 checks on the real helpers, on a stand-in place
+shaped like his (194 items, three menus), including three that reproduce the OLD behaviour. Then the
+real changed app, opened locally signed in on a three-menu place: "gin" lists the cocktail with
+"Cocktails" under it; "vodka" finds two drinks by description and shows why; "cocktail" draws 40 and
+says "10 more"; "tiramisu" offers "Tiramisù" and Add logs it with the accent. **Not checked:** his real
+place on his phone, and what he had actually typed (he was asked; the fix did not wait for it).
 
 ### "Select all" in the friend pickers (2026-10-12, app 1.514.0)
 

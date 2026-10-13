@@ -447,7 +447,10 @@ it rather than pick one.
 
 **What you had (dishes).** There are three easy ways to add what you ordered, top
 to bottom. **Search or type** in the box to find any dish on the menu (or type a
-new one). **Your usuals here** is a row of one-tap chips - the dishes you have
+new one). The search looks through every menu saved for the place, not just the
+main one, and each result says which menu it is on. It also looks in the
+descriptions, so typing an ingredient finds the drink, and it ignores accents.
+**Your usuals here** is a row of one-tap chips - the dishes you have
 ordered at this place before, your favorites first - so a repeat visit is a couple
 of taps with no hunting. And the full menu is there too: if it is long it tucks
 behind a **Browse the full menu** button so it does not fill the screen; tap to
