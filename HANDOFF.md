@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.520.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.521.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.138.1** | Railway, `/health` reports `db connected` |
-| Native shell | **1.520.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.521.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,31 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The Back button that hid behind the status bar (2026-10-13, app 1.521.0)
+
+Chris, with a screenshot of a friend's shared menu opened from Sharing: "Still having trouble seeing
+the back button on this screen and won't get there".
+
+**Cause.** The page declares `viewport-fit=cover` and `apple-mobile-web-app-status-bar-style
+black-translucent`, so in the installed app every page runs UNDER the clock and battery. The standard
+header (`.ovhead`) allows for that with `env(safe-area-inset-top)` and is pinned. Six full-screen
+views were built by hand as `position:fixed; inset:0; overflowY:auto` and did not use it:
+- **Two had their own small "Back" button 12px from the top of the scrolling page** (the shared item
+  in `ShareInbox`, and an opened group-order invitation). It sat behind the status bar and scrolled
+  away. Both now use `.ovhead` with `BackBtn`, a title ("From <name>" / the restaurant) and `HomeBtn`.
+- **Four group-order screens** kept their own controls but started 14px from the very top. Their top
+  padding is now `calc(14px + env(safe-area-inset-top))`.
+
+**Rule for the next full-screen view:** use `.overlay` / `.ovhead`, or at the least
+`env(safe-area-inset-top)` on whatever is at the top. A desktop browser cannot show this bug: the
+inset is 0 there.
+
+**Verified.** In the real changed app, locally at phone width: the shared item opens with a header
+reading "From Anna", with Back and Home; the header is at the top before and after scrolling the
+page; the Back button is 40px, on top, and tapping it returns to Sharing. **Not checked, and cannot
+be on this PC:** the status-bar overlap itself. It rests on `.ovhead` being the same header every
+other screen uses. His phone is the test.
 
 ### Picks from a friend's menu go back as a reply in the app (2026-10-13, app 1.520.0)
 
