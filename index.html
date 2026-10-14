@@ -1174,7 +1174,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.521.0";
+const APP_VERSION   = "1.522.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8573,6 +8573,21 @@ function App({openShare}){
   // Action snackbar: a message with one tappable action (Undo, Share, Pull, ...).
   const [undo, setUndo] = useState(null);     // { msg, label, action } | null
   const undoTimer = useRef(null);
+  // A menu scan the phone stopped part way (see SCAN_INFLIGHT_KEY). Said once,
+  // on the next open, in the longer-lasting bar: the plain toast is gone in
+  // under three seconds, too quick to read while the app is still loading.
+  useEffect(()=>{
+    try {
+      const t = Number(localStorage.getItem(SCAN_INFLIGHT_KEY) || 0);
+      if (!t) return;
+      localStorage.removeItem(SCAN_INFLIGHT_KEY);
+      if (Date.now() - t < 30 * 60 * 1000){
+        logMsg("SCAN", "a scan was interrupted when the app was stopped");
+        flashAction("The menu scan stopped when you left the app. Scan it again and keep MenuCaptain open until it's done.", "OK", null);
+      }
+    } catch(e){}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   function flashAction(msg, label, action){
     setToast("");                              // don't stack with the plain toast
     setUndo({ msg, label, action });
@@ -21173,6 +21188,12 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               placeholder="Search or type a dish" />
             <button className="btn ghost sm" onClick={()=> addDish(canonicalDish(dishInput, dishPool))}
               style={{flex:"none"}}>Add</button>
+          </div>
+            {/* The suggestions sit IN the page, under the box, and push what is
+                below them down. They used to float over it (position absolute),
+                and covered the "Had a special..." line and the Browse the full
+                menu button while you typed. Chris, 2026-10-14: "This pop-up is
+                covering the other text". */}
             {(()=>{
               const raw = dishInput.trim();
               if (!raw) return null;
@@ -21192,8 +21213,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               const onVisit = dishNames.indexOf(canonicalDish(raw, dishPool)) !== -1;
               if (!sugg.length && (known || onVisit)) return null;
               return (
-                <div className="card" style={{position:"absolute", top:"100%", left:0, right:0, zIndex:6,
-                     marginTop:4, maxHeight:300, overflowY:"auto", padding:"4px 0"}}>
+                <div className="card" style={{marginTop:6, marginBottom:0, maxHeight:300, overflowY:"auto", padding:"4px 0"}}>
                   {sugg.map((x,i)=>{
                     // Under the name: which menu, when there is more than one
                     // to be on, and the description when THAT is what matched.
@@ -21226,7 +21246,6 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                 </div>
               );
             })()}
-          </div>
           {/* Said before you type, not only after. Until 1.513.0 a place page
               had a "Not on the menu / specials" box, and this page said nothing
               until you had typed something that matched no dish. This is now
@@ -22024,6 +22043,23 @@ const LABEL_SUGGESTIONS = [
   "Drinks","Cocktails","Beer","Wine","Whiskey","Spirits",
 ];
 
+/* A menu scan that was still running when the phone stopped the app.
+
+   On an iPhone, leaving the app mid-scan (another app, the home screen, the
+   lock button) can make iOS suspend or reload the page. The scan is lost, and
+   coming back to a restarted app looks like a crash. Chris, 2026-10-14: "if I
+   exit out and come back on my iPhone it crashes, so maybe there should be a
+   warning to stay on the screen". So: the waiting screen says so, and this key
+   is set while a scan runs and cleared when it ends, either way. Still there
+   when the app next opens means the page was stopped mid-scan, and App says
+   what happened instead of leaving a silent restart.
+
+   The road not taken (for now): letting the scan finish on the server and
+   collecting the result on return. That survives anything, but it is a much
+   bigger change than a warning, and the server may already have done (and
+   counted) the work that the phone never received. */
+const SCAN_INFLIGHT_KEY = "mc_scan_inflight";
+
 function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMenuId,
                        onClose, onSave}){
   // find the existing menu we're re-scanning (if any), to lock its label
@@ -22032,6 +22068,15 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     : null;
 
   const [step,setStep]         = useState("pick");      // pick | working | review | error
+  // Set while a scan runs; cleared when it stops running, however it stops,
+  // and when this screen closes. See SCAN_INFLIGHT_KEY.
+  useEffect(()=>{
+    try {
+      if (step === "working") localStorage.setItem(SCAN_INFLIGHT_KEY, String(Date.now()));
+      else localStorage.removeItem(SCAN_INFLIGHT_KEY);
+    } catch(e){}
+  }, [step]);
+  useEffect(()=> ()=> { try { localStorage.removeItem(SCAN_INFLIGHT_KEY); } catch(e){} }, []);
   const [previews,setPreviews] = useState([]);          // data URLs for thumbnails
   const [dataUrls,setDataUrls] = useState([]);          // resized data URLs for API
   const [errMsg,setErrMsg]     = useState("");
@@ -22699,7 +22744,14 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           <div className="empty" style={{paddingTop:"22vh"}}>
             <Loader size={46} />
             <div className="big" style={{marginTop:16}}>Reading the menu</div>
-            <div>This usually takes a minute or two. A big menu with lots of items or photos takes longer; a short one is quick. Hang tight.</div>
+            <div>This usually takes a minute or two. A big menu with lots of items or photos takes longer; a short one is quick.</div>
+            <div className="card" style={{margin:"18px auto 0", maxWidth:420, padding:"11px 14px", textAlign:"left",
+                 border:"1px solid rgba(231,178,76,0.4)"}}>
+              <div className="small" style={{fontWeight:600}}>Keep MenuCaptain open until it's done</div>
+              <div className="tiny faint" style={{marginTop:3}}>
+                Switching to another app or locking your phone can stop the scan, and you would have to start again.
+              </div>
+            </div>
           </div>
         )}
 

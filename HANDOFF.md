@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.521.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.522.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.138.1** | Railway, `/health` reports `db connected` |
-| Native shell | **1.521.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.522.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,36 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Dish suggestions stop covering the page; a scan warns you to stay (2026-10-14, app 1.522.0)
+
+Chris, with a screenshot of Log a visit while typing a dish: "This pop-up is covering the other text,
+and also I noticed when it's scanning the menu and I'm waiting if I exit out and come back on my
+iPhone it crashes, so maybe there should be a warning to stay on the screen".
+
+**1. The suggestion list sits in the page.** In `VisitForm` the type-ahead list was a card with
+`position:absolute` inside the input's row, floating over the "Had a special..." line and the Browse
+the full menu button. It now renders after the row closes, in the normal flow, so it pushes what is
+below it down while you type and disappears when the box is empty.
+
+**2. Leaving the app mid-scan.** On an iPhone, switching apps or locking the phone during a scan can
+make iOS suspend or reload the page; the scan is lost and the restart looks like a crash.
+- `ScanMenuFlow`'s waiting screen ("Reading the menu") now carries a card: **Keep MenuCaptain open
+  until it's done** / switching apps or locking the phone can stop the scan.
+- `SCAN_INFLIGHT_KEY` (`mc_scan_inflight` in localStorage) is set while `step === "working"` and
+  removed when the step changes or the screen closes. If it is still there when the app next opens
+  (under 30 minutes old), App says once, in the 6-second bar with an OK: "The menu scan stopped when
+  you left the app. Scan it again and keep MenuCaptain open until it's done." A log line is written.
+- **The road not taken, and still open:** let the backend finish a scan on its own and keep the
+  result for the app to collect on return. It survives anything, but it is much larger. Note the
+  server may already have done, and COUNTED, a scan whose result the phone never received.
+
+**Verified.** In the real changed app, locally at phone width: typing "Gno" lists Gnocchi and the Add
+row in the page, below the box, with the hint line and the Browse button below the list and nothing
+covered; an empty box shows no list. A scan marked as interrupted a minute earlier produced the
+message on the next open, cleared the marker, and OK closed it. The warning card on the scan screen
+was checked in the source, not rendered (reaching that step needs a real scan). **Not checked:**
+iOS actually stopping a scan, which only a phone can show.
 
 ### The Back button that hid behind the status bar (2026-10-13, app 1.521.0)
 
