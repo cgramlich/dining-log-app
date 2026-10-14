@@ -403,8 +403,8 @@ link it to "the full promo", add how to send suggestions, and "Everything we sho
 elegant and beautiful because we have high end customers". Users are addressed as **Captain**; the
 series is **From the Captain's Table** (card, same day).
 
-**The rhythm (Chris, 2026-10-14): one issue a week**, "with features bug fixes and other things that
-we change", drafted from that week's MenuCaptain Log, approved by Chris, previewed with his button,
+**The rhythm (Chris, 2026-10-14): one issue a week, sent on Thursday** (draft ready Wednesday), "with
+features bug fixes and other things that we change", drafted from that week's MenuCaptain Log, approved by Chris, previewed with his button,
 sent with his tap. The first issue opens with a welcome to the Captain's Table and has the subject
 "Welcome to the Captain's Table: ..."; later ones use "From the Captain's Table: ...".
 
