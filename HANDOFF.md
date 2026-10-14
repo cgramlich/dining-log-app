@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.525.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.139.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.525.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.526.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.140.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.526.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,60 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The weekly update email, "From the Captain's Table" (2026-10-14, app 1.526.0, backend 0.140.0)
+
+Chris: "Should we have a deal where we email users of any feature updates and bug fixes, perhaps
+just a weekly update". By card: **"Yes, email everyone"** (with an unsubscribe link in each, over
+asking people first). Then, through drafts: "do a graphic of the features" ahead of the details,
+link it to "the full promo", add how to send suggestions, and "Everything we should do needs to be
+elegant and beautiful because we have high end customers". Users are addressed as **Captain**; the
+series is **From the Captain's Table** (card, same day).
+
+**Making an issue (on the PC).** `CG Apps\MenuCaptain\MenuCaptain Updates\`:
+`<date>-whats-new.md` (Subject line + body, approved by Chris), `<date>-tiles.json` (graphic: kicker,
+date, one lead feature, four more), `make_update.py <date>` renders `out/<date>.png` (1200 px, navy and
+gold, Fraunces + Outfit via headless Chromium), `out/<date>-email.html` and `.txt` (with
+`%%UNSUBSCRIBE_URL%%` and `%%POSTAL_ADDRESS%%` left for the server) and a preview picture.
+`--publish` copies them to `dining-log-app/news/` and writes `news/latest.txt`; commit and push
+separately. The email's graphic and button open **menucaptain.com/welcome.html**, the public promo,
+refreshed the same day to the same standard. NEVER link the living promo brief: it is an internal
+filming brief with don't-film notes about real people.
+
+**Sending (owner only).** Settings → **Update email** (`UpdateEmailCard`, shown when `isOwner`):
+opens on `news/latest.txt`; **Email me a preview**, **Who gets it?**, then **Send to N people** with a
+confirm. Server `POST /api/admin/updates/send` {issue, mode preview|count|send, expect}:
+- fetches the issue from `APP_URL/news/`, refuses one without both placeholders or a subject;
+- preview goes to the owner's own account email, subject prefixed "[Preview] ";
+- recipients = every auth user with an email, deduped, minus `update_email_optouts`; if that table
+  cannot be read NOTHING is sent;
+- send refuses when `UPDATES_POSTAL_ADDRESS` (Railway, set 2026-10-14 to the MilSpo Life LLC Dallas
+  business address Chris gave) is unset, when `expect` differs from the count, or when the issue was
+  already sent in this server run;
+- each email: from `news@menucaptain.com`, reply-to `support@menucaptain.com`, its own signed
+  unsubscribe link, `List-Unsubscribe` + `List-Unsubscribe-Post` (RFC 8058), 0.6 s apart (Resend's 2/s).
+- **Unsubscribe:** `share.menucaptain.com/u/unsubscribe?u=&t=`. GET shows a confirm button only (mail
+  scanners open links); POST unsubscribes (page button or a mail app's one-click), with Resubscribe.
+  Token = HMAC of the user id, keyed off the service role key (road not taken: a dedicated secret,
+  which needs a new Railway variable; rotating the service key breaks old links, the page then says
+  to reply instead). New table `update_email_optouts` (user_id, created_at), `sql/update_email_optouts.sql`.
+- **Gaps, on purpose:** "already sent" is remembered per server run only (the log is the record);
+  no in-app Settings switch for the person yet (the email's link is the switch).
+- **Privacy:** the policy needs a line for update emails before the first real send; wording waits on
+  Chris (proposed with the preview).
+
+**Verified.** `test_news.py` runs the real server section against stand-ins (users, opt-outs, the
+published issue, Resend): failed before, 23 checks pass (owner only, date-shaped issue, count dedupes,
+preview to owner only, refusals with nothing sent: no address, count changed, opt-out list unreadable,
+missing placeholder, already sent; each email's own link and headers; no email address in the log;
+unsubscribe page changes nothing on GET, button, resubscribe, one-click, someone else's token).
+Live: `/health` 0.140.0, the send answers 401 without sign-in, the unsubscribe page answers. Table
+checked (RLS on, 0 policies, anon/authenticated cannot read, service_role can write). App card:
+`test_updatecard.py` at 375 px against a pretend server, 6 checks (owner sees it, opens on the newest
+issue, count shown, preview message, confirm then send with expect=21, call order). Issue online at
+menucaptain.com/news/. **Not yet:** a real preview through the server (Chris's tap) and the real send.
+**Tool notes:** the Railway and Resend connectors here cannot take object/array arguments; the Railway
+CLI (`railway variable set ... --service --environment --project`) works.
 
 ### The name list stops blocking "What you had" (2026-10-14, app 1.525.0)
 

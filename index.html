@@ -1178,7 +1178,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.525.0";
+const APP_VERSION   = "1.526.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -31333,6 +31333,95 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
   );
 }
 
+/* The weekly "From the Captain's Table" email (app 1.526.0, server 0.140.0).
+   Owner only. An issue is written and published on the PC (MenuCaptain
+   Updates\make_update.py, which puts it at menucaptain.com/news/ and names the
+   newest one in news/latest.txt). This card only previews and sends it, through
+   the server, which fills in each person's own unsubscribe link and the postal
+   address. Three deliberate taps: a preview to yourself, "Who gets it?", then
+   "Send to N people", where the server refuses if N has changed since the
+   check. See UPDATE EMAILS in the server for every guard. */
+function UpdateEmailCard({ config }){
+  const [issue, setIssue] = useState("");
+  const [busy, setBusy]   = useState("");
+  const [msg, setMsg]     = useState("");
+  const [count, setCount] = useState(null);   // {count, subject, address_set, already_sent}
+  useEffect(()=>{
+    fetch("https://menucaptain.com/news/latest.txt?v=" + Date.now())
+      .then(r => r.ok ? r.text() : "").then(t => {
+        const d = String(t || "").trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) setIssue(x => x || d);
+      }).catch(()=>{});
+  }, []);
+  async function call(mode, expect){
+    setBusy(mode); setMsg("");
+    try {
+      const res = await fetch(apiBase(config) + "/api/admin/updates/send", {
+        method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(config)) },
+        body: JSON.stringify({ issue: issue.trim(), mode: mode, expect: expect == null ? null : expect }),
+      });
+      const d = await res.json().catch(()=> ({}));
+      if (!res.ok){
+        setMsg((d && typeof d.detail === "string" && d.detail) || ("The server said no (" + res.status + ")."));
+        return null;
+      }
+      return d;
+    } catch(e){
+      setMsg("Couldn't reach the server.");
+      return null;
+    } finally { setBusy(""); }
+  }
+  return (
+    <div className="card" style={{marginTop:12}}>
+      <div style={{fontWeight:600}}>Update email</div>
+      <div className="small muted" style={{lineHeight:1.6, margin:"4px 0 10px"}}>
+        From the Captain's Table. Email yourself a preview first, then send it to everyone.
+      </div>
+      <label className="fld"><span className="lbl">Issue (its date)</span>
+        <input className="input" value={issue} placeholder="2026-10-14" inputMode="numeric"
+          onChange={e=>{ setIssue(e.target.value); setCount(null); }} />
+      </label>
+      <div className="row" style={{gap:8, flexWrap:"wrap"}}>
+        <button className="btn ghost sm" disabled={!!busy || !issue.trim()} onClick={async ()=>{
+          const d = await call("preview");
+          if (d) setMsg("Preview sent to your email: \u201c" + d.subject + "\u201d");
+        }}>{busy === "preview" ? "Sending..." : "Email me a preview"}</button>
+        <button className="btn ghost sm" disabled={!!busy || !issue.trim()} onClick={async ()=>{
+          const d = await call("count");
+          if (d) setCount(d);
+        }}>{busy === "count" ? "Checking..." : "Who gets it?"}</button>
+      </div>
+      {count ? (
+        <div style={{marginTop:12}}>
+          <div className="small">
+            {count.count} {count.count === 1 ? "person" : "people"} will get {"\u201c" + count.subject + "\u201d"}.
+          </div>
+          {!count.address_set ? (
+            <div className="tiny" style={{color:"var(--danger)", marginTop:4}}>
+              The mailing address isn't set on the server, so it can't be sent yet.
+            </div>
+          ) : null}
+          {count.already_sent ? (
+            <div className="tiny faint" style={{marginTop:4}}>This issue has already been sent.</div>
+          ) : null}
+          <button className="btn primary sm" style={{marginTop:10}}
+            disabled={!!busy || !count.address_set || count.already_sent || !count.count}
+            onClick={async ()=>{
+              if (!window.confirm("Send \u201c" + count.subject + "\u201d to " + count.count +
+                                  " people now? It can't be undone.")) return;
+              const d = await call("send", count.count);
+              if (d){
+                setMsg("Sent to " + d.sent + (d.failed ? "; " + d.failed + " failed, see the server log" : "") + ".");
+                setCount(null);
+              }
+            }}>{busy === "send" ? "Sending..." : "Send to " + count.count + " people"}</button>
+        </div>
+      ) : null}
+      {msg ? <div className="small" style={{marginTop:10, lineHeight:1.5}}>{msg}</div> : null}
+    </div>
+  );
+}
+
 function SettingsView({config, profile, onProfileChange, onOpenConnections, pendingReqs, onEdit, counts, lastSync, onResync,
                        locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
@@ -31757,6 +31846,8 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           </div>
         )}
       </div>
+
+      {isOwner(config) ? <UpdateEmailCard config={config} /> : null}
 
       {isOwner(config) && (
         <div className="card" style={{marginTop:12}}>
