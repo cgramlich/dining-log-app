@@ -23,7 +23,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 | Piece | Version | Where |
 |---|---|---|
 | Web app | **1.526.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.140.0** | Railway, `/health` reports `db connected` |
+| Backend | **0.142.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.526.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -402,6 +402,16 @@ asking people first). Then, through drafts: "do a graphic of the features" ahead
 link it to "the full promo", add how to send suggestions, and "Everything we should do needs to be
 elegant and beautiful because we have high end customers". Users are addressed as **Captain**; the
 series is **From the Captain's Table** (card, same day).
+
+**The rhythm (Chris, 2026-10-14): one issue a week**, "with features bug fixes and other things that
+we change", drafted from that week's MenuCaptain Log, approved by Chris, previewed with his button,
+sent with his tap. The first issue opens with a welcome to the Captain's Table and has the subject
+"Welcome to the Captain's Table: ..."; later ones use "From the Captain's Table: ...".
+
+**Built and removed the same day (server 0.141.0 to 0.142.0):** an automatic preview, the server
+reading `news/` every 3 minutes and emailing Chris each new version itself. Chris had chosen
+"automatic previews" on a card that did not say how; on hearing it, "No, that's ridiculous. You don't
+need to check something every 3 minutes." Do not rebuild it. Name the mechanism on a card.
 
 **Making an issue (on the PC).** `CG Apps\MenuCaptain\MenuCaptain Updates\`:
 `<date>-whats-new.md` (Subject line + body, approved by Chris), `<date>-tiles.json` (graphic: kicker,
