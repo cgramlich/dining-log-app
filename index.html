@@ -189,6 +189,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .chip.dish.loved{background:rgba(214,73,97,0.22); border-color:#d64961; color:#f3aeba; font-weight:700;}
     .chip.dish.again{background:rgba(224,118,74,0.22); border-color:var(--accent); color:#f7c9ab; font-weight:600;}
     .chip.dish.skip{opacity:0.5; text-decoration:line-through;}
+    /* A dish marked as a special (1.524.0): quiet gold, not a verdict colour. */
+    .special-star{color:#e3c48a; margin-right:5px; font-size:12px; vertical-align:1px;}
+    .special-mark{color:#e3c48a; font-weight:600;}
+    .dish-cam.on{color:#e3c48a;}
     /* editable dish rows inside the visit form */
     .dish-row{
       display:flex; align-items:center; gap:8px;
@@ -1174,7 +1178,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.523.0";
+const APP_VERSION   = "1.524.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2197,8 +2201,9 @@ name wherever that menu appears, so the thing this place is known for is obvious
 at the moment you are choosing rather than after you have ordered.
 
 **Specials and things not on the menu.** These belong to the visit you had them
-on, not to the place. When you log a visit, type the name under **What you had**
-and tap **Add** - see **Something not on the menu** under Logging a visit.
+on, not to the place. When you log a visit, type the name under **What you had**,
+tap **Add**, and tap **Mark as special** under it if it was one - see **Something
+not on the menu** under Logging a visit.
 
 **About this place, drafted for you.** In a place's Edit screen, under **About
 this place**, tap **Suggest from the web**. It searches the web and drafts two
@@ -2310,7 +2315,10 @@ photo estimate below).
 you asked, a dish the scan missed - type it under **What you had** and tap
 **Add** (the list also offers **Add "whatever you typed"**). It goes on the visit
 like any other dish, so a friend you share the visit with sees it in what you
-had, and it is offered again the next time you log a visit at that place.
+had, and it is offered again the next time you log a visit at that place. If it
+was a special, tap **Mark as special** under the dish: it gets a small gold
+**Special** tag in your history and on a visit you share, so nobody goes looking
+for it on the regular menu. Tap it again to unmark it.
 
 **Two dishes with the same name.** Some places list one dish under several
 headings - a pancake house might have the same berry special as a pancake, a
@@ -4348,6 +4356,7 @@ function buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl, note
   // The plate: dish NAMES only, flagged with WHICH verdict. No per-dish notes,
   // no per-dish ratings, no what-you-paid.
   //   y:2 loved   y:1 would order again   absent neither
+  //   s:1 the diner marked it as a special (1.524.0); absent on older links
   // Older links only ever set y:1, so they keep reading as "again" - the safer
   // one to be wrong about, since it under-claims.
   const plate = ((visit && visit.dishes) || [])
@@ -4357,6 +4366,7 @@ function buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl, note
       const x = { n: String(d.name).trim() };
       if (d.verdict === "loved") x.y = 2;
       else if (d.verdict === "again") x.y = 1;
+      if (d.special) x.s = 1;
       return x;
     })
     .filter(d => d.n);
@@ -6610,8 +6620,9 @@ function dishHistory(visits){
     const k = d.name.trim().toLowerCase();
     let e = memo.get(k);
     if (!e){ e = { name:d.name, latest:null, count:0, lastDate:"",
-                   priceSum:0, priceN:0, rateSum:0, rateN:0 }; memo.set(k, e); }
+                   priceSum:0, priceN:0, rateSum:0, rateN:0, special:false }; memo.set(k, e); }
     e.count += 1;
+    if (d.special) e.special = true;                       // marked a special on any visit
     if (!e.latest && d.verdict) e.latest = d.verdict;     // newest verdict wins
     if (!e.lastDate && v.date)  e.lastDate = v.date;       // newest date wins
     const p = parsePrice(d.price);                         // typed or from a check
@@ -6626,6 +6637,7 @@ function dishHistory(visits){
     lastDate: e.lastDate,
     paid: e.priceN ? (e.priceSum / e.priceN) : null,       // avg paid, dollars
     rating: e.rateN ? (e.rateSum / e.rateN) : null,        // avg visit rating
+    special: e.special,                                    // marked as a special (1.524.0)
   }));
   const loved    = detail.filter(x => verdictPositive(x.verdict)).map(x => x.name);
   const disliked = detail.filter(x => x.verdict === "skip").map(x => x.name);
@@ -6712,6 +6724,7 @@ async function askMenu(cfg, restaurant, menu, visits, question, allVisits, threa
       else if (d.verdict === "skip") bits.push("did not like it");
       if (d.count > 1) bits.push("ordered " + d.count + " times");
       if (d.paid) bits.push("usually pays about $" + d.paid.toFixed(2));
+      if (d.special) bits.push("it was a special, so it may not be offered today");
       const tail = bits.length ? " - " + bits.join(", ") : " - ordered before";
       prompt += "    " + d.name + tail +
         (d.lastDate ? " (last on " + d.lastDate + ")" : "") + "\n";
@@ -7642,6 +7655,18 @@ function dishSharePct(d){
 function dishShareLabel(d){
   var p = dishSharePct(d);
   return p == null ? "" : (" \u00b7 " + Math.round(p) + "%");
+}
+
+/* A dish marked as a special (app 1.524.0). Chris, 2026-10-14: "how do we
+   handle specials? Is it just an item I add, or do I mark it as a special?",
+   and then, by card, "Add a Special switch". So it is the diner's own mark,
+   set on the dish in Log a visit; nothing guesses it. Stored as
+   `special: true` on the visit's dish, sent as `s:1` on a shared visit's plate.
+   The road not taken: tagging every dish that is not on the place's menus.
+   Automatic, but it cannot tell tonight's special from a dish the scan missed
+   or a request made off the menu. */
+function dishSpecialMark(d){
+  return (d && d.special) ? <span className="special-mark">{" \u00b7 Special"}</span> : null;
 }
 // true when this nutrition source is a FULL serving (so a share scales it)
 function shareScales(n){
@@ -11534,7 +11559,7 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit, onMerge }){
                 {v.dishes && v.dishes.length > 0 && (
                   <div className="chips" style={{marginTop:8}}>
                     {v.dishes.slice(0,6).map((d,i)=> (
-                      <span key={i} className={"chip dish" + dishChipClass(d.verdict)}>{d.name}</span>
+                      <span key={i} className={"chip dish" + dishChipClass(d.verdict)}>{d.name}{dishSpecialMark(d)}</span>
                     ))}
                   </div>
                 )}
@@ -12105,7 +12130,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
                 {v.dishes.map((d,i)=> (
                   <span key={i} className={"chip dish" +
                     dishChipClass(d.verdict)}>
-                    {d.name}{dishShareLabel(d)}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + dishKcalNum(d) : ""}
+                    {d.name}{dishShareLabel(d)}{dishSpecialMark(d)}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + dishKcalNum(d) : ""}
                   </span>
                 ))}
               </div>
@@ -14108,7 +14133,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   {v.dishes.map((d,i)=> (
                     <span key={i} className={"chip dish" +
                       dishChipClass(d.verdict)}>
-                      {d.name}{dishShareLabel(d)}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + dishKcalNum(d) : ""}{d.price ? " \u00b7 " + fmtPrice(d.price) : ""}
+                      {d.name}{dishShareLabel(d)}{dishSpecialMark(d)}{d.nutrition && d.nutrition.kcal ? " \u00b7 ~" + dishKcalNum(d) : ""}{d.price ? " \u00b7 " + fmtPrice(d.price) : ""}
                     </span>
                   ))}
                 </div>
@@ -20891,6 +20916,16 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
       ? Object.assign({}, x, { verdict: x.verdict === v ? null : v })
       : x));
   }
+  // Mark or unmark a dish as a special (see dishSpecialMark). Unmarked means
+  // the key is gone, not false, so older visits and new ones read the same.
+  function toggleSpecial(name){
+    setDishes(d => d.map(x => {
+      if (x.name !== name) return x;
+      const y = Object.assign({}, x);
+      if (y.special) delete y.special; else y.special = true;
+      return y;
+    }));
+  }
   function toggleNote(name){ setNoteOpen(o => Object.assign({}, o, { [name]: !o[name] })); }
   function setDishNote(name, text){
     setDishes(d => d.map(x => x.name === name ? Object.assign({}, x, { note: text }) : x));
@@ -21487,7 +21522,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
               until you had typed something that matched no dish. This is now
               the one place a special goes, so it has to say so. */}
           <div className="tiny faint" style={{marginTop:6}}>
-            Had a special, or something not on the menu? Type it in and tap Add.
+            Had a special, or something not on the menu? Type it in and tap Add, then Mark as special if it was one.
           </div>
           {usuals.filter(n => dishNames.indexOf(n) === -1).length > 0 && (
             <div style={{marginTop:10}}>
@@ -21672,7 +21707,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                       onClick={()=> setEditDish({ orig:d.name, draft:d.name, err:"",
                                                   match: findMenuItem(d.name), fixMenu:false })}
                       style={{cursor:"pointer"}}>
-                      {d.name}{dishShareLabel(d)}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}
+                      {d.special ? <span className="special-star" title="Special" aria-label="Special">{"\u2726"}</span> : null}{d.name}{dishShareLabel(d)}{d.price ? <span className="tiny muted"> {fmtPrice(d.price)}</span> : null}
                       {/* The name was always tappable to rename; nothing said so (2026-10-08). */}
                       <span style={{marginLeft:6, verticalAlign:"-1px", display:"inline-flex"}} aria-hidden="true">
                         <Icon name="edit" size={12} color="var(--text-faint)" /></span></span>
@@ -21731,6 +21766,11 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
                     <button className="dish-cam" onClick={()=> toggleNote(d.name)}>
                       <Icon name="note" size={13} color="var(--accent)" />
                       {d.note ? "Edit note" : "Add a note"}
+                    </button>
+                    <button className={"dish-cam" + (d.special ? " on" : "")} aria-pressed={!!d.special}
+                      onClick={()=> toggleSpecial(d.name)}>
+                      <Icon name="star" size={13} color={d.special ? "#e3c48a" : "var(--accent)"} />
+                      {d.special ? "Marked as special" : "Mark as special"}
                     </button>
                     {/* A photo of the plate, kept as a photo. The camera
                         controls above this one are about calorie estimates and
@@ -23746,7 +23786,7 @@ function PublishedVisit({data, onSaved, onLogVisit}){
           <div className="chips" style={{justifyContent:"center"}}>
             {data.ate.map((d,i)=>(
               <span key={i} className={"chip dish" + (d.y === 2 ? " loved" : d.y ? " again" : "")}>
-                {d.y === 2 ? "\u2665 " : ""}{d.n}
+                {d.y === 2 ? "\u2665 " : ""}{d.n}{d.s ? <span className="special-mark">{" \u00b7 Special"}</span> : null}
               </span>
             ))}
           </div>

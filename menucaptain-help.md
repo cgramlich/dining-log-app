@@ -362,8 +362,9 @@ name wherever that menu appears, so the thing this place is known for is obvious
 at the moment you are choosing rather than after you have ordered.
 
 **Specials and things not on the menu.** These belong to the visit you had them
-on, not to the place. When you log a visit, type the name under **What you had**
-and tap **Add** - see **Something not on the menu** under Logging a visit.
+on, not to the place. When you log a visit, type the name under **What you had**,
+tap **Add**, and tap **Mark as special** under it if it was one - see **Something
+not on the menu** under Logging a visit.
 
 **About this place, drafted for you.** In a place's Edit screen, under **About
 this place**, tap **Suggest from the web**. It searches the web and drafts two
@@ -475,7 +476,10 @@ photo estimate below).
 you asked, a dish the scan missed - type it under **What you had** and tap
 **Add** (the list also offers **Add "whatever you typed"**). It goes on the visit
 like any other dish, so a friend you share the visit with sees it in what you
-had, and it is offered again the next time you log a visit at that place.
+had, and it is offered again the next time you log a visit at that place. If it
+was a special, tap **Mark as special** under the dish: it gets a small gold
+**Special** tag in your history and on a visit you share, so nobody goes looking
+for it on the regular menu. Tap it again to unmark it.
 
 **Two dishes with the same name.** Some places list one dish under several
 headings - a pancake house might have the same berry special as a pancake, a

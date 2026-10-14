@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.523.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.524.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.139.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.523.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.524.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,38 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A Special switch on each dish (2026-10-14, app 1.524.0)
+
+Chris, with a screenshot of Edit visit: "how do we handle specials? Is it just an item I add, or do I
+mark it as a special? I'm not really sure what I see." Answer then: just an item you add; nothing
+marked it. Offered by card: an automatic "Not on the menu" label (recommended), a switch, or leave
+it. He chose **"Add a Special switch"**.
+
+- Under each dish in Log a visit / Edit visit: **Mark as special** (star icon). Marked, it reads
+  **Marked as special** in gold and the dish name gets a gold ✦ (`.special-star`). Tap again to
+  unmark. Stored as `special: true` on the visit's dish; unmarking deletes the key (`toggleSpecial`).
+- Shown as a gold " · Special" (`dishSpecialMark`, `.special-mark`) on the dish chips in History,
+  on the place page's visit cards and on the place's recent-visit chips.
+- A shared visit's plate carries `s:1` (`buildVisitPayload`); the friend's page shows "· Special".
+  Older links simply have no mark.
+- Help me order is told "it was a special, so it may not be offered today" (`dishHistory` keeps
+  `special`, the prompt adds the bit).
+- The hint under the dish box now ends "...then Mark as special if it was one." Guide updated in two
+  places.
+- **First design rejected on sight:** an uppercase gold "SPECIAL" pill beside the name. In the narrow
+  name column it wrapped onto its own line and pushed the pencil down. Replaced by the ✦ before the
+  name. Chris's standard for anything a customer sees (2026-10-14): "elegant and beautiful... first
+  class and polished".
+- **The road not taken:** labelling automatically any dish not on the place's menus. It can't tell
+  tonight's special from a dish the scan missed or an off-menu request.
+
+**Verified.** `test_special.js` runs the real `buildVisitPayload`, `visitSpecial` and `dishHistory`
+sliced from index.html: failed 3 of 6 before, all 6 pass after (s:1 on the special only, verdicts
+unchanged, history keeps the mark, the prompt line exists). Locally at phone width: marking the
+Branzino showed the ✦ and "Marked as special"; Save stored `special: true` and History's chip read
+"Branzino al sale · Special"; a shared visit with `s:1` in the inbox showed "· Special" in gold;
+unmarking and saving removed the key and the mark. **Not checked:** a real phone.
 
 ### Menu scans finish without you (2026-10-14, app 1.523.0, backend 0.139.0)
 
