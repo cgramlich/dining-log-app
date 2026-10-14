@@ -1204,7 +1204,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.527.0";
+const APP_VERSION   = "1.528.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1734,6 +1734,9 @@ function signOutHard(){
   // service-worker caches so one account's offline-cached data never shows to
   // the next person who signs in on this device.
   try { localStorage.removeItem(CFG_KEY); localStorage.removeItem(DATA_KEY); } catch(e){}
+  // The collections copy too (1.528.0): the privacy policy says signing out
+  // clears what the app keeps on the device, and 1.527.0 added this one.
+  try { localStorage.removeItem("dininglog_collections"); localStorage.removeItem("dininglog_collections_dirty"); } catch(e){}
   try {
     if (navigator.serviceWorker && navigator.serviceWorker.controller){
       navigator.serviceWorker.controller.postMessage({ type:"clearCache" });
@@ -32389,7 +32392,8 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
             {isOwner(config) ? <button className="btn ghost sm" onClick={onEdit}>Edit</button> : null}
             <button className="btn ghost sm" onClick={()=>{
               if (confirm("Sign out? You'll need to sign back in on this device.")){
-                try { localStorage.removeItem(CFG_KEY); localStorage.removeItem(DATA_KEY); } catch(e){}
+                try { localStorage.removeItem(CFG_KEY); localStorage.removeItem(DATA_KEY);
+                      localStorage.removeItem("dininglog_collections"); localStorage.removeItem("dininglog_collections_dirty"); } catch(e){}
                 location.reload();
               }
             }}>Sign out</button>

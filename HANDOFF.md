@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.527.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.528.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.143.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.527.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.528.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,15 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Signing out clears the collections copy too (2026-10-14, app 1.528.0)
+
+Found while checking the privacy policy for the backups work: it says signing out clears what the
+app keeps on the device, and 1.527.0's `dininglog_collections` (and its dirty flag) survived a sign
+out (both sign-out paths, `signOutHard` and Settings' Sign out button, removed only CFG_KEY and
+DATA_KEY). Both now remove them. The cache was already tagged with the user id, so another person
+never SAW the old copy; this makes the policy literally true. **Rule:** a new localStorage key that
+holds account data must be added to both sign-out paths.
 
 ### Collections: a trip, or any set of meals (2026-10-14, app 1.527.0, backend 0.143.0)
 
