@@ -1,0 +1,43 @@
+From the Captain’s Table · What’s new · October 14, 2026
+
+Dear Captain,
+
+A handful of new things arrived in MenuCaptain this week. They are already in your app; if you see “Update available”, tap Refresh.
+
+SCAN A MENU, THEN WALK AWAY
+
+Once your photos are sent, which takes a few seconds, you are free to switch apps or put your phone away. The menu keeps being read, a note at the top of MenuCaptain tells you when it’s ready, and if you haven’t returned two minutes after it finishes, we’ll email you a link. A menu photographed in several pages is now read all at once, so it arrives sooner too.
+
+MENUS IN ENGLISH
+
+A menu in Spanish, Italian or any other language now offers Show English. The original stays exactly as printed, with the English beneath each dish, so you can still point to the original when you order. You can search in English as well: “octopus” finds the pulpo.
+
+REPLIES
+
+When a friend sends you a place, a menu or a visit, you can answer with a tap or a few words, and they can write back. If they’ve sent a menu, tick the dishes you’d choose and send your picks back without leaving the app.
+
+RICHER RECOMMENDATIONS
+
+Sending a place now carries your rating, the dishes you loved and photos from your visits; a single tick leaves the photos out. A shared visit now includes what makes the place special. Select all reaches every friend at once, and the Sharing screen keeps a record of what you’ve sent and to whom.
+
+LOGGING A VISIT
+
+Dish search now looks through every menu at a place, reads descriptions as well as names, and ignores accents, so “tiramisu” finds Tiramisù. Had a special? Add it, then tap Mark as special, and it reads as a special in gold wherever it appears, including on a visit you share. Each visit now holds up to ten photos, and correcting a dish’s name once corrects it on your past visits there as well.
+
+REFINEMENTS
+
+The Back button no longer hides behind the clock on things friends send you. Restaurants you add abroad now keep their city. Votes in “Where shall we eat?” are saved as they should be. Dish suggestions no longer cover the page as you type, and signing up is simpler.
+
+YOUR IDEAS SHAPE MENUCAPTAIN
+
+Spotted something that isn’t quite right, or wish MenuCaptain did something it doesn’t yet? We read every note. In the app, open Settings (the gear at the top of Home) and tap Share feedback, then choose a bug, a feature request or a suggestion; it comes straight to us. Or simply reply to this email.
+
+Bon appétit,
+The MenuCaptain team
+
+See everything MenuCaptain does: https://menucaptain.com/welcome.html
+
+—
+You’re receiving this because you have a MenuCaptain account.
+Unsubscribe from these updates: %%UNSUBSCRIBE_URL%%
+%%POSTAL_ADDRESS%%
