@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.524.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.525.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.139.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.524.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.525.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,29 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The name list stops blocking "What you had" (2026-10-14, app 1.525.0)
+
+Chris, with a screenshot of Log a visit, the "Who was with you?" list open over "What you had":
+"It won't let me put what I had until I add who I was with, and that list obfuscates the rest of it".
+
+**Cause.** `PeopleTag` drew its suggestions `position:absolute` over the page AND put a full-screen
+`position:fixed` layer behind them (zIndex 5) so that "a tap anywhere else closes the list". That layer
+swallowed every tap: the first tap on "What you had" only closed the list, and the list itself covered
+the dish box. Same family as the dish suggestions fixed in 1.522.0.
+
+**Fix.** The list renders in the page under the box (pushes the rest down), the invisible layer is
+gone, and the list closes when the box loses focus (`onBlur`, 180 ms grace). Rows and Done use
+`onMouseDown preventDefault` so a tap on a name lands before the blur closes the list.
+
+**Rule for the next dropdown:** no floating lists and no tap-catching layers in a form. In the flow,
+close on blur. Two have now cost Chris a screenshot each.
+
+**Verified.** `test_people.py` (headless Chromium at 375 px, made-up names) on the real app: the old
+1.524.0 failed 3 checks and could not even tap the dish box ("subtree intercepts pointer events",
+exactly the report); 1.525.0 passes all 6: the list opens on tap, is in the page, "What you had"
+starts below it, no tap-catching layer, tapping the dish box closes the list and focuses it, tapping
+a name still adds it. **Not checked:** a real iPhone.
 
 ### A Special switch on each dish (2026-10-14, app 1.524.0)
 

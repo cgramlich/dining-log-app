@@ -1178,7 +1178,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.524.0";
+const APP_VERSION   = "1.525.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -19927,33 +19927,39 @@ function PeopleTag({ value, onChange, roster }){
           ))}
         </div>
       ) : null}
-      <div className="spl-row" style={{position:"relative"}}>
+      <div className="spl-row">
         <ClearInput value={q} placeholder="Add a name"
           onChange={e=>{ setQ(e.target.value); setOpen(true); }}
           onFocus={()=> setOpen(true)}
+          // Leaving the box closes the list. A moment's grace so that the tap
+          // which moved focus onto a name still lands on it.
+          onBlur={()=> setTimeout(()=> setOpen(false), 180)}
           onKeyDown={e=>{
             if (e.key === "Enter"){ e.preventDefault(); addFree(); }
             else if (e.key === "Escape"){ e.preventDefault(); setOpen(false); }
           }} />
         <button className="btn" style={{width:"auto", padding:"0 16px"}} onClick={addFree}>Add</button>
-        {/* A tap anywhere else closes the list. Sits UNDER it, over everything
-            else, which is how you leave without choosing a person. */}
-        {open && sugg.length ? (
-          <div onClick={()=> setOpen(false)}
-            style={{position:"fixed", inset:0, zIndex:5}} aria-hidden="true" />
-        ) : null}
-        {open && sugg.length ? (
-          <div className="card" style={{position:"absolute", top:"100%", left:0, right:0, zIndex:6,
-               marginTop:4, maxHeight:200, overflowY:"auto", padding:"4px 0"}}>
+      </div>
+      {/* The names sit IN the page, under the box, and push what is below them
+          down; leaving the box closes them. They used to float over the page,
+          with an invisible layer behind them that swallowed every tap until
+          the list was closed, so "What you had" could not be reached. Chris,
+          2026-10-14: "It won't let me put what I had until I add who I was
+          with, and that list obfuscates the rest of it". Same fix as the dish
+          suggestions in 1.522.0. */}
+      {open && sugg.length ? (
+          <div className="card" style={{marginTop:6, marginBottom:0, padding:"4px 0"}}>
             <div className="row between" style={{padding:"2px 12px 6px", alignItems:"center"}}>
               <span className="tiny faint">Tap a name, or type your own</span>
               <button type="button" className="tiny"
                 style={{background:"none", border:0, color:"var(--accent)", cursor:"pointer",
                         padding:"2px 4px", fontWeight:600}}
+                onMouseDown={e=> e.preventDefault()}
                 onClick={()=> setOpen(false)}>Done</button>
             </div>
             {sugg.map((p,i)=>(
               <div key={i} className="pick-row" style={{padding:"9px 14px", display:"flex", alignItems:"center", gap:8}}
+                onMouseDown={e=> e.preventDefault()}
                 onClick={()=> add(p)}>
                 <span style={{flex:1, minWidth:0}}>{p.name}</span>
                 {p.username ? <span className="tiny faint" style={{flex:"none"}}>@{p.username}</span>
@@ -19961,8 +19967,7 @@ function PeopleTag({ value, onChange, roster }){
               </div>
             ))}
           </div>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 }
