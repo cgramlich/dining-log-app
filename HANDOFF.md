@@ -23,7 +23,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 | Piece | Version | Where |
 |---|---|---|
 | Web app | **1.528.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.143.0** | Railway, `/health` reports `db connected` |
+| Backend | **0.144.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.528.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -393,6 +393,42 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Nightly off-site backups to Cloudflare R2 (2026-10-14, backend 0.144.0)
+
+Chris: "how can we be assured that our data is backed up so they don't lose their pictures and
+visits". Before this: Supabase Pro's daily database backups (7 days) and NO copy of any photo, and
+nothing outside Supabase. He chose Cloudflare R2 ("Go with cloudflare"), and set up the account
+(signed in with GitHub), the free R2 plan ($0; card on file), bucket **menucaptain-backups**, and an
+Account API token with **Object Read & Write on that bucket only**. Claude set R2_ACCOUNT_ID and
+R2_BUCKET in Railway and placeholders for the two secrets; Chris replaced those himself.
+
+**What runs (BACKUPS in main.py).** Once a night at 09:00 UTC (~4 am Dallas), and once ~2 minutes
+after a deploy when the last good run is over 26 hours old:
+- `db/<date>.json.gz`: every table the service role can read (from PostgREST's OpenAPI document, so
+  new tables are included automatically) plus accounts (id, email, created). **`scan_jobs` is
+  excluded** (the policy promises its text is gone within 7 days). The file is READ BACK and every
+  table's row count compared; a mismatch is a failure. Kept 30 days.
+- `photos/<path>`: new photos only. A photo deleted in the app is removed from R2 29 days after the
+  run that first sees it missing, i.e. within 30 days of the deletion.
+- `state.json`: last good run and which photos went missing when.
+- S3 Signature V4 written with hmac/hashlib (no boto3), tested against AWS's two published examples.
+- `/health` `"backup"`: "ok <date>", "failed <date>", "waiting for keys", "not run yet" or "off".
+  Kill switch `BACKUP=off`.
+
+**Privacy policy** (wording approved by Chris by card): Cloudflare under service providers, and a
+Retention paragraph: nightly copy, kept 30 days, deleted things gone from backups within 30 days,
+short-lived scan text never copied.
+
+**First run, live, 2026-10-14 23:55 UTC:** ok; 33 tables, 1,157 rows, 21 accounts, 1.0 MB
+compressed, 610 photos copied, 0 failed, 201 s. Keys confirmed present by length only (32 and 64).
+
+**Verified.** `test_backup.py` against the real section: failed before; 17 checks pass (AWS example
+signatures, placeholders mean waiting, list pagination, every table paged past 1,000, scan_jobs
+excluded, all photos first night and only new ones after, deleted photo kept then removed, old
+database copies pruned, a short read-back is a FAILED run, next-run time, no secret in logs).
+**Still to do:** a restore drill: download one night's file and load it into a scratch database
+to prove it restores, not just that it reads back. And a Cloudflare budget alert is optional.
 
 ### Signing out clears the collections copy too (2026-10-14, app 1.528.0)
 
