@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.526.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.142.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.526.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.527.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.143.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.527.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,57 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Collections: a trip, or any set of meals (2026-10-14, app 1.527.0, backend 0.143.0)
+
+Chris: "We should allow people to build collections, say, based on a trip, for example, we are on
+our honeymoon". By card: **collections with optional dates**, **sharing with friends in the first
+version**, and **a new table**. Everything in `COLLECTIONS` in index.html.
+
+- **Model.** `{id, name, start, end, cover, include, exclude, created_at, updated_at}`, visit IDS
+  only. With dates, every visit in [start, end] belongs by itself (`end` empty = still travelling,
+  today counts), minus `exclude`; `include` adds any visit by hand. `colSetMember` records an
+  exclusion for a dated meal and an inclusion otherwise. So meals logged later on the trip join
+  without anyone doing anything.
+- **Storage.** Server: `collections` in the whole-collection endpoint, one row per person like
+  `lists` (table `collections`, FK cascade, RLS, `sql/collections.sql`). App: `collections` state,
+  loaded after lists. **Plus a copy on the phone** (`dininglog_collections`, tagged with the user id)
+  so a trip abroad on a weak signal still shows them; a save that fails sets
+  `dininglog_collections_dirty` = the user id and is PUT on the next open (before reading the
+  server's copy) or on the browser's `online` event. The flag names whose changes wait, so another
+  person signing in on the phone can never send someone else's collections over theirs.
+- **Screens.** History: "Start a collection" line, then a strip of photo cards. Collection page
+  (`CollectionView`): cover (tap: choose from its own photos), title, date line, "N meals · N places ·
+  N cities", Share / Map / Add meals, Edit in the header (four buttons wrapped at 375 px), favorite
+  places (rated 4+), dishes you loved (with Special marks), then day by day ("Saturday, October 10 ·
+  Day 1") with each meal's photos, stars, dishes and "Leave out of this collection". Map reuses
+  `MapView` with only the collection's places and its name as the title. Log / Edit visit: a
+  "Collections" row (chips) when any exist, "Part of X by its dates. Tap to leave it out.";
+  the choices ride `extras.collectionPicks` and are applied with the save (`applyCollectionPicks`).
+- **Sharing.** `CollectionShareSheet` sends kind `collection` (server allows it, keys it by `cid` in
+  the Sent list, replies accept it): per meal place, city, cuisine, date, stars, dishes with y/s
+  marks, up to 3 photos (36 in all, signed 12 at a time by `signPhotoMap`), the cover, an optional
+  note. NEVER notes, companions, money or dish notes (tested). Friend side: `PublishedCollection` in
+  the inbox. Road not taken: a public link page for a collection.
+- **Found in passing and fixed:** account deletion never removed saved check splits (no FK, not in
+  the list): names and amounts left behind. 0.143.0 deletes `splits` and `collections` too.
+- **Privacy policy**, wording approved by Chris by card: a "A collection" line under what travels,
+  "or a special" on the visit line, the Sent-list paragraph names collections, "Your content" lists
+  collections.
+
+**Verified.** Server `test_collections_backend.py`: the old server refused the name (404); 10 checks
+pass (empty for a new user, save and read back per person, one row per person, non-list and
+oversize refused, share subject key, share and reply kinds, deletion list). Live: `/health` 0.143.0,
+`/api/collection/collections` 401 without sign-in; table checked (RLS on, 0 policies, anon and
+authenticated cannot read, service_role can write). App rules `test_collections.js` (sliced from
+index.html): 21 checks (open-ended trip runs to today and gathers tomorrow's meal, end date closes
+it, exclusion and re-inclusion, hand-picked, date order, date lines, day numbers, stats, payload
+fields and marks, 3 photos a meal, cover, NEVER notes/companions/money, unticked photos sign
+nothing, 36 cap, real signing 12 at a time). Screens `test_collections_ui.py` at 375 px against a
+pretend server: 18 checks (start, create, saved without copying meals, day numbers, highlights,
+special mark, leave out, add by hand, share payload and privacy, History strip, visit form row and
+leaving out on save, offline save kept and marked, sent on next open, inbox lists and opens the
+friend's view). **Not checked:** real photos (the test copy cannot load them), a real phone.
 
 ### The weekly update email, "From the Captain's Table" (2026-10-14, app 1.526.0, backend 0.140.0)
 

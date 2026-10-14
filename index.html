@@ -191,6 +191,32 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .chip.dish.skip{opacity:0.5; text-decoration:line-through;}
     /* A dish marked as a special (1.524.0): quiet gold, not a verdict colour. */
     .special-star{color:#e3c48a; margin-right:5px; font-size:12px; vertical-align:1px;}
+    /* Collections (1.527.0): a trip, or any set of meals. Editorial, not
+       dashboard: serif names, photo-led cards, generous space. */
+    .col-strip{display:flex; gap:12px; overflow-x:auto; padding:0 2px 8px; scroll-snap-type:x mandatory;
+      -webkit-overflow-scrolling:touch;}
+    .col-card{flex:none; width:152px; scroll-snap-align:start; cursor:pointer;}
+    .col-cover{width:152px; height:112px; border-radius:14px; overflow:hidden; background:var(--surface-2);
+      border:1px solid var(--line); display:flex; align-items:center; justify-content:center;}
+    .col-cover img, .col-cover .photo-shell{width:100%; height:100%; object-fit:cover; display:block;}
+    .col-cover.col-new{border-style:dashed; background:transparent;}
+    .col-card-name{font-family:'Fraunces',serif; font-size:16px; line-height:1.2; margin-top:8px; color:var(--text);}
+    .col-card-sub{font-size:12px; color:var(--text-faint); margin-top:2px;}
+    .col-hero{position:relative; margin:0 0 16px; border-radius:16px; overflow:hidden; height:220px;
+      background:var(--surface-2); cursor:pointer;}
+    .col-hero img, .col-hero .photo-shell{width:100%; height:220px; object-fit:cover; display:block;}
+    .col-hero-edit{position:absolute; right:10px; bottom:10px; font-size:12px; padding:5px 11px;
+      border-radius:999px; background:rgba(0,0,0,0.55); color:#efe6da;}
+    .col-title{font-family:'Fraunces',serif; font-size:30px; line-height:1.12; text-align:center; color:var(--text);}
+    .col-meta{text-align:center; font-size:13px; color:var(--text-dim); margin-top:6px; line-height:1.5;}
+    .col-h{font-family:'Fraunces',serif; font-size:17px; color:var(--text); margin:0 0 9px;}
+    .col-day{font-family:'Fraunces',serif; font-size:19px; color:var(--text); margin:24px 2px 4px;}
+    .col-day-n{font-family:inherit; font-size:13px; color:var(--text-faint); margin-left:6px;}
+    .col-stars{color:var(--accent); letter-spacing:2px; font-size:13px; flex:none;}
+    .col-leave{background:none; border:0; padding:10px 0 0; font-size:12px; color:var(--text-faint); cursor:pointer;}
+    .col-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px;}
+    .col-grid > div{aspect-ratio:1/1; border-radius:10px; overflow:hidden; cursor:pointer; background:var(--surface-2);}
+    .col-grid img, .col-grid .photo-shell{width:100%; height:100%; object-fit:cover; display:block;}
     .special-mark{color:#e3c48a; font-weight:600;}
     .dish-cam.on{color:#e3c48a;}
     /* editable dish rows inside the visit form */
@@ -1178,7 +1204,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.526.0";
+const APP_VERSION   = "1.527.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2905,6 +2931,33 @@ see a **Check split** line in History) without touching the rest of the meal.
 You can also split while you are logging: under the scanned receipt in **Log a
 visit**, tap **Split the check**, build the split, and tap **Use this split** - it
 rides along on the visit and is saved when you save the visit.
+
+## Collections
+
+**Keep a trip together.** In **History**, tap **Start a collection** (or **New**
+beside Collections once you have one), give it a name, say "Our honeymoon", and
+tick **It's a trip, with dates**. Every meal you log between those dates joins
+it by itself, including the ones you log tomorrow; leave the end date empty
+while you're still travelling. A collection without dates is hand-picked: add
+any meals you like with **Add meals**.
+
+**The collection page** opens on a cover photo (tap it to choose another from
+the collection's own pictures), then your favorite places and the dishes you
+loved, then every meal day by day with its photos. **Map** shows every place in
+it. Tap a meal to open it.
+
+**In or out.** When you log or edit a meal, the **Collections** row shows which
+ones it is in; tap one to add the meal or leave it out. On the collection page,
+**Leave out of this collection** under a meal does the same. Leaving a meal out
+never removes it from History, and deleting a collection never deletes a meal.
+
+**Share it.** **Share** sends the whole collection to friends in the app: each
+meal's place, date, your stars, what you had and, unless you untick the box, the
+photos (up to three a meal). Never your notes, who you were with, or what you
+spent. They can reply, just as with a shared visit.
+
+Collections are private until you share one, sync to every device you sign in
+on, and still open on this phone with a weak signal.
 
 ## Publishing a list
 On the **You** tab under **Your lists**, tap **Publish a list**, give it a title,
@@ -8676,6 +8729,11 @@ function App({openShare}){
   const [visits, setVisits]           = useState([]);
   const [locations, setLocations]     = useState([]);      // array of city names
   const [lists, setLists]             = useState([]);      // saved published lists
+  // Collections (1.527.0): a trip, or any set of visits. Shown at once from this
+  // phone's copy, then refreshed from the server (see COLLECTIONS).
+  const [collections, setCollections] = useState(()=> readCollectionsCache((loadConfig() || {}).userId));
+  const collectionsRef = useRef(collections);
+  useEffect(()=> { collectionsRef.current = collections; }, [collections]);
   const [meta, setMeta]               = useState({});      // small per-user state (app_shares)
   const [splits, setSplits]           = useState([]);      // saved standalone check splits
   const [auxLoaded, setAuxLoaded]     = useState(false);   // lists+meta fetched (gates badge eval)
@@ -9206,6 +9264,21 @@ function App({openShare}){
         setLists(Array.isArray(lr.data) ? lr.data : []);
       } catch(e){ logMsg("WARN","lists load failed: " + e.message); }
       try {
+        if (collectionsDirtyFor(cfg.userId)){
+          // This phone saved changes the server never got: send them first, so
+          // the server's older copy cannot overwrite them.
+          const local = readCollectionsCache(cfg.userId);
+          await ghPutFile(cfg, "data/collections.json", local, null);
+          clearCollectionsDirty();
+          logMsg("COLLECTIONS", "Sent " + local.length + " collection(s) saved while offline");
+        } else {
+          const cr = await ghGetFile(cfg, "data/collections.json");
+          const arr = Array.isArray(cr.data) ? cr.data : [];
+          setCollections(arr);
+          writeCollectionsCache(cfg.userId, arr);
+        }
+      } catch(e){ logMsg("WARN","collections load failed: " + e.message); }
+      try {
         const mr = await ghGetFile(cfg, "data/meta.json");
         const m = (mr.data && typeof mr.data === "object" && !Array.isArray(mr.data)) ? mr.data : {};
         setMeta(m);
@@ -9454,6 +9527,56 @@ function App({openShare}){
     try { await ghPutFile(config, "data/splits.json", next, null); logMsg("SPLITS","Saved " + next.length + " splits"); }
     catch(e){ logMsg("ERROR","splits save failed: " + e.message); flash("Could not save the split"); }
   }
+  // Collections (1.527.0). Saved like lists, plus this phone's copy; a save that
+  // cannot reach the server is kept here and sent when the connection returns.
+  async function saveCollections(next){
+    collectionsRef.current = next;
+    setCollections(next);
+    writeCollectionsCache(config.userId, next);
+    try {
+      await ghPutFile(config, "data/collections.json", next, null);
+      clearCollectionsDirty();
+      logMsg("COLLECTIONS", "Saved " + next.length + " collection(s)");
+    } catch(e){
+      setCollectionsDirty(config.userId);
+      logMsg("WARN", "collections save failed, kept on this phone: " + e.message);
+      flash("Saved on this phone. It will sync when you're back online.");
+    }
+  }
+  function upsertCollection(c){
+    if (!c || !c.id) return;
+    const rest = (collectionsRef.current || []).filter(x => x.id !== c.id);
+    saveCollections([c].concat(rest));
+  }
+  function createCollection(fields){
+    const now = Date.now();
+    const c = Object.assign({ id: uid("col"), include: [], exclude: [], cover: null,
+                              created_at: now, updated_at: now }, fields);
+    upsertCollection(c);
+    logMsg("COLLECTIONS", "Created a collection" + (c.start ? " with dates" : ""));
+    return c;
+  }
+  function deleteCollection(c){
+    saveCollections((collectionsRef.current || []).filter(x => x.id !== c.id));
+    flash("Deleted \u201c" + c.name + "\u201d. Your meals are still in History.");
+  }
+  // The Collections row on Log / Edit visit: applied with the save, when the
+  // visit's id and date are final.
+  function applyCollectionPicks(visit, picks){
+    const next = (collectionsRef.current || []).map(c =>
+      Object.prototype.hasOwnProperty.call(picks, c.id) ? colSetMember(c, visit, !!picks[c.id]) : c);
+    saveCollections(next);
+  }
+  // Back online with changes still on this phone: send them.
+  useEffect(()=>{
+    function onOnline(){
+      if (!configComplete(config) || !collectionsDirtyFor(config.userId)) return;
+      saveCollections(collectionsRef.current || []);
+    }
+    window.addEventListener("online", onOnline);
+    return ()=> window.removeEventListener("online", onOnline);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config && config.userId]);
   function upsertSplit(entity){
     if (!entity || !entity.id) return;
     const rest = (splits || []).filter(s => s.id !== entity.id);
@@ -10132,6 +10255,9 @@ function App({openShare}){
               onShareVisit={(v)=> setOverlay({ type:"shareVisitSheet", visit:v })}
               replies={replies.threads} onRepliesChanged={refreshReplies}
               replyDoors={(meta && meta.reply_doors) || []}
+              collections={collections}
+              onOpenCollection={(c)=> setOverlay({ type:"collection", id:c.id })}
+              onNewCollection={()=> setOverlay({ type:"collectionNew" })}
               onOpen={(v)=> setOverlay({ type:"editVisit", visit:v })} />
           </>
         )}
@@ -11005,6 +11131,7 @@ function App({openShare}){
           restaurants={restaurants}
           menus={menus}
           visits={visits}
+          collections={collections}
           locations={locations}
           onSaveRestaurant={saveRestaurantEdit}
           onCreateRestaurant={(rec)=>{
@@ -11069,6 +11196,10 @@ function App({openShare}){
               svPatch(config, svId, { visit_id: rec.id }).catch(()=>{});
             }
 
+            // The Collections row on the form (1.527.0), applied with the save.
+            if (extras && extras.collectionPicks && Object.keys(extras.collectionPicks).length){
+              applyCollectionPicks(rec, extras.collectionPicks);
+            }
             let next;
             if (overlay.type === "editVisit"){
               next = visits.map(v => v.id===rec.id ? rec : v);
@@ -11317,13 +11448,30 @@ function App({openShare}){
           onHome={()=> setOverlay(null)} />
       )}
 
+      {overlay && overlay.type === "collectionNew" && (
+        <CollectionEditor onClose={()=> setOverlay(overlay.returnTo || null)}
+          onSave={(f)=>{ const c = createCollection(f); setOverlay({ type:"collection", id:c.id }); }} />
+      )}
+      {overlay && overlay.type === "collection" && (()=>{
+        const c = (collections || []).find(x => x.id === overlay.id);
+        if (!c) return null;
+        return (
+          <CollectionView cfg={config} collection={c} visits={visits} restaurantById={restaurantById}
+            onBack={()=> setOverlay(overlay.returnTo || null)} onHome={()=> setOverlay(null)}
+            onChange={(nc)=> upsertCollection(nc)}
+            onDelete={(dc)=>{ deleteCollection(dc); setOverlay(null); }}
+            onOpenVisit={(v)=> setOverlay({ type:"editVisit", visit:v, returnTo:{ type:"collection", id:c.id } })}
+            onShowMap={(ids)=> setOverlay({ type:"map", only:ids, title:c.name, returnTo:{ type:"collection", id:c.id } })} />
+        );
+      })()}
       {overlay && overlay.type === "map" && (
         <MapView
-          restaurants={restaurants}
-          cityFilter={placesFilter}
+          restaurants={overlay.only ? restaurants.filter(r => overlay.only.indexOf(r.id) !== -1) : restaurants}
+          cityFilter={overlay.only ? "All" : placesFilter}
+          title={overlay.title}
           cfg={config}
           onOpen={(r)=> setOverlay({ type:"restaurant", id:r.id })}
-          onClose={()=> setOverlay(null)}
+          onClose={()=> setOverlay(overlay.returnTo || null)}
           onSaveCoords={(ups)=>{
             // ups: {id: {lat,lng,geo_addr,geo_ok,geo_failed}} - merge + one commit
             if (!ups || !Object.keys(ups).length) return;
@@ -11902,7 +12050,641 @@ function VisitSplit({split, cfg, receipt, onSeeItemized, merchant, date}){
   );
 }
 
-function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace, onToggleLoved, onShareVisit, replies, onRepliesChanged, replyDoors}){
+/* ===================================================================
+   COLLECTIONS (app 1.527.0, server 0.143.0)
+
+   Chris, 2026-10-14: "We should allow people to build collections, say, based
+   on a trip, for example, we are on our honeymoon". By card: collections with
+   OPTIONAL dates, sharing with friends in the first version, a new table.
+
+   A collection holds visit IDS, never copies of visits:
+     {id, name, start, end, cover, include:[ids], exclude:[ids], created_at, updated_at}
+   With dates, every visit in [start, end] belongs by itself (end empty = still
+   travelling, so today counts), minus `exclude`. `include` adds any visit by
+   hand, dated or not. So a meal logged tomorrow on the honeymoon joins the
+   honeymoon without anyone doing anything, and leaving one out is remembered.
+
+   Stored like lists (one row per person, the whole array PUT on each change),
+   plus a copy on this phone: abroad on a weak signal the collections still
+   open, and a change that could not reach the server is sent on the next open
+   or when the connection returns, before anything is read back over it.
+
+   Sharing sends each meal's place, date, stars, dishes (with loved / again /
+   special marks) and, unless unticked, up to 3 photos a meal (36 in all, as
+   30-day signed links). Never notes, companions or money. The road not taken:
+   a public link page for a collection; friends in the app first.
+   =================================================================== */
+const COLLECTIONS_CACHE_KEY = "dininglog_collections";
+const COLLECTIONS_DIRTY_KEY = "dininglog_collections_dirty";
+function readCollectionsCache(uid){
+  try {
+    const o = JSON.parse(localStorage.getItem(COLLECTIONS_CACHE_KEY) || "null");
+    return (o && uid && o.u === uid && Array.isArray(o.items)) ? o.items : [];
+  } catch(e){ return []; }
+}
+function writeCollectionsCache(uid, items){
+  try { localStorage.setItem(COLLECTIONS_CACHE_KEY, JSON.stringify({ u: uid || "", items: items || [] })); } catch(e){}
+}
+// The flag names WHOSE changes are waiting, so a different person signing in on
+// this phone can never send someone else's collections over their own.
+function collectionsDirtyFor(uid){
+  try { return !!uid && localStorage.getItem(COLLECTIONS_DIRTY_KEY) === uid; } catch(e){ return false; }
+}
+function setCollectionsDirty(uid){ try { localStorage.setItem(COLLECTIONS_DIRTY_KEY, uid || ""); } catch(e){} }
+function clearCollectionsDirty(){ try { localStorage.removeItem(COLLECTIONS_DIRTY_KEY); } catch(e){} }
+
+function colEnd(c){ return (c && c.end) || todayISO(); }
+function colCovers(c, date){ return !!(c && c.start && date && date >= c.start && date <= colEnd(c)); }
+function colHas(c, v){
+  if (!c || !v) return false;
+  if (v.id && (c.include || []).indexOf(v.id) !== -1) return true;
+  return colCovers(c, v.date) && (c.exclude || []).indexOf(v.id) === -1;
+}
+function colVisits(c, visits){
+  return (visits || []).filter(v => v && colHas(c, v)).sort((a, b) =>
+    (a.date || "").localeCompare(b.date || "") || ((a.logged_at || 0) - (b.logged_at || 0)));
+}
+// In or out, remembered the right way round: a dated collection remembers an
+// exclusion; anything else is an inclusion.
+function colSetMember(c, v, want){
+  const inc = (c.include || []).filter(id => id !== v.id);
+  const exc = (c.exclude || []).filter(id => id !== v.id);
+  if (want){ if (!colCovers(c, v.date)) inc.push(v.id); }
+  else if (colCovers(c, v.date)) exc.push(v.id);
+  return Object.assign({}, c, { include: inc, exclude: exc, updated_at: Date.now() });
+}
+function colFmt(iso, opts){
+  try { return new Date(iso + "T12:00:00").toLocaleDateString("en-US", opts); } catch(e){ return iso; }
+}
+function colDateLine(c){
+  if (!c || !c.start) return "";
+  const st = c.start, en = c.end;
+  const full = { month:"long", day:"numeric", year:"numeric" }, md = { month:"long", day:"numeric" };
+  if (!en) return "Since " + colFmt(st, full);
+  if (st === en) return colFmt(st, full);
+  if (st.slice(0, 7) === en.slice(0, 7)) return colFmt(st, md) + " to " + Number(en.slice(8, 10)) + ", " + en.slice(0, 4);
+  if (st.slice(0, 4) === en.slice(0, 4)) return colFmt(st, md) + " to " + colFmt(en, md) + ", " + en.slice(0, 4);
+  return colFmt(st, full) + " to " + colFmt(en, full);
+}
+function colDayLabel(iso){ return colFmt(iso, { weekday:"long", month:"long", day:"numeric" }); }
+function colDayIndex(start, iso){
+  const a = new Date(start + "T12:00:00"), b = new Date(iso + "T12:00:00");
+  return Math.round((b - a) / 86400000) + 1;
+}
+function colStars(n){ const k = Math.max(0, Math.min(5, Math.round(n || 0))); return "\u2605".repeat(k) + "\u2606".repeat(5 - k); }
+function colStatsLine(meals, places, cities){
+  const bits = [meals + (meals === 1 ? " meal" : " meals")];
+  if (places) bits.push(places + (places === 1 ? " place" : " places"));
+  if (cities > 1) bits.push(cities + " cities");
+  return bits.join(" \u00b7 ");
+}
+function colStats(members, restaurantById){
+  const places = new Set(), cities = new Set();
+  (members || []).forEach(v => {
+    places.add(v.restaurant_id || ("n:" + (v.restaurant_name || "")));
+    const r = restaurantById(v.restaurant_id);
+    if (r && r.location) cities.add(r.location);
+  });
+  return { meals: (members || []).length, places: places.size, cities: cities.size };
+}
+// The chosen cover while it is still one of the collection's photos, else the
+// first photo of the first meal that has one.
+function colAllPhotos(members){
+  const out = [];
+  (members || []).forEach(v => (v.photos || []).filter(Boolean).forEach(p => { if (out.indexOf(p) === -1) out.push(p); }));
+  return out;
+}
+function colCoverPath(c, members){
+  const all = colAllPhotos(members);
+  if (c && c.cover && all.indexOf(c.cover) !== -1) return c.cover;
+  return all[0] || null;
+}
+function colLovedDishes(members){
+  const out = [], seen = {};
+  ["loved", "again"].forEach(want => (members || []).forEach(v => (v.dishes || []).forEach(d => {
+    if (!d || !d.name || d.verdict !== want) return;
+    const k = d.name.trim().toLowerCase();
+    if (seen[k]) return;
+    seen[k] = 1; out.push(d);
+  })));
+  return out.slice(0, 12);
+}
+function colFavoritePlaces(members, restaurantById){
+  const best = {};
+  (members || []).forEach(v => {
+    if (!(typeof v.rating === "number" && v.rating > 0)) return;
+    const key = v.restaurant_id || v.restaurant_name;
+    if (!best[key] || v.rating > best[key].rating){
+      const r = restaurantById(v.restaurant_id);
+      best[key] = { name: (r && r.name) || v.restaurant_name || "A place", rating: v.rating, city: r && r.location };
+    }
+  });
+  return Object.keys(best).map(k => best[k]).filter(x => x.rating >= 4)
+    .sort((a, b) => b.rating - a.rating || a.name.localeCompare(b.name)).slice(0, 3);
+}
+// Your own photos as 30-day links, path -> url. The server signs at most 12 per call.
+async function signPhotoMap(cfg, paths){
+  const out = {};
+  const want = (paths || []).filter(Boolean);
+  for (let i = 0; i < want.length; i += 12){
+    try {
+      const res = await fetch(apiBase(cfg) + "/api/photos/share-sign", {
+        method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+        body: JSON.stringify({ paths: want.slice(i, i + 12) }),
+      });
+      if (!res.ok){ logMsg("SHARE", "photo signing failed " + res.status); continue; }
+      const d = await res.json().catch(()=> ({}));
+      Object.assign(out, (d && d.urls) || {});
+    } catch(e){ logMsg("SHARE", "photo signing error: " + (e && e.message)); }
+  }
+  return out;
+}
+async function buildCollectionPayload(cfg, c, members, restaurantById, withPhotos, note){
+  const o = { k:"c", v:1, cid: c.id, n: String(c.name || "A collection").slice(0, 80) };
+  if (c.start) o.s = c.start;
+  if (c.end) o.e = c.end;
+  const msg = (note || "").trim();
+  if (msg) o.msg = msg.slice(0, 280);
+  const list = (members || []).slice(0, 60);
+  const cover = colCoverPath(c, members);
+  let want = [];
+  if (withPhotos){
+    if (cover) want.push(cover);
+    list.forEach(v => (v.photos || []).filter(Boolean).slice(0, 3).forEach(p => { if (want.indexOf(p) === -1) want.push(p); }));
+    want = want.slice(0, 36);
+  }
+  const urls = want.length ? await signPhotoMap(cfg, want) : {};
+  o.m = list.map(v => {
+    const r = restaurantById(v.restaurant_id);
+    const x = { r: (r && r.name) || v.restaurant_name || "A place", dt: v.date || "" };
+    if (r && r.location) x.c = r.location;
+    if (r && r.cuisine) x.cu = r.cuisine;
+    if (typeof v.rating === "number" && v.rating > 0) x.rt = v.rating;
+    const plate = (v.dishes || []).filter(d => d && d.name).slice(0, 20).map(d => {
+      const y = { n: String(d.name).trim() };
+      if (d.verdict === "loved") y.y = 2;
+      else if (d.verdict === "again") y.y = 1;
+      if (d.special) y.s = 1;
+      return y;
+    });
+    if (plate.length) x.ate = plate;
+    if (withPhotos){
+      const ph = (v.photos || []).filter(Boolean).slice(0, 3).map(p => urls[p]).filter(Boolean);
+      if (ph.length) x.ph = ph;
+    }
+    return x;
+  });
+  if (withPhotos && cover && urls[cover]) o.cov = urls[cover];
+  return o;
+}
+
+// History's row of collections. The first time, one inviting line instead.
+function CollectionsStrip({ collections, visits, cfg, onOpen, onNew }){
+  const list = (collections || []).slice().sort((a, b) =>
+    (b.start || "").localeCompare(a.start || "") || ((b.updated_at || 0) - (a.updated_at || 0)));
+  if (!list.length){
+    return (
+      <div className="yif-entry tap" onClick={onNew}>
+        <span className="yif-entry-ic"><Icon name="book" size={16} color="var(--accent)" /></span>
+        <span className="yif-entry-tx">
+          <span className="yif-entry-t">Start a collection</span>
+          <span className="yif-entry-s">Keep a trip, or any meals you love, together</span>
+        </span>
+        <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+          <Icon name="back" size={15} color="var(--text-faint)" />
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div style={{margin:"0 0 16px"}}>
+      <div className="between" style={{margin:"0 2px 9px", alignItems:"center"}}>
+        <span className="section-subhead" style={{margin:0}}>Collections</span>
+        <button className="btn ghost sm" style={{margin:0}} onClick={onNew}>
+          <Icon name="plus" size={14} color="var(--accent)" />New</button>
+      </div>
+      <div className="col-strip">
+        {list.map(c => {
+          const mem = colVisits(c, visits);
+          const cover = colCoverPath(c, mem);
+          return (
+            <div key={c.id} className="col-card" onClick={()=> onOpen(c)}>
+              <div className="col-cover">
+                {cover ? <PhotoImg cfg={cfg} path={cover} /> : <Icon name="book" size={22} color="var(--text-faint)" />}
+              </div>
+              <div className="col-card-name">{c.name}</div>
+              <div className="col-card-sub">{colDateLine(c) || (mem.length + (mem.length === 1 ? " meal" : " meals"))}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CollectionEditor({ initial, onSave, onDelete, onClose }){
+  const [name, setName]   = useState(initial ? (initial.name || "") : "");
+  const [dated, setDated] = useState(initial ? !!initial.start : true);
+  const [start, setStart] = useState((initial && initial.start) || todayISO());
+  const [end, setEnd]     = useState((initial && initial.end) || "");
+  const err = (dated && end && start && end < start) ? "The trip ends before it starts." : "";
+  const ok = !!name.trim() && !err && (!dated || !!start);
+  function save(){
+    if (!ok) return;
+    onSave({ name: name.trim().slice(0, 80), start: dated ? start : null, end: dated ? (end || null) : null });
+  }
+  return (
+    <div className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={e=> e.stopPropagation()}>
+        <div className="grip" />
+        <div style={{fontFamily:"'Fraunces',serif", fontSize:21, marginBottom:12}}>
+          {initial ? "Edit collection" : "New collection"}</div>
+        <label className="fld"><span className="lbl">Name</span>
+          <ClearInput value={name} onChange={e=> setName(e.target.value)} placeholder="Our honeymoon" maxLength={80} />
+        </label>
+        <label className="row" style={{gap:9, alignItems:"flex-start", margin:"2px 0 12px", cursor:"pointer"}}>
+          <input type="checkbox" checked={dated} onChange={e=> setDated(e.target.checked)} style={{marginTop:3}} />
+          <span className="small">It's a trip, with dates
+            <span className="tiny faint" style={{display:"block", marginTop:2}}>
+              Every meal you log between these dates joins it by itself.</span>
+          </span>
+        </label>
+        {dated ? (
+          <div className="row" style={{gap:10}}>
+            <label className="fld" style={{flex:1}}><span className="lbl">From</span>
+              <input className="input" type="date" value={start} onChange={e=> setStart(e.target.value)} /></label>
+            <label className="fld" style={{flex:1}}><span className="lbl">To</span>
+              <input className="input" type="date" value={end} min={start} onChange={e=> setEnd(e.target.value)} /></label>
+          </div>
+        ) : null}
+        {dated && !end ? (
+          <div className="tiny faint" style={{margin:"-2px 0 10px"}}>
+            No end date yet: it stays open while you're still travelling.</div>
+        ) : null}
+        {err ? <div className="tiny" style={{color:"var(--danger)", marginBottom:8}}>{err}</div> : null}
+        <button className="btn primary" style={{width:"100%", marginTop:4}} disabled={!ok} onClick={save}>
+          {initial ? "Save" : "Create collection"}</button>
+        {initial && onDelete ? (
+          <button className="btn ghost" style={{width:"100%", marginTop:8, color:"var(--danger)"}}
+            onClick={()=>{ if (window.confirm("Delete \u201c" + initial.name + "\u201d? Your meals stay in History.")) onDelete(); }}>
+            Delete collection</button>
+        ) : null}
+        <button className="btn ghost" style={{width:"100%", marginTop:8}} onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// Send a whole collection to friends in the app (1.527.0).
+function CollectionShareSheet({ cfg, collection, members, restaurantById, onClose }){
+  const [conns, setConns] = useState(null);
+  const [pick, setPick]   = useState({});
+  const [note, setNote]   = useState("");
+  const [withPhotos, setWithPhotos] = useState(true);
+  const [busy, setBusy]   = useState(false);
+  const [msg, setMsg]     = useState("");
+  const [msgErr, setMsgErr] = useState(false);
+  const [loadFail, setLoadFail] = useState(false);
+  const favSet = loadConnFavs();
+  const nPhotos = Math.min(36, (members || []).reduce((n, v) => n + Math.min(3, (v.photos || []).filter(Boolean).length), 0));
+  useEffect(()=>{
+    getConnections(cfg).then(d => setConns(d.connections || [])).catch(()=>{ setConns([]); setLoadFail(true); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  async function send(){
+    const ids = Object.keys(pick).filter(k => pick[k]);
+    if (!ids.length) return;
+    setBusy(true); setMsg("");
+    try {
+      const payload = await buildCollectionPayload(cfg, collection, members, restaurantById, withPhotos, note);
+      const me = await myShareIdentity(cfg);
+      if (me.u) payload.by = me.u;
+      if (me.n) payload.byn = me.n;
+      const r = await sendShare(cfg, ids, "collection", collection.name, payload);
+      setMsg("Sent to " + (r.sent || 0)); setMsgErr(false); setPick({});
+      logMsg("SHARE", "collection sent to " + (r.sent || 0));
+      setTimeout(onClose, 900);
+    } catch(e){ setMsg((e && e.message) || "Could not send."); setMsgErr(true); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={e=> e.stopPropagation()} style={{maxHeight:"88vh", overflowY:"auto"}}>
+        <div className="grip" />
+        <div style={{fontFamily:"'Fraunces',serif", fontSize:20, marginBottom:2}}>Share this collection</div>
+        <div className="tiny faint" style={{marginBottom:12}}>{collection.name}</div>
+        <label className="fld" style={{marginBottom:10}}>
+          <span className="lbl">Say something about it</span>
+          <textarea className="input" rows={2} maxLength={280} value={note}
+            onChange={e=> setNote(e.target.value)} placeholder="The best meals of our trip" />
+          <span className="tiny faint">Optional. Sits at the top of what they see.</span>
+        </label>
+        {nPhotos ? (
+          <label className="row" style={{gap:9, alignItems:"flex-start", marginBottom:12, cursor:"pointer"}}>
+            <input type="checkbox" checked={withPhotos} style={{marginTop:3}} onChange={e=> setWithPhotos(e.target.checked)} />
+            <span className="small">Include the photos
+              <span className="tiny faint" style={{display:"block", marginTop:2}}>
+                {"Up to 3 a meal, " + nPhotos + " in all"}</span></span>
+          </label>
+        ) : null}
+        <PickAllRow conns={conns} pick={pick} setPick={setPick} />
+        {conns === null ? (
+          <div className="empty" style={{padding:"18px 0"}}><span className="spin" /></div>
+        ) : conns.length === 0 ? (
+          <div className="small faint" style={{padding:"4px 0 12px"}}>
+            {loadFail ? "Couldn't load your friends. Close this and try again." : "No friends yet. Add some in Settings \u2192 Friends."}</div>
+        ) : conns.slice().sort((a, b)=> (favSet.has(b.user_id) ? 1 : 0) - (favSet.has(a.user_id) ? 1 : 0)).map(c => {
+          const l = connLabel(c), on = !!pick[c.user_id];
+          return (
+            <div key={c.user_id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+              onClick={()=> setPick(p => Object.assign({}, p, { [c.user_id]: !p[c.user_id] }))}>
+              <span className="go-check" style={{flex:"none"}}>{on ? "\u2713" : ""}</span>
+              <span style={{flex:1, minWidth:0}}>
+                {favSet.has(c.user_id) ? <span style={{color:"var(--accent)"}}>{"\u2605 "}</span> : null}
+                {l.primary}{l.secondary ? <span className="tiny faint"> {l.secondary}</span> : null}</span>
+            </div>
+          );
+        })}
+        <div className="tiny faint" style={{margin:"10px 0 0", lineHeight:1.5}}>
+          They see each meal: the place, the date, your stars, what you had{withPhotos && nPhotos ? " and the photos" : ""}.
+          Never your notes, who you were with, or what you spent.
+        </div>
+        <div className="row" style={{gap:9, marginTop:14}}>
+          <button className="btn ghost" onClick={onClose}>Close</button>
+          <button className="btn primary" disabled={busy || !Object.keys(pick).some(k => pick[k])} onClick={send}>
+            {busy ? <span className="spin" /> : ("Send" + (pickCount(pick) > 1 ? " to " + pickCount(pick) : ""))}</button>
+        </div>
+        {msg ? <div className="tiny" style={{marginTop:8, color: msgErr ? "var(--danger)" : "var(--ok)"}}>{msg}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+function CollectionView({ cfg, collection, visits, restaurantById, onBack, onHome, onChange, onDelete,
+                          onOpenVisit, onShowMap }){
+  const c = collection;
+  const members = colVisits(c, visits);
+  const st = colStats(members, restaurantById);
+  const cover = colCoverPath(c, members);
+  const loved = colLovedDishes(members);
+  const favs = colFavoritePlaces(members, restaurantById);
+  const [lb, setLb] = useState(null);             // {paths, index}
+  const [sheet, setSheet] = useState("");          // "" | add | cover | edit | share
+  const [addPick, setAddPick] = useState({});
+  const days = [];
+  members.forEach(v => {
+    const last = days[days.length - 1];
+    if (last && last.date === (v.date || "")) last.visits.push(v);
+    else days.push({ date: v.date || "", visits: [v] });
+  });
+  const others = (visits || []).filter(v => v && !colHas(c, v)).slice().sort((a, b) =>
+    (b.date || "").localeCompare(a.date || "") || ((b.logged_at || 0) - (a.logged_at || 0)));
+  const placeIds = Array.from(new Set(members.map(v => v.restaurant_id).filter(Boolean)));
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <BackBtn onClick={onBack} />
+        <h2 style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{c.name}</h2>
+        {/* Edit sits where iPhone apps keep it: four buttons in the row below
+            wrapped onto two lines at phone width. */}
+        <button className="x" onClick={()=> setSheet("edit")}>Edit</button>
+      </div>
+      <div className="ovbody">
+        {cover ? (
+          <div className="col-hero" onClick={()=> setSheet("cover")}>
+            <PhotoImg cfg={cfg} path={cover} />
+            <span className="col-hero-edit">Change cover</span>
+          </div>
+        ) : null}
+        <div className="col-title">{c.name}</div>
+        <div className="col-meta">
+          {[colDateLine(c), members.length ? colStatsLine(st.meals, st.places, st.cities) : ""].filter(Boolean).join(" \u00b7 ")}
+        </div>
+        <div className="row" style={{gap:8, flexWrap:"wrap", justifyContent:"center", margin:"16px 0 18px"}}>
+          <button className="btn primary sm" disabled={!members.length} onClick={()=> setSheet("share")}>
+            <Icon name="share" size={15} color="#1b1714" />Share</button>
+          <button className="btn ghost sm" disabled={!placeIds.length} onClick={()=> onShowMap(placeIds)}>
+            <Icon name="pin" size={15} color="var(--accent)" />Map</button>
+          <button className="btn ghost sm" onClick={()=>{ setAddPick({}); setSheet("add"); }}>
+            <Icon name="plus" size={15} color="var(--accent)" />Add meals</button>
+        </div>
+        {!members.length ? (
+          <div className="empty" style={{padding:"18px 10px"}}>
+            <div>{c.start
+              ? "Every meal you log " + (c.end ? "between these dates" : "from " + colFmt(c.start, { month:"long", day:"numeric" }) + " on") + " appears here by itself."
+              : "Add meals from your history with Add meals."}</div>
+          </div>
+        ) : null}
+        {loved.length || favs.length ? (
+          <div className="card">
+            {favs.length ? (
+              <div style={{marginBottom: loved.length ? 14 : 0}}>
+                <div className="col-h">Favorite places</div>
+                {favs.map((f, i)=> (
+                  <div key={i} className="between" style={{padding:"3px 0"}}>
+                    <span className="small">{f.name}{f.city ? <span className="tiny faint">{"  \u00b7  " + f.city}</span> : null}</span>
+                    <span className="col-stars">{colStars(f.rating)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {loved.length ? (
+              <div>
+                <div className="col-h">Dishes you loved</div>
+                <div className="chips">
+                  {loved.map((d, i)=> (
+                    <span key={i} className={"chip dish" + dishChipClass(d.verdict)}>
+                      {d.verdict === "loved" ? "\u2665 " : ""}{d.name}{dishSpecialMark(d)}</span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {days.map(d => (
+          <div key={d.date || "undated"}>
+            <div className="col-day">{d.date ? colDayLabel(d.date) : "Undated"}
+              {c.start && d.date && d.date >= c.start ? <span className="col-day-n">{"Day " + colDayIndex(c.start, d.date)}</span> : null}
+            </div>
+            {d.visits.map(v => {
+              const r = restaurantById(v.restaurant_id);
+              const photos = (v.photos || []).filter(Boolean);
+              return (
+                <div key={v.id} className="card tap" style={{marginTop:8}} onClick={()=> onOpenVisit(v)}>
+                  {photos.length ? (
+                    <div className="visit-photos" style={{marginTop:0, marginBottom:11}}>
+                      {photos.map((p, i)=> (
+                        <div key={i} className="visit-photo tap"
+                          onClick={(e)=>{ e.stopPropagation(); setLb({ paths: photos, index: i }); }}>
+                          <PhotoImg cfg={cfg} path={p} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="between">
+                    <div className="place-name">{r ? r.name : (v.restaurant_name || "A place")}</div>
+                    {typeof v.rating === "number" && v.rating > 0 ? <span className="col-stars">{colStars(v.rating)}</span> : null}
+                  </div>
+                  {r && (r.cuisine || r.location) ? (
+                    <div className="meta-line" style={{marginTop:4}}>{[r.cuisine, r.location].filter(Boolean).join(" \u00b7 ")}</div>
+                  ) : null}
+                  {(v.dishes || []).length ? (
+                    <div className="chips" style={{marginTop:9}}>
+                      {v.dishes.map((dd, i)=> (
+                        <span key={i} className={"chip dish" + dishChipClass(dd.verdict)}>{dd.name}{dishSpecialMark(dd)}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                  <button className="col-leave" onClick={(e)=>{ e.stopPropagation(); onChange(colSetMember(c, v, false)); }}>
+                    Leave out of this collection</button>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        <div style={{height:24}} />
+      </div>
+
+      {sheet === "edit" ? (
+        <CollectionEditor initial={c} onClose={()=> setSheet("")}
+          onSave={(f)=>{ onChange(Object.assign({}, c, f, { updated_at: Date.now() })); setSheet(""); }}
+          onDelete={()=>{ setSheet(""); onDelete(c); }} />
+      ) : null}
+      {sheet === "share" ? (
+        <CollectionShareSheet cfg={cfg} collection={c} members={members} restaurantById={restaurantById}
+          onClose={()=> setSheet("")} />
+      ) : null}
+      {sheet === "cover" ? (
+        <div className="sheet-bg" onClick={()=> setSheet("")}>
+          <div className="sheet" onClick={e=> e.stopPropagation()} style={{maxHeight:"85vh", overflowY:"auto"}}>
+            <div className="grip" />
+            <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:12}}>Choose the cover</div>
+            <div className="col-grid">
+              {colAllPhotos(members).slice(0, 60).map(p => (
+                <div key={p} onClick={()=>{ onChange(Object.assign({}, c, { cover: p, updated_at: Date.now() })); setSheet(""); }}
+                  style={p === cover ? {outline:"2px solid var(--accent)", outlineOffset:-2} : null}>
+                  <PhotoImg cfg={cfg} path={p} />
+                </div>
+              ))}
+            </div>
+            <button className="btn ghost" style={{width:"100%", marginTop:12}} onClick={()=> setSheet("")}>Close</button>
+          </div>
+        </div>
+      ) : null}
+      {sheet === "add" ? (
+        <div className="sheet-bg" onClick={()=> setSheet("")}>
+          <div className="sheet" onClick={e=> e.stopPropagation()} style={{maxHeight:"85vh", overflowY:"auto"}}>
+            <div className="grip" />
+            <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:4}}>Add meals</div>
+            <div className="tiny faint" style={{marginBottom:10}}>From your history, newest first.</div>
+            {!others.length ? (
+              <div className="small faint" style={{padding:"6px 0 10px"}}>Every meal you've logged is already here.</div>
+            ) : others.slice(0, 200).map(v => {
+              const r = restaurantById(v.restaurant_id), on = !!addPick[v.id];
+              return (
+                <div key={v.id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+                  onClick={()=> setAddPick(p => Object.assign({}, p, { [v.id]: !p[v.id] }))}>
+                  <span className="go-check" style={{flex:"none"}}>{on ? "\u2713" : ""}</span>
+                  <span style={{flex:1, minWidth:0}}>{r ? r.name : (v.restaurant_name || "A place")}
+                    <span className="tiny faint">{v.date ? "  \u00b7  " + fmtDate(v.date) : ""}</span></span>
+                </div>
+              );
+            })}
+            <div className="row" style={{gap:9, marginTop:12}}>
+              <button className="btn ghost" onClick={()=> setSheet("")}>Close</button>
+              <button className="btn primary" disabled={!Object.keys(addPick).some(k => addPick[k])} onClick={()=>{
+                let nc = c;
+                others.forEach(v => { if (addPick[v.id]) nc = colSetMember(nc, v, true); });
+                onChange(nc); setSheet("");
+              }}>{"Add" + (pickCount(addPick) > 1 ? " " + pickCount(addPick) : "")}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {lb ? <PhotoLightbox cfg={cfg} paths={lb.paths} index={lb.index} onClose={()=> setLb(null)} /> : null}
+    </div>
+  );
+}
+
+// A collection a friend sent you (1.527.0): what buildCollectionPayload packed.
+function PublishedCollection({ data }){
+  const [lb, setLb] = useState(null);
+  if (!data || !Array.isArray(data.m)){
+    return (
+      <div className="pub-wrap">
+        <div className="pub-title">This collection could not be read</div>
+      </div>
+    );
+  }
+  const items = data.m.slice().sort((a, b)=> (a.dt || "").localeCompare(b.dt || ""));
+  const days = [];
+  items.forEach(x => {
+    const last = days[days.length - 1];
+    if (last && last.dt === (x.dt || "")) last.items.push(x);
+    else days.push({ dt: x.dt || "", items: [x] });
+  });
+  const places = new Set(items.map(x => (x.r || "").toLowerCase())).size;
+  const cities = new Set(items.map(x => x.c).filter(Boolean)).size;
+  const sub = [colDateLine({ start: data.s, end: data.e }), colStatsLine(items.length, places, cities)].filter(Boolean).join("  \u00b7  ");
+  return (
+    <div className="pub-wrap">
+      <div className="pub-kicker">A collection on MenuCaptain</div>
+      <div className="pub-title">{data.n}</div>
+      {sub ? <div className="pub-sub">{sub}</div> : null}
+      {data.msg ? (
+        <div style={{margin:"14px auto 0", maxWidth:460, textAlign:"center", fontFamily:"'Fraunces',serif",
+             fontSize:18, lineHeight:1.4}}>&ldquo;{data.msg}&rdquo;</div>
+      ) : null}
+      {data.cov ? (
+        <div style={{marginTop:16, borderRadius:16, overflow:"hidden"}}>
+          <img src={data.cov} alt="" loading="lazy" style={{width:"100%", display:"block", maxHeight:280, objectFit:"cover"}} />
+        </div>
+      ) : null}
+      {days.map((d, i)=> (
+        <div key={i}>
+          <div className="col-day">{d.dt ? colDayLabel(d.dt) : "Undated"}
+            {data.s && d.dt && d.dt >= data.s ? <span className="col-day-n">{"Day " + colDayIndex(data.s, d.dt)}</span> : null}
+          </div>
+          {d.items.map((x, j)=> (
+            <div key={j} className="card" style={{marginTop:8}}>
+              {x.ph && x.ph.length ? (
+                <div className="visit-photos" style={{marginTop:0, marginBottom:11}}>
+                  {x.ph.map((u, k)=> (
+                    <div key={k} className="visit-photo tap" onClick={()=> setLb(u)}>
+                      <img src={u} alt="" loading="lazy" style={{width:"100%", height:"100%", objectFit:"cover"}} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div className="between">
+                <div className="place-name">{x.r}</div>
+                {x.rt ? <span className="col-stars">{colStars(x.rt)}</span> : null}
+              </div>
+              {x.cu || x.c ? <div className="meta-line" style={{marginTop:4}}>{[x.cu, x.c].filter(Boolean).join(" \u00b7 ")}</div> : null}
+              {x.ate && x.ate.length ? (
+                <div className="chips" style={{marginTop:9}}>
+                  {x.ate.map((dd, k)=> (
+                    <span key={k} className={"chip dish" + (dd.y === 2 ? " loved" : dd.y ? " again" : "")}>
+                      {dd.y === 2 ? "\u2665 " : ""}{dd.n}{dd.s ? <span className="special-mark">{" \u00b7 Special"}</span> : null}</span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ))}
+      {lb ? (
+        <div style={{position:"fixed", inset:0, zIndex:90, background:"rgba(0,0,0,0.92)", display:"flex",
+             alignItems:"center", justifyContent:"center", padding:16}} onClick={()=> setLb(null)}>
+          <img src={lb} alt="" style={{maxWidth:"100%", maxHeight:"100%", objectFit:"contain"}} />
+        </div>
+      ) : null}
+      <div className="pub-foot"><div className="tiny faint">Made with MenuCaptain</div></div>
+    </div>
+  );
+}
+
+function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearInFood, onOpenPassport, onSplitVisit, onOpenRestaurant, onScanMenu, onLogVisit, onAddPlace, onToggleLoved, onShareVisit, replies, onRepliesChanged, replyDoors, collections, onOpenCollection, onNewCollection}){
   // Friends' replies about a visit, found by its shared-record id (2026-10-10).
   // The open conversation is held as { uid, key } (person + subject), not by a
   // thread id, so it can be opened before anything has been said and a refresh
@@ -12044,6 +12826,10 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
           <span className="idl">These numbers are here for memory and curiosity - never a budget.</span>
         </InfoDot>
       </div>
+      {!q && onOpenCollection ? (
+        <CollectionsStrip collections={collections} visits={visits} cfg={cfg}
+          onOpen={onOpenCollection} onNew={onNewCollection} />
+      ) : null}
       {!q && onOpenYearInFood && (
         <div className="yif-entry tap" onClick={onOpenYearInFood}>
           <span className="yif-entry-ic"><Icon name="sparkle" size={16} color="var(--accent)" /></span>
@@ -12188,7 +12974,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
 //  - Persists new coords back up via onSaveCoords (one batched commit), and
 //    also flushes on unmount so partial progress is never lost.
 // Leaflet (global L) renders; if it failed to load we degrade gracefully.
-function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, onHome }){
+function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, onHome, title }){
   const divRef   = useRef(null);
   const mapRef   = useRef(null);
   const layerRef = useRef(null);
@@ -12304,7 +13090,7 @@ function MapView({ restaurants, cityFilter, cfg, onOpen, onClose, onSaveCoords, 
     <div className="overlay">
       <div className="ovhead">
         <button className="x" onClick={onClose}>Back</button>
-        <h2>Map</h2>
+        <h2 style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{title || "Map"}</h2>
         <HomeBtn onHome={onHome} />
       </div>
       <div className="map-body">
@@ -19975,7 +20761,7 @@ function PeopleTag({ value, onChange, roster }){
 /* ============================================================
    VISIT FORM (log / edit)
    ============================================================ */
-function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, onScanMenu, onAddBranch, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, onRenameMenuDish, seedFromSplit, seedVisit, onUpgrade}){
+function VisitForm({restaurants, menus, visits, collections, locations, onSaveRestaurant, onCreateRestaurant, onOpenRestaurant, onScanMenu, onAddBranch, presetRestaurantId, existing, cfg, onClose, onSave, onDelete, onPropagateDishNutrition, onRenameMenuDish, seedFromSplit, seedVisit, onUpgrade}){
   const [editPlaceOpen, setEditPlaceOpen] = useState(false);   // nested edit-place editor
   const [expOpen, setExpOpen] = useState(false);               // expense sheet over this visit
   const [saving, setSaving] = useState(false);                 // save in flight
@@ -20193,6 +20979,9 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     return [];
   });
   const [dishInput,setDishInput] = useState("");
+  // Collections chosen on this form: {collectionId: true|false}, only the ones
+  // touched. Untouched dated collections still gather this visit by its date.
+  const [colPicks, setColPicks] = useState({});
   const [whoPick, setWhoPick] = useState(false);   // "which of these is you?"
   const [whoShown, setWhoShown] = useState(false); // the table's order, expanded
   const [confirmDel,setConfirmDel] = useState(false);
@@ -21052,7 +21841,7 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
     setSaving(true);
     setSaveStep(pendingUploads.length ? "Photo 1 of " + pendingUploads.length : "");
     try {
-      await onSave(rec, { pendingUploads: pendingUploads,
+      await onSave(rec, { pendingUploads: pendingUploads, collectionPicks: colPicks,
         onProgress: (i, n, note)=> { setSaveStep("Photo " + i + " of " + n); setSaveNote(note || ""); } });
     } catch(err){
       const why = (err && err.message) || "no reason given";
@@ -21962,6 +22751,32 @@ function VisitForm({restaurants, menus, visits, locations, onSaveRestaurant, onC
             </div>
           )}
         </div>
+
+        {(collections || []).length ? (()=>{
+          const self = { id: (existing && existing.id) || newVisitIdRef.current || "", date: date };
+          const inIt = (c)=> Object.prototype.hasOwnProperty.call(colPicks, c.id) ? !!colPicks[c.id] : colHas(c, self);
+          const byDate = (collections || []).filter(c => colCovers(c, date) && inIt(c)).map(c => c.name);
+          return (
+            <div className="fld secpanel">
+              <span className="sechd">Collections</span>
+              <div className="tiny faint" style={{margin:"4px 0 8px"}}>
+                {byDate.length
+                  ? "Part of " + byDate.join(" and ") + " by its dates. Tap to leave it out."
+                  : "Keep this meal in a collection, like a trip."}
+              </div>
+              <div className="chips">
+                {(collections || []).map(c => {
+                  const on = inIt(c);
+                  return (
+                    <button type="button" key={c.id} className={"chip pick" + (on ? " on" : "")} aria-pressed={on}
+                      onClick={()=> setColPicks(p => Object.assign({}, p, { [c.id]: !on }))}>
+                      {(on ? "\u2713 " : "+ ") + c.name}</button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })() : null}
 
         <label className="fld"><span className="sechd">Notes</span>
           <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
@@ -30232,6 +31047,10 @@ function replySubject(kind, payload, title){
   if (kind === "list"){
     return { kind:"list", title: title || "A list", key:"list:" + replySlug(title || "list") };
   }
+  if (kind === "collection"){
+    const nm = title || p.n || "A collection";
+    return { kind:"collection", title: nm, key:"collection:" + (p.cid || replySlug(nm)) };
+  }
   const where = replySlug(name) + (p.c ? ":" + replySlug(p.c) : "");
   if (kind === "menu"){
     return { kind:"menu", title: title || name || "A menu",
@@ -31024,7 +31843,8 @@ function sentNames(entry, ownName){
     (ownName && ids[i] && ownName(ids[i])) || nm || "A friend");
 }
 function sentKindLabel(kind){
-  return kind === "visit" ? "Visit" : kind === "list" ? "List" : kind === "menu" ? "Menu" : "Place";
+  return kind === "visit" ? "Visit" : kind === "list" ? "List" : kind === "menu" ? "Menu"
+       : kind === "collection" ? "Collection" : "Place";
 }
 function SentList({cfg}){
   const [sent, setSent] = useState(undefined);   // undefined = loading, null = not offered
@@ -31206,6 +32026,7 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
             </div>
           ) : null}
           {open.kind === "list" ? <PublishedList data={open.payload} />
+            : open.kind === "collection" ? <PublishedCollection data={open.payload} />
             : open.kind === "visit" ? <PublishedVisit data={open.payload} onSaved={clearOpened}
                 onLogVisit={onLogVisit ? (seed)=>{
                   const from = (open.from || "").trim();
@@ -31283,7 +32104,7 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
           <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
         ) : shares.length === 0 ? (
           <div className="small faint" style={{padding:"4px 2px"}}>
-            Nothing waiting. When a friend sends you a place, menu, or visit, it shows up here.
+            Nothing waiting. When a friend sends you a place, menu, visit or collection, it shows up here.
           </div>
         ) : shares.map(s => {
           // "Joined" is news, not a thing to open: someone you shared a visit
@@ -31307,8 +32128,10 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
               </SwipeToDelete>
             );
           }
-          const name = s.title || (s.kind === "list" ? "A list" : s.kind === "visit" ? "A visit" : "A place");
-          const kindLabel = s.kind === "list" ? "list" : s.kind === "visit" ? "visit" : "place + menu";
+          const name = s.title || (s.kind === "list" ? "A list" : s.kind === "visit" ? "A visit"
+            : s.kind === "collection" ? "A collection" : "A place");
+          const kindLabel = s.kind === "list" ? "list" : s.kind === "visit" ? "visit"
+            : s.kind === "collection" ? "collection" : "place + menu";
           return (
             <SwipeToDelete key={s.id} onDelete={()=> remove(s.id)}>
               <div className="card" style={{display:"flex", alignItems:"center", gap:10}}>

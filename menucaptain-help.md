@@ -1067,6 +1067,33 @@ You can also split while you are logging: under the scanned receipt in **Log a
 visit**, tap **Split the check**, build the split, and tap **Use this split** - it
 rides along on the visit and is saved when you save the visit.
 
+## Collections
+
+**Keep a trip together.** In **History**, tap **Start a collection** (or **New**
+beside Collections once you have one), give it a name, say "Our honeymoon", and
+tick **It's a trip, with dates**. Every meal you log between those dates joins
+it by itself, including the ones you log tomorrow; leave the end date empty
+while you're still travelling. A collection without dates is hand-picked: add
+any meals you like with **Add meals**.
+
+**The collection page** opens on a cover photo (tap it to choose another from
+the collection's own pictures), then your favorite places and the dishes you
+loved, then every meal day by day with its photos. **Map** shows every place in
+it. Tap a meal to open it.
+
+**In or out.** When you log or edit a meal, the **Collections** row shows which
+ones it is in; tap one to add the meal or leave it out. On the collection page,
+**Leave out of this collection** under a meal does the same. Leaving a meal out
+never removes it from History, and deleting a collection never deletes a meal.
+
+**Share it.** **Share** sends the whole collection to friends in the app: each
+meal's place, date, your stars, what you had and, unless you untick the box, the
+photos (up to three a meal). Never your notes, who you were with, or what you
+spent. They can reply, just as with a shared visit.
+
+Collections are private until you share one, sync to every device you sign in
+on, and still open on this phone with a weak signal.
+
 ## Publishing a list
 On the **You** tab under **Your lists**, tap **Publish a list**, give it a title,
 and tick the restaurants to include (your favorites and
