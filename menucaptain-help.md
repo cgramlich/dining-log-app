@@ -191,7 +191,14 @@ physical menu. The app reads it and turns it into a clean, digital menu -
 sections, dish names, descriptions, prices, and tags. A menu that needs several
 photos is read with all its pages at the same time, so four pages take about as
 long as one, and it still counts as one scan. This is what powers
-"Help me order" and the calorie estimates. Prefer not to photograph it? **Find
+"Help me order" and the calorie estimates.
+
+**You don't have to wait for a scan.** Once the photos are sent (a few
+seconds), the menu is read on our server, so you can tap **Done for now**,
+switch apps or lock your phone. When it's ready, a bar at the top of the app
+says so: tap **Review** to check it and save it. If you haven't come back within
+2 minutes of it finishing, we email you a link to it. A finished scan waits for
+you for up to 7 days. Prefer not to photograph it? **Find
 the menu for me** looks on the restaurant's website and reads the menu in for
 you - and if no website is on file, you can simply type it in. You can also
 paste a link straight to a menu page.

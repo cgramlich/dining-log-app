@@ -1174,7 +1174,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.522.0";
+const APP_VERSION   = "1.523.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2026,7 +2026,14 @@ physical menu. The app reads it and turns it into a clean, digital menu -
 sections, dish names, descriptions, prices, and tags. A menu that needs several
 photos is read with all its pages at the same time, so four pages take about as
 long as one, and it still counts as one scan. This is what powers
-"Help me order" and the calorie estimates. Prefer not to photograph it? **Find
+"Help me order" and the calorie estimates.
+
+**You don't have to wait for a scan.** Once the photos are sent (a few
+seconds), the menu is read on our server, so you can tap **Done for now**,
+switch apps or lock your phone. When it's ready, a bar at the top of the app
+says so: tap **Review** to check it and save it. If you haven't come back within
+2 minutes of it finishing, we email you a link to it. A finished scan waits for
+you for up to 7 days. Prefer not to photograph it? **Find
 the menu for me** looks on the restaurant's website and reads the menu in for
 you - and if no website is on file, you can simply type it in. You can also
 paste a link straight to a menu page.
@@ -5610,9 +5617,17 @@ async function digitizeMenuByPage(cfg, dataUrls){
     body:JSON.stringify({ max_tokens:32000, pages:pages }),
   });
   if (!res.ok) throw new Error("server answered " + res.status);
-  const json = await res.json();
+  return scanPagesToMenu(await res.json(), dataUrls.length);
+}
+
+// The server's page-by-page answer -> one menu. Shared by the phone path above
+// and a background scan (scanJobToMenu), so both give the same menu. Throws on
+// anything that makes the result untrustworthy. The server checks the same
+// things before it keeps a background result (SCAN JOBS in main.py, which
+// reads them again as one request when they fail): keep the two in step.
+function scanPagesToMenu(json, n){
   const got = (json && json.pages) || [];
-  if (got.length !== dataUrls.length) throw new Error("expected " + dataUrls.length + " pages, got " + got.length);
+  if (got.length !== n) throw new Error("expected " + n + " pages, got " + got.length);
   const raws = got.map((pg, i) => {
     if (!pg || pg.error) throw new Error("page " + (i + 1) + " was not read");
     if (pg.stop_reason === "max_tokens") throw new Error("page " + (i + 1) + " ran out of room");
@@ -5682,7 +5697,13 @@ async function digitizeMenu(cfg, dataUrls){
     if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
     throw new Error(_detail || ("AI request failed (" + res.status + ")"));
   }
-  const json = await res.json();
+  return scanSingleToMenu(await res.json());
+}
+
+// The one-request answer -> the menu. Shared by the phone path above and a
+// background scan (scanJobToMenu).
+function scanSingleToMenu(json){
+  json = json || {};
   // If the model ran out of output budget the JSON will be incomplete -
   // catch that here so the user gets a clear message, not a parse error.
   if (json.stop_reason === "max_tokens"){
@@ -5706,6 +5727,127 @@ async function digitizeMenu(cfg, dataUrls){
                     "Try again, or scan fewer pages at once.");
   }
   return finishDigitizedMenu(parsed);
+}
+
+/* ---- Background scans (app 1.523.0, server 0.139.0) ----------------------
+   Chris, 2026-10-14: "we should do the bigger job of having the scan run
+   without having to stay on the page ... and some sort of notification that
+   it's done and instructions to that point".
+
+   The photos go to the server ONCE, as a job, and the server reads the menu
+   on its own and keeps the result. The phone only asks "is it ready?": every
+   3 seconds while the scan screen is open, and whenever the app is opened or
+   comes back. So switching apps, locking the phone, or iOS reloading the page
+   no longer loses a scan. Wherever the app comes back to, a bar at the top
+   says the menu is ready, and Review opens it on the usual review screen. Not
+   back within 2 minutes of it finishing: the server emails a link to it
+   (Chris chose that by card, 2026-10-14).
+
+   The road not taken: keeping the phone's own request alive. A web page on an
+   iPhone cannot keep working once it is in the background; that is the whole
+   problem. What still needs the app open: the few seconds it takes to SEND
+   the photos (the screen says so while it happens).
+
+   Same prompts and same conversions as the phone path (scanPagesToMenu,
+   scanSingleToMenu), so both produce the same menu. For a job, the page-by-
+   page fallback (read all photos as one request) runs on the server, where
+   the photos are. A server from before jobs answers 404 and the app reads the
+   menu the old way. */
+function buildScanJobBody(dataUrls, extra){
+  const img = u => ({ type:"image", source:{ type:"base64", media_type:"image/jpeg", data:u.split(",")[1] } });
+  const one = menuScanPrompt(false);
+  if (dataUrls.length >= 2 && dataUrls.length <= SCAN_PAGES_MAX){
+    const perPage = menuScanPrompt(true);
+    return Object.assign({ kind:"pages", max_tokens:32000, single_prompt:one,
+      pages: dataUrls.map(u => ({ messages:[{ role:"user", content:[ img(u), { type:"text", text:perPage } ] }] })) },
+      extra || {});
+  }
+  return Object.assign({ kind:"single", max_tokens:32000,
+    messages:[{ role:"user", content: dataUrls.map(img).concat([{ type:"text", text:one }]) }] }, extra || {});
+}
+
+// Start a job: {id, status} back at once. null = the server predates jobs (the
+// caller reads the menu the old way). A refusal throws in digitizeMenu's words.
+async function startScanJob(cfg, dataUrls, extra){
+  const body = buildScanJobBody(dataUrls, extra);
+  logMsg("VISION","Sending " + dataUrls.length + " photo(s) to be read on the server (" + body.kind + ")");
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/scan-jobs", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body:JSON.stringify(body),
+    });
+  } catch(err){
+    logMsg("ERROR","Scan photos not sent: " + ((err && err.message) || "no reason given"));
+    throw new Error("Couldn't send the photos - " + ((err && err.message) || "no reason given") +
+                    ". If you are on a weak signal, try again.");
+  }
+  if (res.status === 404 || res.status === 405){
+    logMsg("SCAN","This server has no background scans - reading on the phone");
+    return null;
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    logMsg("ERROR","Scan job -> " + res.status + " " + txt.slice(0,180));
+    let _detail = "";
+    try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
+    if (res.status === 401) throw new Error("Server rejected the request (401). Check your sign-in.");
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
+    if (typeof _detail !== "string") _detail = "";
+    if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
+    if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
+    throw new Error(_detail || ("Couldn't start reading the menu (" + res.status + ")"));
+  }
+  return await res.json();
+}
+
+const SCAN_JOB_GONE = "That menu scan is no longer waiting: it was saved or cleared, or it is more than 7 days old.";
+
+// One job, with its result. null = couldn't ask (offline, a blip): ask again.
+async function getScanJob(cfg, id){
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/scan-jobs/" + encodeURIComponent(id),
+                      { headers: await authHeaders(cfg) });
+  } catch(e){ return null; }
+  if (res.status === 404) return { id, status:"error", error:SCAN_JOB_GONE, gone:true };
+  if (!res.ok) return null;
+  return await res.json().catch(()=> null);
+}
+
+// The scans waiting on the server (running, ready or failed), without results.
+// null = couldn't ask; the caller keeps what it had.
+async function listWaitingScanJobs(cfg){
+  try {
+    const res = await fetch(apiBase(cfg) + "/api/scan-jobs", { headers: await authHeaders(cfg) });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return Array.isArray(j && j.jobs) ? j.jobs : [];
+  } catch(e){ return null; }
+}
+
+// Saved, let go, or stopped: the server drops what it read. Fire and forget;
+// if it fails, the server deletes the row within 7 days anyway.
+function collectScanJob(cfg, id){
+  if (!id) return;
+  (async ()=>{
+    try {
+      await fetch(apiBase(cfg) + "/api/scan-jobs/" + encodeURIComponent(id) + "/collected", {
+        method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) }, body:"{}" });
+    } catch(e){
+      logMsg("SCAN","Couldn't clear scan " + String(id).slice(0,8) + " on the server (it is deleted within 7 days)");
+    }
+  })();
+}
+
+// A finished job -> the menu, or the reason it failed.
+function scanJobToMenu(job){
+  if (!job || job.status !== "done" || !job.result){
+    throw new Error((job && job.error) || "The menu could not be read this time. Please try again.");
+  }
+  const r = job.result;
+  return r.kind === "pages" ? scanPagesToMenu(r, (r.pages || []).length) : scanSingleToMenu(r);
 }
 
 // The model's JSON -> the menu the app stores. Shared by the single request
@@ -8578,12 +8720,16 @@ function App({openShare}){
   // under three seconds, too quick to read while the app is still loading.
   useEffect(()=>{
     try {
-      const t = Number(localStorage.getItem(SCAN_INFLIGHT_KEY) || 0);
+      const raw = String(localStorage.getItem(SCAN_INFLIGHT_KEY) || "");
+      const t = Number(raw.split(":")[0]) || 0;
       if (!t) return;
       localStorage.removeItem(SCAN_INFLIGHT_KEY);
       if (Date.now() - t < 30 * 60 * 1000){
-        logMsg("SCAN", "a scan was interrupted when the app was stopped");
-        flashAction("The menu scan stopped when you left the app. Scan it again and keep MenuCaptain open until it's done.", "OK", null);
+        const photos = raw.indexOf(":photos") !== -1;
+        logMsg("SCAN", "a scan was interrupted when the app was stopped" + (photos ? " (photos still sending)" : ""));
+        flashAction(photos
+          ? "The photos were still sending when you left the app, so that scan didn't start. Scan it again; once the photos are sent, you can leave."
+          : "The menu scan stopped when you left the app. Scan it again and keep MenuCaptain open until it's done.", "OK", null);
       }
     } catch(e){}
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -9106,6 +9252,63 @@ function App({openShare}){
     // eslint-disable-next-line
   }, []);
 
+  /* ---- background menu scans: the "your menu is ready" bar --------------- */
+  // The scans waiting on the server for this account (see startScanJob):
+  // asked for when the app opens, whenever it comes back to the front, when the
+  // scan screen closes, and every 12 seconds while one is still being read.
+  const [scanJobs, setScanJobs] = useState([]);
+  // ✕ on a ready bar hides it until the app is next opened. It does NOT throw
+  // the scan away: it was counted, and it waits on the server for 7 days.
+  const [scanJobsHidden, setScanJobsHidden] = useState([]);
+  const [scanLink, setScanLink] = useState("");      // a job to open, from the email link or a push
+  function refreshScanJobs(){
+    if (!configComplete(config)) return;
+    listWaitingScanJobs(config).then(list => { if (list) setScanJobs(list); });
+  }
+  useEffect(()=>{
+    if (!ready || needSetup || !configComplete(config)) return;
+    refreshScanJobs();
+    const onVis = ()=>{ if (document.visibilityState === "visible") refreshScanJobs(); };
+    document.addEventListener("visibilitychange", onVis);
+    return ()=> document.removeEventListener("visibilitychange", onVis);
+  // eslint-disable-next-line
+  }, [ready, needSetup]);
+  const scanJobRunning = scanJobs.some(j => j.status === "running");
+  useEffect(()=>{
+    if (!scanJobRunning) return;
+    const iv = setInterval(refreshScanJobs, 12000);
+    return ()=> clearInterval(iv);
+  // eslint-disable-next-line
+  }, [scanJobRunning]);
+  const overlayType = (overlay && overlay.type) || "";
+  const prevOverlayType = useRef("");
+  useEffect(()=>{
+    if (prevOverlayType.current === "scanMenu" && overlayType !== "scanMenu") refreshScanJobs();
+    prevOverlayType.current = overlayType;
+  // eslint-disable-next-line
+  }, [overlayType]);
+  // Open a waiting scan on the review screen, aimed at the place (and menu,
+  // for a re-scan) it was started from, when those are still here.
+  function reviewScanJob(j){
+    const mt = (j && j.meta) || {};
+    const rid = (mt.restaurant_id && restaurants.some(r => r.id === mt.restaurant_id)) ? mt.restaurant_id : undefined;
+    const mid = (rid && mt.menu_id && (menus[rid] || []).some(x => x.menu_id === mt.menu_id)) ? mt.menu_id : undefined;
+    setScanJobs(list => list.filter(x => x.id !== j.id));
+    setOverlay({ type:"scanMenu", restaurantId: rid, menuId: mid, resumeJob: j.id });
+  }
+  // From the email's button or a push: once the data is loaded, find that job.
+  useEffect(()=>{
+    if (!ready || needSetup || !scanLink || !configComplete(config)) return;
+    const want = scanLink;
+    setScanLink("");
+    listWaitingScanJobs(config).then(list => {
+      const j = (list || []).find(x => x.id === want);
+      if (j) reviewScanJob(j);
+      else flashAction(SCAN_JOB_GONE, "OK", null);
+    });
+  // eslint-disable-next-line
+  }, [ready, needSetup, scanLink]);
+
   /* ---- push deep-links: route a tapped notification to its screen ------ */
   /* Deep link from an email. Push notifications reach the same overlays via
      mc-push-nav; a link in an inbox cannot fire an event, so it says where it
@@ -9116,10 +9319,14 @@ function App({openShare}){
      notification link that reopens its overlay for ever is the trap the vote
      codes taught us about. */
   useEffect(()=>{
-    let want = "";
+    let want = "", job = "";
     try {
       const om = (location.search || "").match(/[?&]open=([a-z]+)/);
       if (om) want = om[1];
+      // "?open=scan&job=<id>": the "your menu is ready" email. Only an id
+      // shaped like the server's (a UUID) is taken.
+      const jm = (location.search || "").match(/[?&]job=([0-9a-fA-F-]{36})(?:&|$)/);
+      if (jm) job = jm[1].toLowerCase();
     } catch(e){}
     if (!want) return;
     try { history.replaceState(null, "", location.pathname); } catch(e){}
@@ -9127,12 +9334,13 @@ function App({openShare}){
     // in reloads the page, which would drop the overlay set below. Park the
     // destination so the post-sign-in return brings you back to it. Only the
     // known destinations are parked, so a crafted link cannot bounce anywhere.
-    if (!configComplete(loadConfig()) && (want === "shares" || want === "connections")){
-      rememberAfterSignup(location.origin + location.pathname + "?open=" + want);
+    if (!configComplete(loadConfig()) && (want === "shares" || want === "connections" || (want === "scan" && job))){
+      rememberAfterSignup(location.origin + location.pathname + "?open=" + want + (want === "scan" ? "&job=" + job : ""));
       return;
     }
     if (want === "shares"){ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }
     else if (want === "connections"){ setOverlay({ type:"connections" }); }
+    else if (want === "scan" && job){ setScanLink(job); }
   // eslint-disable-next-line
   }, []);
 
@@ -9145,6 +9353,8 @@ function App({openShare}){
         setOverlay({ type:"shares" });
       } else if (t === "group_invite"){
         setOverlay(null); setTab("restaurants");
+      } else if (t === "scan_ready" && e.detail.job){
+        setScanLink(String(e.detail.job));
       }
     }
     window.addEventListener("mc-push-nav", onNav);
@@ -9714,6 +9924,30 @@ function App({openShare}){
           <span>Offline - showing your saved data{pendingCount > 0 ? "; changes will sync when you're back online" : ""}</span>
         </div>
       )}
+
+      {/* Background menu scans (see startScanJob). Hidden while the scan
+          screen itself is open: it says the same thing, better. */}
+      {overlayType !== "scanMenu" && scanJobs.filter(j => scanJobsHidden.indexOf(j.id) === -1).slice(0, 3).map(j => (
+        j.status === "done" ? (
+          <div key={j.id} className="syncbar update scanbar" style={{cursor:"pointer"}} onClick={()=> reviewScanJob(j)}>
+            <span className="dot" style={{background:"var(--accent)"}} />
+            <span style={{flex:1, minWidth:0}}>{j.place_name ? "Your menu for " + j.place_name + " is ready" : "Your scanned menu is ready"}</span>
+            <button onClick={(e)=>{ e.stopPropagation(); reviewScanJob(j); }}>Review</button>
+            <button aria-label="Not now" style={{marginLeft:2, padding:"0 2px", color:"var(--text-faint)"}}
+              onClick={(e)=>{ e.stopPropagation(); setScanJobsHidden(h => h.concat([j.id])); }}>&#x2715;</button>
+          </div>
+        ) : j.status === "error" ? (
+          <div key={j.id} className="syncbar err scanbar">
+            <span className="dot" style={{background:"var(--danger)"}} />
+            <span style={{flex:1, minWidth:0}}>{"A menu scan didn't finish. " + (j.error || "Please scan it again.")}</span>
+            <button onClick={()=>{ collectScanJob(config, j.id); setScanJobs(list => list.filter(x => x.id !== j.id)); }}>OK</button>
+          </div>
+        ) : (
+          <div key={j.id} className="syncbar busy scanbar"><span className="spin" />
+            {j.place_name ? "Reading the menu for " + j.place_name + "..." : "Reading your menu..."}
+          </div>
+        )
+      ))}
 
       {usernameNudge && (
         <UsernameNudge config={config}
@@ -10933,8 +11167,10 @@ function App({openShare}){
           config={config}
           restaurants={restaurants}
           menus={menus}
+          key={overlay.resumeJob || "scan"}
           presetRestaurantId={overlay.restaurantId}
           presetMenuId={overlay.menuId}
+          resumeJob={overlay.resumeJob}
           onClose={()=> setOverlay(overlay.returnTo || null)}
           onSave={(restId, menusToSave, newRestaurant, isReplace, opts)=>{
             let nextR = restaurants;
@@ -22054,28 +22290,81 @@ const LABEL_SUGGESTIONS = [
    when the app next opens means the page was stopped mid-scan, and App says
    what happened instead of leaving a silent restart.
 
-   The road not taken (for now): letting the scan finish on the server and
-   collecting the result on return. That survives anything, but it is a much
-   bigger change than a warning, and the server may already have done (and
-   counted) the work that the phone never received. */
+   Since app 1.523.0 a photo scan is read on the server (startScanJob), and
+   leaving is fine once the photos are SENT. This key now covers only what
+   still needs the app open: sending the photos (value "<time>:photos"), and
+   the link and find-it-for-me paths, which still read on the phone. */
 const SCAN_INFLIGHT_KEY = "mc_scan_inflight";
 
 function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMenuId,
-                       onClose, onSave}){
+                       resumeJob, onClose, onSave}){
   // find the existing menu we're re-scanning (if any), to lock its label
   const presetMenu = (presetRestaurantId && presetMenuId)
     ? (menus[presetRestaurantId] || []).find(m => m.menu_id === presetMenuId)
     : null;
 
-  const [step,setStep]         = useState("pick");      // pick | working | review | error
-  // Set while a scan runs; cleared when it stops running, however it stops,
-  // and when this screen closes. See SCAN_INFLIGHT_KEY.
+  const [step,setStep]         = useState(resumeJob ? "working" : "pick");   // pick | working | review | error
+  // A photo scan read on the server (see startScanJob). phase, while working:
+  // "sending" the photos (the app must stay open), "reading" on the server
+  // (it need not), or "" for the paths that still read on the phone.
+  // resumeJob: opened from the "menu is ready" bar or the email, on a job
+  // that is already on the server.
+  const [jobId,setJobId]       = useState(resumeJob || "");
+  const [phase,setPhase]       = useState(resumeJob ? "reading" : "");
+  const jobLoaded              = useRef(false);   // its result is on screen: clear it on save or close
+  // Set while a scan needs the app open; cleared when that ends, however it
+  // ends, and when this screen closes. See SCAN_INFLIGHT_KEY.
   useEffect(()=>{
     try {
-      if (step === "working") localStorage.setItem(SCAN_INFLIGHT_KEY, String(Date.now()));
-      else localStorage.removeItem(SCAN_INFLIGHT_KEY);
+      if (step === "working" && phase !== "reading"){
+        localStorage.setItem(SCAN_INFLIGHT_KEY, String(Date.now()) + (phase === "sending" ? ":photos" : ""));
+      } else localStorage.removeItem(SCAN_INFLIGHT_KEY);
     } catch(e){}
-  }, [step]);
+  }, [step, phase]);
+  // While the server reads it: ask every 3 seconds, and at once when the app
+  // comes back to the front.
+  useEffect(()=>{
+    if (step !== "working" || phase !== "reading" || !jobId) return;
+    let alive = true, busy = false;
+    async function poll(){
+      if (busy || !alive) return;
+      busy = true;
+      try {
+        const job = await getScanJob(config, jobId);
+        if (!alive || !job || job.status === "running") return;
+        let parsed = null, why = "";
+        try { parsed = scanJobToMenu(job); }
+        catch(err){ why = (err && err.message) || "The menu could not be read this time. Please try again."; }
+        if (!parsed){
+          if (!job.gone) collectScanJob(config, jobId);
+          logMsg("ERROR","Scan " + jobId.slice(0,8) + " not usable: " + why);
+          setJobId(""); setPhase(""); setErrMsg(why); setStep("error");
+          return;
+        }
+        jobLoaded.current = true;
+        logMsg("SCAN","Scan " + jobId.slice(0,8) + " read on the server");
+        acceptScan(parsed);
+      } finally { busy = false; }
+    }
+    poll();
+    const iv = setInterval(poll, 3000);
+    const onVis = ()=>{ if (document.visibilityState === "visible") poll(); };
+    document.addEventListener("visibilitychange", onVis);
+    return ()=>{ alive = false; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, phase, jobId]);
+  // Closing the screen. A result that was on screen and not saved is let go
+  // (the server drops it). A scan still being read is LEFT running: the bar at
+  // the top of the app brings it back when it is ready.
+  function close(){
+    if (jobId && jobLoaded.current) collectScanJob(config, jobId);
+    onClose();
+  }
+  function stopScan(){
+    collectScanJob(config, jobId);
+    logMsg("SCAN","Scan " + String(jobId).slice(0,8) + " stopped by the user");
+    onClose();
+  }
   useEffect(()=> ()=> { try { localStorage.removeItem(SCAN_INFLIGHT_KEY); } catch(e){} }, []);
   const [previews,setPreviews] = useState([]);          // data URLs for thumbnails
   const [dataUrls,setDataUrls] = useState([]);          // resized data URLs for API
@@ -22157,41 +22446,65 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
   async function runOcr(){
     if (!dataUrls.length) return;
-    setStep("working");
+    setErrMsg(""); setPhase("sending"); setStep("working");
+    let job = null;
     try {
-      const parsed = await digitizeMenu(config, dataUrls);
-      parsed.captured_date = todayISO();
-      parsed.last_updated  = todayISO();
-      parsed.source        = "photo_ocr";
-      setResult(parsed);
-      // Pre-fill the destination if the menu showed a restaurant name.
-      // If we already have a restaurant whose name matches (case-insensitive,
-      // trimmed), default the "Save menu to" picker to THAT existing place so a
-      // second menu scan does not silently create a duplicate restaurant. Only
-      // an exact normalized match counts - no fuzzy guessing (predictable beats
-      // surprising). No match -> pre-fill the new-restaurant name field as before.
-      if (!presetRestaurantId && parsed.restaurant_name){
-        const norm = s => (s || "").trim().toLowerCase();
-        const hit = restaurants.find(r => norm(r.name) === norm(parsed.restaurant_name));
-        if (hit){
-          setRestId(hit.id);
-          logMsg("SCAN","Scanned name matches existing restaurant '" + hit.name +
-                        "' (id " + hit.id + ") - defaulting there to avoid a duplicate");
-        } else {
-          setNewName(parsed.restaurant_name);
-          logMsg("SCAN","No existing restaurant matches '" + parsed.restaurant_name +
-                        "' - defaulting to a new restaurant");
-        }
-      }
-      const itemCount = parsed.sections.reduce((n,s)=> n + s.items.length, 0);
-      logMsg("SCAN","Digitized " + parsed.sections.length + " sections, " +
-                    itemCount + " items");
-      setStep("review");
+      const here = presetRestaurantId ? restaurants.find(r => r.id === presetRestaurantId) : null;
+      job = await startScanJob(config, dataUrls, {
+        place_name: (here && here.name) || null,
+        meta: { restaurant_id: presetRestaurantId || "", menu_id: presetMenuId || "" },
+      });
+    } catch(err){
+      logMsg("ERROR","Digitize failed: " + err.message);
+      setPhase(""); setErrMsg(err.message); setStep("error");
+      return;
+    }
+    if (job && job.id){
+      logMsg("SCAN","Scan " + String(job.id).slice(0,8) + " is being read on the server");
+      setJobId(job.id); setPhase("reading");
+      return;
+    }
+    // A server from before background scans: read it here, as before.
+    setPhase("");
+    try {
+      acceptScan(await digitizeMenu(config, dataUrls));
     } catch(err){
       logMsg("ERROR","Digitize failed: " + err.message);
       setErrMsg(err.message);
       setStep("error");
     }
+  }
+
+  // A photo scan's menu is in: on to review. Shared by the server job and the
+  // phone path.
+  function acceptScan(parsed){
+    parsed.captured_date = todayISO();
+    parsed.last_updated  = todayISO();
+    parsed.source        = "photo_ocr";
+    setResult(parsed);
+    // Pre-fill the destination if the menu showed a restaurant name.
+    // If we already have a restaurant whose name matches (case-insensitive,
+    // trimmed), default the "Save menu to" picker to THAT existing place so a
+    // second menu scan does not silently create a duplicate restaurant. Only
+    // an exact normalized match counts - no fuzzy guessing (predictable beats
+    // surprising). No match -> pre-fill the new-restaurant name field as before.
+    if (!presetRestaurantId && parsed.restaurant_name){
+      const norm = s => (s || "").trim().toLowerCase();
+      const hit = restaurants.find(r => norm(r.name) === norm(parsed.restaurant_name));
+      if (hit){
+        setRestId(hit.id);
+        logMsg("SCAN","Scanned name matches existing restaurant '" + hit.name +
+                      "' (id " + hit.id + ") - defaulting there to avoid a duplicate");
+      } else {
+        setNewName(parsed.restaurant_name);
+        logMsg("SCAN","No existing restaurant matches '" + parsed.restaurant_name +
+                      "' - defaulting to a new restaurant");
+      }
+    }
+    const itemCount = parsed.sections.reduce((n,s)=> n + s.items.length, 0);
+    logMsg("SCAN","Digitized " + parsed.sections.length + " sections, " +
+                  itemCount + " items");
+    setStep("review");
   }
 
   // Shared destination prefill (same logic as runOcr): match the digitized name
@@ -22463,6 +22776,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     // replacing a menu with nothing would empty it.
     onSave(targetRestId, menusToSave, newRestaurant, isReplace && menusToSave.length > 0,
            { stayOpen, houseStory: (result && result.house_story) || "" });
+    // Saved: the server drops its copy of what it read.
+    if (jobId && jobLoaded.current){ collectScanJob(config, jobId); jobLoaded.current = false; setJobId(""); }
     if (stayOpen){
       setAddedUrls(prev => prev.concat([curUrl]));
       setRestId(targetRestId);           // later menus land in the same place
@@ -22560,7 +22875,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   return (
     <div className="overlay">
       <div className="ovhead">
-        <button className="x" onClick={onClose}>Cancel</button>
+        <button className="x" onClick={close}>{step === "working" && phase === "reading" ? "Close" : "Cancel"}</button>
         <h2>{presetMenu ? "Re-scan " + (presetMenu.label || "menu") : "Add a menu"}</h2>
         {step === "review"
           ? <button className="x" onClick={save}
@@ -22741,17 +23056,39 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         )}
 
         {step === "working" && (
-          <div className="empty" style={{paddingTop:"22vh"}}>
+          <div className="empty" style={{paddingTop: phase === "reading" ? "14vh" : "22vh"}}>
             <Loader size={46} />
-            <div className="big" style={{marginTop:16}}>Reading the menu</div>
-            <div>This usually takes a minute or two. A big menu with lots of items or photos takes longer; a short one is quick.</div>
-            <div className="card" style={{margin:"18px auto 0", maxWidth:420, padding:"11px 14px", textAlign:"left",
-                 border:"1px solid rgba(231,178,76,0.4)"}}>
-              <div className="small" style={{fontWeight:600}}>Keep MenuCaptain open until it's done</div>
-              <div className="tiny faint" style={{marginTop:3}}>
-                Switching to another app or locking your phone can stop the scan, and you would have to start again.
+            <div className="big" style={{marginTop:16}}>{phase === "sending" ? "Sending the photos" : "Reading the menu"}</div>
+            <div>{phase === "sending"
+              ? "This takes a few seconds."
+              : "This usually takes a minute or two. A big menu with lots of items or photos takes longer; a short one is quick."}</div>
+            {phase === "reading" ? (
+              /* The instructions Chris asked for: you can go, and how you will
+                 hear that it is done. */
+              <div className="card" style={{margin:"18px auto 0", maxWidth:420, padding:"12px 14px", textAlign:"left",
+                   border:"1px solid rgba(224,118,74,0.45)"}}>
+                <div className="small" style={{fontWeight:600}}>You don't have to wait here</div>
+                <div className="tiny faint" style={{marginTop:4, lineHeight:1.5}}>
+                  Switch apps or lock your phone if you like: the menu keeps being read. When it's
+                  ready, a bar at the top of MenuCaptain takes you to it. Not back within 2 minutes
+                  of it finishing? We email you a link to it.
+                </div>
+                <button className="btn primary" style={{marginTop:12, width:"100%"}} onClick={close}>Done for now</button>
+                <button className="btn ghost sm" style={{marginTop:8}} onClick={stopScan}>Stop this scan</button>
               </div>
-            </div>
+            ) : (
+              <div className="card" style={{margin:"18px auto 0", maxWidth:420, padding:"11px 14px", textAlign:"left",
+                   border:"1px solid rgba(231,178,76,0.4)"}}>
+                <div className="small" style={{fontWeight:600}}>
+                  {phase === "sending" ? "Keep MenuCaptain open while the photos send" : "Keep MenuCaptain open until it's done"}
+                </div>
+                <div className="tiny faint" style={{marginTop:3}}>
+                  {phase === "sending"
+                    ? "Once they're sent, you can leave and the menu keeps being read."
+                    : "Switching to another app or locking your phone can stop this, and you would have to start again."}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

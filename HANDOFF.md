@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.522.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.138.1** | Railway, `/health` reports `db connected` |
-| Native shell | **1.522.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.523.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.139.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.523.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -394,6 +394,78 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### Menu scans finish without you (2026-10-14, app 1.523.0, backend 0.139.0)
+
+Chris, after 1.522.0's "stay on the screen" warning: "Yes, we should do the bigger job of having the
+scan run without having to stay on the page. That will be a much better experience and some sort of
+notification that it's done and instructions to that point". By card he chose **"Email if I'm not
+back in 2 min"**, which also approved the new table and the privacy sentence below.
+
+**How it works.** A photo scan is now a job on the server (`SCAN JOBS` in main.py, table
+`scan_jobs`, record in `sql/scan_jobs.sql`).
+- `ScanMenuFlow.runOcr` sends the photos ONCE (`startScanJob`, `POST /api/scan-jobs`, body from
+  `buildScanJobBody`: the same prompts as before; 2-8 photos go page by page with the one-request
+  prompt along as `single_prompt`). The server answers at once with an id. The screen then says
+  **"You don't have to wait here"** with **Done for now** and **Stop this scan**; the header button
+  reads Close. Only the few seconds of SENDING still need the app open (the screen says so).
+- The scan screen asks every 3 s (`getScanJob`), and at once when the app returns to the front. App
+  asks for the waiting list (`listWaitingScanJobs`, `GET /api/scan-jobs`) on open, on every return,
+  when the scan screen closes, and every 12 s while one is running. Bars at the top: "Reading the
+  menu for X...", "Your menu for X is ready" with **Review** and ✕ (hides it until the next open; the
+  scan is NOT thrown away), or "A menu scan didn't finish" with OK.
+- **Review** opens the normal review screen (`resumeJob` prop) aimed at the place and menu it was
+  started from (`meta`, checked to still exist). Save or Cancel then tells the server to drop its
+  copy (`collectScanJob`, `POST /api/scan-jobs/{id}/collected`). Closing while it is still being
+  read leaves it running.
+- **The notice:** a finished scan the app has not looked at within 120 s (`SCAN_JOB_EMAIL_AFTER_S`)
+  gets ONE email, "Your menu for X is ready", button "Review it" to `?open=scan&job=<id>`, plus a
+  push where native is registered (`scan_ready`). The app marks a job seen when it fetches it or
+  lists it, so no email goes while the app is open. No email for a failed scan.
+- The `?open=scan&job=` link is handled with the other `?open=` links (parked through sign-in) and
+  opens the job once data is loaded; a job already saved, cleared or expired says so.
+
+**Decisions inside it.**
+- **The page-by-page fallback moved to the server for jobs.** When the pages can't be trusted (a page
+  failed twice, ran out of room, unreadable, or two languages), the server reads all photos as one
+  request itself, because the photos are there and the phone may be closed. `_pages_unusable`
+  mirrors `scanPagesToMenu` / `menuPagesDisagreeOnLanguage`; **keep the two in step.**
+- **Counting:** a job is ONE usage record, fallback included, with every token of both readings in
+  its cost. The phone-side fallback recorded two calls. The allowance is checked BEFORE the job is
+  accepted (`enforce_ai_limits` in the POST), so "out of scans" is said on the scan screen, not in an
+  email.
+- **Privacy:** photos are never stored, only the model's text and the place name; the result is
+  cleared on collect and every row is deleted by an hourly sweep before it is 7 days old
+  (`SCAN_JOB_KEEP_S` is 7 days less 2 hours, so "at the latest" holds). privacy.html, AI features,
+  effective October 14, 2026: "If you leave the app while a menu is being read, our server keeps what
+  was read from it (the text, not your photos) until you open it, and deletes it after 7 days at the
+  latest." (approved by Chris on the card).
+- **The road not taken:** a queue or worker service. The job lives in the backend process, so a
+  deploy or restart during a reading loses it; the row is marked "interrupted" when next asked about
+  (running, not being read here, older than 15 min, `SCAN_JOB_STALE_S`) and the app says to scan
+  again. Not worth a second service at a few scans a day. **Deploying while someone is scanning
+  costs them that scan.**
+- `SCAN_INFLIGHT_KEY` (1.522.0) now covers only what still needs the app open: sending photos
+  (value `<time>:photos`, its own boot message) and the link / find-it paths, which still read on
+  the phone.
+- A server without jobs answers 404 and the app reads the menu on the phone as before.
+
+**Verified.** Backend: `test_scanjobs.py` runs the real section against stand-ins (database, provider,
+email, push): failed before the change, 39 checks pass after (pages done and kept without photos; one
+usage record; email after the grace period with the escaped place name and the right link; no email
+when the app looked; fallback with all photos in order; retry then fallback; kill switch; too-long and
+provider failures; cancel drops the result; another person's job 404s; junk ids 404; waiting list;
+restart rule; 7-day sweep; refusals create nothing; the scan-pages endpoint unchanged). Live after
+deploy: `/health` 0.139.0, `/api/scan-jobs` 401 without sign-in. App, locally at phone width
+against a stand-in server: a ready job shows its bar on open; Review opens the review screen locked
+to Villa Test with the two pages merged; saving made the menu and cleared the server copy; a new
+two-photo scan sent kind pages with one photo per page, the one-request prompt, the place and its id;
+the waiting screen and Done for now; the "Reading..." bar turned to "ready" on its own; ✕ hid it
+without clearing it; the email link opened the review and cleaned the address bar; Cancel on review
+let it go; a failed job's bar and OK; a single photo sent kind single; Stop cleared it; a failure
+while on screen showed the error; the photos-interrupted message and a gone link's message; no
+script errors. **Not checked, needs Chris's phone:** a real scan read on the server, leaving the app
+during it, the email arriving.
+
 ### Dish suggestions stop covering the page; a scan warns you to stay (2026-10-14, app 1.522.0)
 
 Chris, with a screenshot of Log a visit while typing a dish: "This pop-up is covering the other text,
@@ -413,8 +485,8 @@ make iOS suspend or reload the page; the scan is lost and the restart looks like
   removed when the step changes or the screen closes. If it is still there when the app next opens
   (under 30 minutes old), App says once, in the 6-second bar with an OK: "The menu scan stopped when
   you left the app. Scan it again and keep MenuCaptain open until it's done." A log line is written.
-- **The road not taken, and still open:** let the backend finish a scan on its own and keep the
-  result for the app to collect on return. It survives anything, but it is much larger. Note the
+- **The road not taken, then taken the same day (app 1.523.0, below):** let the backend finish a
+  scan on its own and keep the result for the app to collect on return. It survives anything, but it is much larger. Note the
   server may already have done, and COUNTED, a scan whose result the phone never received.
 
 **Verified.** In the real changed app, locally at phone width: typing "Gno" lists Gnocchi and the Add
