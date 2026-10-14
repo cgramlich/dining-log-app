@@ -26,7 +26,7 @@ Dish search now looks through every menu at a place, reads descriptions as well 
 
 REFINEMENTS
 
-The Back button no longer hides behind the clock on things friends send you. Restaurants you add abroad now keep their city. Votes in “Where shall we eat?” are saved as they should be. Dish suggestions no longer cover the page as you type, and signing up is simpler.
+The Back button no longer hides behind the clock on things friends send you. Restaurants you add abroad now keep their city. Votes in “Where shall we eat?” are saved as they should be. Suggestions for dishes, and for the people you dined with, no longer cover the page as you type, and signing up is simpler.
 
 YOUR IDEAS SHAPE MENUCAPTAIN
 
