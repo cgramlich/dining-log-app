@@ -432,8 +432,10 @@ confirm. Server `POST /api/admin/updates/send` {issue, mode preview|count|send, 
   to reply instead). New table `update_email_optouts` (user_id, created_at), `sql/update_email_optouts.sql`.
 - **Gaps, on purpose:** "already sent" is remembered per server run only (the log is the record);
   no in-app Settings switch for the person yet (the email's link is the switch).
-- **Privacy:** the policy needs a line for update emails before the first real send; wording waits on
-  Chris (proposed with the preview).
+- **Privacy:** two lines added and live the same day, wording approved by Chris by card: "To send you
+  an occasional email about what's new in MenuCaptain. Each one has a link to stop them, and stopping
+  them doesn't affect emails about your account or things friends send you." (How we use your
+  information) and "our occasional update emails" on the Resend line.
 
 **Verified.** `test_news.py` runs the real server section against stand-ins (users, opt-outs, the
 published issue, Resend): failed before, 23 checks pass (owner only, date-shaped issue, count dedupes,
