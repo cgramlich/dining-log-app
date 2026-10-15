@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.536.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.537.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.146.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.536.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.537.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,24 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Home: the latest action, and who (2026-10-15, app 1.537.0)
+
+Chris (Home screenshot): "How do I know this came from Owen? ... Maybe the last action? Visit
+logged, place added by You, place added by Owen". Each Recently added row now leads with its
+latest action: **Visit logged** (a visit on or after the day it was added), else **From Owen** (a
+place saved from a friend's share), else **Added by you**; then the day ("Oct 15" this year, with
+the year otherwise), cuisine and town.
+- **New field `shared_by`** on a restaurant saved from a shared place (`PublishedMenu`) or created
+  from a shared visit (`PublishedVisit`): `{u: handle, n: name}` from the share's `by`/`byn`, plus
+  `id` (the sender's account) when it was opened in the inbox. Shown as your own name for them
+  (`getConnName`), else their first name, else @handle. The user's own data; nothing new is sent
+  anywhere.
+- **Places saved from a share before this** have no `shared_by`; their menu came in with source
+  "shared", so they read **Shared with you**, never a wrong "Added by you" (Houston's today).
+**Verified** at 430 px: all five labels (Shared with you, From Owen, Visit logged, Added by you, a
+2025 date) and saving a shared place records `shared_by` with the sender's id. The old version
+failed 5 of 6.
 
 ### Shared things read in order (2026-10-15, app 1.536.0)
 

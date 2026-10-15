@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.536.0";
+const APP_VERSION   = "1.537.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -4147,6 +4147,28 @@ function sharerFirst(data){
   if (!data) return "";
   const f = firstNameOf(data.byn);
   return f || (data.by ? "@" + data.by : "");
+}
+// Who shared a place you saved (2026-10-15), kept on the place as shared_by:
+// their handle and name as the share carried them, plus their account id when
+// it was opened inside the app. Nothing more: it only has to say "From Owen".
+function sharedByOf(data, senderId){
+  const o = {};
+  if (data && data.by) o.u = String(data.by).slice(0, 40);
+  if (data && data.byn) o.n = String(data.byn).trim().slice(0, 60);
+  if (senderId) o.id = String(senderId).slice(0, 64);
+  return Object.keys(o).length ? o : null;
+}
+// Your own name for them first (as everywhere), then the name they share
+// under, then their handle.
+function sharedByLabel(sb){
+  if (!sb) return "";
+  return (sb.id && getConnName(sb.id)) || firstNameOf(sb.n) || (sb.u ? "@" + sb.u : "") || "a friend";
+}
+// "Oct 15" this year, "Oct 15, 2025" otherwise.
+function fmtDayShort(iso){
+  const f = fmtDate(iso);
+  const y = String(new Date().getFullYear());
+  return (iso && String(iso).slice(0, 4) === y) ? f.replace(new RegExp(",? ?" + y + "$"), "") : f;
 }
 function firstNameOf(name){
   return String(name || "").trim().split(/\s+/)[0] || "";
@@ -8767,7 +8789,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
    distinct so they don't read as the same list). A launcher, not a
    wizard - the finding/searching work lives one tap deeper in FindPlaceView.
    ============================================================ */
-function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
+function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant,
                     onScanMenu, onAtRestaurant, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs }){
   const [showAllVisits, setShowAllVisits] = useState(false);   // Recent visits: 3, then expand
   // Recently ADDED: newest saves to your collection (by added_date). Kept
@@ -8785,11 +8807,23 @@ function HomeView({ profile, restaurants, visits, cfg, onOpenRestaurant,
   const recentVisits = showAllVisits ? allRecentVisits : allRecentVisits.slice(0, 3);
   const greeting = (function(){ const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; })();
   const who = profileName(profile) || "";
+  // The newest visit to each place, for "Visit logged" below.
+  const lastVisitAt = {};
+  (visits || []).forEach(v => {
+    if (v && v.restaurant_id && v.date && !(lastVisitAt[v.restaurant_id] >= v.date)) lastVisitAt[v.restaurant_id] = v.date;
+  });
   const placeRow = (r, key)=> {
-    // Lead the subtitle with when it was added, so "Recently added" reads
-    // clearly as a different list from "Recent visits".
-    const sub = [ r.added_date ? "Added " + fmtDate(r.added_date) : "", r.cuisine, r.location ]
-      .filter(Boolean).join("  ·  ");
+    // Lead with what happened LAST, and who (Chris, 2026-10-15: "Visit logged,
+    // place added by You, place added by Owen"). A place saved from a share
+    // before shared_by existed has a menu that came in as "shared": it says
+    // "Shared with you" rather than a wrong "Added by you".
+    const lv = lastVisitAt[r.id] || "";
+    const fromShare = !r.shared_by && ((menus || {})[r.id] || []).some(mn => mn && mn.source === "shared");
+    const lead = (lv && lv >= (r.added_date || ""))
+      ? ["Visit logged", fmtDayShort(lv)]
+      : [r.shared_by ? "From " + sharedByLabel(r.shared_by) : fromShare ? "Shared with you" : "Added by you",
+         r.added_date ? fmtDayShort(r.added_date) : ""];
+    const sub = lead.concat([r.cuisine, r.location]).filter(Boolean).join("  ·  ");
     return (
     <div key={key} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor:"pointer"}}
       onClick={()=> onOpenRestaurant(r.id)}>
@@ -10519,7 +10553,7 @@ function App({openShare}){
         {tab === "home" && (
           <HomeView
             profile={profile}
-            restaurants={restaurants} visits={visits} cfg={config}
+            restaurants={restaurants} visits={visits} menus={menus} cfg={config}
             pendingReqs={pendingReqs}
             onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
@@ -24812,7 +24846,7 @@ function PublishedVisitLoader({slug}){
   return <PublishedVisit data={data} />;
 }
 
-function PublishedVisit({data, onSaved, onLogVisit, replySlot}){
+function PublishedVisit({data, onSaved, onLogVisit, replySlot, senderId}){
   const home = location.origin + location.pathname;
   // Carry WHO shared this and WHICH visit into the app, so someone arriving
   // from here lands with an invitation rather than an empty account.
@@ -24867,6 +24901,8 @@ function PublishedVisit({data, onSaved, onLogVisit, replySlot}){
     if (data.gpid) r.google_place_id = data.gpid;
     if (data.lat != null) r.lat = data.lat;
     if (data.lng != null) r.lng = data.lng;
+    const sb = sharedByOf(data, senderId);
+    if (sb) r.shared_by = sb;                // Home says "From Owen" (2026-10-15)
     return r;
   }
   async function startSave(){
@@ -28759,7 +28795,7 @@ function picksReplyText(list, max){
 // `onSendPicks(text)` and `sendToName` are passed only when this menu was
 // opened from a friend's share inside the app: then the picks can go back to
 // that friend as a reply. Without them (a public link) picks go out as a text.
-function PublishedMenu({data, onSaved, onSendPicks, sendToName, replySlot}){
+function PublishedMenu({data, onSaved, onSendPicks, sendToName, replySlot, senderId}){
   const home = location.origin + location.pathname;
   const isPlace = !!(data && data.k === "p");   // place recommendation (browse) vs menu-pick (send back)
   // A place sent by a friend can carry their photos (2026-10-11): -1 = closed.
@@ -28880,9 +28916,12 @@ function PublishedMenu({data, onSaved, onSendPicks, sendToName, replySlot}){
       let writeRestaurants = false;
       if (mode === "new"){
         const rid = uid("rest");
-        restaurants.push({ id:rid, name:data.r || "Restaurant", cuisine:data.cu || "",
+        const rec = { id:rid, name:data.r || "Restaurant", cuisine:data.cu || "",
           location:data.c || "", address:"", phone:"", website:"", notes:"",
-          favorite:false, added_date:todayISO() });
+          favorite:false, added_date:todayISO() };
+        const sb = sharedByOf(data, senderId);
+        if (sb) rec.shared_by = sb;          // Home says "From Owen" (2026-10-15)
+        restaurants.push(rec);
         menus[rid] = [ buildSavedMenu(rid) ];
         writeRestaurants = true;
       } else {
@@ -32502,6 +32541,7 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
           {open.kind === "list" ? <PublishedList data={open.payload} replySlot={replyCard} />
             : open.kind === "collection" ? <PublishedCollection data={open.payload} replySlot={replyCard} />
             : open.kind === "visit" ? <PublishedVisit data={open.payload} onSaved={clearOpened} replySlot={replyCard}
+                senderId={open.from_user_id || ""}
                 onLogVisit={onLogVisit ? (seed)=>{
                   const from = (open.from || "").trim();
                   const people = (seed.people || []).slice();
@@ -32513,6 +32553,7 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
                   onLogVisit(Object.assign({}, seed, { people: people }));
                 } : null} />
             : <PublishedMenu data={open.payload} onSaved={clearOpened} replySlot={replyCard}
+                senderId={open.from_user_id || ""}
                 sendToName={fromName}
                 onSendPicks={open.from_user_id ? (async (text)=>{
                   // The same conversation the reply box above writes to, so
