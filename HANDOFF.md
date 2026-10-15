@@ -419,7 +419,9 @@ card, "Photos last while you keep them":
 nearly-expired link replaced, forged / mangled / climbing tokens refused, deleted photo 404,
 sender-only repair, other text untouched, import recognises our links). Playwright: a shared visit
 with one dead photo shows 2 of 3 tiles (old version: 3 of 3, a broken box). Live: `/health`
-0.146.0; `share.menucaptain.com/p/<made-up>` 404. **Not yet seen end to end with a real photo:**
+0.146.0; `share.menucaptain.com/p/<made-up>` 404. **Privacy policy** (wording approved by Chris by card, effective October 15, 2026): shared photos stay
+visible through the link while kept; deleting one stops it; a friend who logs a shared visit keeps a copy.
+**Not yet seen end to end with a real photo:**
 the first real share after this will be; check the `[PHOTOS] share-sign` log and open its page.
 
 ### One card per dish in the visit form (2026-10-15, app 1.533.0)
