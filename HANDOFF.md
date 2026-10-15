@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.534.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.535.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.146.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.534.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.535.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,17 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### "In their words" flows as paragraphs (2026-10-15, app 1.535.0)
+
+Chris (screenshot of a shared visit, "This formatting is bad"): the restaurant's story kept the
+printed menu's line breaks, shown with `pre-wrap`, so each printed line wrapped again on the phone
+and the text went ragged. `reflowStory` rejoins the lines on DISPLAY (place card, the "Read from
+your photo" preview, the shared visit page): a paragraph ends at a blank line, or at a line that
+finishes a sentence and stops short of 70% of the longest line; a line ending in a hyphen joins
+without a space and keeps it. The saved text stays word for word, and stories already saved and
+links already sent are fixed. **Verified:** `test_reflow.js` (real function): failed before, 7 pass;
+Playwright at 375 px: a made-up 8-line printed story shows as 2 flowing paragraphs.
 
 ### Shared photos last while you keep them (2026-10-15, app 1.534.0, backend 0.146.0)
 

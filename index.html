@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.534.0";
+const APP_VERSION   = "1.535.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -4432,6 +4432,32 @@ function visitSpecial(restaurant, menuList){
   if (own) sp.own = own.slice(0, 1200);
   return Object.keys(sp).length ? sp : null;
 }
+// "In their words" read off a printed page keeps the page's line breaks
+// ("our menu is inspired\nby the rich history..."), so on a phone every
+// printed line wraps again and the text goes ragged (Chris, 2026-10-15,
+// "This formatting is bad"). Rejoin the lines into paragraphs for DISPLAY;
+// the saved text stays word for word. A paragraph ends at a blank line, or
+// at a line that finishes a sentence and stops well short of the longest
+// line (where the printed paragraph ended). A line ending in a hyphen is
+// joined without a space and keeps the hyphen ("well-" + "known").
+function reflowStory(text){
+  const paras = String(text || "").replace(/\r\n?/g, "\n").trim().split(/\n\s*\n/);
+  const out = [];
+  paras.forEach(p => {
+    const lines = p.split("\n").map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return;
+    const longest = Math.max.apply(null, lines.map(l => l.length));
+    let cur = "";
+    lines.forEach((l, i) => {
+      cur = !cur ? l : (/-$/.test(cur) ? cur + l : cur + " " + l);
+      const endsSentence = /[.!?\u2026]["'\u201d\u2019)]?$/.test(l);
+      if (i < lines.length - 1 && endsSentence && l.length < longest * 0.7){ out.push(cur); cur = ""; }
+    });
+    if (cur) out.push(cur);
+  });
+  return out.join("\n\n");
+}
+
 // "About this place, the signature dish and their own story"
 function visitSpecialSummary(sp){
   if (!sp) return "";
@@ -14862,7 +14888,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               </InfoDot>
             </div>
             <div className="small muted" style={{whiteSpace:"pre-wrap", lineHeight:1.5, fontStyle:"italic"}}>
-              {r.house_story.trim()}
+              {reflowStory(r.house_story)}
             </div>
             {onSaveHouseStory && !storyDraft ? (
               <button type="button" className="tiny" disabled={storyBusy}
@@ -14882,7 +14908,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         {storyDraft ? (
           <div className="card" style={{marginTop:14, padding:"13px 15px"}}>
             <div className="small muted" style={{marginBottom:7}}>Read from your photo. Save it as "In their words"?</div>
-            <div className="small" style={{whiteSpace:"pre-wrap", lineHeight:1.5, fontStyle:"italic"}}>{storyDraft}</div>
+            <div className="small" style={{whiteSpace:"pre-wrap", lineHeight:1.5, fontStyle:"italic"}}>{reflowStory(storyDraft)}</div>
             <div className="row" style={{gap:8, marginTop:10}}>
               <button className="btn primary sm" onClick={()=>{ onSaveHouseStory(storyDraft); setStoryDraft(null); }}>Save</button>
               <button className="btn ghost sm" onClick={()=> setStoryDraft(null)}>Cancel</button>
@@ -25106,7 +25132,7 @@ function PublishedVisit({data, onSaved, onLogVisit}){
           {data.sp.own ? (
             <div className="pub-special-part">
               <div className="pub-special-lbl">In their words{" "}<span style={{textTransform:"none", letterSpacing:0, fontWeight:400}}>- from the restaurant</span></div>
-              <div className="small muted" style={{whiteSpace:"pre-wrap", lineHeight:1.5, fontStyle:"italic"}}>{data.sp.own}</div>
+              <div className="small muted" style={{whiteSpace:"pre-wrap", lineHeight:1.5, fontStyle:"italic"}}>{reflowStory(data.sp.own)}</div>
             </div>
           ) : null}
         </div>
