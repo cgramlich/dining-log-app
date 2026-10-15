@@ -1216,7 +1216,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.529.0";
+const APP_VERSION   = "1.530.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1601,6 +1601,13 @@ function cityFromAddress(addr){
     // City then postcode: UK "London SW1A 1AA", Japan "Tokyo 131-0045".
     mm = /^([^\d]+?)\s+(?:[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}|\d{3}-\d{4})$/.exec(seg);
     if (mm && clean(mm[1]).length >= 2) return clean(mm[1]);
+    // Malta (2026-10-15): town, then three letters and four digits, "L-Isla ISL
+    // 1263". Only when the address ends in Malta: the shape is too loose to
+    // trust anywhere else. Chris's Enchante in Senglea came back townless.
+    if (/^malta$/i.test(String(addr).split(",").pop().trim())){
+      mm = /^([^\d]+?)\s+[A-Z]{3}\s?\d{4}$/.exec(seg);
+      if (mm && clean(mm[1]).length >= 2) return clean(mm[1]);
+    }
   }
   return "";
 }
@@ -8544,9 +8551,10 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
   }
   useEffect(()=>{ setGResults(null); setGErr(""); }, [q, city]);
 
-  const ql = q.trim().toLowerCase();
+  // Accents set aside (2026-10-15): "enchante" finds "Enchant\u00e9".
+  const ql = foldText(q.trim());
   const savedMatches = ql
-    ? (restaurants || []).filter(r => ((r.name||"")+" "+(r.cuisine||"")+" "+(r.location||"")).toLowerCase().indexOf(ql) !== -1).slice(0, 8)
+    ? (restaurants || []).filter(r => foldText((r.name||"")+" "+(r.cuisine||"")+" "+(r.location||"")).indexOf(ql) !== -1).slice(0, 8)
     : [];
   // Saved places you haven't logged a visit to yet - the "still to try" nudge.
   const visitedIds = new Set((visits || []).map(v => v && v.restaurant_id).filter(Boolean));
@@ -13541,10 +13549,11 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
       ? byCity.filter(r => !normalizeCuisine(r.cuisine))
       : byCity.filter(r => normalizeCuisine(r.cuisine).toLowerCase() === cuisineFilter.toLowerCase());
 
-  const q = query.trim().toLowerCase();
+  // Case and accents set aside (2026-10-15): "enchante" finds "Enchant\u00e9".
+  const q = foldText(query.trim());
   const searchedRaw = q ? visible.filter(r =>
-    ((r.name || "") + " " + (r.cuisine || "") + " " + (r.location || ""))
-      .toLowerCase().includes(q)
+    foldText((r.name || "") + " " + (r.cuisine || "") + " " + (r.location || ""))
+      .includes(q)
   ) : visible;
   // "Want to try" = flagged wishlist & not yet visited. "Been" = has a visit.
   const wantCount = restaurants.filter(r => r.wishlist && countVisits(r.id) === 0).length;
@@ -16996,10 +17005,12 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
 // "I just got here, show me the menu" path, separate from logging a meal.
 function RestaurantPicker({restaurants, onClose, onPick, title, onPickOther, otherLabel, otherSub, onAddPlace, addLabel, addSub}){
   const [q, setQ] = useState("");
-  const term = q.trim().toLowerCase();
+  // Case and accents set aside (2026-10-15). Places keep their town in
+  // "location"; "city" is read too for any older record that has it.
+  const term = foldText(q.trim());
   const list = (restaurants || [])
     .filter(r => r && r.name)
-    .filter(r => !term || (r.name + " " + (r.cuisine || "") + " " + (r.city || "")).toLowerCase().indexOf(term) !== -1)
+    .filter(r => !term || foldText(r.name + " " + (r.cuisine || "") + " " + (r.location || r.city || "")).indexOf(term) !== -1)
     .slice()
     .sort((a,b)=> (a.name || "").localeCompare(b.name || ""));
   return (

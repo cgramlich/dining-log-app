@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.529.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.530.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.145.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.529.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.530.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,28 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A place in Malta with no town, and accent-blind place search (2026-10-15, app 1.530.0)
+
+Chris, in Malta: he scanned two menus for Enchanté (Senglea) with the walk-away scan, "it said it
+got in there ... but I don't see it". **The scans were fine**: both jobs done, opened and saved;
+the server shows the place with 2 menus (Main, 9 sections / 53 dishes; Drinks, 17 / 201) and 1 visit.
+Checked with aggregate and non-personal queries only. Two things could hide it, both fixed:
+1. Its address "Triq Juan B Azzopardi, L-Isla ISL 1263, Malta". `cityFromAddress` knew no Maltese
+   postcode (three letters, four digits, AFTER the town), so the place was saved with NO town, the
+   only one of his 125 with an address but no town; a Places list filtered to a town hides it. Now
+   read, **only when the address ends in Malta** (the shape is too loose elsewhere). The existing
+   sync-time backfill fills a blank town from the address, so his record repairs itself on the
+   next open; nothing was changed on the server.
+2. Place search compared letters exactly, so "enchante" never found "Enchanté". The Places list,
+   Find a place and the restaurant picker now set case AND accents aside (`foldText`, as the dish
+   search already did). The picker also searched a `city` field places do not have; it reads
+   `location` now.
+
+**Verified.** `test_malta.js` (real functions): failed before (3), 11 pass after (Malta with and
+without the postcode space, the shape refused outside Malta, Barcelona, Capri, Dallas and London
+unchanged, accent-blind matches). Playwright at 375 px: typing "enchante" in Places finds only the
+accented place.
 
 ### Show in $: menu prices in your own currency (2026-10-15, app 1.529.0, backend 0.145.0)
 
