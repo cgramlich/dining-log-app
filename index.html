@@ -1221,7 +1221,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.531.0";
+const APP_VERSION   = "1.532.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -4041,23 +4041,27 @@ async function nativePickImages(opts){
   }
 }
 
+// Links a friend can open for a meal's photos, in the meal's order. The server
+// signs at most 12 per request, so a 15-photo meal goes in two (2026-10-15).
 async function signVisitPhotos(cfg, paths){
-  const want = (paths || []).filter(Boolean).slice(0, 12);
+  const want = (paths || []).filter(Boolean).slice(0, MAX_VISIT_PHOTOS);
   if (!want.length) return [];
-  try {
-    const res = await fetch(apiBase(cfg) + "/api/photos/share-sign", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
-      body: JSON.stringify({ paths: want }),
-    });
-    if (!res.ok){ logMsg("PUBLISH","photo share-sign failed " + res.status); return []; }
-    const data = await res.json().catch(()=> ({}));
-    const urls = (data && data.urls) || {};
-    return want.map(p => urls[p]).filter(Boolean);
-  } catch(e){
-    logMsg("PUBLISH","photo share-sign error: " + (e && e.message));
-    return [];
+  const urls = {};
+  for (let i = 0; i < want.length; i += 12){
+    try {
+      const res = await fetch(apiBase(cfg) + "/api/photos/share-sign", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+        body: JSON.stringify({ paths: want.slice(i, i + 12) }),
+      });
+      if (!res.ok){ logMsg("PUBLISH","photo share-sign failed " + res.status); continue; }
+      const data = await res.json().catch(()=> ({}));
+      Object.assign(urls, (data && data.urls) || {});
+    } catch(e){
+      logMsg("PUBLISH","photo share-sign error: " + (e && e.message));
+    }
   }
+  return want.map(p => urls[p]).filter(Boolean);
 }
 
 /* One-tap: sign the meal photos, build the visit payload, then share a link that
@@ -4471,7 +4475,7 @@ function buildVisitPayload(visit, restaurant, menuList, photoUrls, heroUrl, note
   const names = ((visit && visit.companions) || []).map(p => p && p.name).filter(Boolean);
   if (names.length) o.ppl = names.slice(0, 20);
   const ph = (photoUrls || []).filter(Boolean);
-  if (ph.length) o.ph = ph.slice(0, 12);
+  if (ph.length) o.ph = ph.slice(0, MAX_VISIT_PHOTOS);
   else if (heroUrl) o.hero = heroUrl;
   const msg = (note || "").trim();
   if (msg) o.msg = msg.slice(0, 280);
@@ -8129,7 +8133,12 @@ function GooglePhoto({cfg, name, attribution, thumb}){
 // drops, and nothing on the backend counts photos per visit. The one number
 // that is NOT this one: a visit several people joined holds 24 between them
 // (SHARED_VISIT_PHOTO_MAX on the backend).
-const MAX_VISIT_PHOTOS = 10;
+//
+// 15 since 1.532.0. Chris, 2026-10-15: "Make it from 10 to 15." Same small
+// cost (about another 250 KB a full meal). A shared meal's link used to stop
+// at 12 on its own (signVisitPhotos, buildVisitPayload); both now follow this
+// number, signing in batches of 12, the server's cap per request.
+const MAX_VISIT_PHOTOS = 15;
 
 // Full-screen photo viewer. Tap a visit photo anywhere to open it big; swipe or
 // tap the arrows to move between that visit's photos; tap the backdrop, the X,

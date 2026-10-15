@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.531.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.532.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.145.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.531.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.532.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,17 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### 15 photos a meal (2026-10-15, app 1.532.0)
+
+Chris: "Make it from 10 to 15." `MAX_VISIT_PHOTOS` 10 -> 15 (it was 8 before 1.519.0). **Caught on
+the way:** a shared meal's link had its own cap of 12, twice: `signVisitPhotos` signed only the
+first 12 and `buildVisitPayload` kept 12, so photos 13 to 15 would have vanished from the friend's
+page. Both now follow `MAX_VISIT_PHOTOS`; signing goes in batches of 12, the server's per-request
+cap on `/api/photos/share-sign` (unchanged). The 80,000-character link limit has room (15 signed
+links are about 6,000). Group visits keep their own 24 between everyone (`SHARED_VISIT_PHOTO_MAX`).
+**Verified:** `test_photos15.js` (real functions, fake server that refuses over 12): failed before
+(4), passes after (15 signed, in order, 12 + 3, payload keeps all); the visit form shows "0 / 15".
 
 ### Photos beside dishes in an Explain answer (2026-10-15, app 1.531.0)
 
