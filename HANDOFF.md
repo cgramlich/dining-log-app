@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.532.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.533.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.145.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.532.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.533.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,16 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### One card per dish in the visit form (2026-10-15, app 1.533.0)
+
+Chris (screenshot, Edit visit, three desserts): the outline went round each dish's NAME row only,
+and its actions (estimate, note, special, add a photo) and photos sat underneath, between two
+outlines: "you're not sure if you're doing that for the dish above or the dish below". CSS only:
+the card moved from `.dish-row` to `.dish-item`, so one outline holds the whole dish (name and
+verdict, then a faint dashed line, then everything that acts on it, its photos and note editor).
+No markup changed; the classes are used nowhere else. **Verified** at 375 px with three made-up
+desserts: every action button's box lies inside its own dish's card; screenshot in the Log.
 
 ### 15 photos a meal (2026-10-15, app 1.532.0)
 

@@ -240,9 +240,16 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .verdict-btn.again.on{background:rgba(224,118,74,0.2); border-color:var(--accent); color:var(--accent); font-weight:600;}
     .verdict-btn.skip.on{background:rgba(179,165,145,0.16); border-color:var(--text-faint); color:var(--text-dim); font-weight:600;}
     .dish-row-x{flex:none; padding:9px; background:transparent; border:none; cursor:pointer; line-height:0;}
-    .dish-item{margin-bottom:8px;}
-    .dish-item .dish-row{margin-bottom:0;}
+    /* One card per dish (2026-10-15). The outline used to go round the name
+       row only, so a dish's actions and photos sat BETWEEN two outlines and
+       Chris could not tell "if you're doing that for the dish above or the
+       dish below". The card now holds the whole dish: name and verdict, then
+       a faint line, then everything that acts on it. */
+    .dish-item{margin-bottom:10px; padding:0 6px 10px 11px;
+      background:var(--surface); border:1px solid var(--line); border-radius:12px;}
+    .dish-item .dish-row{margin:0; padding:8px 0; background:none; border:0; border-radius:0;}
     .dish-sub{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:5px 0 0 4px;}
+    .dish-item .dish-sub{margin:2px 0 0; padding-top:9px; border-top:1px dashed var(--line-soft);}
     .dish-cam{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--accent);
       background:none; border:none; padding:2px 0; cursor:pointer; -webkit-tap-highlight-color:transparent;}
     .dish-cam:disabled{opacity:0.6;}
@@ -1221,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.532.0";
+const APP_VERSION   = "1.533.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
