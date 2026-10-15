@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.533.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.145.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.533.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.534.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.146.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.534.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,34 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Shared photos last while you keep them (2026-10-15, app 1.534.0, backend 0.146.0)
+
+Chris asked what a friend sees opening a shared visit again later. Answer: the same snapshot every
+time (a share is a copy: `/v/<slug>` is a content hash; in-app shares store the payload) ... but
+**its photos went blank after 30 days**, because `share-sign` handed out 30-day storage links. By
+card, "Photos last while you keep them":
+- **Server (PHOTO LINKS THAT LAST in main.py).** `share-sign` now returns `SHARE_BASE_URL/p/<token>`.
+  The token is the object path plus an HMAC (key derived from the service role key, like the
+  unsubscribe links), minted only for the CALLER'S own photos and only when the photo exists.
+  `GET /p/<token>` signs a fresh 1-hour storage link (reused up to 50 minutes, in memory, capped at
+  5,000) and redirects (302, browser cache 5 minutes). Photo deleted or account gone: signing
+  fails, 404. Forged, mangled or path-climbing tokens: 404. No background work.
+- **Repair of links already sent:** `GET /api/shares` swaps expiring storage links to the
+  SENDER'S own photos (path under `from_user_id/`) for lasting ones as it lists them; links to
+  anyone else's photo are left alone. Public `/v/` pages made before 0.146.0 record no sender, so
+  they are NOT repaired (doing it safely would need a sender); their expired photos now hide.
+- **Import** (a friend logging a shared visit keeps copies) reads our own `/p/` links straight
+  from storage.
+- **App 1.534.0:** the shared visit, place and collection pages hide a photo that will not load
+  (`hideDeadPhoto`) instead of leaving an empty box.
+**Verified.** `test_photo_links.py` (real section, pretend storage): failed before, 16 pass
+(lasting links only for the caller's existing photos, fresh link on open, one signing per hour,
+nearly-expired link replaced, forged / mangled / climbing tokens refused, deleted photo 404,
+sender-only repair, other text untouched, import recognises our links). Playwright: a shared visit
+with one dead photo shows 2 of 3 tiles (old version: 3 of 3, a broken box). Live: `/health`
+0.146.0; `share.menucaptain.com/p/<made-up>` 404. **Not yet seen end to end with a real photo:**
+the first real share after this will be; check the `[PHOTOS] share-sign` log and open its page.
 
 ### One card per dish in the visit form (2026-10-15, app 1.533.0)
 

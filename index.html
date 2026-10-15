@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.533.0";
+const APP_VERSION   = "1.534.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -4046,6 +4046,16 @@ async function nativePickImages(opts){
     // run - the caller simply uses the file input instead.
     return null;
   }
+}
+
+// A shared photo that will not load (deleted by the sharer, or a page made
+// before 2026-10-15 whose 30-day links ran out) hides its own tile instead of
+// leaving an empty box. Used by every page that shows somebody else's photos.
+function hideDeadPhoto(e){
+  const img = e && e.currentTarget;
+  if (!img) return;
+  const tile = img.closest(".visit-photo") || img.parentElement;
+  if (tile) tile.style.display = "none";
 }
 
 // Links a friend can open for a meal's photos, in the meal's order. The server
@@ -12897,7 +12907,7 @@ function PublishedCollection({ data }){
       ) : null}
       {data.cov ? (
         <div style={{marginTop:16, borderRadius:16, overflow:"hidden"}}>
-          <img src={data.cov} alt="" loading="lazy" style={{width:"100%", display:"block", maxHeight:280, objectFit:"cover"}} />
+          <img src={data.cov} alt="" loading="lazy" onError={hideDeadPhoto} style={{width:"100%", display:"block", maxHeight:280, objectFit:"cover"}} />
         </div>
       ) : null}
       {days.map((d, i)=> (
@@ -12911,7 +12921,7 @@ function PublishedCollection({ data }){
                 <div className="visit-photos" style={{marginTop:0, marginBottom:11}}>
                   {x.ph.map((u, k)=> (
                     <div key={k} className="visit-photo tap" onClick={()=> setLb(u)}>
-                      <img src={u} alt="" loading="lazy" style={{width:"100%", height:"100%", objectFit:"cover"}} />
+                      <img src={u} alt="" loading="lazy" onError={hideDeadPhoto} style={{width:"100%", height:"100%", objectFit:"cover"}} />
                     </div>
                   ))}
                 </div>
@@ -24899,8 +24909,9 @@ function PublishedVisit({data, onSaved, onLogVisit}){
         }
       }
       // Copy the meal photos into the recipient's OWN storage so they keep them
-      // permanently (the shared URLs are the sharer's, 30-day). Best-effort: any
-      // that fail are just skipped - the visit still logs.
+      // even if the sharer later deletes theirs (a shared link lasts only while
+      // the sharer keeps the photo, since 2026-10-15). Best-effort: any that
+      // fail are just skipped - the visit still logs.
       const importedPhotos = [];
       const srcPhotos = (Array.isArray(data.ph) ? data.ph : []).filter(Boolean).slice(0, MAX_VISIT_PHOTOS);
       if (srcPhotos.length){
@@ -25006,7 +25017,7 @@ function PublishedVisit({data, onSaved, onLogVisit}){
           something to look at instead of a wall of text. */}
       {photos.length === 0 && data.hero ? (
         <div style={{marginTop:14, borderRadius:14, overflow:"hidden"}}>
-          <img src={data.hero} alt="" loading="lazy"
+          <img src={data.hero} alt="" loading="lazy" onError={hideDeadPhoto}
                style={{width:"100%", display:"block", maxHeight:260, objectFit:"cover"}} />
         </div>
       ) : null}
@@ -25015,7 +25026,7 @@ function PublishedVisit({data, onSaved, onLogVisit}){
         <div className="visit-photos" style={{justifyContent:"center", marginTop:14, marginBottom:4}}>
           {photos.map((u,i)=>(
             <div key={i} className="visit-photo tap" onClick={()=> setLb(i)}>
-              <img src={u} alt="" style={{width:"100%", height:"100%", objectFit:"cover"}} loading="lazy" />
+              <img src={u} alt="" style={{width:"100%", height:"100%", objectFit:"cover"}} loading="lazy" onError={hideDeadPhoto} />
             </div>
           ))}
         </div>
@@ -28903,7 +28914,7 @@ function PublishedMenu({data, onSaved, onSendPicks, sendToName}){
       ) : null}
       {isPlace && placePhotos.length === 0 && data.hero ? (
         <div style={{margin:"0 0 14px", borderRadius:14, overflow:"hidden"}}>
-          <img src={data.hero} alt="" loading="lazy"
+          <img src={data.hero} alt="" loading="lazy" onError={hideDeadPhoto}
                style={{width:"100%", display:"block", maxHeight:260, objectFit:"cover"}} />
         </div>
       ) : null}
@@ -28911,7 +28922,7 @@ function PublishedMenu({data, onSaved, onSendPicks, sendToName}){
         <div className="visit-photos" style={{justifyContent:"center", margin:"0 0 14px"}}>
           {placePhotos.map((u, i)=>(
             <div key={i} className="visit-photo tap" onClick={()=> setPlaceLb(i)}>
-              <img src={u} alt="" style={{width:"100%", height:"100%", objectFit:"cover"}} loading="lazy" />
+              <img src={u} alt="" style={{width:"100%", height:"100%", objectFit:"cover"}} loading="lazy" onError={hideDeadPhoto} />
             </div>
           ))}
         </div>
