@@ -261,6 +261,19 @@ English, whether or not you have translated. When a menu prints its own English
 in the local language and uses the restaurant's English for Show English - no
 translation needed, and it says so.
 
+**Prices in your currency.** On a menu priced in another currency (euros in
+Rome, pounds in London, yen in Tokyo), tap **Show in $** near the top of the
+menu, under Show English, and each price gets an estimate in your own currency
+beneath it, like "≈ $14". The menu's own price stays as printed, so it is still
+the one you point at. The app knows the menu's currency from the restaurant's
+country, or from the menu itself when it prints €, £, CHF and the like. The rate
+is the European Central Bank's daily reference rate for 30 major currencies,
+with its date shown (€1 = $1.12 on Oct 14, say); your card's rate will differ a
+little. Tap the currency code beside the rate (USD) to show prices in another
+currency instead. A price is only converted when it is clearly a price: a range
+like 14-18, a size, or "8 / 32" with no currency mark is left as printed rather
+than guessed at. The switch is remembered on this device.
+
 **In their words.** Some restaurants print a page about themselves - who they
 are, what they cook and why. Scanning a menu that includes one keeps it, word
 for word, in an **In their words** card on the place. If it is a separate page,

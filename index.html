@@ -528,6 +528,18 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
        instead of fighting the dish name for the row. */
     .iprl{color:var(--amber); font-size:13px; line-height:1.5; margin-top:4px;
           font-variant-numeric:tabular-nums; overflow-wrap:anywhere;}
+    /* Show in $ (2026-10-15): the converted price sits under the menu's own,
+       smaller and quieter, so the printed price stays the one you point at. */
+    .ipr-fx{display:block; text-align:right; font-size:11.5px; color:var(--text-faint); margin-top:1px;}
+    .iprl-fx{font-size:12px; color:var(--text-faint); margin-top:1px;}
+    .fx-row{display:flex; align-items:center; justify-content:flex-end; gap:10px; margin:-4px 2px 10px;}
+    .fx-note{flex:1 1 auto; min-width:0; font-size:12px; line-height:1.45; color:var(--text-dim);}
+    .fx-pick{position:relative; display:inline-block; margin-left:6px; color:var(--accent);
+             font-weight:600; white-space:nowrap; cursor:pointer;}
+    /* The real (native) picker lies invisibly over the label: the phone's own
+       wheel opens, and the screen shows just "USD \25BE". */
+    .fx-pick select{position:absolute; inset:0; width:100%; height:100%; opacity:0;
+             font-size:16px; border:0; cursor:pointer; -webkit-appearance:none; appearance:none;}
     .mitem .ipr.paid{color:var(--text-faint); font-weight:400; font-style:italic;}
     .mitem .idesc{font-size:13px; color:var(--text-dim); margin-top:3px; line-height:1.45;}
     /* "Which photo shows the food?" thumbnails in the visit form. */
@@ -1204,7 +1216,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.528.0";
+const APP_VERSION   = "1.529.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2128,6 +2140,19 @@ English, whether or not you have translated. When a menu prints its own English
 (a board with Spanish on top and English below, say), scanning it keeps one copy
 in the local language and uses the restaurant's English for Show English - no
 translation needed, and it says so.
+
+**Prices in your currency.** On a menu priced in another currency (euros in
+Rome, pounds in London, yen in Tokyo), tap **Show in $** near the top of the
+menu, under Show English, and each price gets an estimate in your own currency
+beneath it, like "≈ $14". The menu's own price stays as printed, so it is still
+the one you point at. The app knows the menu's currency from the restaurant's
+country, or from the menu itself when it prints €, £, CHF and the like. The rate
+is the European Central Bank's daily reference rate for 30 major currencies,
+with its date shown (€1 = $1.12 on Oct 14, say); your card's rate will differ a
+little. Tap the currency code beside the rate (USD) to show prices in another
+currency instead. A price is only converted when it is clearly a price: a range
+like 14-18, a size, or "8 / 32" with no currency mark is left as printed rather
+than guessed at. The switch is remembered on this device.
 
 **In their words.** Some restaurants print a page about themselves - who they
 are, what they cook and why. Scanning a menu that includes one keeps it, word
@@ -5378,6 +5403,14 @@ const COUNTRY_CODES = {
   "thailand":"TH","vietnam":"VN","viet nam":"VN","south korea":"KR","china":"CN",
   "morocco":"MA","malta":"MT","monaco":"MC","hungary":"HU","magyarorszag":"HU",
   "iceland":"IS","finland":"FI","suomi":"FI","usa":"US","united states":"US",
+  // Added 2026-10-15 for Show in $: every other country with a reference rate,
+  // and the euro countries that were missing.
+  "australia":"AU","new zealand":"NZ","singapore":"SG","hong kong":"HK","india":"IN",
+  "israel":"IL","south africa":"ZA","indonesia":"ID","malaysia":"MY","philippines":"PH",
+  "romania":"RO","bulgaria":"BG","luxembourg":"LU","slovakia":"SK","slovenia":"SI",
+  "estonia":"EE","latvia":"LV","lithuania":"LT","cyprus":"CY","korea":"KR",
+  "republic of korea":"KR","england":"GB","scotland":"GB","wales":"GB",
+  "northern ireland":"GB","great britain":"GB",
 };
 function countryCodeFromAddress(addr){
   const parts = String(addr || "").split(",").map(x => x.trim()).filter(Boolean);
@@ -5390,6 +5423,197 @@ function flagEmoji(cc){
   if (!/^[A-Z]{2}$/.test(cc || "")) return "";
   return String.fromCodePoint(0x1F1A5 + cc.charCodeAt(0), 0x1F1A5 + cc.charCodeAt(1));
 }
+
+// ---- Menu prices in your own currency (2026-10-15) --------------------------
+// Chris: "show a conversion of currency so we can see the menu [in] its native
+// currency, but also to whatever you want to convert it to". By card: behind a
+// switch, with the European Central Bank's daily reference rates (30 currencies)
+// fetched through our server from Frankfurter (/api/fx).
+// RULE: a price is converted only when it is unmistakably a price. Anything
+// ambiguous (a range, "8 / 32" with no currency mark, a won price written
+// "4.5") shows no conversion rather than a wrong one: a wrong number at the
+// table is worse than none.
+const FX_CODES = ["AUD","BRL","CAD","CHF","CNY","CZK","DKK","EUR","GBP","HKD","HUF","IDR","ILS",
+  "INR","ISK","JPY","KRW","MXN","MYR","NOK","NZD","PHP","PLN","RON","SEK","SGD","THB","TRY","USD","ZAR"];
+const FX_EURO = ["AT","BE","BG","CY","DE","EE","ES","FI","FR","GR","HR","IE","IT","LT","LU","LV",
+  "MC","MT","NL","PT","SI","SK"];
+const FX_BY_COUNTRY = { GB:"GBP", CH:"CHF", JP:"JPY", CA:"CAD", MX:"MXN", BR:"BRL", CZ:"CZK",
+  PL:"PLN", DK:"DKK", SE:"SEK", NO:"NOK", TR:"TRY", TH:"THB", KR:"KRW", CN:"CNY", HU:"HUF",
+  IS:"ISK", US:"USD", AU:"AUD", NZ:"NZD", SG:"SGD", HK:"HKD", IN:"INR", IL:"ILS", ZA:"ZAR",
+  ID:"IDR", MY:"MYR", PH:"PHP", RO:"RON" };
+// Priced in whole units on menus: a decimal there is a shorthand ("4.5" for
+// 4,500 won), never cents.
+const FX_WHOLE = ["JPY","KRW","HUF","ISK","IDR"];
+// Marks that NAME one currency. "$", "¥", "kr" and the like are deliberately
+// absent: a dozen currencies share each, so they only say "this is a price".
+// "C$" is absent too (Nicaragua's cordoba writes it as well as Canada).
+const FX_MARK_CODE = { "US$":"USD", "CA$":"CAD", "AU$":"AUD", "A$":"AUD", "NZ$":"NZD", "S$":"SGD",
+  "SG$":"SGD", "HK$":"HKD", "MX$":"MXN", "R$":"BRL", "\u20ac":"EUR", "\u00a3":"GBP", "\u20a9":"KRW",
+  "\u20b9":"INR", "\u0e3f":"THB", "\u20ba":"TRY", "\u20aa":"ILS", "\u20b1":"PHP", "z\u0142":"PLN",
+  "K\u010d":"CZK", "\u5186":"JPY", "\u5143":"CNY", "NIS":"ILS", "RMB":"CNY" };
+FX_CODES.forEach(c => { FX_MARK_CODE[c] = c; });
+// Longest first, so "US$" is read before "S$" and "CA$" before "A$".
+const FX_MARK_RE = /US\$|CA\$|AU\$|NZ\$|SG\$|HK\$|MX\$|A\$|S\$|R\$|[\u20ac\u00a3\u20a9\u20b9\u0e3f\u20ba\u20aa\u20b1\u5186\u5143]|z\u0142|K\u010d|[A-Z]{3}/g;
+function fxMarks(text){
+  const out = [];
+  const s = String(text || "");
+  let m;
+  FX_MARK_RE.lastIndex = 0;
+  while ((m = FX_MARK_RE.exec(s))){
+    const code = FX_MARK_CODE[m[0]];
+    if (!code) continue;
+    // A three-letter code only as a word of its own: "ILS" inside "COCKTAILS" is not shekels.
+    if (/^[A-Z]{3}$/.test(m[0]) && (/[A-Za-z]/.test(s[m.index - 1] || "") || /[A-Za-z]/.test(s[m.index + 3] || ""))) continue;
+    out.push(code);
+  }
+  return out;
+}
+// The currency a menu is priced in, or "" (unknown, or no reference rate).
+// What the prices SAY wins: a beach bar in Mexico pricing in US$ must not be
+// converted as pesos. Otherwise the restaurant's country from its address.
+function menuCurrency(menu, address){
+  const seen = {};
+  ((menu && menu.sections) || []).forEach(sec => ((sec && sec.items) || []).forEach(it => {
+    fxMarks(it && it.price).forEach(c => { seen[c] = (seen[c] || 0) + 1; });
+  }));
+  const codes = Object.keys(seen).sort((a, b) => seen[b] - seen[a]);
+  if (codes.length === 1) return codes[0];
+  // Two currencies side by side ("250 MXN / 14 USD"): only a clear majority counts.
+  if (codes.length > 1) return seen[codes[0]] >= 3 * seen[codes[1]] ? codes[0] : "";
+  const cc = countryCodeFromAddress(address);
+  return FX_EURO.includes(cc) ? "EUR" : (FX_BY_COUNTRY[cc] || "");
+}
+// Your currency: the one you picked, else the phone's region, else dollars.
+function fxHomeDefault(){
+  try { const v = localStorage.getItem("mc_home_ccy"); if (v && FX_CODES.includes(v)) return v; } catch(e){}
+  try {
+    const loc = (navigator.languages && navigator.languages[0]) || navigator.language || "";
+    const cc = (String(loc).split(/[-_]/)[1] || "").toUpperCase();
+    const c = FX_EURO.includes(cc) ? "EUR" : FX_BY_COUNTRY[cc];
+    if (c) return c;
+  } catch(e){}
+  return "USD";
+}
+// "$14" or "$8.96": whole units from 10 up (it is an estimate), cents below.
+function fxMoney(v, code, dec){
+  if (dec === undefined) dec = v >= 10 ? 0 : 2;
+  if (FX_WHOLE.includes(code)) dec = 0;
+  try {
+    return new Intl.NumberFormat("en-US", { style:"currency", currency:code,
+      minimumFractionDigits:dec, maximumFractionDigits:dec }).format(v);
+  } catch(e){ return code + " " + Number(v).toFixed(dec); }
+}
+function fxSymbol(code){
+  try {
+    const p = new Intl.NumberFormat("en-US", { style:"currency", currency:code }).formatToParts(0)
+      .find(x => x.type === "currency");
+    return p ? p.value : code;
+  } catch(e){ return code; }
+}
+function fxName(code){
+  try { return new Intl.DisplayNames(["en"], { type:"currency" }).of(code) || code; } catch(e){ return code; }
+}
+// "€1 = $1.12", or "¥100 = $0.63" where one unit is worth too little to read.
+function fxRateLabel(fx){
+  let unit = 1;
+  while (fx.rate * unit < 0.5 && unit < 1e6) unit *= 10;
+  const v = fx.rate * unit;
+  return fxMoney(unit, fx.from, 0) + " = " + fxMoney(v, fx.to, v >= 100 ? 0 : 2);
+}
+function fxDateLabel(d){
+  if (!/^\d{4}-\d\d-\d\d$/.test(d || "")) return "";
+  return new Date(d + "T12:00:00").toLocaleDateString("en-US", { month:"short", day:"numeric" });
+}
+// A mark right before a number ("€12", "CHF 24", "Fr. 24") or right after it
+// ("12 €", "12,50 kr", Swiss "24.-", "45k" on a rupiah menu).
+const FX_PRE = /(US\$|CA\$|AU\$|NZ\$|SG\$|HK\$|MX\$|A\$|S\$|R\$|[\u20ac\u00a3$\u00a5\u20a9\u20b9\u0e3f\u20ba\u20aa\u20b1]|[A-Z]{3}|Fr\.|kr\.?|Rp\.?|RM|Rs\.?|z\u0142)\s?$/;
+const FX_POST = /^\s?([\u20ac\u00a3$\u00a5\u20a9\u20b9\u0e3f\u20ba\u20aa\u20b1\u5186\u5143]|[A-Z]{3}(?![A-Za-z])|kr(?![a-z])|z\u0142|K\u010d|Ft(?![a-z])|lei(?![a-z])|\.[-\u2013\u2014]|,[-\u2013\u2014]|[kK](?![a-z]))/;
+// A size word right before a number makes it that size's price: "Calice 8 /
+// Bottiglia 32", "Glass 9 / Bottle 40", "S 12 M 15 L 18". English, Italian,
+// Spanish, French and German, the menus travellers meet most.
+const FX_SIZE_RE = /(?:^|[^A-Za-z\u00c0-\u024f])(?:glass|bottle|carafe|half|small|medium|large|regular|single|double|pint|cup|bowl|slice|whole|calice|bicchiere|bottiglia|caraffa|mezza|mezzo|piccola|piccolo|media|medio|grande|copa|botella|jarra|verre|bouteille|pichet|demi|petit|petite|glas|flasche|karaffe|klein|gro(?:ss|\u00df))\.?:?\s*$/i;
+const FX_SIZE_LETTER_RE = /(?:^|[^A-Za-z])(?:S|M|L|XL)\.?:?\s*$/;
+// One menu price in your currency, or "" when there is any doubt.
+//   "12" "€12,50" "12,50 €" "CHF 24.-"     -> "$13" "$14" "$14" "$29"
+//   "Glass €8 / Bottle €32"                 -> "Glass $8.96 / Bottle $36"
+//   "Calice 8 / Bottiglia 32"               -> "Calice $8.96 / Bottiglia $36"
+//   "Serves 2 / 40", "14-18", "MP"          -> ""  (a bare 2 may be a count)
+//   "6 pcs 12", "2 for 15.00", "30cm 14"    -> sizes and counts stay as printed
+// fx = { from, to, rate (from -> to), eurPer (EUR value of one unit of from) }
+function fxPriceText(raw, fx){
+  const s = String(raw || "");
+  if (!fx || !fx.rate || !/\d/.test(s)) return "";
+  if (/\d\s*(?:-|\u2013|\u2014|to)\s*\d/i.test(s)) return "";              // a range
+  // Portions ("1/2 dozen") are not prices; blanked to the same length so
+  // positions still line up with the original.
+  const t = s.replace(/\b([1-3])\s*\/\s*([2-4])\b/g, (w, a, b) => (+a < +b ? " ".repeat(w.length) : w));
+  const whole = FX_WHOLE.includes(fx.from);
+  const re = whole
+    ? /\d{1,3}(?:[.,'\u00a0\u202f ]\d{3})+(?!\d)|\d+(?:[.,]\d{1,2})?(?!\d)/g
+    : /\d{1,3}(?:[.,'\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?(?!\d)|\d+(?:[.,]\d{1,2})?(?!\d)/g;
+  const nums = [];
+  let m;
+  while ((m = re.exec(t))){
+    const txt = m[0], a = m.index, b = a + txt.length;
+    const before = t.slice(Math.max(0, a - 6), a), after = t.slice(b, b + 6);
+    if (/(?:\bper|[x\u00d7])\s*$/i.test(before)) continue;               // "x2": a count
+    if (/^\s*(?:cm|mm|in\b|inch|"|\u2033|oz|ml|cl|dl|ltr?\b|liter|litre|g\b|gr\b|kg|lbs?\b|pcs?\b|pz|pieces?|stk|st\u00fcck|%|\u00b0|for\b|people|pers|ppl|guests?|x\b)/i.test(after)) continue;
+    // Litres: "0,5 l" or "1L". A capital L after a space is Large ("M 15 L 18").
+    if (/^(?:\s*l\b|L\b)/.test(after)) continue;
+    const pre = before.match(FX_PRE), post = after.match(FX_POST);
+    const preOk = !!(pre && (!/^[A-Z]{3}$/.test(pre[1]) || FX_CODES.includes(pre[1])));
+    // A mark with a number right after it is THAT number's ("2019 €85": the € is 85's).
+    const postOk = !!(post && (!/^[A-Z]{3}$/.test(post[1]) || FX_CODES.includes(post[1]))
+                      && !/^\s?\d/.test(t.slice(b + post[0].length)));
+    // A mark naming another currency ("US$ 20" on a euro menu): not ours to convert.
+    const named = (preOk && FX_MARK_CODE[pre[1]]) || (postOk && FX_MARK_CODE[post[1]]) || "";
+    if (named && named !== fx.from) return "";
+    let v, k = false;
+    if (whole){
+      if (/[.,]\d{1,2}$/.test(txt)) return "";
+      v = Number(txt.replace(/\D/g, ""));
+    } else {
+      const dm = txt.match(/[.,](\d{1,2})$/);
+      v = Number((dm ? txt.slice(0, -dm[0].length) : txt).replace(/\D/g, "") + (dm ? "." + dm[1] : ""));
+    }
+    if (postOk && /^[kK]$/.test(post[1])){
+      if (fx.from !== "IDR" && fx.from !== "KRW") return "";
+      v *= 1000; k = true;
+    }
+    const wide = t.slice(Math.max(0, a - 14), a);
+    const sized = FX_SIZE_RE.test(wide) || FX_SIZE_LETTER_RE.test(wide);
+    nums.push({ a: a - (preOk ? pre[0].length : 0), b: b + (postOk ? post[0].length : 0), v,
+                sure: preOk || postOk || k || sized || (!whole && /[.,]\d{2}$/.test(txt)) });
+  }
+  if (!nums.length) return "";
+  if (nums.length > 1 && nums.some(n => !n.sure)) return "";             // "8 / 32": price or count?
+  // Under a quarter of a euro is no menu price: "45" on a rupiah menu means 45,000.
+  if (nums.some(n => !(n.v > 0) || n.v * fx.eurPer < 0.25)) return "";
+  let out = "", at = 0;
+  nums.forEach(n => { out += s.slice(at, n.a) + fxMoney(n.v * fx.rate, fx.to); at = n.b; });
+  return (out + s.slice(at)).replace(/\s{2,}/g, " ").trim();
+}
+// The day's rates (EUR-based) from our server, kept on the phone for 6 hours,
+// so flipping between menus and currencies asks nobody. Older rates beat none:
+// their date is on screen.
+async function loadFxRates(cfg){
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem("mc_fx") || "null"); } catch(e){}
+  if (cached && cached.eur && Date.now() - (cached.at || 0) < 6 * 3600 * 1000) return cached;
+  try {
+    const res = await fetch(apiBase(cfg) + "/api/fx?base=EUR", { headers: await authHeaders(cfg) });
+    if (res.ok){
+      const j = await res.json();
+      if (j && j.rates && j.rates.USD){
+        const fresh = { at: Date.now(), date: j.date || "", eur: j.rates };
+        try { localStorage.setItem("mc_fx", JSON.stringify(fresh)); } catch(e){}
+        return fresh;
+      }
+    }
+  } catch(e){}
+  return (cached && cached.eur) ? cached : null;
+}
+// ---- end currency helpers ----
 
 function mergeTranslation(a, b){
   if (!a) return b || undefined;
@@ -15196,6 +15420,31 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   const ccFrom = countryCodeFromAddress(restaurant && restaurant.address);
   const flagFrom = (ccFrom && ccFrom !== "US") ? flagEmoji(ccFrom) : "";
   const flagTo = flagEmoji("US");
+  // Show in $ (2026-10-15). Off until turned on, then remembered on the device
+  // like Show English. Only offered when the menu's currency is known, has a
+  // reference rate, and is not already yours.
+  const [fxOn, setFxOn]       = useState(()=>{ try { return localStorage.getItem("mc_menu_fx") === "1"; } catch(e){ return false; } });
+  const [fxTo, setFxTo]       = useState(fxHomeDefault);
+  const [fxRates, setFxRates] = useState(null);
+  const [fxErr, setFxErr]     = useState("");
+  const fxFrom = menuCurrency(menu, restaurant && restaurant.address);
+  const fxAvail = !!(fxFrom && fxFrom !== fxTo);
+  useEffect(()=>{
+    if (!fxOn || !fxAvail || fxRates) return;
+    if (!configComplete(cfg)){ setFxErr("Set up your account in Settings."); return; }
+    let live = true;
+    loadFxRates(cfg).then(r => {
+      if (!live) return;
+      if (r){ setFxRates(r); setFxErr(""); }
+      else setFxErr("Exchange rates are unavailable right now. Try again later.");
+    });
+    return ()=>{ live = false; };
+  }, [fxOn, fxAvail, fxRates]);
+  const fx = (fxOn && fxAvail && fxRates && fxRates.eur[fxFrom] && fxRates.eur[fxTo])
+    ? { from: fxFrom, to: fxTo, rate: fxRates.eur[fxTo] / fxRates.eur[fxFrom],
+        eurPer: 1 / fxRates.eur[fxFrom], date: fxRates.date } : null;
+  function setFxPref(on){ setFxOn(on); try { localStorage.setItem("mc_menu_fx", on ? "1" : "0"); } catch(e){} }
+  function setFxTarget(c){ setFxTo(c); try { localStorage.setItem("mc_home_ccy", c); } catch(e){} }
   function setEnPref(on){ setEnOn(on); try { localStorage.setItem("mc_menu_en", on ? "1" : "0"); } catch(e){} }
   async function toggleEnglish(){
     setTrErr(""); setTrNote("");
@@ -15371,6 +15620,29 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
         {(trErr || trNote || (showEn && trOf && trOf.source === "menu")) ? (
           <div className="tiny" style={{margin:"-4px 2px 10px", color: trErr ? "#d9604e" : "var(--text-dim)"}}>
             {trErr || trNote || "English as printed on the menu"}
+          </div>
+        ) : null}
+        {/* Show in $ (2026-10-15): under Show English, only on a menu priced in
+            another currency. When on: the rate and its date, and the currency
+            to show, which opens the phone's own picker. */}
+        {fxAvail ? (
+          <div className="fx-row">
+            {fxOn ? (
+              <div className="fx-note">
+                {fxErr ? <span style={{color:"#d9604e"}}>{fxErr}</span>
+                  : fx ? <span>{fxRateLabel(fx)}{fx.date ? " on " + fxDateLabel(fx.date) : ""}</span>
+                  : <span className="faint">Getting the rate</span>}
+                <label className="fx-pick">{fxTo}<span aria-hidden="true">{" \u25be"}</span>
+                  <select aria-label="Show prices in" value={fxTo} onChange={e=> setFxTarget(e.target.value)}>
+                    {FX_CODES.filter(c => c !== fxFrom).map(c => (
+                      <option key={c} value={c}>{fxName(c) + " (" + c + ")"}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : null}
+            <button type="button" className={"chip pick" + (fxOn ? " on" : "")} style={{flex:"none"}}
+              aria-pressed={fxOn} onClick={()=> setFxPref(!fxOn)}>Show in {fxSymbol(fxTo)}</button>
           </div>
         ) : null}
 
@@ -15681,6 +15953,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           onSaveItemSig={onSaveItemSig}
           showEnglish={showEn}
           flags={{ from: flagFrom, to: flagTo }}
+          fx={fx}
           onSplitSection={onSplitMenu && (menu.sections || []).length > 1
             ? (si, name)=> onSplitMenu([si], name) : null}
           onDeleteSection={onDeleteSection && (menu.sections || []).length > 1 ? onDeleteSection : null}
@@ -15705,7 +15978,9 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags}){
+function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx}){
+  // Show in $ (2026-10-15): "" when the switch is off or a price is unclear.
+  const fxOf = p => (fx ? fxPriceText(p, fx) : "");
   // Per-section split (2026-10-07): {si, name} while that section's panel is open.
   const [secSplit, setSecSplit] = useState(null);
   // Show English: the switch lives in MenuDetail's place card (moved there
@@ -15975,7 +16250,8 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                       {it.name}</span>
                   )}
                   {it.price && !isWidePrice(it.price)
-                    ? <span className="ipr">{it.price}</span>
+                    ? <span className="ipr">{it.price}{fxOf(it.price)
+                        ? <span className="ipr-fx">{"\u2248 " + fxOf(it.price)}</span> : null}</span>
                     : (!it.price && it.paid && it.paid.amount
                         ? <span className="ipr paid">paid {fmtPrice(it.paid.amount)}</span>
                         : null)}
@@ -16042,7 +16318,8 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                 {showEn && enFor(it) && enFor(it)[0] && !sameText(enFor(it)[0], it.name)
                   ? <div className="ien">{flags && flags.to ? <span className="flag" aria-hidden="true">{flags.to}</span> : null}{enFor(it)[0]}</div> : null}
                 {it.price && isWidePrice(it.price)
-                  ? <div className="iprl">{it.price}</div> : null}
+                  ? <div className="iprl">{it.price}{fxOf(it.price)
+                      ? <div className="iprl-fx">{"\u2248 " + fxOf(it.price)}</div> : null}</div> : null}
                 {/* Flags mark ONE pair per dish, on whichever line was translated
                     (2026-10-09): Italian names like "Paccheri" stay Italian, so on a
                     typical menu the translation lives in the description and

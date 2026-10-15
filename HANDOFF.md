@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.528.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.144.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.528.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.529.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.145.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.529.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,51 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Show in $: menu prices in your own currency (2026-10-15, app 1.529.0, backend 0.145.0)
+
+Chris: "we need to show a conversion of currency so we can see the menu and it's native currency,
+but also to whatever you want to convert it to ... get that spot rate from somewhere cheap". By
+card: **behind a switch**, rates from **Frankfurter** (free, no key, no account), which serves the
+European Central Bank's daily **reference** rates for 30 currencies (about 16:00 CET on working
+days). Not live market quotes and not a card's rate: the app says "about" (≈) and shows the date.
+
+**Server (EXCHANGE RATES in main.py).** `GET /api/fx?base=XXX`, signed in. One EUR-based fetch from
+`api.frankfurter.dev/v1/latest?base=EUR`, cached in memory 6 hours, made only when someone asks (no
+background loop); any base is worked out as EUR->q / EUR->base. Source down: the last rates with
+their date; nothing cached: 503. A currency without a reference rate: 404. **No user data goes to
+Frankfurter**: the server asks for the public table with nothing about the user, so no privacy
+policy change.
+
+**App.** A "Show in $" chip under Show English, only when the menu's currency is known, has a rate,
+and is not already yours. Off until turned on; remembered (`mc_menu_fx`). When on, each price gets
+a quiet "≈ $14" under it, and a line shows "€1 = $1.12 on Oct 14  USD ▾"; the code opens the
+phone's own picker for any of the 30 (`mc_home_ccy`; default = phone region, else USD). The app
+fetches `base=EUR` once and keeps it 6 hours on the phone (`mc_fx`), so changing currency costs no
+call. **Which currency the menu is in** (`menuCurrency`): what its prices SAY wins (€, £, CHF,
+US$, R$...; a beach bar in Mexico pricing in US$ is not pesos), else the restaurant's country from
+its address (COUNTRY_CODES gained AU, NZ, SG, HK, IN, IL, ZA, ID, MY, PH, RO, BG, LU, SK, SI, EE, LV,
+LT, CY and UK variants). "$", "¥", "kr" and "C$" alone name nothing. Bulgaria is on the euro since
+2026-01-01.
+
+**The rule: a price converts only when it is clearly a price** (`fxPriceText`). One number converts.
+Several convert only when EACH is sure: a currency mark beside it, cents, or a size word before it
+(glass, bottle, calice, bottiglia, copa, verre, S/M/L...). Skipped: ranges (14-18), portions (1/2),
+counts and sizes (6 pcs, 30cm, 0,5 l, x2, "for 2 people"), a mark naming another currency, a
+decimal on a won/yen/forint/krona/rupiah menu ("4.5" means 4,500 won), anything under a quarter of
+a euro ("45" on a rupiah menu means 45,000), and any line mixing sure and unsure numbers ("2019
+€85"). Whole units from 10 up ("≈ $14"), cents below. **Found by the tests before release:** a
+"€" between two numbers was claimed by both (a vintage converted), and a capital L for Large was
+read as litres.
+
+**Verified.** `test_fx_backend.py` (real section, fake source): failed before, 7 pass (cross rates,
+one source call, 404, yesterday's rates when down, 503, no loop). `test_fx.js` (real helpers sliced
+from index.html): failed before, 53 pass. `test_fx_ui.py` (Playwright, 375 px, stubbed `/api/fx`):
+14 pass (chip only on the Italian menu, nothing fetched until on, rate line, ≈ $18 and ≈ $32,
+the wine line size by size, S.Q. untouched, pounds with no new call, remembered, none on a Dallas
+menu, off again). Live: `/health` 0.145.0, `/api/fx` 401 without sign in, Frankfurter returned 29
+rates plus EUR dated 2026-10-14. **Not done:** the shared and published menu pages (PublishedMenu,
+PublishedVisit) do not convert yet; the "paid" amount a visit records is still shown with "$".
 
 ### Nightly off-site backups to Cloudflare R2 (2026-10-14, backend 0.144.0)
 
