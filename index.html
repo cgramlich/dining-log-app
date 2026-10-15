@@ -320,6 +320,11 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       background:transparent; border:1px dashed rgba(224,118,74,0.5); border-radius:999px;
       padding:4px 11px; cursor:pointer; -webkit-tap-highlight-color:transparent;}
     .iest-btn:disabled{opacity:0.6;}
+    /* Photos under an Explain answer (2026-10-15): one row per dish explained. */
+    .dish-looks{margin-top:12px; padding-top:10px; border-top:1px dashed var(--line-soft);}
+    .dish-look{padding:8px 0;}
+    .dish-look + .dish-look{border-top:1px dashed var(--line-soft);}
+    .dish-look-nm{flex:1 1 auto; min-width:0; font-weight:500; font-size:14px;}
     .iest-err{font-size:12px; color:#eab0a6;}
     .mitem-nut{display:flex; align-items:center; gap:10px; margin-top:9px;}
     .mitem-nut .nutri-line{margin-top:0;}
@@ -1216,7 +1221,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.530.0";
+const APP_VERSION   = "1.531.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2732,7 +2737,11 @@ to their handle.
 
 **Explain the menu.** On any digitized menu, tap **Explain the menu** and pick
 the dishes you want decoded - the AI explains unfamiliar dishes and terms in
-plain language, using what is actually on the menu.
+plain language, using what is actually on the menu. Under the explanation, each
+dish you picked has the same photo button as the menu: **See your photo** if
+you have one, **See the restaurant's photo** if their online menu had one, and
+otherwise **See similar on the web**, look-alikes of a dish with that name
+(not this restaurant's own), each opening its source when tapped.
 
 ## Share the Love
 
@@ -15398,6 +15407,93 @@ function splitMenuSections(list, menuId, idxs, rawLabel){
    MENU DETAIL - the drilled-in view of a single menu, with its
    own back button, inline re-scan/delete row, search, and sections
    ============================================================ */
+// "What does it look like?" beside each dish of an Explain answer (2026-10-15).
+// Chris: "I want the option to ... look it up on the web to see what it looks
+// like. We have that function elsewhere in the app." It IS that function: the
+// menu's photo button (MenuView), with the same tiers and words. Your photo of
+// the dish first, else the restaurant's own, else look-alikes from the web,
+// labeled as not this exact dish. Nothing is saved to the dish: a web
+// look-alike is not this restaurant's food.
+function DishLookRow({ cfg, item, realPhotos, cuisine }){
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes]   = useState(null);     // web results: [{thumb, source, title}] | "none" | null
+  const [err, setErr]   = useState("");
+  const webImage = (item && item.web_image) || "";
+  const hasReal = realPhotos.length > 0;
+  async function look(){
+    setOpen(true);
+    if (hasReal || webImage || res) return;   // a real photo is the only one shown; a search is kept
+    if (!configComplete(cfg)){ setErr("Set up your account in Settings."); return; }
+    setErr(""); setBusy(true);
+    try {
+      const imgs = await dishImages(cfg, item.name, cuisine);
+      setRes(imgs.length ? imgs : "none");
+    } catch(e){
+      setErr(e.message || "Couldn't find photos.");
+    } finally { setBusy(false); }
+  }
+  const tile = { flex:"none", width:96, height:96, borderRadius:10, overflow:"hidden",
+                 border:"1px solid var(--line-soft)", background:"var(--surface-2)" };
+  return (
+    <div className="dish-look">
+      <div className="row" style={{gap:10, alignItems:"center"}}>
+        <span className="dish-look-nm">{item.name}</span>
+        {open ? (
+          <button type="button" className="iest-btn" style={{flex:"none"}} onClick={()=> setOpen(false)}>Hide</button>
+        ) : (
+          <button type="button" className="iest-btn" style={{flex:"none"}} disabled={busy} onClick={look}>
+            <Icon name={(!hasReal && !webImage) ? "search" : "image"} size={12} color="var(--accent)" />
+            {hasReal ? (realPhotos.length > 1 ? "See your photos" : "See your photo")
+              : webImage ? "See the restaurant's photo" : "See similar on the web"}
+          </button>
+        )}
+      </div>
+      {open ? (
+        <div style={{marginTop:8}}>
+          {hasReal ? (
+            <div>
+              <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
+                {realPhotos.map((p, k)=>(
+                  <div key={k} style={tile}>
+                    <PhotoImg cfg={cfg} path={p} style={{width:"100%", height:"100%", objectFit:"cover"}} />
+                  </div>
+                ))}
+              </div>
+              <span className="tiny faint">Your photo{realPhotos.length > 1 ? "s" : ""} of this dish</span>
+            </div>
+          ) : webImage ? (
+            <div>
+              <div style={tile}>
+                <img src={webImage} alt={item.name} loading="lazy" style={{width:"100%", height:"100%", objectFit:"cover"}} />
+              </div>
+              <span className="tiny faint">From the restaurant</span>
+            </div>
+          ) : busy ? (
+            <div className="tiny faint"><span className="spin" /> Searching the web for this dish&hellip;</div>
+          ) : Array.isArray(res) ? (
+            <div>
+              <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
+                {res.map((im, k)=>(
+                  <a key={k} href={im.source} target="_blank" rel="noopener noreferrer"
+                     title={im.title || item.name} style={tile}>
+                    <img src={im.thumb} alt={im.title || item.name} loading="lazy"
+                         style={{width:"100%", height:"100%", objectFit:"cover"}} />
+                  </a>
+                ))}
+              </div>
+              <span className="tiny faint">Similar from the web &middot; not this exact dish, tap to open the source</span>
+            </div>
+          ) : res === "none" ? (
+            <div className="tiny faint">No web photos found for this dish.</div>
+          ) : null}
+          {err ? <span className="iest-err">{err}</span> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onDeleteSection, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome}){
   // Move into another menu (2026-10-07): the way back after a split.
   const [merging, setMerging]   = useState(false);
@@ -15494,6 +15590,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   const [explaining, setExplaining] = useState(false);
   const [explanation, setExplanation] = useState(null);
   const [explainErr, setExplainErr] = useState(null);
+  const [explainedFor, setExplainedFor] = useState([]);   // the dishes the open answer explains
   const hasKey = configComplete(cfg);
   const _dh = dishHistory(visits);
   const hasHistory = _dh.loved.length > 0 || _dh.disliked.length > 0;
@@ -15550,6 +15647,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
     try {
       const a = await explainMenu(cfg, restaurant, menu, picks);
       setExplanation(a);
+      setExplainedFor(picks);
     } catch(err){
       setExplainErr(err.message || "Something went wrong. Try again.");
     } finally {
@@ -15948,6 +16046,28 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           {explanation && (
             <AiAnswer onClose={()=> setExplanation(null)}>
               <AiText text={explanation} />
+              {/* See what they look like (2026-10-15): the menu's photo button
+                  for each dish explained. Your photo, else the restaurant's,
+                  else look-alikes from the web. */}
+              {explainedFor.length ? (
+                <div className="dish-looks">
+                  <span className="lbl" style={{margin:"0 0 2px"}}>
+                    {explainedFor.length > 1 ? "See what they look like" : "See what it looks like"}</span>
+                  {explainedFor.map(n => {
+                    let item = null;
+                    (menu.sections || []).forEach(sec => (sec.items || []).forEach(it => {
+                      if (!item && it && (it.name || "").trim() === n) item = it;
+                    }));
+                    item = item || { name: n };
+                    const real = [];
+                    [item.photo].concat(dishPhotos[n.toLowerCase()] || []).forEach(p => {
+                      if (p && real.indexOf(p) === -1) real.push(p);
+                    });
+                    return <DishLookRow key={n} cfg={cfg} item={item} realPhotos={real}
+                             cuisine={restaurant ? restaurant.cuisine : ""} />;
+                  })}
+                </div>
+              ) : null}
             </AiAnswer>
           )}
         </div>

@@ -845,7 +845,11 @@ to their handle.
 
 **Explain the menu.** On any digitized menu, tap **Explain the menu** and pick
 the dishes you want decoded - the AI explains unfamiliar dishes and terms in
-plain language, using what is actually on the menu.
+plain language, using what is actually on the menu. Under the explanation, each
+dish you picked has the same photo button as the menu: **See your photo** if
+you have one, **See the restaurant's photo** if their online menu had one, and
+otherwise **See similar on the web**, look-alikes of a dish with that name
+(not this restaurant's own), each opening its source when tapped.
 
 ## Share the Love
 

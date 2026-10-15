@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.530.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.531.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.145.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.530.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.531.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,23 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Photos beside dishes in an Explain answer (2026-10-15, app 1.531.0)
+
+Chris: "under explain this menu or explain this dish, it works really well, but I want the option
+to add a photo from the web or like look it up on the web to see what it looks like. We have that
+function elsewhere in the app." Built as THAT function, copied from MenuView's photo tier into a
+small `DishLookRow` component: under a **Pick specific dishes** answer, "See what they look like",
+one row per dish explained, with the same button and words as the menu: See your photo(s) (your
+visit photos or the item's photo) > See the restaurant's photo (`web_image`) > See similar on the
+web (`dishImages`, `/api/dish/images`, Serper, ~$0.001 a search, cached a day, 40 a day per person).
+A real photo is the only one shown; web results are labeled "not this exact dish" and open their
+source; **nothing is saved to the dish** (a look-alike is not this restaurant's food, the same
+rule as the menu). Nothing is searched until tapped; Hide keeps the results. The whole-menu "How to
+order" guide covers courses, not dishes, so it has no photo rows. MenuView's own copy is untouched.
+**Verified:** Playwright at 375 px, 9 checks (no rows on the whole-menu guide, a row per picked
+dish, the right label per tier, no search until tapped, look-alikes labeled, the restaurant's photo
+with no search, hide and show without a second search).
 
 ### A place in Malta with no town, and accent-blind place search (2026-10-15, app 1.530.0)
 
