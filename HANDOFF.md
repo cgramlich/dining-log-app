@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.535.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.536.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.146.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.535.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.536.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,19 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Shared things read in order (2026-10-15, app 1.536.0)
+
+Chris (screenshots of a place Owen shared, and of Sharing): "Should we reorder?" By card:
+- **"Tell Owen what you think" after the summary**, not above everything. The inbox's open view
+  builds `replyCard` and passes it as `replySlot`; each shared page places it where its summary
+  ends: a place before its menu (`.pub-menu`), a visit before "The menu", a list under its title,
+  a collection under its cover. Pages opened from a link (no sender) show none, as before.
+- **Sharing: "Shared with you" first**, then Replies, then Sent.
+- His screenshots were cut off on the right: that was Safari zoomed in (about 17% larger), not the
+  layout. Rebuilt at 430 px with the same content: nothing wider than the screen.
+**Verified** at 430 px: section order Shared with you / Replies / Sent; place and visit both read
+summary, then reply box, then menu; no element wider than the screen.
 
 ### "In their words" flows as paragraphs (2026-10-15, app 1.535.0)
 

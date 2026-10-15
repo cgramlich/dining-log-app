@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.535.0";
+const APP_VERSION   = "1.536.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -12903,7 +12903,7 @@ function CollectionView({ cfg, collection, visits, restaurantById, onBack, onHom
 }
 
 // A collection a friend sent you (1.527.0): what buildCollectionPayload packed.
-function PublishedCollection({ data }){
+function PublishedCollection({ data, replySlot }){
   const [lb, setLb] = useState(null);
   if (!data || !Array.isArray(data.m)){
     return (
@@ -12936,6 +12936,7 @@ function PublishedCollection({ data }){
           <img src={data.cov} alt="" loading="lazy" onError={hideDeadPhoto} style={{width:"100%", display:"block", maxHeight:280, objectFit:"cover"}} />
         </div>
       ) : null}
+      {replySlot || null}
       {days.map((d, i)=> (
         <div key={i}>
           <div className="col-day">{d.dt ? colDayLabel(d.dt) : "Undated"}
@@ -24688,7 +24689,7 @@ function renderHelpMarkdown(doc){
   flushPara(); flushBullets();
   return out;
 }
-function PublishedList({data}){
+function PublishedList({data, replySlot}){
   const home = location.origin + location.pathname;
   const [openMenus, setOpenMenus] = useState({});   // place index -> menu expanded
   if (!data || !Array.isArray(data.p)){
@@ -24704,6 +24705,7 @@ function PublishedList({data}){
     <div className="pub-wrap">
       <div className="pub-kicker">A MenuCaptain list</div>
       <div className="pub-title">{data.t || "My list"}</div>
+      {replySlot || null}
       <div className="pub-cards">
         {data.p.map((p,i)=>(
           <div key={i} className="card pub-card">
@@ -24810,7 +24812,7 @@ function PublishedVisitLoader({slug}){
   return <PublishedVisit data={data} />;
 }
 
-function PublishedVisit({data, onSaved, onLogVisit}){
+function PublishedVisit({data, onSaved, onLogVisit, replySlot}){
   const home = location.origin + location.pathname;
   // Carry WHO shared this and WHICH visit into the app, so someone arriving
   // from here lands with an invitation rather than an empty account.
@@ -25244,6 +25246,8 @@ function PublishedVisit({data, onSaved, onLogVisit}){
           </div>
         </div>
       ) : null}
+
+      {replySlot || null}
 
       {/* The reader came to see a meal, and the menu behind it can run hundreds
           of items, so it folds. A section with NO name draws no header to tap,
@@ -28755,7 +28759,7 @@ function picksReplyText(list, max){
 // `onSendPicks(text)` and `sendToName` are passed only when this menu was
 // opened from a friend's share inside the app: then the picks can go back to
 // that friend as a reply. Without them (a public link) picks go out as a text.
-function PublishedMenu({data, onSaved, onSendPicks, sendToName}){
+function PublishedMenu({data, onSaved, onSendPicks, sendToName, replySlot}){
   const home = location.origin + location.pathname;
   const isPlace = !!(data && data.k === "p");   // place recommendation (browse) vs menu-pick (send back)
   // A place sent by a friend can carry their photos (2026-10-11): -1 = closed.
@@ -29041,6 +29045,8 @@ function PublishedMenu({data, onSaved, onSendPicks, sendToName}){
           </div>
         </div>
       ) : null}
+
+      {replySlot ? <div style={{marginBottom:14}}>{replySlot}</div> : null}
 
       <div className="pub-menu">
         <MenuFoldBar fold={fold} count={(data.s || []).length} />
@@ -32466,6 +32472,13 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
     const fromName = getConnName(open.from_user_id) || open.from || "your friend";
     const subj = replySubject(open.kind, open.payload, open.title);
     const openThread = threads.find(t => t.with_user_id === open.from_user_id && t.subject_key === subj.key) || null;
+    const replyCard = open.from_user_id ? (
+      <div className="card" style={{margin:"18px 0 6px", textAlign:"left"}}>
+        <div style={{fontWeight:600, marginBottom:10}}>Tell {fromName} what you think</div>
+        <ReplyThread cfg={config} thread={openThread} toUserId={open.from_user_id} toName={fromName}
+          subject={subj} canReact tail={3} onChanged={loadReplies} />
+      </div>
+    ) : null;
     return (
       <div style={{position:"fixed", inset:0, zIndex:70, background:"var(--bg)", overflowY:"auto"}}>
         {/* The app's standard screen header, pinned to the top (2026-10-13).
@@ -32482,16 +32495,13 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
           <HomeBtn onHome={onHome} />
         </div>
         <div style={{maxWidth:600, margin:"0 auto"}}>
-          {open.from_user_id ? (
-            <div className="card" style={{margin:"12px 16px 4px"}}>
-              <div style={{fontWeight:600, marginBottom:10}}>Tell {fromName} what you think</div>
-              <ReplyThread cfg={config} thread={openThread} toUserId={open.from_user_id} toName={fromName}
-                subject={subj} canReact tail={3} onChanged={loadReplies} />
-            </div>
-          ) : null}
-          {open.kind === "list" ? <PublishedList data={open.payload} />
-            : open.kind === "collection" ? <PublishedCollection data={open.payload} />
-            : open.kind === "visit" ? <PublishedVisit data={open.payload} onSaved={clearOpened}
+          {/* "Tell Owen what you think" sat above everything, so you were asked
+              before you had seen what Owen sent (Chris, 2026-10-15, by card:
+              "After the summary"). Each page now places it where its summary
+              ends and its menu or list begins: replySlot. */}
+          {open.kind === "list" ? <PublishedList data={open.payload} replySlot={replyCard} />
+            : open.kind === "collection" ? <PublishedCollection data={open.payload} replySlot={replyCard} />
+            : open.kind === "visit" ? <PublishedVisit data={open.payload} onSaved={clearOpened} replySlot={replyCard}
                 onLogVisit={onLogVisit ? (seed)=>{
                   const from = (open.from || "").trim();
                   const people = (seed.people || []).slice();
@@ -32502,7 +32512,7 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
                   clearOpened();
                   onLogVisit(Object.assign({}, seed, { people: people }));
                 } : null} />
-            : <PublishedMenu data={open.payload} onSaved={clearOpened}
+            : <PublishedMenu data={open.payload} onSaved={clearOpened} replySlot={replyCard}
                 sendToName={fromName}
                 onSendPicks={open.from_user_id ? (async (text)=>{
                   // The same conversation the reply box above writes to, so
@@ -32532,33 +32542,10 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
             onClose={()=> setReporting(null)} />
         ) : null}
         {note ? <div className="tiny" style={{color:"var(--danger)", margin:"0 0 8px"}}>{note}</div> : null}
-        {threads.length ? (
-          <div style={{marginBottom:16}}>
-            <div className="section-subhead">Replies</div>
-            {threads.map(t => {
-              const last = t.messages[t.messages.length - 1] || {};
-              return (
-                <SwipeToDelete key={t.thread} onDelete={()=> removeThread(t)}>
-                  <div className="card" style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}
-                    onClick={()=> setTalk(t.thread)}>
-                    <div style={{flex:1, minWidth:0}}>
-                      <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
-                        {t.unread ? <span className="reply-dot" /> : null}{replyName(t)}
-                        <span className="tiny faint" style={{fontWeight:400}}> &middot; {t.subject_title || "Something shared"}</span>
-                      </div>
-                      <div className="tiny faint" style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
-                        {last.mine ? "You: " : ""}{last.body || replyReactionLabel(last.reaction)}
-                      </div>
-                    </div>
-                    <span style={{flex:"none", display:"inline-flex"}}><Icon name="chev" size={18} color="var(--text-faint)" /></span>
-                  </div>
-                </SwipeToDelete>
-              );
-            })}
-          </div>
-        ) : null}
-        {/* Always headed now: under a screen called "Sharing" an unlabelled
-            list would not say which direction it is. */}
+        {/* First since 2026-10-15 (Chris, by card): new things friends sent,
+            with View and Dismiss, are what this screen is for. Then Replies,
+            then Sent. Always headed: under a screen called "Sharing" an
+            unlabelled list would not say which direction it is. */}
         <div className="section-subhead">Shared with you</div>
         {loadFail ? (
           <div className="small" style={{padding:"10px 2px", color:"var(--danger)"}}>
@@ -32612,6 +32599,31 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
             </SwipeToDelete>
           );
         })}
+        {threads.length ? (
+          <div style={{margin:"16px 0"}}>
+            <div className="section-subhead">Replies</div>
+            {threads.map(t => {
+              const last = t.messages[t.messages.length - 1] || {};
+              return (
+                <SwipeToDelete key={t.thread} onDelete={()=> removeThread(t)}>
+                  <div className="card" style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}
+                    onClick={()=> setTalk(t.thread)}>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                        {t.unread ? <span className="reply-dot" /> : null}{replyName(t)}
+                        <span className="tiny faint" style={{fontWeight:400}}> &middot; {t.subject_title || "Something shared"}</span>
+                      </div>
+                      <div className="tiny faint" style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                        {last.mine ? "You: " : ""}{last.body || replyReactionLabel(last.reaction)}
+                      </div>
+                    </div>
+                    <span style={{flex:"none", display:"inline-flex"}}><Icon name="chev" size={18} color="var(--text-faint)" /></span>
+                  </div>
+                </SwipeToDelete>
+              );
+            })}
+          </div>
+        ) : null}
         {/* What YOU sent, under what was sent to you. Its own component: it
             loads on its own and hides itself on a backend that has no list. */}
         <SentList cfg={config} />
