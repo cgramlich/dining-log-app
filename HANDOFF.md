@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.549.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.550.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.549.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.550.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,14 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### "Bar" menu name; first issue redated (2026-10-16, app 1.550.0)
+
+Chris asked whether "bar" should be a menu type or custom. Custom already worked (Other...); by card,
+"Bar" joins `LABEL_SUGGESTIONS` after Drinks. He also asked whether the update email was ever sent:
+**no** (Railway logs since 2026-10-14 show only the owner preview). By card the unsent first issue
+was redated to **October 16, 2026** (`2026-10-14-tiles.json` "when"; nothing else changed),
+republished with a new image fingerprint; Chris sends it from Settings > Update email.
 
 ### Help chats: the owner's own screen (2026-10-16, app 1.549.0)
 

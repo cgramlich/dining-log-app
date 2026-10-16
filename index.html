@@ -1232,7 +1232,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.549.0";
+const APP_VERSION   = "1.550.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -23819,8 +23819,9 @@ const LABEL_SUGGESTIONS = [
   "Main",
   // food side - time-progressed, then post-meal, then promotional
   "Food","Breakfast","Brunch","Lunch","Dinner","Late Night","Dessert","Happy Hour",
-  // drinks side - catchall, then categories
-  "Drinks","Cocktails","Beer","Wine","Whiskey","Spirits",
+  // drinks side - catchall, then categories. "Bar" (2026-10-16, Chris): a
+  // bar's own menu, drinks and bar food together.
+  "Drinks","Bar","Cocktails","Beer","Wine","Whiskey","Spirits",
 ];
 
 /* A menu scan that was still running when the phone stopped the app.
