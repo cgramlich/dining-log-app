@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.550.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.551.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.550.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.551.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,26 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Documentation catch-up, and the RELEASE DOCS GATE (2026-10-16, app 1.551.0)
+
+Chris: "Do we have all of our documents updated ... I've mentioned this many times" and "How do we
+make this a habit instead of me asking you every time". Honest audit: HANDOFF, BRIEFING versions,
+the Log and privacy were current; the **guide** still described old behaviour in six places (Home's
+Recently added, dietary filters, community menus and a "reports hide menus" line, Sharing, dish
+search, the photo count); the **promo inventory** had its as-of stamp bumped every release without
+new cards (it still said "Up to eight" photos); **welcome.html** lacked the chat; **next issue's
+notes** missed most of Oct 15-16. All fixed in 1.551.0.
+
+**The gate (by card, "Yes, add the release gate").** `tools/release_docs_gate.py`, run by
+`.git/hooks/pre-push` (install on a fresh clone: `python tools/install_docs_gate.py`), REFUSES a
+push unless, for APP_VERSION at HEAD: `releases.json` has an entry whose guide, promo, email_notes,
+welcome and handoff fields each say "updated..." or "n/a: why"; HANDOFF.md shows the version;
+the promo inventory's `data-inventory-as-of` equals it (and every version has a promo field, so the
+stamp cannot move unaccounted); and `menucaptain-help.md` contains every guide paragraph heading
+(the export is fresh). `releases.json` was backfilled honestly for 1.529-1.550. **Rule: never
+`--no-verify`; fix the entry.** Proven: it refused HEAD 1.550.0 (no entry, stale stamp) before
+this commit.
 
 ### "Bar" menu name; first issue redated (2026-10-16, app 1.550.0)
 

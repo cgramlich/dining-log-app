@@ -1232,7 +1232,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.550.0";
+const APP_VERSION   = "1.551.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1962,10 +1962,11 @@ The one you are on is highlighted.
   haven't been to - mark one **Want to try** to pin it, or **Dismiss** it to
   clear it off the list), and **Can't decide?** (a pick from your saved places). Back on
   Home, below the two cards, are any active group order and a look at what you've
-  been up to lately - **Recently added** (your newest saved places, each with the
-  date you added it) and **Recent visits** (the meals you've logged). (Scanning is
-  also on the **+** button and every place page.) **Settings** is behind the gear,
-  top-right. The flow runs find a place &rarr; open it and scan the menu / ask
+  been up to lately - **Recently added** (your newest saved places, each saying what
+  happened last: a visit logged, from a friend by name, or added by you) and **Recent
+  visits** (the meals you've logged). (Scanning is also on the **+** button and every
+  place page.) **Settings** is behind the gear, top-right, beside the **chat bubble**
+  that reaches us. The flow runs find a place &rarr; open it and scan the menu / ask
   Help me order &rarr; log the visit. **Looking somewhere else?** On the find-a-place
   page a **City (optional)** box appears once you start typing. Leave it blank and
   the search leans on where you are now; type a city (say, Austin) and it searches
@@ -2156,7 +2157,10 @@ menu. Searching a menu always shows every match, whatever option is set.
 
 **Dietary filters.** Open a menu and tap the diet chips (vegetarian, vegan,
 gluten-free, and friends) to narrow the list to dishes that fit - tags come
-from the menu itself plus the scan's best read of each dish.
+from the menu itself plus the scan's best read of each dish. On a place's page,
+the same chips gather matching dishes from **every** menu there, each section
+labelled with the menu it came from ("Drinks · Cocktails"). A dish nobody tagged
+won't show, so it is a guide, not a guarantee.
 
 **Menus in another language.** A menu is kept exactly as the restaurant
 printed it. On a menu in Spanish, French or another language, tap **Show
@@ -2267,7 +2271,12 @@ Separately, when a place is Google-linked, a **Menus shared by other diners**
 panel lets you *pull down* a menu someone else already digitized here. You can
 share any time (not only right after scanning), and the app gives a gentle
 **"Share your menu?"** nudge so it's easy to find. Community menus you pull are
-labeled "not verified." Tip: rename a menu to what it really is (say **Lunch**
+labeled "not verified." For each menu name the **newest** copy is the one
+offered, so a fresher scan replaces an old one. A menu you shared can be taken back:
+**Stop sharing** in Share, then Add to the community; or say yes when deleting the menu
+asks; or **Remove my shared copy** if you already deleted it. If another diner shares a
+newer copy of a menu you shared, theirs is offered instead and you get an email (it
+never says who). Tip: rename a menu to what it really is (say **Lunch**
 instead of the default Main, by tapping its name) *before* sharing; if you rename and re-share later,
 the app tidies up your old copy so there's no stale duplicate.
 
@@ -2392,7 +2401,8 @@ it rather than pick one.
 to bottom. **Search or type** in the box to find any dish on the menu (or type a
 new one). The search looks through every menu saved for the place, not just the
 main one, and each result says which menu it is on. It also looks in the
-descriptions, so typing an ingredient finds the drink, and it ignores accents.
+descriptions, so typing an ingredient finds the drink, and in the section headings,
+so "flauta" finds every dish under Flautas (marked "In Flautas"); it ignores accents.
 **Your usuals here** is a row of one-tap chips - the dishes you have
 ordered at this place before, your favorites first - so a repeat visit is a couple
 of taps with no hunting. And the full menu is there too: if it is long it tucks
@@ -2501,7 +2511,7 @@ numbers for the meal. If the visit already has photos, it shows them and asks
 which one shows the food, or you can take a new one. You can edit any estimate by hand if you know the real
 figures.
 
-**Photos and notes.** Attach photos of the visit and jot down any notes.
+**Photos and notes.** Attach up to fifteen photos of the visit and jot down any notes.
 
 **Which photo leads.** The first photo is the **Cover** - the one that heads the
 visit, and the one somebody sees first when you share it. Every other photo has
@@ -2654,14 +2664,16 @@ and send or accept requests. Once connected you can send a place, a menu, or a
 visit straight to a friend from any Share sheet, and anything they send you
 appears in **Sharing**, under **Shared with you**, with a banner on Home so you
 never miss it. **Sharing** is on the **You** tab and under the **+** button; it
-also holds your **Replies** and everything you have **Sent**.
+also holds your **Replies** and everything you have **Sent**. Something you have opened
+reads **Seen**; once you reply to it (a reaction counts) or save it, it clears itself,
+and the conversation stays under Replies. Photos in anything you share stay viewable
+for as long as you keep them; delete one and it goes from the shared page too.
 
 **If someone is a problem.** Every person and every shared item has a &#8942;
 button. **Report** tells us what is wrong and a person reads it. **Block** is
 private: they are never told, they are removed from your friends, they cannot
 send you requests, visits or menus, and anything they share with other diners
-stays hidden from you. Undo it any time under Settings, Blocked people. Community
-menus also hide themselves once several people report them.
+stays hidden from you. Undo it any time under Settings, Blocked people.
 
 **Getting paid back.** Add **Your Venmo** to your profile and your friends'
 apps learn it automatically, so when someone splits a check with you they can
