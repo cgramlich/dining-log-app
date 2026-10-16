@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.539.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.540.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.146.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.539.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.540.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,17 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### "Add the founder as a friend" (2026-10-15, app 1.540.0, first issue updated)
+
+Chris: "in the newsletter i would like people to offer to friend me at cjgramlich". The first issue
+had NOT been sent (logs: only the owner preview, 2026-10-14), so it gained a section "Add the founder
+as a friend" with a link `https://menucaptain.com/?inv=cjgramlich&nm=Chris%20Gramlich` and the path
+You > Friends > **@cjgramlich** (handle confirmed to exist, by count). "Up to ten photos" became
+"fifteen" so it is true on the day it goes out. `make_update.py` now turns `[text](https://...)` into
+a link (https only) and "text (url)" in the plain-text copy. **App:** a plain friend link (no shared
+visit) said "<name> shared a visit with you"; it now asks "Add Chris Gramlich as a friend?" with the
+"Add Chris" button. Verified on screen.
 
 ### Home Screen icon opened the promo page; separate sign-in explained (2026-10-15, app 1.539.0 + welcome.html)
 

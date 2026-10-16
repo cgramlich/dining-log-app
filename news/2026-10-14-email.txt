@@ -24,11 +24,15 @@ Sending a place now carries your rating, the dishes you loved and photos from yo
 
 LOGGING A VISIT
 
-Dish search now looks through every menu at a place, reads descriptions as well as names, and ignores accents, so “tiramisu” finds Tiramisù. Had a special? Add it, then tap Mark as special, and it reads as a special in gold wherever it appears, including on a visit you share. Each visit now holds up to ten photos, and correcting a dish’s name once corrects it on your past visits there as well.
+Dish search now looks through every menu at a place, reads descriptions as well as names, and ignores accents, so “tiramisu” finds Tiramisù. Had a special? Add it, then tap Mark as special, and it reads as a special in gold wherever it appears, including on a visit you share. Each visit now holds up to fifteen photos, and correcting a dish’s name once corrects it on your past visits there as well.
 
 REFINEMENTS
 
 The Back button no longer hides behind the clock on things friends send you. Restaurants you add abroad now keep their city. Votes in “Where shall we eat?” are saved as they should be. Suggestions for dishes, and for the people you dined with, no longer cover the page as you type, and signing up is simpler.
+
+ADD THE FOUNDER AS A FRIEND
+
+Chris Gramlich built MenuCaptain and would love to see where you’re eating. Tap here to add him as a friend (https://menucaptain.com/?inv=cjgramlich&nm=Chris%20Gramlich), or in the app open You, then Friends, and add @cjgramlich.
 
 YOUR IDEAS SHAPE MENUCAPTAIN
 

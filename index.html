@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.539.0";
+const APP_VERSION   = "1.540.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -10477,7 +10477,12 @@ function App({openShare}){
             <span className="req-banner-ic"><Icon name="people" size={18} color="#1b1714" /></span>
             <div style={{flex:1, minWidth:0}}>
               <div style={{fontWeight:600}}>
-                {inviteName(invite)} shared {invite.at ? invite.at : "a visit"} with you
+                {/* A plain friend link (?inv=handle, as in the newsletter's
+                    "add the founder") shares nothing, so it must not say
+                    "shared a visit with you" (2026-10-15). */}
+                {(invite.sv || invite.at)
+                  ? inviteName(invite) + " shared " + (invite.at || "a visit") + " with you"
+                  : "Add " + inviteName(invite) + " as a friend?"}
               </div>
               <div className="tiny" style={{opacity:0.82}}>
                 {invite.sv
