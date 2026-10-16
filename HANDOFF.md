@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.547.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.548.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.547.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.548.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,18 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Chat bubble anchored top right (2026-10-16, app 1.548.0)
+
+Chris: "Where is the chat button on the app? ... anchored permanently in the upper right, almost like
+the Home icon". By card, "Main screens' top right": a new `chat` icon (speech bubble with dots) sits
+between Share and Settings in the Home header and in `TopBar` (Places, History, You, Settings), with an
+accent dot (`.chat-dot`) when a support conversation has unread messages (`supportUnread` from the
+existing replies list). App asks `/api/support/contact` once a session (`supportOwner`): for the owner
+the bubble opens Sharing (where people's chats arrive), for everyone else Chat with us; closing the
+chat refreshes replies so the dot clears. Inner screens keep Back and Home. Guide updated.
+**Verified** at 430 px: bubble on Home between Share and Settings and in the Places bar, dot with an
+unread answer, opens the chat, owner goes to Sharing.
 
 ### Refresh is hard to hit by accident (2026-10-16, app 1.547.0)
 

@@ -1244,8 +1244,9 @@ Your password is never stored in readable form, and signing in on a new device
 needs only your email and password - your data follows your account, not your
 phone.
 
-Questions or trouble? Open **Settings** and tap **Start a chat** under **Chat with us**: you write
-to the team inside the app, the answer appears there (and under Replies in Sharing), and you get an
+Questions or trouble? Tap the **chat bubble** at the top right of Home, Places, History or You
+(or **Settings**, then **Start a chat** under **Chat with us**): you write to the team inside the app,
+and a dot on the bubble means an answer is waiting; the answer appears there (and under Replies in Sharing), and you get an
 email when it arrives. Or email **support@menucaptain.com**.
 
 -----

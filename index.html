@@ -563,6 +563,8 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
        italics, so the printed wording stays the thing you point at. */
     .mitem .ien{font-size:13.5px; color:var(--text); font-style:italic; margin-top:2px; opacity:0.85;}
     .mitem .ien-u{color:var(--text-dim);}
+    .chat-dot{position:absolute; top:2px; right:2px; width:9px; height:9px; border-radius:50%;
+      background:var(--accent); box-shadow:0 0 0 2px var(--bg);}
     .mitem .ien-u-k{font-style:normal; font-weight:600; color:var(--text-faint); margin-right:2px;}
     .mitem .idesc-en{font-style:italic;}
     /* Show English flags: place's country on the original, US on the English. */
@@ -1230,7 +1232,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.547.0";
+const APP_VERSION   = "1.548.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3155,8 +3157,9 @@ Your password is never stored in readable form, and signing in on a new device
 needs only your email and password - your data follows your account, not your
 phone.
 
-Questions or trouble? Open **Settings** and tap **Start a chat** under **Chat with us**: you write
-to the team inside the app, the answer appears there (and under Replies in Sharing), and you get an
+Questions or trouble? Tap the **chat bubble** at the top right of Home, Places, History or You
+(or **Settings**, then **Start a chat** under **Chat with us**): you write to the team inside the app,
+and a dot on the bubble means an answer is waiting; the answer appears there (and under Replies in Sharing), and you get an
 email when it arrives. Or email **support@menucaptain.com**.
 
 -----
@@ -7742,7 +7745,8 @@ function Icon({name, size, color, fill}){
     nodes:   <g><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5L15.4 6.5"/><path d="M8.6 13.5L15.4 17.5"/></g>,
     split:   <g><path d="M12 21v-8"/><path d="M12 13 6 6"/><path d="m12 13 6-7"/><path d="M10 6H6v4"/><path d="M14 6h4v4"/></g>,   /* a stem branching in two: Split. "nodes" reads as Share */
     merge:   <g><path d="M6 20l6-8 6 8"/><path d="M12 12V3"/><path d="M8 7l4-4 4 4"/></g>,   /* two branches joining one stem: Move into */
-    reply:   <path d="M4 5h16v11H9l-5 4Z"/>,   /* a speech bubble: a friend's reply */
+    reply:   <path d="M4 5h16v11H9l-5 4Z"/>,
+    chat:    <g><path d="M4 5h16v11H9l-5 4Z"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" strokeWidth="2.6"/></g>,   /* Chat with us (2026-10-16) */   /* a speech bubble: a friend's reply */
     // Two figures = friends / connections. Deliberately distinct from `nodes`,
     // which is the share-network glyph used for group orders.
     people:  <g><path d="M16.5 20v-1.8a3.7 3.7 0 0 0-3.7-3.7H6.2A3.7 3.7 0 0 0 2.5 18.2V20"/><circle cx="9.5" cy="7.3" r="3.7"/><path d="M21.5 20v-1.8a3.7 3.7 0 0 0-2.8-3.6"/><path d="M15.6 3.9a3.7 3.7 0 0 1 0 7.2"/></g>,
@@ -8835,7 +8839,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
    distinct so they don't read as the same list). A launcher, not a
    wizard - the finding/searching work lives one tap deeper in FindPlaceView.
    ============================================================ */
-function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant,
+function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, onChat, chatDot,
                     onScanMenu, onAtRestaurant, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs }){
   const [showAllVisits, setShowAllVisits] = useState(false);   // Recent visits: 3, then expand
   // Recently ADDED: newest saves to your collection (by added_date). Kept
@@ -8899,6 +8903,13 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant,
             <button className="x" aria-label="Share MenuCaptain" title="Share MenuCaptain"
               onClick={onShareApp} style={{flex:"none"}}>
               <Icon name="share" size={20} color="var(--accent)" />
+            </button>
+          ) : null}
+          {onChat ? (
+            <button className="x" aria-label="Chat with us" title="Chat with us" onClick={onChat}
+              style={{position:"relative", flex:"none"}}>
+              <Icon name="chat" size={21} />
+              {chatDot ? <span className="chat-dot" aria-label="New message" /> : null}
             </button>
           ) : null}
           <button className="x" aria-label="Settings" title="Settings" onClick={onOpenSettings}
@@ -9403,6 +9414,21 @@ function App({openShare}){
     const rest = cur.filter(d => !(d && d.uid === door.uid && d.key === door.key));
     saveMeta(Object.assign({}, metaRef.current, { reply_doors: [door].concat(rest).slice(0, 200) }));
     logMsg("REPLY", "kept a door for " + door.kind);
+  }
+  // Chat with us (2026-10-16): the owner's account, so the owner's own chat
+  // icon opens Sharing (where people's chats arrive) instead of a chat with
+  // himself. Asked once a session; unknown leaves the icon opening the chat.
+  const [supportOwner, setSupportOwner] = useState(null);
+  useEffect(()=>{
+    if (!ready || needSetup || !configComplete(config) || supportOwner) return;
+    fetchSupportContact(config).then(c => setSupportOwner((c && c.user_id) || null)).catch(()=>{});
+  // eslint-disable-next-line
+  }, [ready, needSetup]);
+  const supportUnread = (replies.threads || []).filter(t => t && t.subject_kind === "support")
+    .reduce((n, t) => n + (t.unread || 0), 0);
+  function openChat(){
+    if (supportOwner && supportOwner === config.userId) setOverlay({ type:"shares" });
+    else setOverlay({ type:"support" });
   }
   function refreshReplies(){
     if (!configComplete(config)) return;
@@ -10424,7 +10450,8 @@ function App({openShare}){
       {/* Home owns its own header (wordmark + greeting + Settings gear), so the
           shared TopBar is hidden there to avoid a duplicate "MenuCaptain". */}
       {tab !== "home" ? <TopBar tab={tab} onShare={shareApp}
-        onOpenSettings={()=> setTab("settings")} pendingReqs={pendingReqs} /> : null}
+        onOpenSettings={()=> setTab("settings")} pendingReqs={pendingReqs}
+        onChat={configComplete(config) ? openChat : null} chatDot={supportUnread > 0} /> : null}
       {/* Home hides the TopBar, so reserve the status-bar (notch) space here, or
           the update/sync banners ride up under the clock and battery. */}
       {tab === "home" ? <div aria-hidden="true" style={{height:"env(safe-area-inset-top)"}} /> : null}
@@ -10608,6 +10635,7 @@ function App({openShare}){
         {tab === "home" && (
           <HomeView
             profile={profile}
+            onChat={configComplete(config) ? openChat : null} chatDot={supportUnread > 0}
             restaurants={restaurants} visits={visits} menus={menus} cfg={config}
             pendingReqs={pendingReqs}
             onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
@@ -10941,7 +10969,7 @@ function App({openShare}){
         <FeedbackForm cfg={config} onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "support" && (
-        <SupportChat cfg={config} onClose={()=> setOverlay(null)} />
+        <SupportChat cfg={config} onClose={()=>{ setOverlay(null); refreshReplies(); }} />
       )}
       {overlay && overlay.type === "atPlace" && (
         <AtRestaurantPicker
@@ -11908,7 +11936,7 @@ function App({openShare}){
 /* ============================================================
    TOP BAR
    ============================================================ */
-function TopBar({tab, onShare, onOpenSettings, pendingReqs}){
+function TopBar({tab, onShare, onOpenSettings, pendingReqs, onChat, chatDot}){
   const titles = {
     history:["MenuCaptain","Where you have been"],
     restaurants:["Places","Your restaurants & menus"],
@@ -11927,6 +11955,15 @@ function TopBar({tab, onShare, onOpenSettings, pendingReqs}){
           <button className="topbar-share" onClick={onShare}
             aria-label="Share MenuCaptain" title="Share MenuCaptain">
             <Icon name="share" size={19} color="var(--accent)" />
+          </button>
+        ) : null}
+        {/* Chat with us, one tap away on every main screen (2026-10-16, Chris:
+            "anchored permanently in the upper right"). The dot: an answer waits. */}
+        {onChat ? (
+          <button className="topbar-share" aria-label="Chat with us" title="Chat with us"
+            onClick={onChat} style={{position:"relative"}}>
+            <Icon name="chat" size={20} />
+            {chatDot ? <span className="chat-dot" aria-label="New message" /> : null}
           </button>
         ) : null}
         {/* Nav standard 2026-07-24: Settings is one tap away on EVERY screen.
