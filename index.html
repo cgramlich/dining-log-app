@@ -1232,7 +1232,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.548.0";
+const APP_VERSION   = "1.549.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -9426,8 +9426,11 @@ function App({openShare}){
   }, [ready, needSetup]);
   const supportUnread = (replies.threads || []).filter(t => t && t.subject_kind === "support")
     .reduce((n, t) => n + (t.unread || 0), 0);
+  // Friends' replies about shared things, without help chats (2026-10-16).
+  const friendUnread = Math.max(0, (replies.unread || 0) - supportUnread);
+  const [supportSeen, setSupportSeen] = useState(0);   // help-chat unread count the banner was closed at
   function openChat(){
-    if (supportOwner && supportOwner === config.userId) setOverlay({ type:"shares" });
+    if (supportOwner && supportOwner === config.userId) setOverlay({ type:"helpChats" });
     else setOverlay({ type:"support" });
   }
   function refreshReplies(){
@@ -10583,17 +10586,38 @@ function App({openShare}){
             </button>
           </div>
         )}
-        {replies.unread > 0 && replies.unread !== repliesSeen && (()=>{
-          const fresh = replies.threads.filter(t => t.unread > 0);
+        {/* Help chats get their own banner (2026-10-16): it opens the chat,
+            not Sharing, where they no longer appear. */}
+        {supportUnread > 0 && supportUnread !== supportSeen && (()=>{
+          const t = (replies.threads || []).find(x => x.subject_kind === "support" && x.unread > 0);
+          const owner = supportOwner && supportOwner === config.userId;
+          return (
+            <div className="req-banner" onClick={()=>{ setSupportSeen(supportUnread); openChat(); }}>
+              <span className="req-banner-ic"><Icon name="chat" size={18} color="#1b1714" /></span>
+              <div style={{flex:1, minWidth:0}}>
+                <div style={{fontWeight:600}}>
+                  {owner ? ((t ? replyName(t) : "Someone") + " wrote to you") : ((t ? replyName(t) : "We") + " answered your message")}
+                </div>
+                <div className="tiny" style={{opacity:0.82}}>{owner ? "In Help chats" : "In Chat with us"}</div>
+              </div>
+              <button className="req-banner-x" aria-label="Dismiss"
+                onClick={(e)=>{ e.stopPropagation(); setSupportSeen(supportUnread); }}>
+                <Icon name="close" size={15} color="#1b1714" />
+              </button>
+            </div>
+          );
+        })()}
+        {friendUnread > 0 && friendUnread !== repliesSeen && (()=>{
+          const fresh = replies.threads.filter(t => t.unread > 0 && t.subject_kind !== "support");
           const one = fresh.length === 1 ? fresh[0] : null;
           return (
             <div className="req-banner"
-              onClick={()=>{ setRepliesSeen(replies.unread); setOverlay({ type:"shares" }); }}>
+              onClick={()=>{ setRepliesSeen(friendUnread); setOverlay({ type:"shares" }); }}>
               <span className="req-banner-ic"><Icon name="reply" size={18} color="#1b1714" /></span>
               <div style={{flex:1, minWidth:0}}>
                 <div style={{fontWeight:600}}>
                   {one ? replyName(one) + " replied"
-                       : replies.unread + " new repl" + (replies.unread > 1 ? "ies" : "y")}
+                       : friendUnread + " new repl" + (friendUnread > 1 ? "ies" : "y")}
                 </div>
                 <div className="tiny" style={{opacity:0.82, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
                   {one ? "About " + (one.subject_title || "something you shared")
@@ -10601,7 +10625,7 @@ function App({openShare}){
                 </div>
               </div>
               <button className="req-banner-x" aria-label="Dismiss"
-                onClick={(e)=>{ e.stopPropagation(); setRepliesSeen(replies.unread); }}>
+                onClick={(e)=>{ e.stopPropagation(); setRepliesSeen(friendUnread); }}>
                 <Icon name="close" size={15} color="#1b1714" />
               </button>
             </div>
@@ -10801,7 +10825,7 @@ function App({openShare}){
             onOpenPassport={()=> setOverlay({ type:"passport" })}
             onOpenPeople={()=> setOverlay({ type:"people" })}
             onOpenLeaderboard={()=> setOverlay({ type:"leaderboard" })}
-            onOpenShares={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }} sharesCount={sharesCount + (replies.unread || 0)}
+            onOpenShares={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }} sharesCount={sharesCount + friendUnread}
             onOpenConnections={()=>{ setReqSeen(pendingReqs); setOverlay({ type:"connections" }); }}
             pendingReqs={pendingReqs}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
@@ -10967,6 +10991,9 @@ function App({openShare}){
       )}
       {overlay && overlay.type === "feedback" && (
         <FeedbackForm cfg={config} onClose={()=> setOverlay(null)} />
+      )}
+      {overlay && overlay.type === "helpChats" && (
+        <HelpChats cfg={config} onClose={()=> setOverlay(null)} onChanged={refreshReplies} />
       )}
       {overlay && overlay.type === "support" && (
         <SupportChat cfg={config} onClose={()=>{ setOverlay(null); refreshReplies(); }} />
@@ -31816,6 +31843,90 @@ async function fetchSupportContact(cfg){
   if (!res.ok) throw new Error((d && d.detail) || "Chat isn't available right now.");
   return d;   // { user_id, name, key, title }
 }
+// Help chats (2026-10-16): the owner's screen for the conversations people
+// start from the chat bubble (questions, problems, ideas), newest first. Chris
+// opened Sharing from his bubble and found only friends' replies there; these
+// are kept apart from those now.
+function HelpChats({ cfg, onClose, onChanged }){
+  const [threads, setThreads] = useState(null);
+  const [talk, setTalk]       = useState(null);
+  const [note, setNote]       = useState("");
+  function load(){
+    fetchReplies(cfg)
+      .then(d => setThreads(((d && d.threads) || []).filter(t => t && t.subject_kind === "support")))
+      .catch(e => { logMsg("SUPPORT", "help chats load failed: " + e.message); setThreads([]); });
+  }
+  useEffect(()=>{ load(); /* eslint-disable-next-line */ }, []);
+  const t = talk ? ((threads || []).find(x => x.thread === talk) || null) : null;
+  if (t){
+    return (
+      <div className="overlay">
+        <div className="ovhead">
+          <BackBtn onClick={()=>{ setTalk(null); load(); if (onChanged) onChanged(); }} />
+          <h2 style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{replyName(t)}</h2>
+          <span style={{width:34}} />
+        </div>
+        <div className="ovbody">
+          <div className="small muted" style={{margin:"2px 2px 12px", lineHeight:1.6}}>
+            A help chat. Your answer appears in their app, and they get an email when it arrives.
+          </div>
+          <div className="card">
+            <ReplyThread cfg={cfg} thread={t} toUserId={t.with_user_id} toName={replyName(t)}
+              subject={{ kind:"support", key:"support", title:"Chat with MenuCaptain" }} onChanged={load} />
+          </div>
+          {note ? <div className="tiny" style={{color:"var(--danger)", marginTop:10}}>{note}</div> : null}
+          <div style={{marginTop:22, textAlign:"center"}}>
+            <button type="button" className="btn ghost sm" style={{margin:"0 auto"}}
+              onClick={async ()=>{
+                if (!confirm("Delete this conversation? It is removed for both of you.")) return;
+                try { await deleteReplyThread(cfg, t.thread); setTalk(null); load(); if (onChanged) onChanged(); }
+                catch(e){ setNote("Couldn't delete that just now - try again."); }
+              }}>Delete this conversation</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <BackBtn onClick={()=>{ if (onChanged) onChanged(); onClose(); }} />
+        <h2>Help chats</h2><span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        <div className="small muted" style={{margin:"2px 2px 14px", lineHeight:1.6}}>
+          Questions, problems and ideas people sent you from the chat bubble, newest first.
+        </div>
+        {threads === null ? (
+          <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
+        ) : !threads.length ? (
+          <div className="card small muted" style={{lineHeight:1.6}}>
+            No one has written yet. When someone taps the chat bubble and writes to you, it shows up here,
+            and you get an email.
+          </div>
+        ) : threads.map(th => {
+          const last = th.messages[th.messages.length - 1] || {};
+          return (
+            <div key={th.thread} className="card" style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}}
+              onClick={()=> setTalk(th.thread)}>
+              <div style={{flex:1, minWidth:0}}>
+                <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                  {th.unread ? <span className="reply-dot" /> : null}{replyName(th)}
+                  {last.at ? <span className="tiny faint" style={{fontWeight:400}}> &middot; {fmtDate(String(last.at).slice(0, 10))}</span> : null}
+                </div>
+                <div className="tiny faint" style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                  {last.mine ? "You: " : ""}{last.body || replyReactionLabel(last.reaction)}
+                </div>
+              </div>
+              <span style={{flex:"none", display:"inline-flex"}}><Icon name="chev" size={18} color="var(--text-faint)" /></span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SupportChat({ cfg, onClose }){
   const [contact, setContact] = useState(null);
   const [thread, setThread]   = useState(null);
@@ -31841,8 +31952,8 @@ function SupportChat({ cfg, onClose }){
           : !contact ? <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
           : isOwner ? (
             <div className="card small muted" style={{lineHeight:1.6}}>
-              This is where people write to you. Their messages arrive in Sharing, under Replies,
-              and you answer them there. You also get an email when someone starts a conversation.
+              This is where people write to you. Their conversations are in Help chats (your chat
+              bubble opens it), and you get an email when someone starts one.
             </div>
           ) : (
             <>
@@ -32686,7 +32797,8 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
   const [threads, setThreads] = useState([]);
   const [talk, setTalk] = useState(null);       // id of the conversation being read
   function loadReplies(){
-    fetchReplies(config).then(d => setThreads((d && d.threads) || []))
+    // Help chats live in their own screen (2026-10-16), not among friends' replies.
+    fetchReplies(config).then(d => setThreads(((d && d.threads) || []).filter(t => t && t.subject_kind !== "support")))
       .catch(e => logMsg("REPLY", "inbox load failed: " + e.message));
   }
   useEffect(()=>{ load(); loadReplies(); /* eslint-disable-next-line */ },[]);

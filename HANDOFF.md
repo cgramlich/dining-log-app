@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.548.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.549.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.548.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.549.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,18 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Help chats: the owner's own screen (2026-10-16, app 1.549.0)
+
+Chris tapped his bubble and landed in Sharing among friends' replies: "Is this what I'm supposed to
+see?" By card, "Yes, a Help chats screen": `HelpChats` lists only `support` threads, newest first,
+unread dotted, "No one has written yet" when empty; tap one for the conversation (`ReplyThread`) and
+a Delete. The owner's bubble opens it. Help chats are removed from Sharing's Replies (`ShareInbox`
+filters `subject_kind !== "support"`) and from the friends' "replied" banner and Sharing count
+(`friendUnread`); a separate banner says "<name> wrote to you · In Help chats" (owner) or "<name>
+answered your message · In Chat with us" (others) and opens the chat. **Verified** as the owner: banner,
+bubble opens Help chats with only the help conversation, the conversation has a reply box, Sharing's
+Replies keep Mark's and drop the help chat, empty state.
 
 ### Chat bubble anchored top right (2026-10-16, app 1.548.0)
 
