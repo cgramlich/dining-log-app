@@ -408,6 +408,11 @@ goes to create an account which I have already done". Two causes:
    to sign in again. When the sign-in screen runs from the Home Screen it now says so: "Already
    have an account? Sign in below ... same email and password ... No need to make a new account."
    Her account and restaurant were never at risk: they are on the server.
+**Later the same day (welcome.html only, by card and Chris's notes):** two new cards, "Prices in
+your currency" (after Menus in any language) and "Keep a trip together" (after Share with friends);
+"Already have an account? Sign in" on its own 17 px line; the Home Screen hint is now a small block
+with iPhone (Share, bottom bar or behind the ••• button) and Android (Chrome's three-dot menu, Add to
+Home screen or Install app) steps. Checked at 430 px, nothing wider than the screen.
 **Verified** (iPhone identity, 430 px): the promo page as a Home Screen app lands on the app, in
 Safari it stays; Sign in offered on it; the note shows from the Home Screen and not in Safari.
 
