@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.537.0";
+const APP_VERSION   = "1.538.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -8415,9 +8415,12 @@ function InstallHint({ onClose, force }){
         </button>
       ) : plat === "ios" ? (
         <div className="small">
-          {step(1, <span>Tap the <strong>Share</strong> button <span style={{display:"inline-flex", verticalAlign:"-3px"}}><Icon name="share" size={15} color="var(--accent)" /></span> at the bottom of Safari.</span>)}
-          {step(2, <span>Scroll down and tap <strong>Add to Home Screen</strong>.</span>)}
-          {step(3, <span>Tap <strong>Add</strong> - MenuCaptain lands on your Home Screen.</span>)}
+          {/* iOS 26's default "compact" Safari puts Share behind the ... button
+              beside the address bar; the older bottom bar shows it directly.
+              Both are named, so step 1 matches whichever the reader has. */}
+          {step(1, <span>In Safari, tap <strong>Share</strong> <span style={{display:"inline-flex", verticalAlign:"-3px"}}><Icon name="share" size={15} color="var(--accent)" /></span>. It is in the bar at the bottom, or behind the <strong style={{letterSpacing:"1.5px"}}>{"\u2022\u2022\u2022"}</strong> button beside the address.</span>)}
+          {step(2, <span>Tap <strong>Add to Home Screen</strong> (scroll down the list if you need to).</span>)}
+          {step(3, <span>Leave <strong>Open as Web App</strong> on if you see it, then tap <strong>Add</strong>. MenuCaptain lands on your Home Screen.</span>)}
         </div>
       ) : (
         <div className="small">
@@ -10545,7 +10548,11 @@ function App({openShare}){
             </button>
           </div>
         )}
-        {!IS_NATIVE && !a2hsDismissed && !isStandalone() && !configComplete(config) && (
+        {/* Signed in and still in the browser is when installing matters most,
+            and the card used to vanish at sign-in (Chris, 2026-10-15). Before
+            sign-in: every screen, as before. After: the Home tab only, until
+            installed or closed. */}
+        {!IS_NATIVE && !a2hsDismissed && !isStandalone() && (!configComplete(config) || tab === "home") && (
           <div style={{marginBottom:13}}>
             <InstallHint onClose={()=>{ try { localStorage.setItem("mc_a2hs_dismissed", "1"); } catch(e){} setA2hsDismissed(true); }} />
           </div>

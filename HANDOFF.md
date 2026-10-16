@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.537.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.538.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.146.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.537.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.538.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,21 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Add to Home Screen, for the people who need it (2026-10-15, app 1.538.0 + welcome.html)
+
+Chris: "Do we show users how to add to home screen?" Yes (sign-in screen, Home before sign-in,
+Settings), with three gaps; by card, "Fix all three":
+1. The Home card showed only BEFORE sign-in, so signed-in Safari users never saw it. Now: before
+   sign-in on every screen as before; after, on the Home tab until installed or closed
+   (`mc_a2hs_dismissed`). Never in the store build or once installed.
+2. iPhone steps said Share is "at the bottom of Safari"; iOS 26's default compact layout puts it
+   behind the ••• button beside the address. Step 1 names both; step 3 says to leave "Open as Web
+   App" on if shown.
+3. welcome.html: one line under the button, "No app store needed: open menucaptain.com on your
+   phone and add it to your Home Screen (in Safari, Share, then Add to Home Screen)."
+**Verified** at 430 px with an iPhone Safari identity, signed in: the card shows on Home, both
+layouts named, Open as Web App named, absent on History, and stays closed once closed.
 
 ### Home: the latest action, and who (2026-10-15, app 1.537.0)
 
