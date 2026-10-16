@@ -301,9 +301,9 @@ it instead.
 the small pencil beside it) and type a new one - **Dinner**, **Brunch**,
 **Wine list**. Do it any time, not just right after you add it.
 
-**Re-scanning and deleting.** Each menu card offers **Refresh** to replace it
-with a fresh version - photograph it again or pull it from a link - and you
-can delete a menu you no longer want from inside it. Refreshing replaces the
+**Re-scanning and deleting.** Open a menu and tap **Refresh** at the top to replace it
+with a fresh version - photograph it again or pull it from a link. It asks first, so a
+stray tap does nothing. You can delete a menu you no longer want from inside it too. Refreshing replaces the
 old copy in place (no duplicate) and takes today's date, so any estimates saved
 on the old items are not carried over.
 

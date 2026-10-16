@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.546.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.547.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.546.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.547.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,15 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Refresh is hard to hit by accident (2026-10-16, app 1.547.0)
+
+Chris: "The refresh button is too easy to accidentally hit on the menu". By card, "Off the rows, and
+ask first": the place page's menu rows (both copies of the row) no longer carry Refresh, so a row
+just opens its menu; the menu screen's Refresh opens an inline "Replace this menu with new photos or
+a link? The current one stays until you save the new one." with Cancel / Replace (`confirmRefresh`,
+styled like the delete confirmation). Guide updated. **Verified** on screen: no Refresh in rows,
+asks first, Cancel stays, Replace opens the scanner.
 
 ### "Usually:" for dishes Show English keeps in the original (2026-10-16, app 1.546.0)
 

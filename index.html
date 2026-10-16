@@ -1230,7 +1230,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.546.0";
+const APP_VERSION   = "1.547.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2212,9 +2212,9 @@ it instead.
 the small pencil beside it) and type a new one - **Dinner**, **Brunch**,
 **Wine list**. Do it any time, not just right after you add it.
 
-**Re-scanning and deleting.** Each menu card offers **Refresh** to replace it
-with a fresh version - photograph it again or pull it from a link - and you
-can delete a menu you no longer want from inside it. Refreshing replaces the
+**Re-scanning and deleting.** Open a menu and tap **Refresh** at the top to replace it
+with a fresh version - photograph it again or pull it from a link. It asks first, so a
+stray tap does nothing. You can delete a menu you no longer want from inside it too. Refreshing replaces the
 old copy in place (no duplicate) and takes today's date, so any estimates saved
 on the old items are not carried over.
 
@@ -15189,14 +15189,9 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   {m0.source === "community" ? " (shared)" : m0.source === "web" ? " (web)" : m0.source === "seed" ? " (starter)" : ""}
                 </div>
               </div>
-              {onRescanMenu && (
-                <button className="btn ghost sm" style={{flex:"none", marginRight:6}}
-                  onClick={(e)=>{ e.stopPropagation(); onRescanMenu(m0.menu_id); }}
-                  title="Refresh this menu (re-photograph or pull from a link)">
-                  <span className="row" style={{gap:4, alignItems:"center"}}>
-                    <Icon name="refresh" size={14} color="var(--accent)" />Refresh</span>
-                </button>
-              )}
+              {/* No Refresh in the row (2026-10-16, Chris: "too easy to
+                  accidentally hit"): a row opens its menu, and Refresh lives on
+                  the menu screen, where it asks first. */}
               <Icon name="chev" size={18} color="#80715f" />
             </div>
           );
@@ -15260,14 +15255,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                     {m.source === "community" ? " (shared)" : m.source === "web" ? " (web)" : m.source === "seed" ? " (starter)" : ""}
                   </div>
                 </div>
-                {onRescanMenu && (
-                  <button className="btn ghost sm" style={{flex:"none", marginRight:6}}
-                    onClick={(e)=>{ e.stopPropagation(); onRescanMenu(m.menu_id); }}
-                    title="Refresh this menu (re-photograph or pull from a link)">
-                    <span className="row" style={{gap:4, alignItems:"center"}}>
-                      <Icon name="refresh" size={14} color="var(--accent)" />Refresh</span>
-                  </button>
-                )}
+                {/* No Refresh in the row (2026-10-16): see the row above. */}
                 <Icon name="chev" size={18} color="#80715f" />
               </div>
             );
@@ -15673,6 +15661,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   const [merging, setMerging]   = useState(false);
   const [mergeTo, setMergeTo]   = useState(null);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [confirmRefresh, setConfirmRefresh] = useState(false);   // Refresh asks first
   const [sharing,  setSharing]  = useState(false);   // menu-share in progress
   const [shareErr, setShareErr] = useState(null);     // small note under the row
   const [renaming, setRenaming] = useState(false);    // rename this menu's name
@@ -15960,7 +15949,8 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
               {sharing ? <span className="spin" /> : <Icon name="share" size={15} />}
             </button>
             <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-              onClick={onReScan} title="Refresh this menu (re-photograph or pull from a link)">
+              onClick={()=> setConfirmRefresh(c => !c)} aria-expanded={confirmRefresh}
+              title="Refresh this menu (re-photograph or pull from a link)">
               <span className="row" style={{gap:5, alignItems:"center"}}>
                 <Icon name="refresh" size={15} color="var(--accent)" />Refresh</span>
             </button>
@@ -16085,6 +16075,20 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           <div className="tiny faint" style={{marginBottom:10}}>{shareErr}</div>
         )}
 
+        {/* Refresh asks first (2026-10-16): it opens the scanner, and a stray
+            tap there used to land you in it. Nothing changes until you save. */}
+        {confirmRefresh && (
+          <div className="small" style={{padding:"10px 12px", marginBottom:10, borderRadius:9,
+               background:"rgba(224,118,74,0.08)", border:"1px solid rgba(224,118,74,0.35)"}}>
+            <div style={{marginBottom:9}}>
+              Replace this menu with new photos or a link? The current one stays until you save the new one.
+            </div>
+            <div className="row" style={{gap:8}}>
+              <button className="btn ghost sm" onClick={()=> setConfirmRefresh(false)}>Cancel</button>
+              <button className="btn primary sm" onClick={()=>{ setConfirmRefresh(false); onReScan(); }}>Replace</button>
+            </div>
+          </div>
+        )}
         {confirmDel && (
           <div className="small" style={{
             padding:"10px 12px",marginBottom:10,borderRadius:9,
