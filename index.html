@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.538.0";
+const APP_VERSION   = "1.539.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -33657,6 +33657,21 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
             app on your home screen, so it asks you to sign in here once. Use the same email
             and password - you will go straight to it afterwards. Or close this and open
             MenuCaptain from your home screen instead.
+          </div>
+        </div>
+      ) : null}
+      {/* Opened from the Home Screen and not signed in (2026-10-15). On iPhone
+          the Home Screen app keeps its own sign-in, apart from Safari, so a
+          person who made their account in Safari a minute ago is asked again
+          and reads it as "it wants me to make a new account". Say what is
+          going on, and point at Sign in. */}
+      {!asOverlay && mode === "signin" && !arrivedFor && isStandalone() ? (
+        <div className="card" style={{marginBottom:16, border:"1px solid rgba(224,118,74,0.45)"}}>
+          <div style={{fontWeight:600, marginBottom:6}}>Already have an account? Sign in below</div>
+          <div className="tiny muted" style={{lineHeight:1.6}}>
+            MenuCaptain on your Home Screen keeps its own sign-in, separate from Safari, so it
+            asks once. Use the same email and password: your places, menus and visits are all
+            there. No need to make a new account.
           </div>
         </div>
       ) : null}

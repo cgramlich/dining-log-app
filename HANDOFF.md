@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.538.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.539.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.146.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.538.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.539.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,23 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Home Screen icon opened the promo page; separate sign-in explained (2026-10-15, app 1.539.0 + welcome.html)
+
+A new user (via Chris): "when I click on the app, it doesn't automatically log me in. The login
+goes to create an account which I have already done". Two causes:
+1. **welcome.html had no manifest or Apple web-app tags**, so "Add to Home Screen" from the promo
+   page (the link Chris sends) made an icon that opens the promo page, whose only button is
+   "Create your free account". It now links `/manifest.json`, the touch icon and the app title,
+   and a tiny script sends it to `/` whenever it runs as a Home Screen app (`navigator.standalone`
+   or `display-mode: standalone`). Its call to action also offers "Already have an account? Sign
+   in". (1.538.0's new line inviting people to add it to the Home Screen made this matter more.)
+2. **On iPhone a Home Screen app keeps its own storage, apart from Safari**, so the first open asks
+   to sign in again. When the sign-in screen runs from the Home Screen it now says so: "Already
+   have an account? Sign in below ... same email and password ... No need to make a new account."
+   Her account and restaurant were never at risk: they are on the server.
+**Verified** (iPhone identity, 430 px): the promo page as a Home Screen app lands on the app, in
+Safari it stays; Sign in offered on it; the note shows from the Home Screen and not in Safari.
 
 ### Add to Home Screen, for the people who need it (2026-10-15, app 1.538.0 + welcome.html)
 

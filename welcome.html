@@ -3,6 +3,21 @@
 <title>MenuCaptain - Remember every great meal.</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#14253b">
+<!-- Added to the Home Screen from THIS page, the icon must open the app, not
+     this page (2026-10-15: a new user's icon kept offering "Create your free
+     account"). The app's manifest, its icon and name, and a hand-off below. -->
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MenuCaptain">
+<script>
+try {
+  if (window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)) {
+    location.replace("/");
+  }
+} catch (e) {}
+</script>
 <meta name="description" content="A private notebook for eating out. Scan menus, remember the dishes you loved, and get a calorie estimate if you're curious. Free to start, private to you.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MenuCaptain">
@@ -92,6 +107,7 @@ html,body{width:100%;background:var(--bg);color:var(--body);
  <p class="quote">Not a diet app. Not a review site. Your own private record. No followers, no guilt. Just you, remembering and enjoying what you eat.</p>
  <div class="cta">
   <a class="btn" href="https://menucaptain.com">Create your free account</a>
+  <div class="reassure">Already have an account? <a href="https://menucaptain.com" style="color:inherit;text-decoration:underline">Sign in</a></div>
   <div class="url">menucaptain.com</div>
   <div class="reassure">Free to start. Private on every device you sign in to.</div>
   <div class="reassure">No app store needed: open menucaptain.com on your phone and add it to your Home Screen (in Safari, Share, then Add to Home Screen).</div>
