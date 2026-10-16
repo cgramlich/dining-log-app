@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.540.0";
+const APP_VERSION   = "1.541.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3140,7 +3140,9 @@ Your password is never stored in readable form, and signing in on a new device
 needs only your email and password - your data follows your account, not your
 phone.
 
-Questions or trouble? Email **support@menucaptain.com**.
+Questions or trouble? Open **Settings** and tap **Start a chat** under **Chat with us**: you write
+to the team inside the app, the answer appears there (and under Replies in Sharing), and you get an
+email when it arrives. Or email **support@menucaptain.com**.
 
 -----
 
@@ -10657,6 +10659,7 @@ function App({openShare}){
             onShowInstall={()=> setOverlay({ type:"installHelp" })}
             onFindDuplicates={()=> setOverlay({ type:"duplicates" })}
             onFeedback={()=> setOverlay({ type:"feedback" })}
+            onSupport={()=> setOverlay({ type:"support" })}
             onOpenYearInFood={()=> setOverlay({ type:"yearInFood" })}
             onOpenPassport={()=> setOverlay({ type:"passport" })}
             counts={{
@@ -10895,6 +10898,9 @@ function App({openShare}){
       )}
       {overlay && overlay.type === "feedback" && (
         <FeedbackForm cfg={config} onClose={()=> setOverlay(null)} />
+      )}
+      {overlay && overlay.type === "support" && (
+        <SupportChat cfg={config} onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "atPlace" && (
         <AtRestaurantPicker
@@ -31659,6 +31665,63 @@ async function deleteReplyThread(cfg, thread){
 // thing was shared WITH (reacting "Want to go" to your own visit means nothing).
 // `tail` folds all but the last few messages behind "Show earlier": used where
 // the conversation sits above the shared thing and must not bury it.
+// Chat with us (2026-10-15). Chris: "Is there a way to offer in app chat
+// support with me for now?" By card: built on the app's own replies, so no
+// other company sees anything. One conversation per person with the owner
+// (server: CHAT WITH US); the usual email tells each side of a new message.
+async function fetchSupportContact(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/support/contact", { headers: await authHeaders(cfg) });
+  const d = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((d && d.detail) || "Chat isn't available right now.");
+  return d;   // { user_id, name, key, title }
+}
+function SupportChat({ cfg, onClose }){
+  const [contact, setContact] = useState(null);
+  const [thread, setThread]   = useState(null);
+  const [err, setErr]         = useState("");
+  function loadThread(c){
+    fetchReplies(cfg).then(d => {
+      setThread(((d && d.threads) || []).find(t => t.with_user_id === c.user_id && t.subject_key === c.key) || null);
+    }).catch(e => logMsg("SUPPORT", "thread load failed: " + e.message));
+  }
+  useEffect(()=>{
+    fetchSupportContact(cfg).then(c => { setContact(c); loadThread(c); }).catch(e => setErr(e.message));
+  // eslint-disable-next-line
+  }, []);
+  const isOwner = !!(contact && contact.user_id === cfg.userId);
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <BackBtn onClick={onClose} />
+        <h2>Chat with us</h2><span style={{width:34}} />
+      </div>
+      <div className="ovbody">
+        {err ? <div className="small" style={{color:"var(--danger)"}}>{err}</div>
+          : !contact ? <div className="empty" style={{padding:"30px 0"}}><span className="spin" /></div>
+          : isOwner ? (
+            <div className="card small muted" style={{lineHeight:1.6}}>
+              This is where people write to you. Their messages arrive in Sharing, under Replies,
+              and you answer them there. You also get an email when someone starts a conversation.
+            </div>
+          ) : (
+            <>
+              <div className="small muted" style={{lineHeight:1.6, margin:"2px 2px 12px"}}>
+                A question, an idea, or something not working? Write here and {contact.name} will
+                answer, usually the same day. The answer appears here and in Sharing, and we email
+                you when it arrives.
+              </div>
+              <div className="card">
+                <ReplyThread cfg={cfg} thread={thread} toUserId={contact.user_id} toName={contact.name}
+                  subject={{ kind:"support", key: contact.key, title: contact.title }}
+                  onChanged={()=> loadThread(contact)} />
+              </div>
+            </>
+          )}
+      </div>
+    </div>
+  );
+}
+
 function ReplyThread({cfg, thread, toUserId, toName, subject, canReact, onChanged, tail}){
   const [showAll, setShowAll] = useState(false);
   const [text, setText] = useState("");
@@ -32491,6 +32554,39 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
   }
   async function remove(id){ setBusyId(id); setNote(""); try { await dismissShare(config, id); await load(); } catch(e){ setNote("Couldn't dismiss that just now - try again."); } finally { setBusyId(null); } }
 
+  // Seen, and cleared on reply (2026-10-15, Chris by card: "Mark seen; clear
+  // on reply or save"). Opening a shared thing makes it quiet (remembered on
+  // this device); replying to it, by reaction or in words, retires it the way
+  // saving does, leaving its reply door. The conversation lives on in Replies.
+  const [seen, setSeen] = useState(()=>{
+    try { return JSON.parse(localStorage.getItem("mc_shares_seen") || "[]") || []; } catch(e){ return []; }
+  });
+  function openShare(sh){
+    setOpen(sh);
+    if (sh && sh.id != null && seen.indexOf(String(sh.id)) === -1){
+      const next = seen.concat([String(sh.id)]).slice(-300);
+      setSeen(next);
+      try { localStorage.setItem("mc_shares_seen", JSON.stringify(next)); } catch(e){}
+    }
+  }
+  const retiring = useRef({});
+  useEffect(()=>{
+    if (!shares || !shares.length || !threads.length) return;
+    shares.forEach(sh => {
+      if (!sh || sh.kind === "joined" || !sh.from_user_id || retiring.current[sh.id]) return;
+      const key = replySubject(sh.kind, sh.payload, sh.title).key;
+      const t = threads.find(x => x.with_user_id === sh.from_user_id && x.subject_key === key);
+      if (!t || !(t.messages || []).some(msg => msg && msg.mine)) return;
+      retiring.current[sh.id] = true;
+      if (onKeepDoor){
+        try { onKeepDoor(replyDoorFor(sh)); } catch(e){ logMsg("ERROR", "keep door failed: " + e.message); }
+      }
+      dismissShare(config, sh.id).then(()=> load()).catch(()=>{ retiring.current[sh.id] = false; });
+      logMsg("SHARE", "replied to, so cleared from Shared with you");
+    });
+  // eslint-disable-next-line
+  }, [shares, threads]);
+
   const talkThread = talk ? (threads.find(t => t.thread === talk) || null) : null;
   if (talkThread){
     const nm = replyName(talkThread);
@@ -32639,11 +32735,13 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
           return (
             <SwipeToDelete key={s.id} onDelete={()=> remove(s.id)}>
               <div className="card" style={{display:"flex", alignItems:"center", gap:10}}>
-                <div style={{flex:1, minWidth:0, cursor:"pointer"}} onClick={()=> setOpen(s)}>
+                <div style={{flex:1, minWidth:0, cursor:"pointer"}} onClick={()=> openShare(s)}>
                   <div style={{fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{name}</div>
-                  <div className="tiny faint">from {s.from} &middot; {kindLabel}</div>
+                  <div className="tiny faint">from {s.from} &middot; {kindLabel}
+                    {seen.indexOf(String(s.id)) !== -1 ? <span> &middot; Seen</span> : null}</div>
                 </div>
-                <button className="btn primary sm" style={{flex:"none"}} onClick={()=> setOpen(s)}>View</button>
+                <button className={"btn sm " + (seen.indexOf(String(s.id)) !== -1 ? "ghost" : "primary")}
+                  style={{flex:"none"}} onClick={()=> openShare(s)}>View</button>
                 <button className="btn ghost sm" style={{flex:"none"}} disabled={busyId===s.id} onClick={()=> remove(s.id)}>Dismiss</button>
                 <button className="btn ghost sm" aria-label="Report this" title="Report this"
                   style={{flex:"none", padding:"4px 9px", minWidth:0, color:"var(--text-faint)"}}
@@ -32777,7 +32875,7 @@ function UpdateEmailCard({ config }){
 function SettingsView({config, profile, onProfileChange, onOpenConnections, pendingReqs, onEdit, counts, lastSync, onResync,
                        locations, restaurants, visits, menus, lists, meta, onShareApp,
                        onAddLocation, onRenameLocation, onDeleteLocation,
-                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onFindDuplicates, onFeedback, onOpenYearInFood, onOpenPassport}){
+                       onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onFindDuplicates, onFeedback, onOpenYearInFood, onOpenPassport, onSupport}){
   const [showLog,setShowLog] = useState(false);
   const [showBlocks,setShowBlocks] = useState(false);
   const [blocks,setBlocks] = useState(null);
@@ -33058,6 +33156,18 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           </div>
         );
       })() : null}
+
+      {onSupport ? (
+        <div className="card">
+          <div style={{fontWeight:600, marginBottom:6}}>Chat with us</div>
+          <div className="small muted" style={{lineHeight:1.7, marginBottom:12}}>
+            A question, or something not working? Write to us here and we answer in the app.
+          </div>
+          <button className="btn ghost sm" onClick={onSupport}>
+            <Icon name="reply" size={15} color="var(--accent)" />Start a chat
+          </button>
+        </div>
+      ) : null}
 
       {onFeedback ? (
         <div className="card">

@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.540.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.146.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.540.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.541.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.147.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.541.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,28 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Chat with us; Sharing marks Seen and clears on reply (2026-10-15, app 1.541.0, backend 0.147.0)
+
+**Chat with us.** Chris: "Is there a way to offer in app chat support with me for now?" By card:
+built on the app's own replies (no other company). Server CHAT WITH US: subject kind `support`, one
+thread per person with the owner (`OWNER_USER_IDS`); anyone signed in may write to the owner, the
+owner may answer only people who have written (`_support_allowed`); support threads list beyond
+friends; the existing first-unread email tells each side (subject "X wrote to you in MenuCaptain
+chat" to the owner). `GET /api/support/contact` names the owner (first name). No table change: the
+`share_replies` constraints don't restrict the kind. App: Settings card "Chat with us" > Start a
+chat opens `SupportChat` (a `ReplyThread` to the owner); the owner sees people's chats in Sharing >
+Replies and answers there; opened by the owner, the screen says so. Guide updated. **Privacy**
+line "Chat with us" approved by card. **Verified:** `test_support.py` (real rules): failed before, 9
+pass (anyone to the owner, owner answers writers only, never user to user, contact name); on screen
+a message posts to the owner as `support`. Live: 0.147.0, contact route 401 without sign-in.
+
+**Sharing: Seen, and cleared on reply.** Chris (screenshot, a visit still showing View/Dismiss after
+he had opened it and replied "Been there"): "Is this supposed to dismiss after i view it?" By card:
+opened once, a shared thing shows "Seen" and a plain View button (`mc_shares_seen`, this device);
+replied to (a reaction or words, before or after this change), it is dismissed like saving, leaving
+its reply door; the conversation stays in Replies. **Verified** on screen: a replied share is
+deleted (DELETE) and its conversation remains, Seen styling, viewing marks Seen.
 
 ### "Add the founder as a friend" (2026-10-15, app 1.540.0, first issue updated)
 
