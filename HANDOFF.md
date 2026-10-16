@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.541.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.147.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.541.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.542.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.148.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.542.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,23 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Report retired on shared menus; remove your own shared copy (2026-10-16, app 1.542.0, backend 0.148.0)
+
+Chris asked what Report does on "Menus shared here", then: "can't somebody just say they have a newer
+menu and override it?" They can, and it already works that way: per menu name the NEWEST copy is the
+one everyone sees (older copies stay in the background). Report added little and let one person hide
+a good menu (every tap counted, no per-person limit). By card, **"Remove Report"**. Checked live
+first: 149 shared copies, none ever hidden, one with a single report (his own).
+- Server: the report route answers `{"ok":true,"hidden":false}` and counts nothing (kept so an app
+  not yet updated gets a quiet answer); the list still skips any copy at 3+ reports (there are none).
+  New `POST /api/community/menus/remove {place_id, label}` deletes the CALLER'S own copies of that
+  menu at that place (a blank label counts as "Main", as the list shows it), never anyone else's.
+- App: no Report button or "Reported, thanks". Your own copy that is no longer among your menus
+  says "You shared this. It is no longer among your menus. **Remove my shared copy**" (asks first).
+**Verified:** `test_remove_route.py` (real routes): own Main copies only, blank label included, others'
+and other menus untouched, report counts nothing. On screen: no Report; Remove posts
+`{place_id, label}` and the row goes while another diner's Drinks stays.
 
 ### Chat with us; Sharing marks Seen and clears on reply (2026-10-15, app 1.541.0, backend 0.147.0)
 

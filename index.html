@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.541.0";
+const APP_VERSION   = "1.542.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -13991,15 +13991,25 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, initialOpen,
   const [msg, setMsg]         = useState("");
   const [picked, setPicked]   = useState({});     // community id -> bool (pull selection)
   const [pulling, setPulling] = useState(false);
-  const [reported, setReported]   = useState({});   // community id -> reported
   if (!placeId) return null;
 
-  async function reportMenu(id){
-    setReported(r => Object.assign({}, r, { [id]: true }));   // optimistic
+  // Report retired (2026-10-16, Chris by card): the newest copy of a menu is
+  // already the one everyone sees. Your own copy, no longer among your menus,
+  // can be taken back instead. Anyone else's copy of that menu stays.
+  const [removing, setRemoving] = useState(null);
+  async function removeMine(cm){
+    if (!confirm("Remove your shared copy of \u201c" + cm.label + "\u201d? Other diners will no longer be offered it from you.")) return;
+    setRemoving(cm.id); setMsg("");
     try {
-      const res = await communityReportMenu(cfg, id);
-      if (res && res.hidden){ setMsg("Thanks - that menu was flagged and hidden."); load(); }
-    } catch(e){ /* fail-quiet: the optimistic 'Reported' note stays */ }
+      const res = await fetch(apiBase(cfg) + "/api/community/menus/remove", {
+        method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+        body: JSON.stringify({ place_id: placeId, label: cm.label }),
+      });
+      if (!res.ok) throw new Error("remove " + res.status);
+      setMsg("Your shared copy was removed.");
+      await load();
+    } catch(e){ setMsg("Couldn't remove it just now. Try again."); }
+    finally { setRemoving(null); }
   }
 
   async function load(){
@@ -14079,7 +14089,6 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, initialOpen,
               <div className="tiny faint" style={{marginBottom:6}}>Tap to choose, then add.</div>
               {pullable.map(cm => {
                 const age = communityAgeNote(cm.updated_at);
-                const isReported = !!reported[cm.id];
                 const on = !!picked[cm.id];
                 return (
                   <div key={cm.id} style={{padding:"3px 0"}}>
@@ -14096,15 +14105,14 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, initialOpen,
                           dishes that match none of your menus (a menu you
                           deleted, say). Never call your own share a stranger's. */}
                       {cm.mine
-                        ? <span className="faint">You shared this. It is no longer among your menus.</span>
+                        ? <span className="faint">You shared this. It is no longer among your menus.{" "}
+                            <button className="tiny" style={{color:"var(--accent)", background:"none", border:"none", padding:0, cursor:"pointer", fontWeight:600}}
+                              disabled={removing === cm.id} onClick={(e)=>{ e.stopPropagation(); removeMine(cm); }}>
+                              {removing === cm.id ? "Removing..." : "Remove my shared copy"}</button></span>
                         : age.stale
                           ? <span style={{color:"var(--amber)"}}>May be outdated - double-check</span>
                           : <span className="faint">From another diner &middot; not verified</span>}
-                      <span style={{flex:1}} />
-                      {isReported
-                        ? <span className="faint">Reported, thanks</span>
-                        : <button className="tiny" style={{color:"var(--text-faint)", background:"none", border:"none", padding:0, cursor:"pointer"}}
-                            onClick={(e)=>{ e.stopPropagation(); reportMenu(cm.id); }}>Report</button>}
+
                     </div>
                   </div>
                 );
