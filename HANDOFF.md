@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.551.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.552.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.551.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.552.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,21 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Photos open on the first tap (2026-10-16, app 1.552.0)
+
+Chris: "Why does some picking photos take multiple clicks to get it to adopt". The visit form's
+Camera and Library tiles called `addPhotosFrom`, which awaited `nativePickImages()` before clicking
+the hidden file input, even in the browser where there is no native plugin and the call returns
+null at once. iPhone Safari opens a file picker only while it still treats the tap as the user's,
+so a `click()` after an `await` can be dropped silently, and the second tap works. Now the browser
+and Home Screen app click the input synchronously inside the tap; only the Capacitor build awaits
+the native picker. A tap while "Preparing photo" is running used to be ignored without a word; it
+now toasts "Still adding the photos you picked. One moment." Every other photo input in the app
+already clicked synchronously (checked by grep). Tests: a Node test slicing the real function
+(4 of 6 failed on 1.551.0, 6 of 6 pass) and a Playwright run (one tap on Library and on Camera
+opens the picker; a picked photo appears). Not yet confirmed on Chris's iPhone, so the first issue
+does not claim it; it is in `next-issue-notes.md`.
 
 ### Documentation catch-up, and the RELEASE DOCS GATE (2026-10-16, app 1.551.0)
 

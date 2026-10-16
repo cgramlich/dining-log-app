@@ -1,26 +1,195 @@
 {
   "_about": "One entry per app version. The pre-push gate (tools/release_docs_gate.py) refuses to push a version without one. Each field says 'updated: what' or 'n/a: why'. guide = the in-app user guide (and menucaptain-help.md via export_help.js); promo = the living promo inventory (CG Apps\\MenuCaptain\\MenuCaptain Promo\\living-promo-template.html); email_notes = next issue's notes (MenuCaptain Updates\\next-issue-notes.md); welcome = welcome.html, the public promo page; handoff = HANDOFF.md section + BRIEFING.md rows + a MenuCaptain Log entry. Started 2026-10-16 after Chris asked, again, that every document stay current.",
-  "1.529.0": {"what": "Show in $: menu prices in your own currency", "guide": "updated: Prices in your currency", "promo": "updated: Show in $ card", "email_notes": "updated: Prices in your currency", "welcome": "updated later (Prices in your currency card, 2026-10-15)", "handoff": "updated"},
-  "1.530.0": {"what": "Malta towns; accent-blind place search", "guide": "n/a: a fix, nothing new to learn", "promo": "n/a: a fix", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a: a fix", "handoff": "updated"},
-  "1.531.0": {"what": "Photos beside explained dishes", "guide": "updated: Explain the menu", "promo": "n/a at the time; Explain the menu card already covers explaining (gap noted 2026-10-16)", "email_notes": "updated: See what a dish looks like", "welcome": "n/a: not a headline feature", "handoff": "updated"},
-  "1.532.0": {"what": "15 photos a meal", "guide": "updated in the 1.551.0 catch-up (Photos and notes)", "promo": "updated in the 1.551.0 catch-up (it still said eight)", "email_notes": "updated: 15 photos a meal", "welcome": "n/a: no count on the page", "handoff": "updated"},
-  "1.533.0": {"what": "One card per dish in the visit form", "guide": "n/a: layout only", "promo": "n/a: layout only", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a: layout only", "handoff": "updated"},
-  "1.534.0": {"what": "Shared photos last while you keep them", "guide": "updated in the 1.551.0 catch-up (Sharing)", "promo": "updated in the 1.551.0 catch-up (Shared photos that last)", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a: detail", "handoff": "updated; privacy line approved"},
-  "1.535.0": {"what": "In their words flows as paragraphs", "guide": "n/a: display fix", "promo": "n/a: display fix", "email_notes": "n/a: display fix", "welcome": "n/a", "handoff": "updated"},
-  "1.536.0": {"what": "Shared things read in order", "guide": "n/a: order only", "promo": "updated in the 1.551.0 catch-up (reply card)", "email_notes": "n/a: order only", "welcome": "n/a", "handoff": "updated"},
-  "1.537.0": {"what": "Home: what happened last, and who", "guide": "updated in the 1.551.0 catch-up (Home)", "promo": "updated in the 1.551.0 catch-up (What happened last)", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a: detail", "handoff": "updated"},
-  "1.538.0": {"what": "Add to Home Screen for signed-in Safari users; both Safari layouts", "guide": "n/a: the card itself is the guide", "promo": "updated in the 1.551.0 catch-up (On your Home Screen)", "email_notes": "n/a: in-app prompt", "welcome": "updated: Home Screen line", "handoff": "updated"},
-  "1.539.0": {"what": "Home Screen icon from the promo page opens the app; separate sign-in explained", "guide": "n/a: a fix", "promo": "updated in the 1.551.0 catch-up (On your Home Screen)", "email_notes": "n/a: a fix", "welcome": "updated: manifest, hand-off, Sign in", "handoff": "updated"},
-  "1.540.0": {"what": "Plain friend links ask to add; founder invitation", "guide": "n/a: a banner", "promo": "n/a: a banner", "email_notes": "updated: Add the founder as a friend, every issue", "welcome": "n/a", "handoff": "updated"},
-  "1.541.0": {"what": "Chat with us; Sharing Seen and clear on reply", "guide": "updated: Questions or trouble", "promo": "updated in the 1.551.0 catch-up (Chat with us; reply card)", "email_notes": "updated: Chat with us", "welcome": "updated in the 1.551.0 catch-up (chat line)", "handoff": "updated; privacy line approved"},
-  "1.542.0": {"what": "Report retired on shared menus; Remove my shared copy", "guide": "updated in the 1.551.0 catch-up (it still mentioned reports)", "promo": "updated in the 1.551.0 catch-up (Menus from other diners)", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a", "handoff": "updated"},
-  "1.543.0": {"what": "Take back a shared menu; replaced sharer emailed", "guide": "updated in the 1.551.0 catch-up (community menus)", "promo": "updated in the 1.551.0 catch-up (Menus from other diners)", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a", "handoff": "updated"},
-  "1.544.0": {"what": "Dietary list names each section's menu", "guide": "updated in the 1.551.0 catch-up (Dietary filters)", "promo": "updated in the 1.551.0 catch-up (Dietary filters)", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a", "handoff": "updated"},
-  "1.545.0": {"what": "Dish search finds a section by its name", "guide": "updated in the 1.551.0 catch-up (What you had)", "promo": "n/a: covered by logging cards", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a", "handoff": "updated"},
-  "1.546.0": {"what": "Usually: line for kept dish names", "guide": "updated: Menus in another language", "promo": "updated in the 1.551.0 catch-up (Show English)", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a", "handoff": "updated"},
-  "1.547.0": {"what": "Refresh off the rows; asks first", "guide": "updated: Re-scanning and deleting", "promo": "n/a: a guard", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a", "handoff": "updated"},
-  "1.548.0": {"what": "Chat bubble top right", "guide": "updated: Questions or trouble", "promo": "updated in the 1.551.0 catch-up (Chat with us)", "email_notes": "updated: Chat with us", "welcome": "updated in the 1.551.0 catch-up (chat line)", "handoff": "updated"},
-  "1.549.0": {"what": "Help chats screen for the owner", "guide": "n/a: owner-only screen", "promo": "n/a: owner-only", "email_notes": "n/a: owner-only", "welcome": "n/a", "handoff": "updated"},
-  "1.550.0": {"what": "Bar as a quick menu name; first issue redated", "guide": "n/a: one more button among the names", "promo": "n/a: detail", "email_notes": "updated in the 1.551.0 catch-up", "welcome": "n/a", "handoff": "updated"},
-  "1.551.0": {"what": "Documentation catch-up and the release docs gate", "guide": "updated: Home, dietary, community menus, Sharing, dish search, photo count; Report line removed", "promo": "updated: 1.529-1.550 accounted for; five cards changed, four added", "email_notes": "updated: smaller improvements Oct 15-16", "welcome": "updated: chat line", "handoff": "updated: section, BRIEFING, Log, PORTABLE-IMPROVEMENTS, memory"}
+  "1.529.0": {
+    "what": "Show in $: menu prices in your own currency",
+    "guide": "updated: Prices in your currency",
+    "promo": "updated: Show in $ card",
+    "email_notes": "updated: Prices in your currency",
+    "welcome": "updated later (Prices in your currency card, 2026-10-15)",
+    "handoff": "updated"
+  },
+  "1.530.0": {
+    "what": "Malta towns; accent-blind place search",
+    "guide": "n/a: a fix, nothing new to learn",
+    "promo": "n/a: a fix",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a: a fix",
+    "handoff": "updated"
+  },
+  "1.531.0": {
+    "what": "Photos beside explained dishes",
+    "guide": "updated: Explain the menu",
+    "promo": "n/a at the time; Explain the menu card already covers explaining (gap noted 2026-10-16)",
+    "email_notes": "updated: See what a dish looks like",
+    "welcome": "n/a: not a headline feature",
+    "handoff": "updated"
+  },
+  "1.532.0": {
+    "what": "15 photos a meal",
+    "guide": "updated in the 1.551.0 catch-up (Photos and notes)",
+    "promo": "updated in the 1.551.0 catch-up (it still said eight)",
+    "email_notes": "updated: 15 photos a meal",
+    "welcome": "n/a: no count on the page",
+    "handoff": "updated"
+  },
+  "1.533.0": {
+    "what": "One card per dish in the visit form",
+    "guide": "n/a: layout only",
+    "promo": "n/a: layout only",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a: layout only",
+    "handoff": "updated"
+  },
+  "1.534.0": {
+    "what": "Shared photos last while you keep them",
+    "guide": "updated in the 1.551.0 catch-up (Sharing)",
+    "promo": "updated in the 1.551.0 catch-up (Shared photos that last)",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a: detail",
+    "handoff": "updated; privacy line approved"
+  },
+  "1.535.0": {
+    "what": "In their words flows as paragraphs",
+    "guide": "n/a: display fix",
+    "promo": "n/a: display fix",
+    "email_notes": "n/a: display fix",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.536.0": {
+    "what": "Shared things read in order",
+    "guide": "n/a: order only",
+    "promo": "updated in the 1.551.0 catch-up (reply card)",
+    "email_notes": "n/a: order only",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.537.0": {
+    "what": "Home: what happened last, and who",
+    "guide": "updated in the 1.551.0 catch-up (Home)",
+    "promo": "updated in the 1.551.0 catch-up (What happened last)",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a: detail",
+    "handoff": "updated"
+  },
+  "1.538.0": {
+    "what": "Add to Home Screen for signed-in Safari users; both Safari layouts",
+    "guide": "n/a: the card itself is the guide",
+    "promo": "updated in the 1.551.0 catch-up (On your Home Screen)",
+    "email_notes": "n/a: in-app prompt",
+    "welcome": "updated: Home Screen line",
+    "handoff": "updated"
+  },
+  "1.539.0": {
+    "what": "Home Screen icon from the promo page opens the app; separate sign-in explained",
+    "guide": "n/a: a fix",
+    "promo": "updated in the 1.551.0 catch-up (On your Home Screen)",
+    "email_notes": "n/a: a fix",
+    "welcome": "updated: manifest, hand-off, Sign in",
+    "handoff": "updated"
+  },
+  "1.540.0": {
+    "what": "Plain friend links ask to add; founder invitation",
+    "guide": "n/a: a banner",
+    "promo": "n/a: a banner",
+    "email_notes": "updated: Add the founder as a friend, every issue",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.541.0": {
+    "what": "Chat with us; Sharing Seen and clear on reply",
+    "guide": "updated: Questions or trouble",
+    "promo": "updated in the 1.551.0 catch-up (Chat with us; reply card)",
+    "email_notes": "updated: Chat with us",
+    "welcome": "updated in the 1.551.0 catch-up (chat line)",
+    "handoff": "updated; privacy line approved"
+  },
+  "1.542.0": {
+    "what": "Report retired on shared menus; Remove my shared copy",
+    "guide": "updated in the 1.551.0 catch-up (it still mentioned reports)",
+    "promo": "updated in the 1.551.0 catch-up (Menus from other diners)",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.543.0": {
+    "what": "Take back a shared menu; replaced sharer emailed",
+    "guide": "updated in the 1.551.0 catch-up (community menus)",
+    "promo": "updated in the 1.551.0 catch-up (Menus from other diners)",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.544.0": {
+    "what": "Dietary list names each section's menu",
+    "guide": "updated in the 1.551.0 catch-up (Dietary filters)",
+    "promo": "updated in the 1.551.0 catch-up (Dietary filters)",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.545.0": {
+    "what": "Dish search finds a section by its name",
+    "guide": "updated in the 1.551.0 catch-up (What you had)",
+    "promo": "n/a: covered by logging cards",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.546.0": {
+    "what": "Usually: line for kept dish names",
+    "guide": "updated: Menus in another language",
+    "promo": "updated in the 1.551.0 catch-up (Show English)",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.547.0": {
+    "what": "Refresh off the rows; asks first",
+    "guide": "updated: Re-scanning and deleting",
+    "promo": "n/a: a guard",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.548.0": {
+    "what": "Chat bubble top right",
+    "guide": "updated: Questions or trouble",
+    "promo": "updated in the 1.551.0 catch-up (Chat with us)",
+    "email_notes": "updated: Chat with us",
+    "welcome": "updated in the 1.551.0 catch-up (chat line)",
+    "handoff": "updated"
+  },
+  "1.549.0": {
+    "what": "Help chats screen for the owner",
+    "guide": "n/a: owner-only screen",
+    "promo": "n/a: owner-only",
+    "email_notes": "n/a: owner-only",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.550.0": {
+    "what": "Bar as a quick menu name; first issue redated",
+    "guide": "n/a: one more button among the names",
+    "promo": "n/a: detail",
+    "email_notes": "updated in the 1.551.0 catch-up",
+    "welcome": "n/a",
+    "handoff": "updated"
+  },
+  "1.551.0": {
+    "what": "Documentation catch-up and the release docs gate",
+    "guide": "updated: Home, dietary, community menus, Sharing, dish search, photo count; Report line removed",
+    "promo": "updated: 1.529-1.550 accounted for; five cards changed, four added",
+    "email_notes": "updated: smaller improvements Oct 15-16",
+    "welcome": "updated: chat line",
+    "handoff": "updated: section, BRIEFING, Log, PORTABLE-IMPROVEMENTS, memory"
+  },
+  "1.552.0": {
+    "what": "Photos open on the first tap; first issue rewritten",
+    "guide": "n/a: a fix; the guide already says tap Camera or Library",
+    "promo": "n/a: a fix, no new card; inventory reviewed, Photos card still true",
+    "email_notes": "updated: first issue v4 (Oct 14-16 features, fixes last); photo tap fix queued in next-issue-notes until confirmed on a phone",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows, BRIEFING, Log"
+  }
 }

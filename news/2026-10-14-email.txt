@@ -4,15 +4,31 @@ Dear Captain,
 
 Welcome to the Captain’s Table. It’s what we call the small circle of people who use MenuCaptain: diners who would rather remember a great meal than review it. You’re one of the very first, and from time to time we’ll write to you here about what’s new: the features we’ve added, the refinements we’ve made, and the occasional idea for getting more from the app.
 
-Here is what arrived this week. It’s already in your app; if you see “Update available”, tap Refresh.
+Here is what’s new. It’s already in your app; if you see “Update available”, tap Refresh.
 
 SCAN A MENU, THEN WALK AWAY
 
-Once your photos are sent, which takes a few seconds, you are free to switch apps or put your phone away. The menu keeps being read, a note at the top of MenuCaptain tells you when it’s ready, and if you haven’t returned two minutes after it finishes, we’ll email you a link. A menu photographed in several pages is now read all at once, so it arrives sooner too.
+Reading a menu properly takes time, and a long or complicated one can take a while. So you no longer have to wait for it. Once your photos are sent, switch apps or put your phone away: the menu keeps being read, a note at the top of MenuCaptain tells you when it’s ready, and if you haven’t come back two minutes after it finishes, we’ll email you a link. Scanning is quicker too, because a menu photographed in several pages is now read all at once.
 
 MENUS IN ENGLISH
 
-A menu in Spanish, Italian or any other language now offers Show English. The original stays exactly as printed, with the English beneath each dish, so you can still point to the original when you order. You can search in English as well: “octopus” finds the pulpo.
+A menu in Spanish, Italian or any other language now offers Show English. The original stays exactly as printed, with the English beneath each dish, so you can still point to the original when you order. A dish known by its own name, like crema catalana, gets a short line saying what it usually is. You can search in English as well: “octopus” finds the pulpo.
+
+PRICES IN YOUR CURRENCY
+
+On a menu priced in euros, pounds, yen or another major currency, tap Show in $ and every price gets an estimate in dollars underneath, while the printed price stays the one you point at. Tap the currency to show another instead. Rates are the European Central Bank’s daily reference rates, with the date shown; your card’s rate will differ a little.
+
+COLLECTIONS
+
+Keep a trip together. In History, start a collection such as “Our honeymoon” with the trip’s dates, and every meal you log between them joins by itself. It opens on a cover photo, then your favorite places and the dishes you loved, then every meal day by day. Leave out the dates to hand-pick any meals you like, and share a whole collection with friends in a tap; it never includes your notes, who you dined with, or what you spent.
+
+SEE WHAT A DISH LOOKS LIKE
+
+When you ask MenuCaptain to explain particular dishes, each one now offers a photo: yours, if you’ve photographed it there; the restaurant’s own, when they publish one; or similar dishes from the web, clearly labeled as not this exact dish.
+
+CHAT WITH US
+
+A chat bubble now sits at the top right of Home, Places, History and You. Tap it to write to us, and we answer right there in the app. A small dot on the bubble means a reply is waiting.
 
 REPLIES
 
@@ -20,15 +36,27 @@ When a friend sends you a place, a menu or a visit, you can answer with a tap or
 
 RICHER RECOMMENDATIONS
 
-Sending a place now carries your rating, the dishes you loved and photos from your visits; a single tick leaves the photos out. A shared visit now includes what makes the place special. Select all reaches every friend at once, and the Sharing screen keeps a record of what you’ve sent and to whom.
+Sending a place now carries your rating, the dishes you loved and photos from your visits; a single tick leaves the photos out. A shared visit now includes what makes the place special. Select all reaches every friend at once, and photos you share now stay visible for as long as you keep them.
+
+SHARING, TIDIER
+
+The Sharing screen now leads with what friends have sent you, marks each one Seen, and clears it away once you reply or save it, while still keeping a record of what you’ve sent and to whom. A menu you’ve shared with other diners can be taken back at any time with Stop sharing, and if someone shares a newer menu in place of yours, we’ll let you know by email.
 
 LOGGING A VISIT
 
-Dish search now looks through every menu at a place, reads descriptions as well as names, and ignores accents, so “tiramisu” finds Tiramisù. Had a special? Add it, then tap Mark as special, and it reads as a special in gold wherever it appears, including on a visit you share. Each visit now holds up to fifteen photos, and correcting a dish’s name once corrects it on your past visits there as well.
+Dish search now looks through every menu at a place, reads descriptions as well as names, and ignores accents, so “tiramisu” finds Tiramisù. Type a section’s name, like “flautas”, and every dish under that heading comes up too. Had a special? Add it, then tap Mark as special, and it reads as a special in gold wherever it appears, including on a visit you share. Each visit now holds up to fifteen photos, and correcting a dish’s name once corrects it on your past visits there as well.
+
+AROUND THE APP
+
+Home’s Recently added now says what happened last at each place: a visit you logged, the friend who sent it, or that you added it yourself. Tapping a dietary filter such as Gluten-free on a place gathers matching dishes from every menu there, each labeled with the menu it’s on. Bar is now one of the quick names when you add a menu, beside Drinks and Cocktails. And our welcome page shows how to put MenuCaptain on your Home Screen, on iPhone or Android, so it opens like any other app.
+
+YOUR MEALS, SAFELY KEPT
+
+Every night, your meals, notes and photos are also copied to a second, separate company’s storage, so they stay safe even if our main storage ever had a bad day.
 
 REFINEMENTS
 
-The Back button no longer hides behind the clock on things friends send you. Restaurants you add abroad now keep their city. Votes in “Where shall we eat?” are saved as they should be. Suggestions for dishes, and for the people you dined with, no longer cover the page as you type, and signing up is simpler.
+Each dish on a visit now sits on its own card, so it’s clear which notes belong to which dish. Refresh has moved off the menu rows, where it was easy to tap by accident, and now asks before replacing a menu. A restaurant’s story reads as proper paragraphs. Restaurants you add abroad keep their town, including in Malta, and place search ignores accents, so “enchante” finds Enchanté. Suggestions for dishes, and for the people you dined with, no longer cover the page as you type. The Back button no longer hides behind the clock on things friends send you. Votes in “Where shall we eat?” are saved as they should be. A MenuCaptain icon added from our welcome page now opens the app itself, and signing up is simpler.
 
 ADD THE FOUNDER AS A FRIEND
 
@@ -36,7 +64,7 @@ Chris Gramlich built MenuCaptain and would love to see where you’re eating. Ta
 
 YOUR IDEAS SHAPE MENUCAPTAIN
 
-Spotted something that isn’t quite right, or wish MenuCaptain did something it doesn’t yet? We read every note. In the app, open Settings (the gear at the top of Home) and tap Share feedback, then choose a bug, a feature request or a suggestion; it comes straight to us. Or simply reply to this email.
+Spotted something that isn’t quite right, or wish MenuCaptain did something it doesn’t yet? We read every note. Tap the chat bubble at the top right to write to us, or open Settings (the gear at the top of Home) and tap Share feedback to send a bug, a feature request or a suggestion. Or simply reply to this email.
 
 Bon appétit,
 The MenuCaptain team

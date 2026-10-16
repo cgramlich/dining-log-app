@@ -1232,7 +1232,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.551.0";
+const APP_VERSION   = "1.552.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -22111,21 +22111,33 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
   // Under Capacitor this is the system camera or photo picker, which is a
   // different experience from a file input and the reason the permission
   // prompt names the app rather than the web view.
-  async function addPhotosFrom(source){
-    if (photoBusy) return;
+  //
+  // In the browser and the Home Screen app the file picker opens INSIDE the
+  // tap, synchronously (2026-10-16, Chris: "Why does some picking photos take
+  // multiple clicks"). This used to await nativePickImages first, even with no
+  // native plugin to ask, and only then click the input: iPhone Safari only
+  // opens a file picker while it still counts the tap as the user's, so a
+  // click after an await can be silently dropped, and the next tap worked.
+  // The road not taken: keeping one async path and hoping the tap survives.
+  // A tap during "Preparing photo" used to be ignored without a word, which
+  // also reads as "it didn't take"; now it says why.
+  function addPhotosFrom(source){
+    if (photoBusy){ toast("Still adding the photos you picked. One moment."); return; }
     const room = Math.max(0, MAX_PHOTOS - photoSlots.length);
     if (!room) return;
-    const urls = await nativePickImages({
-      source: source, multiple: source !== "camera", limit: room,
-      title: "Add a photo of this meal",
-    });
-    if (!urls){                                  // no plugin, or cancelled
-      if (hasNative("Camera")) return;           // cancelled: leave them be
+    if (!hasNative("Camera")){
       (source === "camera" ? photoCamRef : photoFileRef).current.click();
       return;
     }
-    buzz();
-    await ingestVisitPhotoFiles(urls.map((u,i)=> dataUrlToFile(u, "photo-" + i + ".jpg")).filter(Boolean));
+    (async ()=>{
+      const urls = await nativePickImages({
+        source: source, multiple: source !== "camera", limit: room,
+        title: "Add a photo of this meal",
+      });
+      if (!urls) return;                         // cancelled: leave them be
+      buzz();
+      await ingestVisitPhotoFiles(urls.map((u,i)=> dataUrlToFile(u, "photo-" + i + ".jpg")).filter(Boolean));
+    })();
   }
 
   async function onVisitPhotoFiles(e){
