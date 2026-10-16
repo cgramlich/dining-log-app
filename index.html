@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.543.0";
+const APP_VERSION   = "1.544.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -14510,11 +14510,15 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
   const dietChips = Object.keys(dietCounts).sort();
   function buildDietMenu(label){
     const matches = it => dietLabelsOf(it).has(label);
-    const sectionMap = new Map();              // section name -> items[]
+    const sectionMap = new Map();              // section heading -> items[]
+    // Which menu each section came from (2026-10-16, Chris): with two or more
+    // menus, "Drinks · Cocktails", so same-named sections from different menus
+    // stay apart and you know where a dish lives. One menu: the plain name.
+    const many = menuList.filter(mn => (mn.sections || []).length).length > 1;
     menuList.forEach(mn => (mn.sections || []).forEach(s => {
       const keep = (s.items || []).filter(matches);
       if (!keep.length) return;
-      const key = s.name || "Items";
+      const key = many ? menuDisplayLabel(mn.label) + " \u00b7 " + (s.name || "Items") : (s.name || "Items");
       if (!sectionMap.has(key)) sectionMap.set(key, []);
       sectionMap.get(key).push(...keep);
     }));

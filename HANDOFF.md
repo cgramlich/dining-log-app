@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.543.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.544.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.543.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.544.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,15 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Dietary list names each section's menu (2026-10-16, app 1.544.0)
+
+Chris asked whether a dietary chip on a place covers all its menus (yes: counts and the combined list
+come from every menu) and then "Ok please do" to saying which menu each dish is from.
+`buildDietMenu`: with two or more menus, sections read "Drinks · Cocktails" (`menuDisplayLabel`, so
+"Main" shows as "Main menu"), and same-named sections from different menus no longer merge; one
+menu keeps the plain name. **Verified** at 430 px: Main menu · Desserts, Drinks · Desserts and
+Drinks · Cocktails, separate (old version merged the Desserts).
 
 ### Take back a shared menu; the replaced sharer is told (2026-10-16, app 1.543.0, backend 0.149.0)
 
