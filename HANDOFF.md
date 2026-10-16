@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.545.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.546.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.545.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.546.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,20 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### "Usually:" for dishes Show English keeps in the original (2026-10-16, app 1.546.0)
+
+Chris: "Why does crema catalana not have english". The translator keeps names people order by
+(paella, gazpacho) and the app hides an English line identical to the original; with no description
+there was nothing to show. By card: `translateMenu` now asks for an optional `"u"` (a few words on
+what the dish usually is) ONLY for a kept name with no description, only when confident, never for
+the obvious (brownie); stored as a third entry `[n, d, u]` (kept only for items with no description);
+translations carry `v: 2` (`mergeTranslation` keeps v only when both halves have it). MenuView shows
+"**Usually:** Catalan custard with a burnt-sugar top" under a kept name with no description. A
+translation without v (and not the restaurant's printed English) offers "**Update English** to add
+what they usually are (uses an AI request)", which re-translates on tap. Guide updated.
+**Verified** on screen (stubbed translator): old translation shows the link and no Usually line;
+one request later the line appears under Crema catalana, the link goes, Cheesecake unchanged.
 
 ### Dish search finds a section by its name (2026-10-16, app 1.545.0)
 

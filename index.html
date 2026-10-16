@@ -562,6 +562,8 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     /* Show English: the translation sits under the original, quieter and in
        italics, so the printed wording stays the thing you point at. */
     .mitem .ien{font-size:13.5px; color:var(--text); font-style:italic; margin-top:2px; opacity:0.85;}
+    .mitem .ien-u{color:var(--text-dim);}
+    .mitem .ien-u-k{font-style:normal; font-weight:600; color:var(--text-faint); margin-right:2px;}
     .mitem .idesc-en{font-style:italic;}
     /* Show English flags: place's country on the original, US on the English. */
     .flag{margin-right:6px; font-style:normal; display:inline-block;}
@@ -1228,7 +1230,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.545.0";
+const APP_VERSION   = "1.546.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2168,7 +2170,10 @@ translated, otherwise on the description. Help me order and Explain the menu alw
 English, whether or not you have translated. When a menu prints its own English
 (a board with Spanish on top and English below, say), scanning it keeps one copy
 in the local language and uses the restaurant's English for Show English - no
-translation needed, and it says so.
+translation needed, and it says so. Dishes everyone orders by their own name (paella,
+crema catalana) keep it; when such a dish has no description, a short **Usually:** line
+says what it generally is ("Catalan custard with a burnt-sugar top"). A menu translated
+before October 16, 2026 offers **Update English** to add those lines (it uses an AI request).
 
 **Prices in your currency.** On a menu priced in another currency (euros in
 Rome, pounds in London, yen in Tokyo), tap **Show in $** near the top of the
@@ -5716,6 +5721,8 @@ function mergeTranslation(a, b){
   if (!a) return b || undefined;
   if (!b) return a;
   return { lang: a.lang || b.lang, at: a.at || b.at,
+           // Both halves must be the newer kind for the whole to count as it.
+           v: (a.v && b.v) ? Math.min(a.v, b.v) : undefined,
            // "menu" only when BOTH halves are the restaurant's own printed English.
            source: (a.source === b.source) ? a.source : undefined,
            sec: Object.assign({}, b.sec, a.sec), item: Object.assign({}, b.item, a.item) };
@@ -5755,7 +5762,10 @@ async function translateMenu(cfg, menu, onProgress){
     cur.push(si); count += n;
   });
   if (cur.length) batches.push(cur);
-  const out = { lang: null, at: todayISO(), sec: {}, item: {} };
+  // v:2 (2026-10-16): items may carry a third entry, "u", a short line on what
+  // a dish kept under its own name usually is. Older translations have no v
+  // and offer "Update English".
+  const out = { lang: null, at: todayISO(), v: 2, sec: {}, item: {} };
   for (let b = 0; b < batches.length; b++){
     if (onProgress) onProgress(b + 1, batches.length);
     const lines = [], ids = {};
@@ -5775,7 +5785,7 @@ async function translateMenu(cfg, menu, onProgress){
       "Return ONLY JSON, no markdown:\n"+
       '{"language": "two-letter code of the menu\'s language", "sections": {"s0": "English '+
       'section name"}, "items": {"s0i0": {"n": "English dish name", "d": "English description, '+
-      'or empty string"}}}\n\n'+
+      'or empty string", "u": "optional, see below"}}}\n\n'+
       "Rules:\n"+
       "- If the menu is already in English, return {\"language\": \"en\"} and nothing else.\n"+
       "- Translate faithfully. Never add an ingredient, cooking method or claim that is "+
@@ -5784,6 +5794,11 @@ async function translateMenu(cfg, menu, onProgress){
       "- Give each dish the name a diner would understand (\"Pulpo a la gallega\" -> "+
       "\"Galician-style octopus\"), but keep dish names people order by as they are "+
       "(paella, gazpacho, tapas).\n"+
+      "- \"u\": ONLY for a dish whose name you kept as it is AND that has no description "+
+      "on the menu: a few plain-English words on what that dish usually is (\"Crema "+
+      "catalana\" -> \"Catalan custard with a burnt-sugar top\"). It describes the dish "+
+      "in general, not this kitchen's version. Leave \"u\" out whenever you are not sure, "+
+      "and for anything already clear in English (brownie, pizza). At most 10 words.\n"+
       "- Every id in the input appears exactly once in the output. No prices.\n\n"+
       "MENU:\n" + lines.join("\n");
     const nItems = Object.keys(ids).length;
@@ -5831,7 +5846,9 @@ async function translateMenu(cfg, menu, onProgress){
       const it = ids[id]; if (!it) return;
       const v = j.items[id] || {};
       const n = String(v.n || "").trim().slice(0, 160), d = String(v.d || "").trim().slice(0, 600);
-      if (n || d) out.item[trKey(it.name, it.description)] = [n, d];
+      // "u" is kept only where it can show: a dish with no description.
+      const u = String(it.description || "").trim() ? "" : String(v.u || "").trim().slice(0, 120);
+      if (n || d || u) out.item[trKey(it.name, it.description)] = u ? [n, d, u] : [n, d];
     });
     logMsg("TRANSLATE", "batch " + (b + 1) + "/" + batches.length + " lang=" + lang +
            " sent=" + nItems + " got=" + Object.keys((j && j.items) || {}).length);
@@ -15708,6 +15725,23 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   function setFxPref(on){ setFxOn(on); try { localStorage.setItem("mc_menu_fx", on ? "1" : "0"); } catch(e){} }
   function setFxTarget(c){ setFxTo(c); try { localStorage.setItem("mc_home_ccy", c); } catch(e){} }
   function setEnPref(on){ setEnOn(on); try { localStorage.setItem("mc_menu_en", on ? "1" : "0"); } catch(e){} }
+  // Translations made before 2026-10-16 have no "Usually:" lines; this
+  // redoes one on request (one AI request, or one per hundred-odd dishes).
+  const canUpdateEn = !!(showEn && trOf && !trOf.v && trOf.source !== "menu" && onSaveTranslation);
+  async function updateEnglish(){
+    setTrErr(""); setTrNote("");
+    if (!configComplete(cfg)){ setTrErr("Set up your account in Settings."); return; }
+    setTrBusy(true);
+    try {
+      const t = await translateMenu(cfg, menu, (n, total)=> setTrProg({ n, total }));
+      onSaveTranslation(t);
+      setTrNote("English updated.");
+    } catch(err){
+      setTrErr(err.message || "Translation failed. Try again.");
+    } finally {
+      setTrBusy(false); setTrProg(null);
+    }
+  }
   async function toggleEnglish(){
     setTrErr(""); setTrNote("");
     if (trOf){ setEnPref(!enOn); return; }
@@ -15884,6 +15918,14 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
         {(trErr || trNote || (showEn && trOf && trOf.source === "menu")) ? (
           <div className="tiny" style={{margin:"-4px 2px 10px", color: trErr ? "#d9604e" : "var(--text-dim)"}}>
             {trErr || trNote || "English as printed on the menu"}
+          </div>
+        ) : null}
+        {canUpdateEn && !trBusy && !trNote ? (
+          <div className="tiny" style={{margin:"-4px 2px 10px", color:"var(--text-dim)"}}>
+            Some dishes keep their own name with no English.{" "}
+            <button type="button" className="tiny" onClick={updateEnglish}
+              style={{background:"none", border:"none", padding:0, color:"var(--accent)", fontWeight:600, cursor:"pointer"}}>
+              Update English</button> to add what they usually are (uses an AI request).
           </div>
         ) : null}
         {/* Show in $ (2026-10-15): under Show English, only on a menu priced in
@@ -16603,6 +16645,12 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                 ) : null}
                 {showEn && enFor(it) && enFor(it)[0] && !sameText(enFor(it)[0], it.name)
                   ? <div className="ien">{flags && flags.to ? <span className="flag" aria-hidden="true">{flags.to}</span> : null}{enFor(it)[0]}</div> : null}
+                {/* A name kept as it is, with no description (2026-10-16, Chris:
+                    "Why does crema catalana not have english"): what the dish
+                    usually is, in general, marked as such. */}
+                {showEn && enFor(it) && enFor(it)[2] && !it.description
+                    && !(enFor(it)[0] && !sameText(enFor(it)[0], it.name))
+                  ? <div className="ien ien-u"><span className="ien-u-k">Usually:</span> {enFor(it)[2]}</div> : null}
                 {it.price && isWidePrice(it.price)
                   ? <div className="iprl">{it.price}{fxOf(it.price)
                       ? <div className="iprl-fx">{"\u2248 " + fxOf(it.price)}</div> : null}</div> : null}

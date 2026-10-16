@@ -259,7 +259,10 @@ translated, otherwise on the description. Help me order and Explain the menu alw
 English, whether or not you have translated. When a menu prints its own English
 (a board with Spanish on top and English below, say), scanning it keeps one copy
 in the local language and uses the restaurant's English for Show English - no
-translation needed, and it says so.
+translation needed, and it says so. Dishes everyone orders by their own name (paella,
+crema catalana) keep it; when such a dish has no description, a short **Usually:** line
+says what it generally is ("Catalan custard with a burnt-sugar top"). A menu translated
+before October 16, 2026 offers **Update English** to add those lines (it uses an AI request).
 
 **Prices in your currency.** On a menu priced in another currency (euros in
 Rome, pounds in London, yen in Tokyo), tap **Show in $** near the top of the
