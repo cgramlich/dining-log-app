@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.544.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.545.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.544.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.545.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,16 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Dish search finds a section by its name (2026-10-16, app 1.545.0)
+
+Chris, logging at a tapas bar: typing "flauta" offered one dish (whose description says flauta), not
+the six under "FLAUTAS": `searchDishes` read names and descriptions, never the section. Now
+`dishMeta` carries each dish's section and a fifth rank matches every typed word against name,
+description OR section, after name and description matches; such rows read "In Flautas"
+(`sectionDisplayName`: quotes dropped, SHOUTED headings in title case). **Verified:**
+`test_dish_section.js` (real functions): old version returns only the ham (his exact bug); 7 pass
+after. On screen: "flauta" offers all three test flautas, two marked "In Flautas".
 
 ### Dietary list names each section's menu (2026-10-16, app 1.544.0)
 

@@ -1228,7 +1228,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.544.0";
+const APP_VERSION   = "1.545.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6897,9 +6897,10 @@ function startsAWord(n, q){
 //   exclude - names already on the visit
 // Order: the name starts with it; a word in the name starts with it; it is
 // somewhere in the name; every typed word is in the name, in any order; every
-// typed word is in the name or the description (an ingredient). Ties keep menu
-// order. `why` is the description, set ONLY when the description is what
-// matched, so the list can show why an unexpected name is there.
+// typed word is in the name or the description (an ingredient); every typed
+// word is in the name, description or SECTION (2026-10-16: "flauta" found one
+// of the six dishes under "FLAUTAS"). Ties keep menu order. `why` says what
+// matched when it is not the name: the description, or "In <section>".
 function searchDishes(query, pool, meta, exclude){
   const q = foldText(query).trim().replace(/\s+/g, " ");
   if (!q) return [];
@@ -6917,12 +6918,25 @@ function searchDishes(query, pool, meta, exclude){
     else if (n.indexOf(q) !== -1) rank = 2;
     else if (words.length > 1 && words.every(w => n.indexOf(w) !== -1)) rank = 3;
     else if (d && words.every(w => n.indexOf(w) !== -1 || d.indexOf(w) !== -1)) rank = 4;
+    else {
+      const sc = (info && info.sec) ? foldText(info.sec) : "";
+      if (sc && words.every(w => n.indexOf(w) !== -1 || d.indexOf(w) !== -1 || sc.indexOf(w) !== -1)) rank = 5;
+    }
     if (rank < 0) return;
     out.push({ name: name, rank: rank, i: i, menu: (info && info.menu) || "",
-               why: rank === 4 ? String(info.desc).trim() : "" });
+               why: rank === 4 ? String(info.desc).trim() : rank === 5 ? "In " + sectionDisplayName(info.sec) : "" });
   });
   out.sort((a, b) => a.rank - b.rank || a.i - b.i);
   return out;
+}
+// A section heading as words in a sentence: quotes dropped, and SHOUTED
+// headings ("FLAUTAS") in title case ("Flautas").
+function sectionDisplayName(sec){
+  const t = String(sec || "").replace(/["\u201c\u201d]/g, "").replace(/\s+/g, " ").trim();
+  if (t && t === t.toUpperCase() && /[A-Z]/.test(t)){
+    return t.toLowerCase().replace(/(^|[\s\-\/(])(\S)/g, (w, a, b) => a + b.toUpperCase());
+  }
+  return t;
 }
 // Pure: what to log when something is typed and Add is pressed. If it is a
 // dish already offered here apart from case or accents, log THAT spelling, so
@@ -22110,7 +22124,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
   (menuGroups || []).forEach(g => (g.sections || []).forEach(sec =>
     (sec.items || []).forEach(it => {
       const k = String((it && it.value) || "").trim().toLowerCase();
-      if (k && !dishMeta.has(k)) dishMeta.set(k, { menu: g.label, desc: it.desc || "" });
+      if (k && !dishMeta.has(k)) dishMeta.set(k, { menu: g.label, desc: it.desc || "", sec: (sec && sec.name) || "" });
     })));
 
   // What the type-ahead offers. These DO carry the section, because a
