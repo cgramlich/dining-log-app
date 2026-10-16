@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.542.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.148.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.542.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.543.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.149.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.543.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,23 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Take back a shared menu; the replaced sharer is told (2026-10-16, app 1.543.0, backend 0.149.0)
+
+Chris: "Can I still remove my own menu? I think I should be able to, and also the user should get an
+email if my menu is removed or replaced." By card (asked twice, same answers):
+- **Both ways to take a shared menu back.** Deleting a menu (App `onDeleteMenu`) checks the place's
+  shared list; if you shared a menu of that name and no other menu of yours there has it, it asks
+  "Remove it from Menus shared here too?" and calls `communityRemoveMine`. The share sheet's
+  community view marks a menu you shared "shared by you" with **Stop sharing** (your menu stays).
+  The orphan "Remove my shared copy" (1.542.0) stays.
+- **Email to the person who shared it, when replaced.** `community_menu_publish` first finds the
+  copy offered until now (newest of that name at that place, not hidden); after the upsert, if that
+  copy was someone else's, `_safe_email_user` tells them a newer one replaced theirs (never who).
+  Re-sharing your own sends nothing. Removal sends nothing: only the sharer can remove since 0.148.0.
+**Verified:** `test_replace_email.py` (real route): old server fails; 5 pass (first share, own
+re-share, replaced, other menu name, hidden copy skipped). On screen: the delete question removes
+only that menu's copy; Stop sharing removes your copy and says so.
 
 ### Report retired on shared menus; remove your own shared copy (2026-10-16, app 1.542.0, backend 0.148.0)
 
