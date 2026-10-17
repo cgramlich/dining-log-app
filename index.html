@@ -1241,7 +1241,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.556.0";
+const APP_VERSION   = "1.557.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -34217,10 +34217,13 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
         </label>
       )}
 
+      {/* Plain English (2026-10-17): this said "stored only in this browser
+          (localStorage on this device)", a programmer's word on a sign-in
+          screen, and "browser" inside the Android and iPhone apps too. */}
       {mode === "signin" && (
         <div className="card tiny muted" style={{lineHeight:1.7}}>
-          Your sign-in is stored only in this browser (localStorage on this
-          device) and used to reach your MenuCaptain account.
+          Your sign-in stays on this device and is used only to reach your
+          MenuCaptain account.
         </div>
       )}
       {info && (

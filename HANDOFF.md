@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.556.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.557.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.556.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.557.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,30 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Android: system bars match the app; native images; plain sign-in note (2026-10-17, app 1.557.0)
+
+The video session's emulator run of the 1.555.0 debug APK (Android 15) found a GREY status bar
+over the dark app. `android/app/src/main/res/values/styles.xml` (native repo) now sets
+`android:statusBarColor` and `android:navigationBarColor` to #1b1714 with light icons
+(`windowLightStatusBar` / `windowLightNavigationBar` false, via `tools:targetApi`), on the app theme
+and the launch theme. All five app themes are near-black, so one colour suits them; the road not
+taken was @capacitor/status-bar to follow the theme exactly. targetSdk is 34, so Android 15's
+forced edge-to-edge (targetSdk 35) does not apply yet; revisit when targetSdk moves to 35.
+Verified on the Pixel_8 emulator: both bars sample #1b1714.
+
+Found on the same screen: **the native apps never had the app's images.** `build.js` copied fonts
+but not `helm.png` (broken image beside "MenuCaptain" on Home), `spin-wheel.png` or
+`spin-sunset.jpeg` (the Can't decide wheel). Step 7 of build.js now scans index.html for local image
+paths, copies each into www/, and STOPS the build if one is missing (proved by hiding helm.png:
+exit 1, "BUILD STOPPED"). Verified on the emulator: the helm shows.
+
+Sign-in screen: "Your sign-in is stored only in this browser (localStorage on this device)" said
+"browser" inside the native apps and used a programmer's word; now "Your sign-in stays on this
+device and is used only to reach your MenuCaptain account."
+
+Note: the Pixel_8 emulator on this PC is signed in to the owner's real account; sign out before
+filming anything there.
 
 ### The display name example says "Alex R" (2026-10-17, app 1.556.0)
 
