@@ -1241,7 +1241,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.555.0";
+const APP_VERSION   = "1.556.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -30669,7 +30669,7 @@ function ProfileCard({config, onProfileChange}){
               </div>
             ) : null}
             <label className="fld"><span className="lbl">Display name (optional)</span>
-              <ClearInput value={dname} placeholder="e.g. Chris G" maxLength={60}
+              <ClearInput value={dname} placeholder="e.g. Alex R" maxLength={60}
                 onChange={e=> setDname(e.target.value)} />
             </label>
             <label className="fld"><span className="lbl">Your Venmo (optional)</span>
@@ -30779,7 +30779,7 @@ function UsernameNudge({config, onClose, onClaimed}){
           </div>
         ) : null}
         <label className="fld"><span className="lbl">Display name (optional)</span>
-          <ClearInput value={dname} placeholder="e.g. Chris G" maxLength={60}
+          <ClearInput value={dname} placeholder="e.g. Alex R" maxLength={60}
             onChange={e=> setDname(e.target.value)} />
         </label>
         <button className="btn primary" onClick={claim} disabled={busy || blocked}>

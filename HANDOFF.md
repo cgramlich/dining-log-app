@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.555.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.556.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.555.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.556.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,21 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The display name example says "Alex R" (2026-10-17, app 1.556.0)
+
+Chris, making the video demo account: the display name field's example read "e.g. Chris G", the
+founder's own name, on every new user's sign-up screen. Both places (Pick a username, and the
+profile editor) now say "e.g. Alex R", the demo account's invented name.
+
+**Video demo account (2026-10-17, Chris approved by card in this session).** demo@menucaptain.com
+(forwarded to Chris by a Porkbun forward he added), username alexrivera, display name Alex Rivera,
+user id 17a93650-2673-46ee-aa66-251485f702c3. Created by Chris; neither Claude session has the
+password. Update emails off (row in `update_email_optouts`). Pro through a one-use comp code
+(label "Video demo account Alex Rivera", grants until 2027-06-30). Its places are added by hand, so
+they never reach the shared menu pool (the server refuses a menu with no Google place id). It adds
+one to the account count. Signed in for automation only in the Chrome profile
+`C:\Users\cjgra\.menucaptain-video\chrome-profile`, used by the video studio session.
 
 ### Calorie estimates on the visit form are a Settings switch (2026-10-17, app 1.555.0)
 

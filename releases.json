@@ -215,5 +215,13 @@
     "email_notes": "updated: next-issue-notes line for the switch",
     "welcome": "updated: calorie card says the menu estimates, and one switch estimates your plate",
     "handoff": "updated: section, version rows, BRIEFING, Log"
+  },
+  "1.556.0": {
+    "what": "Display name example says Alex R",
+    "guide": "n/a: the guide does not quote the example",
+    "promo": "n/a: placeholder text only; inventory reviewed",
+    "email_notes": "n/a: too small for the newsletter",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section (with the video demo account record), version rows, BRIEFING, Log"
   }
 }
