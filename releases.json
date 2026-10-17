@@ -207,5 +207,13 @@
     "email_notes": "n/a: too small for the newsletter",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows, BRIEFING, Log"
+  },
+  "1.555.0": {
+    "what": "Calorie estimates on the visit form become a Settings switch",
+    "guide": "updated: Calories when logging paragraph; estimate paragraph says it needs the switch",
+    "promo": "n/a: the inventory has no calorie card; reviewed",
+    "email_notes": "updated: next-issue-notes line for the switch",
+    "welcome": "updated: calorie card says the menu estimates, and one switch estimates your plate",
+    "handoff": "updated: section, version rows, BRIEFING, Log"
   }
 }

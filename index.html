@@ -126,6 +126,15 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     @keyframes mcgrab{0%{transform:scale(1);}55%{transform:scale(1.05);}100%{transform:scale(1.02);}}
 
     /* ---- cards ---- */
+    /* An on/off switch (1.555.0, first in the app). Settings marks CHOICES with
+       a tick on a row; a plain on/off reads more clearly as a switch. */
+    .mc-switch{position:relative; width:46px; height:28px; flex:none; padding:0; cursor:pointer;
+      border-radius:14px; border:1px solid var(--line); background:rgba(255,255,255,0.06);
+      transition:background 0.15s ease, border-color 0.15s ease;}
+    .mc-switch::after{content:""; position:absolute; top:3px; left:3px; width:20px; height:20px;
+      border-radius:50%; background:var(--text-dim); transition:transform 0.15s ease, background 0.15s ease;}
+    .mc-switch.on{background:var(--accent); border-color:var(--accent);}
+    .mc-switch.on::after{transform:translateX(18px); background:#fff;}
     .card{
       background:var(--surface); border:1px solid var(--line-soft);
       border-radius:15px; padding:16px; margin-bottom:13px;
@@ -1232,7 +1241,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.554.0";
+const APP_VERSION   = "1.555.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2483,8 +2492,14 @@ visit has a scanned check, the total is the real one, tax and tip included;
 otherwise it is a "~" estimate added up from your dish prices. Like the
 calorie numbers, it is a memory, never a budget.
 
-**Estimate a dish from a photo.** Under each dish is an "Estimate from a photo"
-button. When the food arrives, tap it and snap a picture of that dish. If you
+**Calories when logging.** Calorie estimates on the log visit form are a
+choice: Settings, **Logging a visit**, **Calorie estimates**. If you have
+estimated a meal before, it starts on; otherwise it starts off, which keeps the
+form short. Menus keep their calorie tools either way, and estimates you have
+already saved stay where they are.
+
+**Estimate a dish from a photo.** With Calorie estimates on, under each dish is
+an "Estimate from a photo" button. When the food arrives, tap it and snap a picture of that dish. If you
 have already added a photo of that dish, the button says "Estimate from your
 photo" and uses it - the newest one if there are several - so there is no need
 to take it again. The app
@@ -8157,6 +8172,30 @@ function DishNotes({ dishes }){
   );
 }
 
+// Calorie estimates on the log visit form are a choice (2026-10-17, Chris:
+// "Make it a toggle"). Of 143 visits across 9 accounts, the 10 with an estimate
+// were all the owner's, yet the estimate buttons sat under every dish and a
+// whole Nutrition section sat on the busiest form in the app. The menu keeps
+// its calorie tools regardless: that is where you choose what to order.
+// Kept on this device. With no choice made, it is ON for anyone whose history
+// already holds an estimate (they use it) and OFF for everyone else, so
+// nobody who relies on it loses it. Saved estimates are never touched, and
+// History keeps showing them; only the form's controls hide.
+const CALORIES_KEY = "mc_calories_when_logging";
+function usedCalorieEstimates(visits){
+  return (visits || []).some(v => v && ((v.nutrition && typeof v.nutrition === "object")
+    || (v.dishes || []).some(d => d && d.nutrition && d.nutrition.kcal)));
+}
+function caloriesWhenLogging(visits){
+  let v = null;
+  try { v = localStorage.getItem(CALORIES_KEY); } catch(e){ v = null; }
+  if (v === "1") return true;
+  if (v === "0") return false;
+  return usedCalorieEstimates(visits);
+}
+function setCaloriesWhenLogging(on){
+  try { localStorage.setItem(CALORIES_KEY, on ? "1" : "0"); } catch(e){}
+}
 function DishTotal({dishes, min}){
   const floor = min || 2;
   const est = (dishes || []).filter(d => d && d.nutrition && d.nutrition.kcal);
@@ -21922,6 +21961,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
   const [photoLightbox, setPhotoLightbox] = useState(null);  // {paths, index} | null
   const photoFileRef = useRef(null);
   const photoCamRef  = useRef(null);   // camera-capture input (separate from library picker)
+  const showCal = caloriesWhenLogging(visits);   // Settings, Logging a visit (1.555.0)
 
   // ---- meal-photo nutrition estimate -----------------------------------
   // visit.nutrition is a single estimate for the meal (visit-level). It is
@@ -23265,7 +23305,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                     </div>
                   )}
                   <div className="dish-sub">
-                    {dishNutBusy[d.name] ? (
+                    {!showCal ? null : dishNutBusy[d.name] ? (
                       <span className="dish-cam" style={{cursor:"default"}}>
                         <span className="spin" />Estimating...
                       </span>
@@ -23361,7 +23401,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                     your mind on a later visit.</span>
                 </InfoDot>
               </div>
-              <DishTotal dishes={dishes} min={1} />
+              {showCal ? <DishTotal dishes={dishes} min={1} /> : null}
             </div>
           )}
         </div>
@@ -23369,6 +23409,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
         {/* Meal nutrition - estimate from a photo. Sits just below the dishes so
             the whole-plate estimate is next to what you ordered. Informative &
             celebratory, never restrictive: no targets, no budgets, no warnings. */}
+        {showCal ? (
         <div className="fld">
           <span className="sechd">
             Nutrition <span className="faint" style={{fontWeight:400}}>(estimate from a photo)</span>
@@ -23486,6 +23527,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
             </div>
           )}
         </div>
+        ) : null}
 
         {(collections || []).length ? (()=>{
           const self = { id: (existing && existing.id) || newVisitIdRef.current || "", date: date };
@@ -33200,6 +33242,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                        onAddLocation, onRenameLocation, onDeleteLocation,
                        onCheckUpdate, updMsg, updateVersion, onApplyUpdate, onOpenHelp, onShowInstall, onFindDuplicates, onFeedback, onOpenYearInFood, onOpenPassport, onSupport}){
   const [showLog,setShowLog] = useState(false);
+  const [calOn, setCalOn] = useState(()=> caloriesWhenLogging(visits));
   const [showBlocks,setShowBlocks] = useState(false);
   const [blocks,setBlocks] = useState(null);
   function loadBlocks(){
@@ -33556,6 +33599,22 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
             </div>
           );
         })}
+      </div>
+
+      <div className="set-group">Logging a visit</div>
+      <div className="card">
+        <div className="theme-row" onClick={()=>{ setCaloriesWhenLogging(!calOn); setCalOn(!calOn); }}>
+          <div style={{flex:1, minWidth:0}}>
+            <div className="theme-name">Calorie estimates</div>
+            <div className="tiny faint" style={{marginTop:3, lineHeight:1.45}}>
+              Estimate calories from a photo or the dish name as you log a meal.
+              Menus keep their calorie tools either way.
+            </div>
+          </div>
+          <button type="button" className={"mc-switch" + (calOn ? " on" : "")} role="switch"
+            aria-checked={calOn} aria-label="Calorie estimates when logging a visit"
+            onClick={(e)=>{ e.stopPropagation(); setCaloriesWhenLogging(!calOn); setCalOn(!calOn); }} />
+        </div>
       </div>
 
       <div className="set-group">More</div>

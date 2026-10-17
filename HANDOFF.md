@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.554.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.555.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.554.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.555.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,27 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Calorie estimates on the visit form are a Settings switch (2026-10-17, app 1.555.0)
+
+Chris asked whether the log visit page needs calorie estimates. An aggregate count (no rows read):
+143 visits across 9 accounts, 10 with an estimate, all the owner's; no other account has ever used
+it, while it put two buttons under every dish and a whole Nutrition section on the busiest form.
+Original intent (the June 3 app): "a rough idea of the calories on your plate", a memory, never a
+budget; the visit side is the one that knows your portion (plate photo, shared-dish scaling), totals
+the meal and writes estimates back onto the menu item. Chris, after the merits: "Make it a toggle".
+
+`caloriesWhenLogging(visits)`: localStorage `mc_calories_when_logging` "1"/"0"; with no choice
+made it is ON when `usedCalorieEstimates(visits)` (any visit or dish with an estimate) and OFF
+otherwise, so nobody who uses it loses it. Settings, new group **Logging a visit**, row **Calorie
+estimates** with the app's first switch (`.mc-switch`, `role="switch"`). Off hides the per-dish
+estimate controls, `DishTotal` and the whole-plate Nutrition section; saved estimates are never
+touched and History still shows them. Menu calorie tools are unchanged. Kept per device on purpose:
+no server change, and the data-derived default carries an existing user to a new phone. Guide gains
+**Calories when logging.**; welcome.html's calorie card now says the menu estimates before you order
+and one switch lets you estimate your plate. Playwright: 7 checks (default off, default on for a
+user with an estimate, switch shown and toggles, form follows, saved estimate intact); on 1.554.0
+the default-off check failed and the switch did not exist.
 
 ### Cancel on Edit place returns to the place (2026-10-16, app 1.554.0)
 

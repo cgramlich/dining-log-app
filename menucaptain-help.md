@@ -570,8 +570,14 @@ visit has a scanned check, the total is the real one, tax and tip included;
 otherwise it is a "~" estimate added up from your dish prices. Like the
 calorie numbers, it is a memory, never a budget.
 
-**Estimate a dish from a photo.** Under each dish is an "Estimate from a photo"
-button. When the food arrives, tap it and snap a picture of that dish. If you
+**Calories when logging.** Calorie estimates on the log visit form are a
+choice: Settings, **Logging a visit**, **Calorie estimates**. If you have
+estimated a meal before, it starts on; otherwise it starts off, which keeps the
+form short. Menus keep their calorie tools either way, and estimates you have
+already saved stay where they are.
+
+**Estimate a dish from a photo.** With Calorie estimates on, under each dish is
+an "Estimate from a photo" button. When the food arrives, tap it and snap a picture of that dish. If you
 have already added a photo of that dish, the button says "Estimate from your
 photo" and uses it - the newest one if there are several - so there is no need
 to take it again. The app
