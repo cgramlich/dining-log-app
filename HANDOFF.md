@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.552.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.553.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.552.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.553.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,20 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Section headings without their quote marks (2026-10-16, app 1.553.0)
+
+Chris, on a tapas bar's menu: "Why are some in "" quotes". The restaurant printed some headings in
+quotes ("Montaditos", "Tapas", "Flautas") and the scan copied them, so they sat beside Charcuterie
+without. New `sectionHeading(name)` drops ONE matching pair of wrapping quotes (straight, curly,
+the low-high German pair, guillemets, single) and leaves a quote inside a heading alone
+('The "Big" One', '"A" and "B"'). **Display only**: stored names, `tr.sec` English headings keyed by
+them, and Move or delete a section all keep the scanned name. The road not taken: rewriting stored
+menus, which would orphan those English headings. Applied wherever a heading is shown: the menu,
+Edit dishes, Move or delete, the visit form's dish picker, Split a menu, Group order, both shared
+menu pages (`s.n`), and the dietary list's headings. `sectionDisplayName` (the "In Flautas" line)
+already dropped quotes. Tests: 16 cases in Node; Playwright on 1.552.0 failed 2 of 3 (menu and
+picker showed the quotes), 1.553.0 passes 3 of 3.
 
 ### Photos open on the first tap (2026-10-16, app 1.552.0)
 

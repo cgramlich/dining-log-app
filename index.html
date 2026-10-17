@@ -1232,7 +1232,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.552.0";
+const APP_VERSION   = "1.553.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6960,6 +6960,26 @@ function searchDishes(query, pool, meta, exclude){
   });
   out.sort((a, b) => a.rank - b.rank || a.i - b.i);
   return out;
+}
+// A section heading as it should read on screen. Some menus set their
+// headings in quotes ("Tapas", "Flautas", or the Spanish «Montaditos») and the
+// scan copies them faithfully, so the menu showed "Montaditos" in quote marks
+// beside Charcuterie without (2026-10-16, Chris: "Why are some in "" quotes").
+// A heading wrapped in ONE matching pair of quotes shows without them.
+// Display only: the stored name, and everything keyed by it (translations,
+// Move or delete a section, the menu's own data), stays exactly as scanned.
+// The road not taken: rewriting stored menus, which would orphan the English
+// headings saved under the quoted names. A quote inside a heading
+// ('The "Big" One', '"A" and "B"') is part of the name and stays.
+const HEADING_QUOTES = { '"':'"', "\u201c":"\u201d", "\u201e":"\u201c", "\u00ab":"\u00bb", "'":"'", "\u2018":"\u2019" };
+function sectionHeading(name){
+  const t = String(name == null ? "" : name).trim();
+  if (t.length < 3) return t;
+  const close = HEADING_QUOTES[t[0]];
+  if (!close || t[t.length - 1] !== close) return t;
+  const inner = t.slice(1, -1).trim();
+  if (!inner || inner.indexOf(t[0]) !== -1 || inner.indexOf(close) !== -1) return t;
+  return inner;
 }
 // A section heading as words in a sentence: quotes dropped, and SHOUTED
 // headings ("FLAUTAS") in title case ("Flautas").
@@ -14625,7 +14645,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
     menuList.forEach(mn => (mn.sections || []).forEach(s => {
       const keep = (s.items || []).filter(matches);
       if (!keep.length) return;
-      const key = many ? menuDisplayLabel(mn.label) + " \u00b7 " + (s.name || "Items") : (s.name || "Items");
+      const key = many ? menuDisplayLabel(mn.label) + " \u00b7 " + (sectionHeading(s.name) || "Items") : (sectionHeading(s.name) || "Items");
       if (!sectionMap.has(key)) sectionMap.set(key, []);
       sectionMap.get(key).push(...keep);
     }));
@@ -16105,7 +16125,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
                 <label key={si} className="row" style={{gap:9, alignItems:"center", padding:"5px 0"}}>
                   <input type="checkbox" checked={!!splitPick[si]}
                     onChange={()=> setSplitPick(o => Object.assign({}, o, { [si]: !o[si] }))} />
-                  <span className="small" style={{flex:1, minWidth:0}}>{sec.name || "Section " + (si + 1)}</span>
+                  <span className="small" style={{flex:1, minWidth:0}}>{sectionHeading(sec.name) || "Section " + (si + 1)}</span>
                   <span className="tiny faint" style={{flex:"none"}}>{(sec.items || []).length}</span>
                 </label>
               ))}
@@ -16572,7 +16592,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
           <button type="button" className="msec-head" aria-expanded={secOpen}
             style={{flex:1, minWidth:0, textAlign:"left"}}
             onClick={()=> fold.toggle(i)}>
-            <span className="nm">{s.name}
+            <span className="nm">{sectionHeading(s.name)}
               {showEn && tr.sec && tr.sec[String(s.name || "").trim()] && !sameText(tr.sec[String(s.name || "").trim()], s.name)
                 ? <span className="nm-en">{tr.sec[String(s.name || "").trim()]}</span> : null}
             </span>
@@ -16594,7 +16614,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
           {secSplit && secSplit.si === i ? (
             <div className="card" style={{margin:"4px 0 10px", padding:"11px 13px"}}>
               <div className="small" style={{marginBottom:8}}>
-                Move <strong>{s.name || "this section"}</strong> into its own menu, called:</div>
+                Move <strong>{sectionHeading(s.name) || "this section"}</strong> into its own menu, called:</div>
               <ClearInput value={secSplit.name} placeholder="Menu name (e.g. Desserts)"
                 onChange={e=> setSecSplit(Object.assign({}, secSplit, { name: e.target.value }))} />
               <div className="tiny faint" style={{marginTop:6}}>
@@ -16612,7 +16632,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
                   {secSplit.del ? (
                     <div>
                       <div className="small" style={{marginBottom:8}}>
-                        Delete <strong>{s.name || "this section"}</strong> and its {(s.items || []).length}{" "}
+                        Delete <strong>{sectionHeading(s.name) || "this section"}</strong> and its {(s.items || []).length}{" "}
                         {(s.items || []).length === 1 ? "item" : "items"}? This cannot be undone.
                       </div>
                       <div className="row" style={{gap:8}}>
@@ -23148,7 +23168,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                       {multi && (
                         <button type="button" className="section-subhead pick-sec-head" aria-expanded={open}
                           onClick={()=> setPickOpen(o => o === k ? null : k)}>
-                          <span>{s.name || "Other"}</span>
+                          <span>{sectionHeading(s.name) || "Other"}</span>
                           <span className="row" style={{gap:8, alignItems:"center"}}>
                             {nOn ? <span className="pick-sec-on">{nOn} picked</span>
                                  : <span className="pick-sec-ct">{s.items.length}</span>}
@@ -24837,7 +24857,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                     }}>
                       <div style={{marginBottom:8}}>
                         <div className="small" style={{fontWeight:600}}>
-                          {s.name || "Section"}
+                          {sectionHeading(s.name) || "Section"}
                         </div>
                         <div className="tiny faint" style={{marginTop:2}}>
                           {itemCount} item{itemCount === 1 ? "" : "s"}
@@ -25514,7 +25534,7 @@ function PublishedVisit({data, onSaved, onLogVisit, replySlot, senderId}){
                       onClick={()=> fold.toggle(si)}
                       style={{width:"100%", background:"none", border:0,
                               borderBottom:"1px solid rgba(255,255,255,0.08)", textAlign:"left"}}>
-                      <span className="nm">{s.n}</span>
+                      <span className="nm">{sectionHeading(s.n)}</span>
                       <span className="row" style={{gap:7, flex:"none"}}>
                         <span className="ct">{(s.i || []).length}</span>
                         <span style={{display:"inline-flex", transition:"transform 0.15s ease",
@@ -28669,7 +28689,7 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
               <button type="button" className="go-gsec-head" aria-expanded={secOpen}
                 style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer", width:"100%", textAlign:"left"}}
                 onClick={()=> fold.toggle(si)}>
-                <span style={{flex:1, minWidth:0}}>{s.name || "Menu"}</span>
+                <span style={{flex:1, minWidth:0}}>{sectionHeading(s.name) || "Menu"}</span>
                 {secSel ? <span className="tiny" style={{color:"var(--accent)", flex:"none"}}>{secSel} added</span> : null}
                 <Chevron open={secOpen} size={15} />
               </button>
@@ -29313,7 +29333,7 @@ function PublishedMenu({data, onSaved, onSendPicks, sendToName, replySlot, sende
               <button type="button" className="pub-msec-head" aria-expanded={fold.isOpen(si)}
                 style={{width:"100%", textAlign:"left"}}
                 onClick={()=> fold.toggle(si)}>
-                <span className="nm">{s.n}</span>
+                <span className="nm">{sectionHeading(s.n)}</span>
                 <span className="ct">{(s.i || []).length}</span>
               </button>
             ) : null}
