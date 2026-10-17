@@ -430,7 +430,7 @@ user id 17a93650-2673-46ee-aa66-251485f702c3. Created by Chris; neither Claude s
 password. Update emails off (row in `update_email_optouts`). Pro through a one-use comp code
 (label "Video demo account Alex Rivera", grants until 2027-06-30). Its places are added by hand, so
 they never reach the shared menu pool (the server refuses a menu with no Google place id). It adds
-one to the account count. Signed in for automation only in the Chrome profile
+one to the account count. **Seeded 2026-10-17 on app 1.557.0** (8 invented Dallas places, 5 menus, 11 visits, 18 photos; Maison Corbelle left empty as the live scan target) by `CG Apps\MenuCaptain\Demo Account Seed\demo_seed.py`, which runs through the app itself and refuses any account but this one. Signed in for automation only in the Chrome profile
 `C:\Users\cjgra\.menucaptain-video\chrome-profile`, used by the video studio session.
 
 ### Calorie estimates on the visit form are a Settings switch (2026-10-17, app 1.555.0)
