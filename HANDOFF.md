@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.553.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.554.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.553.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.554.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,16 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Cancel on Edit place returns to the place (2026-10-16, app 1.554.0)
+
+Chris: "When i am in a place page and choose edit but then cancel it takes me home instead of back
+to place page". The place form's `onClose` cleared the overlay, which shows whatever tab sits
+underneath, usually Home. Edit place (and the enrich path) now open with
+`returnTo:{type:"restaurant", id}`, and the form's Cancel goes to `overlay.returnTo || null`, the
+same pattern as logging a visit from a place. Add place carries no returnTo, so its Cancel still
+leaves you where you were. Save already landed on the place. Playwright: on 1.553.0 Cancel left the
+place page; on 1.554.0 Cancel and Save both return to it.
 
 ### Section headings without their quote marks (2026-10-16, app 1.553.0)
 

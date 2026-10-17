@@ -1232,7 +1232,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.553.0";
+const APP_VERSION   = "1.554.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -11194,8 +11194,10 @@ function App({openShare}){
             const next = visits.map(x => x.id === v.id ? Object.assign({}, x, { loved: !x.loved }) : x);
             commit({ visits: next }, ["visits"]);
           }}
-          onEdit={()=> setOverlay({ type:"editRestaurant", id:overlay.id })}
-          onEnrich={(enrich)=> setOverlay({ type:"editRestaurant", id:overlay.id, enrich:enrich })}
+          onEdit={()=> setOverlay({ type:"editRestaurant", id:overlay.id,
+            returnTo:{ type:"restaurant", id:overlay.id } })}
+          onEnrich={(enrich)=> setOverlay({ type:"editRestaurant", id:overlay.id, enrich:enrich,
+            returnTo:{ type:"restaurant", id:overlay.id } })}
           onLinkGoogle={(placeId, cand)=>{
             const next = restaurants.map(x => {
               if (x.id !== overlay.id) return x;
@@ -11521,7 +11523,12 @@ function App({openShare}){
           enrich={overlay.type==="editRestaurant" ? (overlay.enrich || null) : null}
           locations={locations}
           cfg={config}
-          onClose={()=> setOverlay(null)}
+          // Cancel goes back where the form came from: Edit place returns to the
+          // place (2026-10-16, Chris: "choose edit but then cancel it takes me
+          // home instead of back to place page"). Clearing the overlay dropped
+          // you on the tab underneath, usually Home. Add place carries no
+          // returnTo, so its Cancel still leaves you where you were.
+          onClose={()=> setOverlay(overlay.returnTo || null)}
           onSave={async (rec, extras)=>{
             const newLocationsToAdd = (extras && extras.newLocationsToAdd) || [];
             const photoBlob = extras && extras.photoBlob;
