@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.563.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.150.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.563.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.564.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.151.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.564.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,40 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Menus from a link are read on the server, so you can leave (2026-10-18, app 1.564.0, backend 0.151.0)
+
+Chris asked whether reading a menu by link could also let him walk away (it kept him in the app on
+a big page) and approved it by card ("Yes, build it"). A link now becomes a scan job, like photos.
+
+**App.** `textMenuPromptHead()` is the text-menu prompt up to "MENU PAGE TEXT:\n", extracted from
+`digitizeMenuFromText` (proved byte-identical, 3,078 characters, by `cmp_prompt.js`), and
+`parseTextMenuReply(text)` is its reply parser; both paths use them. `startLinkJob(cfg, url, extra)`
+posts `{kind:"link", url, prompt_head, max_tokens:16000, place_name, meta}` and returns null on 404/405
+or a 400 "Unknown kind" (an older server), when `runUrl` falls back to `readUrlOnPhone(u)` (the old
+body, unchanged). `scanJobToMenu` sends `kind:"link"` results to `linkJobToMenu`: parse each part,
+`_mergeMenus`, `attachWebImages`, source "web", `source_url`, title as the fallback name.
+`{needs_phone}` (a PDF of pictures) makes the poll let the job go and call `readUrlOnPhone(final_url)`.
+`acceptScan` keeps a set `source`, so a Refresh from a link stays "web" (a new menu still saves as
+"photo_ocr", as it always has). The working screen has a brief "Opening the page" phase
+(`phase === "opening"`), then the usual "You don't have to wait here".
+
+**Server 0.151.0.** `_menu_fetch_core(url, user_id)` is the page reader behind `/api/menu/fetch_text`,
+shared with jobs. `ScanJobCreate` gains `url` and `prompt_head`; kind "link" needs a web address and a
+prompt ending in "MENU PAGE TEXT". `_link_digest` mirrors the app: one request up to
+`LINK_TEXT_ONE_PASS = 20000` characters, halves together beyond that (`_menu_split_point`, the app's
+`_menuSplitPoint`), a part that stops at max_tokens split again, `_LinkTooBig` when it can't be.
+`_link_unusable(parts)` fails a page with no dishes or unparseable replies in the app's own words, so
+no "ready" email goes out for a failure; a `needs_phone` result sends no email either. A failed fetch
+logs its diag. One `record_usage` per job, so a whole link counts as one scan (the phone path counted
+each part).
+
+Tests: `test_link_jobs_ui.py` (11: job body, walk-away screen, nothing read on the phone meanwhile,
+two parts merged on review and save, the job let go, a Refresh staying "web", a picture PDF falling
+back to the phone, an older server falling back) fails on 1.563.0 and passes on 1.564.0;
+`test_link_digest.py` (10: one request for a small page, four in-order parts for 45k, re-split on
+the ceiling, the too-big message, split points identical to the app's via node, the no-menu and
+bad-JSON messages).
 
 ### The menu page says where you are; chat + Settings on every page; Recent on Places; menu chips when moving (2026-10-18, app 1.563.0)
 

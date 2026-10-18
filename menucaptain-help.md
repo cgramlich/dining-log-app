@@ -216,7 +216,9 @@ says so: tap **Review** to check it and save it. If you haven't come back within
 you for up to 7 days. Prefer not to photograph it? **Find
 the menu for me** looks on the restaurant's website and reads the menu in for
 you - and if no website is on file, you can simply type it in. You can also
-paste a link straight to a menu page.
+paste a link straight to a menu page. A menu from a link or from **Find the menu
+for me** is read on our server too: once the page is open (a few seconds), tap
+**Done for now** and the same bar, or the same email, brings you back to it.
 
 **Seen the menu on Google, Facebook or Yelp?** Those sites don't let apps read
 their listings, so pasting that link won't work - but you can see the menu, so

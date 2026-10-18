@@ -279,5 +279,13 @@
     "email_notes": "updated: next-issue-notes lists the menu page heading, Recent places, chips and icons on every page",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, native), Update email line, BRIEFING, Log"
+  },
+  "1.564.0": {
+    "what": "A menu from a link (or Find the menu for me) is read on the server, so you can leave the app (backend 0.151.0)",
+    "guide": "updated: the scan paragraph says links and Find the menu are read on the server too",
+    "promo": "n/a: no promo card covers how a link is read; inventory reviewed, as-of bumped",
+    "email_notes": "updated: next-issue-notes line for link menus marked shipped",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
   }
 }

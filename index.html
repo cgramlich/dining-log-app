@@ -1280,7 +1280,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.563.0";
+const APP_VERSION   = "1.564.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2177,7 +2177,9 @@ says so: tap **Review** to check it and save it. If you haven't come back within
 you for up to 7 days. Prefer not to photograph it? **Find
 the menu for me** looks on the restaurant's website and reads the menu in for
 you - and if no website is on file, you can simply type it in. You can also
-paste a link straight to a menu page.
+paste a link straight to a menu page. A menu from a link or from **Find the menu
+for me** is read on our server too: once the page is open (a few seconds), tap
+**Done for now** and the same bar, or the same email, brings you back to it.
 
 **Seen the menu on Google, Facebook or Yelp?** Those sites don't let apps read
 their listings, so pasting that link won't work - but you can see the menu, so
@@ -6297,6 +6299,66 @@ async function startScanJob(cfg, dataUrls, extra){
   return await res.json();
 }
 
+/* A menu from a web link, read on the server like a photo scan (1.564.0, server
+   0.151.0; Chris approved by card on 2026-10-18 after a big page kept him
+   waiting in the app). The app still owns the prompt (textMenuPromptHead); the
+   server fetches the page, appends its text, splits a big one the way
+   digitizeMenuFromText does, and hands back the raw replies, which
+   linkJobToMenu parses with the same code as before. The whole link counts as
+   one scan. null = a server from before link scans (it answers "Unknown kind"):
+   the caller reads the page on the phone, as before. */
+async function startLinkJob(cfg, url, extra){
+  const body = Object.assign({ kind:"link", url:url, prompt_head:textMenuPromptHead(), max_tokens:16000 }, extra || {});
+  logMsg("SCAN","Sending a menu link to be read on the server");
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/scan-jobs", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body:JSON.stringify(body),
+    });
+  } catch(err){
+    logMsg("ERROR","Menu link not sent: " + ((err && err.message) || "no reason given"));
+    throw new Error("Couldn't send the link - " + ((err && err.message) || "no reason given") +
+                    ". If you are on a weak signal, try again.");
+  }
+  if (res.status === 404 || res.status === 405) return null;
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    let _detail = "";
+    try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
+    if (typeof _detail !== "string") _detail = "";
+    if (res.status === 400 && /unknown kind/i.test(_detail)){
+      logMsg("SCAN","This server reads links on the phone");
+      return null;
+    }
+    logMsg("ERROR","Link job -> " + res.status + " " + txt.slice(0,180));
+    if (res.status === 401) throw new Error("Server rejected the request (401). Check your sign-in.");
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
+    if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
+    if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
+    throw new Error(_detail || ("Couldn't start reading that page (" + res.status + ")"));
+  }
+  return await res.json();
+}
+
+// A finished link scan -> the menu. A PDF whose pages are pictures comes back
+// as {needs_phone}: the phone already reads pictures, so the scan screen takes
+// that one the old way rather than the server duplicating it.
+function linkJobToMenu(r){
+  if (r.needs_phone) return { needs_phone:true, final_url: r.final_url || "" };
+  let parsed = null;
+  (Array.isArray(r.parts) ? r.parts : []).forEach(t => { parsed = _mergeMenus(parsed, parseTextMenuReply(t)); });
+  if (!parsed || !(parsed.sections || []).length){
+    throw new Error("No menu on that page - homepages and contact pages usually don't have one. Try the restaurant's menu/order page, or scan the menu (most reliable).");
+  }
+  attachWebImages(parsed, r.images);   // the restaurant's own dish photos
+  parsed.source     = "web";
+  parsed.source_url = r.final_url || "";
+  if (!parsed.restaurant_name && r.title) parsed.restaurant_name = r.title;
+  return parsed;
+}
+
 const SCAN_JOB_GONE = "That menu scan is no longer waiting: it was saved or cleared, or it is more than 7 days old.";
 
 // One job, with its result. null = couldn't ask (offline, a blip): ask again.
@@ -6342,6 +6404,7 @@ function scanJobToMenu(job){
     throw new Error((job && job.error) || "The menu could not be read this time. Please try again.");
   }
   const r = job.result;
+  if (r.kind === "link") return linkJobToMenu(r);
   return r.kind === "pages" ? scanPagesToMenu(r, (r.pages || []).length) : scanSingleToMenu(r);
 }
 
@@ -6453,15 +6516,13 @@ async function _splitDigest(cfg, menuText, depth, why){
   return _mergeMenus(a, b);
 }
 
-async function digitizeMenuFromText(cfg, menuText, _depth){
-  // Waiting for the model to hit its own ceiling only finds out that the menu
-  // was too big AFTER a long call that may not survive the wait. Size is known
-  // up front, so act on it up front.
-  const _d = _depth || 0;
-  if (_d < 4 && menuText.length > MENU_TEXT_ONE_PASS){
-    return await _splitDigest(cfg, menuText, _d, "too big for one pass");
-  }
-  const prompt =
+// The text-menu prompt, up to where the page's text goes (1.564.0). Shared by
+// digitizeMenuFromText below and by link scans read on the server
+// (startLinkJob), which append the page text at the end, so a page is read with
+// the same words either way. "MENU PAGE TEXT:" must stay its last line: the
+// server checks for it before it accepts a link scan.
+function textMenuPromptHead(){
+  return (
     "You are a menu digitization assistant. The TEXT below was extracted from a "+
     "restaurant web page. Pull the COMPLETE food/drink menu out of it into "+
     "structured JSON, ignoring navigation, ads, hours, reviews, and other page "+
@@ -6509,7 +6570,19 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
     "- An ITEM is something the customer orders; do NOT promote ingredients into items.\n"+
     "- If the text has NO actual menu (just a homepage, or it only links to a PDF), "+
     "return an empty sections array.\n\n"+
-    "MENU PAGE TEXT:\n" + menuText;
+    "MENU PAGE TEXT:\n"
+  );
+}
+
+async function digitizeMenuFromText(cfg, menuText, _depth){
+  // Waiting for the model to hit its own ceiling only finds out that the menu
+  // was too big AFTER a long call that may not survive the wait. Size is known
+  // up front, so act on it up front.
+  const _d = _depth || 0;
+  if (_d < 4 && menuText.length > MENU_TEXT_ONE_PASS){
+    return await _splitDigest(cfg, menuText, _d, "too big for one pass");
+  }
+  const prompt = textMenuPromptHead() + menuText;
 
   let res;
   try {
@@ -6544,6 +6617,13 @@ async function digitizeMenuFromText(cfg, menuText, _depth){
     throw new Error("That menu page was too large to read in one pass. Try a link to a single menu section.");
   }
   const text = (json.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+  return parseTextMenuReply(text);
+}
+
+// A reply to the text-menu prompt -> the menu the app stores (1.564.0). Shared
+// by digitizeMenuFromText and by link scans read on the server, whose replies
+// come back raw (see linkJobToMenu), so both produce exactly the same menu.
+function parseTextMenuReply(text){
   let parsed;
   try { parsed = parseJsonLoose(text); }
   catch(err){ throw new Error("Couldn’t read a menu from that page. Try scanning it instead."); }
@@ -24341,6 +24421,14 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           setJobId(""); setPhase(""); setErrMsg(why); setStep("error");
           return;
         }
+        if (parsed.needs_phone){
+          // A scanned PDF behind a link: read its pictures here, as before.
+          collectScanJob(config, jobId);
+          logMsg("SCAN","Link " + jobId.slice(0,8) + " is a PDF of pictures - reading it on the phone");
+          setJobId(""); setPhase("");
+          readUrlOnPhone(parsed.final_url || (lastTry && lastTry.value) || "");
+          return;
+        }
         jobLoaded.current = true;
         logMsg("SCAN","Scan " + jobId.slice(0,8) + " read on the server");
         acceptScan(parsed);
@@ -24480,7 +24568,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   function acceptScan(parsed){
     parsed.captured_date = todayISO();
     parsed.last_updated  = todayISO();
-    parsed.source        = "photo_ocr";
+    parsed.source        = parsed.source || "photo_ocr";   // a link scan says "web"
     setResult(parsed);
     // Pre-fill the destination if the menu showed a restaurant name.
     // If we already have a restaurant whose name matches (case-insensitive,
@@ -24530,6 +24618,33 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     if (dead){ setDeadEnd(dead); setShowUrl(false); setStep("pick"); return; }
     setDeadEnd(null);
     setLastTry({ kind:"url", value:u });
+    // Read on the server (1.564.0), so a big page can't keep you waiting here:
+    // the same "you don't have to wait" screen as a photo scan.
+    setErrMsg(""); setPhase("opening"); setStep("working");
+    let job = null;
+    try {
+      const here = restaurants.find(r => r.id === (restId || presetRestaurantId));
+      job = await startLinkJob(config, u, {
+        place_name: (here && here.name) || null,
+        meta: { restaurant_id: presetRestaurantId || "", menu_id: presetMenuId || "" },
+      });
+    } catch(err){
+      logMsg("ERROR","Web menu failed: " + err.message);
+      setPhase(""); setErrMsg(err.message || "Couldn't read that page."); setStep("error");
+      return;
+    }
+    if (job && job.id){
+      logMsg("SCAN","Link " + String(job.id).slice(0,8) + " is being read on the server");
+      setJobId(job.id); setPhase("reading");
+      return;
+    }
+    setPhase("");
+    await readUrlOnPhone(u);
+  }
+
+  // The page read on the phone: a server from before link scans, and a PDF
+  // whose pages are pictures (the server hands those back).
+  async function readUrlOnPhone(u){
     setStep("working");
     try {
       const fetched = await fetchMenuText(config, u);
@@ -25058,8 +25173,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         {step === "working" && (
           <div className="empty" style={{paddingTop: phase === "reading" ? "14vh" : "22vh"}}>
             <Loader size={46} />
-            <div className="big" style={{marginTop:16}}>{phase === "sending" ? "Sending the photos" : "Reading the menu"}</div>
-            <div>{phase === "sending"
+            <div className="big" style={{marginTop:16}}>{phase === "sending" ? "Sending the photos"
+              : phase === "opening" ? "Opening the page" : "Reading the menu"}</div>
+            <div>{(phase === "sending" || phase === "opening")
               ? "This takes a few seconds."
               : "This usually takes a minute or two. A big menu with lots of items or photos takes longer, and a short one is quick."}</div>
             {phase === "reading" ? (
@@ -25080,11 +25196,14 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               <div className="card" style={{margin:"18px auto 0", maxWidth:420, padding:"11px 14px", textAlign:"left",
                    border:"1px solid rgba(231,178,76,0.4)"}}>
                 <div className="small" style={{fontWeight:600}}>
-                  {phase === "sending" ? "Keep MenuCaptain open while the photos send" : "Keep MenuCaptain open until it's done"}
+                  {phase === "sending" ? "Keep MenuCaptain open while the photos send"
+                    : phase === "opening" ? "Keep MenuCaptain open for a moment" : "Keep MenuCaptain open until it's done"}
                 </div>
                 <div className="tiny faint" style={{marginTop:3}}>
                   {phase === "sending"
                     ? "Once they're sent, you can leave and the menu keeps being read."
+                    : phase === "opening"
+                    ? "Once the page is open, you can leave and the menu keeps being read."
                     : "Switching to another app or locking your phone can stop this, and you would have to start again."}
                 </div>
               </div>
