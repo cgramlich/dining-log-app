@@ -964,7 +964,7 @@ they all add to one shared order you watch come together.
 
 You can start a group order three ways: from the **restaurant page** (tap
 **Group order**), from the **+** button (**Start a group order**), or from any
-open menu (tap **Group order** at the top). If the place has more than one menu,
+open menu (tap **Start a group order** at the foot of **Help me order**). If the place has more than one menu,
 you pick which menus to include - all of them by default - so your group can
 order across several at once (say pasta and pizza in one list); a place with a
 single menu jumps straight in.

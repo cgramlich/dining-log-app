@@ -1241,7 +1241,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.561.0";
+const APP_VERSION   = "1.562.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2886,7 +2886,7 @@ they all add to one shared order you watch come together.
 
 You can start a group order three ways: from the **restaurant page** (tap
 **Group order**), from the **+** button (**Start a group order**), or from any
-open menu (tap **Group order** at the top). If the place has more than one menu,
+open menu (tap **Start a group order** at the foot of **Help me order**). If the place has more than one menu,
 you pick which menus to include - all of them by default - so your group can
 order across several at once (say pasta and pizza in one list); a place with a
 single menu jumps straight in.
@@ -16436,6 +16436,9 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             </div>
           )}
           {askErr && <div className="ask-err">{askErr}</div>}
+          {cfg && menu && menu.menu_id ? (
+            <GroupOrderButton cfg={cfg} menu={menu} restaurantName={restaurant ? restaurant.name : ""} variant="line" />
+          ) : null}
         </div>
 
         {/* ---- explain the menu (AI) ---- */}
@@ -16530,7 +16533,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           )}
         </div>
 
-        <MenuView menu={menu} cfg={cfg}
+        <MenuView menu={menu} cfg={cfg} noGroupOrder
           restaurantName={restaurant ? restaurant.name : ""}
           cuisine={restaurant ? restaurant.cuisine : ""}
           dishPhotos={dishPhotos}
@@ -16565,7 +16568,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx}){
+function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx}){
   // Show in $ (2026-10-15): "" when the switch is off or a price is unclear.
   const fxOf = p => (fx ? fxPriceText(p, fx) : "");
   // Per-section split (2026-10-07): {si, name} while that section's panel is open.
@@ -16705,7 +16708,7 @@ function MenuView({menu, cfg, restaurantName, cuisine, dishPhotos, onSaveItemNut
         <input ref={itemPhotoRef} type="file" accept="image/*"
           style={{display:"none"}} onChange={onItemPhotoPicked} />
       )}
-      {cfg && menu && menu.menu_id ? (
+      {cfg && menu && menu.menu_id && !noGroupOrder ? (
         <GroupOrderButton cfg={cfg} menu={menu} restaurantName={restaurantName} />
       ) : null}
       <div style={{position:"relative", margin:"4px 0 6px"}}>
@@ -24845,7 +24848,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             <div className="big" style={{marginTop:16}}>{phase === "sending" ? "Sending the photos" : "Reading the menu"}</div>
             <div>{phase === "sending"
               ? "This takes a few seconds."
-              : "This usually takes a minute or two. A big menu with lots of items or photos takes longer; a short one is quick."}</div>
+              : "This usually takes a minute or two. A big menu with lots of items or photos takes longer, and a short one is quick."}</div>
             {phase === "reading" ? (
               /* The instructions Chris asked for: you can go, and how you will
                  hear that it is done. */
@@ -26913,7 +26916,7 @@ function ActiveGroupOrders({cfg}){
 
 // Self-contained host launcher: a button that owns its own overlay, so it can
 // drop into any menu view without threading overlay state through the app.
-function GroupOrderButton({cfg, menu, restaurantName}){
+function GroupOrderButton({cfg, menu, restaurantName, variant}){
   const [show, setShow] = useState(false);
   const [resume, setResume] = useState(null);   // an open order already running here
   // Starting a second order for a place that already has one live is a quiet
@@ -26934,6 +26937,28 @@ function GroupOrderButton({cfg, menu, restaurantName}){
     // eslint-disable-next-line
   }, [restaurantName]);
   const n = resume && (resume.pick_count || resume.picks || 0);
+  // The quiet form, at the foot of Help me order (2026-10-18, Chris: the
+  // stand-alone button "looks a little out of place"; he chose this spot by
+  // card). Ordering for a table belongs beside ordering for yourself.
+  if (variant === "line"){
+    return (
+      <>
+        <div style={{borderTop:"1px solid var(--line-soft)", marginTop:14, paddingTop:11}}>
+          <button type="button" onClick={()=> setShow(true)}
+            style={{background:"none", border:0, padding:0, cursor:"pointer", color:"var(--text-dim)",
+                    font:"inherit", fontSize:13.5, display:"inline-flex", alignItems:"center", gap:7, textAlign:"left"}}>
+            <Icon name="nodes" size={14} color="var(--accent)" />
+            {resume
+              ? <span><span style={{color:"var(--accent)", fontWeight:600}}>Resume your group order</span>{n ? "  \u00b7  " + n + " in" : ""}</span>
+              : <span>Ordering together? <span style={{color:"var(--accent)", fontWeight:600}}>Start a group order</span></span>}
+          </button>
+        </div>
+        {show ? <GroupOrderHost cfg={cfg} menu={menu} restaurantName={restaurantName}
+                  resumeCode={resume ? resume.code : undefined}
+                  onClose={()=> setShow(false)} /> : null}
+      </>
+    );
+  }
   return (
     <>
       <button className="btn ghost sm" onClick={()=> setShow(true)}

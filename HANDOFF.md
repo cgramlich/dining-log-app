@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.561.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.561.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.562.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.150.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.562.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,29 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Group order inside Help me order; the menu reader stays on the right branch (2026-10-18, app 1.562.0, backend 0.150.0)
+
+**Group order.** Chris: the stand-alone Group order button between Explain the menu and the search
+box "looks a little out of place". He chose (by card) a quiet line at the foot of the Help me order
+card: "Ordering together? Start a group order" (or "Resume your group order · N in"), the
+`variant="line"` form of `GroupOrderButton`. MenuDetail passes `noGroupOrder` to MenuView so the old
+button no longer shows there; other MenuView uses are unchanged. Guide updated. Playwright: on 1.561.0
+no line and a stray button; on 1.562.0 the line is in the card, the button is gone, and it opens the
+host.
+
+**Wrong-branch menus (backend 0.150.0).** Chris added Estiatorio Milos Miami from its menu page and
+found eleven desserts that are on no Miami menu. Server log: three times the thin-page step
+followed `/location/miami/menu/ -> /location/montreal/menu` (Milos prints no prices, so the page
+looked thin, and the location picker offered Montreal as the best menu link). "CHESSE CAKE", the
+typo in his menu, is only on Montreal's page. New `_is_other_branch(base, cand)` drops same-site
+links that differ from the current page at an inner path segment (a location), inside
+`_find_menu_candidates`, so every follow step obeys it. Proved on the saved Milos page: 0.149.0 would
+follow Montreal, 0.150.0 follows nothing and reads Miami's own page. Seven rule cases pass
+(/restaurant/about -> /restaurant/menu and /menus/dinner -> /menus/lunch still followed). Chris's
+Milos menus added on 2026-10-18 hold Montreal's dishes and need re-adding.
+
+The menu-reading screen's line lost its semicolon (Chris: no semicolons).
 
 ### Every newsletter issue, from a row on You (2026-10-18, app 1.561.0)
 

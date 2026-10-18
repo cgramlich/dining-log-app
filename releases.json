@@ -263,5 +263,13 @@
     "email_notes": "updated: email foot links to every issue; New at the Table section planned from Oct 22",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows, BRIEFING, Log"
+  },
+  "1.562.0": {
+    "what": "Group order inside Help me order; menu reader never jumps to another branch (backend 0.150.0)",
+    "guide": "updated: Group order paragraph says where to start one on a menu",
+    "promo": "n/a: placement only; the Group order card is unchanged; inventory reviewed",
+    "email_notes": "n/a: a placement change and a server fix, not newsletter news",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
   }
 }
