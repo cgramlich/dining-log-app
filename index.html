@@ -508,6 +508,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .ovhead .x{font-size:15px; color:var(--text-dim); padding:6px 4px; font-weight:600;}
     /* Chat, Settings and Home together at the right of a page's top bar (1.563.0). */
     .nav-cluster{display:flex; align-items:center; gap:4px; flex:none;}
+    /* The owner's "issue ready" card on Home (1.565.0): the newsletter's gold. */
+    .card.issue-ready{border:1px solid rgba(201,160,106,0.55); background:rgba(201,160,106,0.07);}
+    .issue-ready-over{font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#C9A06A; font-weight:500;}
+    .issue-ready-title{font-family:'Fraunces',serif; font-size:19px; font-weight:600; margin-top:3px; color:var(--text);}
     /* A top bar in two rows (1.563.0), on the place page and the menu page: the
        page's own actions and chat + Settings on the first row with Back, the
        name large and full width beneath, so a long name is no longer cut short. */
@@ -1280,7 +1284,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.564.0";
+const APP_VERSION   = "1.565.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -9082,7 +9086,8 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
    wizard - the finding/searching work lives one tap deeper in FindPlaceView.
    ============================================================ */
 function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, onChat, chatDot,
-                    onScanMenu, onAtRestaurant, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs }){
+                    onScanMenu, onAtRestaurant, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs,
+                    newsTick, onReadIssue, onSendIssue }){
   const [showAllVisits, setShowAllVisits] = useState(false);   // Recent visits: 3, then expand
   // Recently ADDED: newest saves to your collection (by added_date). Kept
   // deliberately distinct from Recent visits below - this is "new to my list",
@@ -9165,6 +9170,8 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
           </button>
         </div>
       </div>
+
+      {onSendIssue ? <IssueReadyCard cfg={cfg} tick={newsTick} onRead={onReadIssue} onSend={onSendIssue} /> : null}
 
       {/* Two doors. "Already at the restaurant?" (the "I'm here now" moment)
           leads; "Looking for somewhere to eat?" opens FindPlaceView (by-name
@@ -9381,6 +9388,7 @@ function App({openShare}){
 
   // ui
   const [tab, setTab]         = useState(getDefaultTab);
+  const [newsTick, setNewsTick] = useState(0);   // the owner's "issue ready" card asks again after a send
   const [a2hsDismissed, setA2hsDismissed] = useState(()=>{ try { return localStorage.getItem("mc_a2hs_dismissed") === "1"; } catch(e){ return false; } });
   const [overlay, setOverlay] = useState(null);            // {type, ...}
   // A share link this device can open in-app (see the router at the bottom).
@@ -10922,7 +10930,10 @@ function App({openShare}){
             onFindPlace={()=> setOverlay({ type:"findPlace" })}
             onOpenSettings={()=> setTab("settings")}
             onShareApp={shareApp}
-            onBrowseAll={()=> setTab("restaurants")} />
+            onBrowseAll={()=> setTab("restaurants")}
+            newsTick={newsTick}
+            onReadIssue={(issue)=> setOverlay({ type:"newsArchive", url: NEWS_SITE + "/news/" + issue + ".html" })}
+            onSendIssue={isOwner(config) ? (()=> setOverlay({ type:"newsSend" })) : null} />
         )}
         {tab === "history" && (
           <>
@@ -12178,7 +12189,19 @@ function App({openShare}){
       )}
 
       {overlay && overlay.type === "newsArchive" && (
-        <NewsArchiveView onBack={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
+        <NewsArchiveView url={overlay.url} onBack={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
+      )}
+      {/* Send this week's issue, from the owner's Home card (1.565.0): the same
+          Update email card as Settings, so there is one way to send. */}
+      {overlay && overlay.type === "newsSend" && (
+        <div className="overlay">
+          <div className="ovhead">
+            <BackBtn onClick={()=>{ setOverlay(null); setNewsTick(t => t + 1); }} />
+            <h2>Send this week&rsquo;s issue</h2>
+            <span style={{width:34}} />
+          </div>
+          <div className="ovbody"><UpdateEmailCard config={config} /></div>
+        </div>
       )}
       {overlay && overlay.type === "collections" && (
         <CollectionsListView collections={collections} visits={visits} cfg={config}
@@ -13065,7 +13088,8 @@ function CollectionsStrip({ collections, visits, cfg, onOpen, onNew }){
 // keeping a second copy of every issue in the app. An absolute address, so the
 // phone apps, whose own files do not include news/, show the same page.
 const NEWS_ARCHIVE_URL = "https://menucaptain.com/news/";
-function NewsArchiveView({ onBack, onHome }){
+const NEWS_SITE = "https://menucaptain.com";
+function NewsArchiveView({ onBack, onHome, url }){
   return (
     <div className="overlay">
       <div className="ovhead">
@@ -13073,7 +13097,7 @@ function NewsArchiveView({ onBack, onHome }){
         <h2>From the Captain&rsquo;s Table</h2><HomeBtn onHome={onHome} />
       </div>
       <div className="ovbody" style={{padding:0, display:"flex", flexDirection:"column"}}>
-        <iframe title="Every issue of From the Captain's Table" src={NEWS_ARCHIVE_URL}
+        <iframe title="Every issue of From the Captain's Table" src={url || NEWS_ARCHIVE_URL}
           style={{flex:1, width:"100%", minHeight:"calc(100vh - 70px)", border:0, background:"#f3eee6"}} />
       </div>
     </div>
@@ -33739,6 +33763,53 @@ function UpdateEmailCard({ config }){
         </div>
       ) : null}
       {msg ? <div className="small" style={{marginTop:10, lineHeight:1.5}}>{msg}</div> : null}
+    </div>
+  );
+}
+
+/* "This week's issue is ready" (1.565.0, Chris chose by card, 2026-10-18:
+   "how do I know when a newsletter ... is ready to go out every week"). Owner
+   only, at the top of Home, while the newest PUBLISHED issue (news/latest.txt)
+   has not been sent. An issue is published only after Chris approves its
+   draft, so this card means "approved, waiting for your tap". It asks the
+   server once per app open (mode "status": one row, no list of people) and
+   goes away once the issue is sent; the server keeps that in news_sends
+   (0.152.0), so a deploy can't bring it back. Says nothing on any failure:
+   Settings, Update email still works. The draft itself reaches Chris's Gmail
+   from the Wednesday drafting task, not from here. */
+function IssueReadyCard({ cfg, tick, onRead, onSend }){
+  const [st, setSt] = useState(null);   // {issue, subject} while waiting to be sent
+  useEffect(()=>{
+    if (!isOwner(cfg)) return;
+    let alive = true;
+    (async ()=>{
+      try {
+        const t = await fetch(NEWS_SITE + "/news/latest.txt?v=" + Date.now()).then(r => r.ok ? r.text() : "");
+        const issue = String(t || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(issue)) return;
+        const res = await fetch(apiBase(cfg) + "/api/admin/updates/send", {
+          method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+          body: JSON.stringify({ issue: issue, mode: "status" }),
+        });
+        const d = await res.json().catch(()=> null);
+        if (!alive) return;
+        setSt(res.ok && d && d.already_sent === false ? { issue: issue, subject: d.subject || "" } : null);
+      } catch(e){ /* quiet: Settings still has the card */ }
+    })();
+    return ()=>{ alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg && cfg.userId, tick]);
+  if (!st) return null;
+  return (
+    <div className="card issue-ready" style={{marginBottom:12}}>
+      <div className="issue-ready-over">From the Captain&rsquo;s Table</div>
+      <div className="issue-ready-title">This week&rsquo;s issue is ready to send</div>
+      {st.subject ? <div className="small muted" style={{marginTop:3}}>{"\u201c" + st.subject + "\u201d"}</div> : null}
+      <div className="row" style={{gap:8, marginTop:12}}>
+        <button className="btn ghost sm" onClick={()=> onRead(st.issue)}>Read it</button>
+        <button className="btn primary sm" onClick={()=> onSend(st.issue)}>Send it</button>
+      </div>
+      <div className="tiny faint" style={{marginTop:9}}>Only you see this. It goes away once the issue is sent.</div>
     </div>
   );
 }

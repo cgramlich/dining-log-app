@@ -287,5 +287,13 @@
     "email_notes": "updated: next-issue-notes line for link menus marked shipped",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
+  },
+  "1.565.0": {
+    "what": "Owner's Home card when this week's newsletter is ready to send; a sent issue stays sent through deploys (backend 0.152.0)",
+    "guide": "n/a: owner-only; nothing a member sees changes",
+    "promo": "n/a: owner-only; inventory reviewed, as-of bumped",
+    "email_notes": "n/a: not newsletter news (it is how the newsletter is sent); notes now say Sunday sends",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
   }
 }

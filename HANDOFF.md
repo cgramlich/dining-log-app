@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.564.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.151.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.564.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.565.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.152.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.565.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,44 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The weekly newsletter: drafted on a schedule, a Home card when it's ready, sent once for good (2026-10-18, app 1.565.0, backend 0.152.0)
+
+Chris: "how do I know when a newsletter/app update is ready to go out every week". Nothing told him:
+a draft reached his Gmail only when this session made one. He chose by card: **Sunday** sends (it had
+been Thursday), and **both** signals.
+
+**The rhythm.** Wednesday 8 AM Central a scheduled task on the PC (`menucaptain-weekly-draft` in the
+desktop app's Scheduled tasks; runs while the app is open, or at its next launch) drafts the coming
+Sunday's issue from the MenuCaptain Log and `next-issue-notes.md`, builds it with `make_update.py`
+(no `--publish`, so it writes only to `MenuCaptain Updates\out`) and emails "[Preview v1]" to Chris's
+Gmail. It never touches the three repos (single writer). Chris replies with changes or approval; this
+session revises, then publishes (`--publish`, commit, push) only after his yes. Once published, his
+Home shows the card; he taps Send it on Sunday.
+
+**Home card (`IssueReadyCard`).** Owner only, at the top of Home, while the newest published issue
+(`news/latest.txt`) is unsent: "From the Captain's Table / This week's issue is ready to send", the
+subject, **Read it** (opens that issue's web copy in `NewsArchiveView`, which now takes `url`) and
+**Send it** (overlay `newsSend` with the same `UpdateEmailCard` as Settings, so there is one way to
+send). Asks once per app open with mode "status"; Back from the send screen bumps `newsTick` and asks
+again. Silent on any failure. `NEWS_SITE` constant added.
+
+**Sent stays sent (backend 0.152.0).** `_news_sent_issues` was memory only, so every restart (every
+deploy) forgot what had gone out: the "already sent" guard could let an issue go twice. New table
+`news_sends` (issue primary key, started_at, finished_at, recipients, sent, failed; RLS on, no
+policies, revoked from anon and authenticated, granted to service_role; Chris approved by card).
+`_news_claim` inserts the row BEFORE the first email (a duplicate key means already sent); a send
+that dies part way keeps its row and is never repeated by itself; the tally is written at the end.
+Fail-safe: if the table can't be read or written, nothing is sent (503). Mode "status" reads one row
+and lists nobody. `count` reads `already_sent` from the table.
+
+Tests: `test_news_sends.py` (8, real endpoint code against a stand-in table: a send recorded, still
+sent after a restart, a second send refused after a restart, database down sends nothing, two sends
+at once) fails on 0.151.0 and passes on 0.152.0; `test_issue_card_ui.py` (6: card with subject, Read
+it, Send it, gone after sending, nobody else sees it or asks, quiet on server trouble) fails on 1.564.0.
+
+As of 2026-10-18 the first issue (2026-10-14, v9, live on menucaptain.com/news/ and identical to the
+approved build) has NOT been sent: the server log shows only the 10-14 preview.
 
 ### Menus from a link are read on the server, so you can leave (2026-10-18, app 1.564.0, backend 0.151.0)
 
