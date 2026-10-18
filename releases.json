@@ -271,5 +271,13 @@
     "email_notes": "n/a: a placement change and a server fix, not newsletter news",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
+  },
+  "1.563.0": {
+    "what": "Menu page says which menu you're on (overline, tabs, tools behind •••); chat + Settings on every page; Recent on Places; menu chips when moving sections; Send to everyone",
+    "guide": "updated: Getting around (icons on every page), Places (Recent), Menus (heading, tabs, •••, chips, Refresh/Rename/Delete paths)",
+    "promo": "n/a: no new feature card; inventory reviewed, as-of bumped",
+    "email_notes": "updated: next-issue-notes lists the menu page heading, Recent places, chips and icons on every page",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, native), Update email line, BRIEFING, Log"
   }
 }

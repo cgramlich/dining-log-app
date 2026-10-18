@@ -482,7 +482,46 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .title-btn .t{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
     .title-btn svg{flex:none;}
     .title-btn:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:4px;}
+    /* The menu page's heading (1.563.0): "MENU · place" above the menu's own name,
+       so the menu is the headline and the place its label. */
+    .mhead-stack{display:flex; flex-direction:column; min-width:0; flex:1;}
+    .mhead-over{font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--accent);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0 0 2px; font-weight:500;}
+    .mhead-over{white-space:normal;}
+    .mhead-more{background:none; border:none; color:var(--text-dim); font-size:20px; letter-spacing:1px;
+      padding:4px 6px; cursor:pointer; line-height:1;}
+    .mhead-more[aria-expanded="true"]{color:var(--accent);}
+    .menu-tabs{display:flex; gap:8px; overflow-x:auto; margin:0 -18px 10px; padding:0 18px 2px;
+      scrollbar-width:none;}
+    .menu-tabs::-webkit-scrollbar{display:none;}
+    .menu-tab{flex:none; border:1px solid var(--line); border-radius:999px; padding:7px 15px;
+      font:inherit; font-size:14px; color:var(--text-dim); background:none; cursor:pointer; white-space:nowrap;}
+    .menu-tab.on{background:var(--accent); border-color:var(--accent); color:#1b1714; font-weight:600; cursor:default;}
+    .menu-meta{display:flex; align-items:center; gap:10px; margin:0 2px 12px; min-height:28px;}
+    .menu-tools{border:1px solid var(--line-soft); border-radius:14px; background:var(--surface);
+      margin:0 0 12px; overflow:hidden;}
+    .menu-tool{display:flex; align-items:center; gap:12px; width:100%; padding:12px 14px; background:none;
+      border:none; border-top:1px solid var(--line-soft); color:var(--text); font:inherit; text-align:left; cursor:pointer;}
+    .menu-tool:first-child{border-top:none;}
+    .menu-tool .tsub{display:block; font-size:12.5px; color:var(--text-dim); margin-top:1px;}
+    .menu-tool.danger{color:#e7a99e;}
     .ovhead .x{font-size:15px; color:var(--text-dim); padding:6px 4px; font-weight:600;}
+    /* Chat, Settings and Home together at the right of a page's top bar (1.563.0). */
+    .nav-cluster{display:flex; align-items:center; gap:4px; flex:none;}
+    /* A top bar in two rows (1.563.0), on the place page and the menu page: the
+       page's own actions and chat + Settings on the first row with Back, the
+       name large and full width beneath, so a long name is no longer cut short. */
+    .ovhead.tworow{flex-wrap:wrap; row-gap:4px; padding-bottom:11px;}
+    .ovhead.tworow .tworow-acts{display:flex; align-items:center; gap:10px; margin-left:auto;}
+    .ovhead.tworow .nav-cluster{margin-left:6px; padding-left:10px; border-left:1px solid var(--line-soft);}
+    .ovhead.tworow h2.tworow-title{flex:0 0 100%; font-size:25px; line-height:1.15; margin:0 2px;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+    .ovhead.tworow .mhead-stack{flex:0 0 100%; padding:0 2px;}
+    .ovhead.tworow .mhead-stack h2.tworow-title{margin:0;}
+    .nav-cluster .x{position:relative; line-height:0;}
+    .nav-badge{position:absolute; top:0; right:-4px; min-width:15px; height:15px; padding:0 4px; border-radius:8px;
+      background:var(--danger); color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center;
+      justify-content:center; line-height:1;}
     .ovbody{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:18px;}
 
     /* ---- action sheet ---- */
@@ -1241,7 +1280,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.562.0";
+const APP_VERSION   = "1.563.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1975,7 +2014,9 @@ The one you are on is highlighted.
   happened last: a visit logged, from a friend by name, or added by you) and **Recent
   visits** (the meals you've logged). (Scanning is also on the **+** button and every
   place page.) **Settings** is behind the gear, top-right, beside the **chat bubble**
-  that reaches us. The flow runs find a place &rarr; open it and scan the menu / ask
+  that reaches us. Both are at the top of every page you browse, not only the main
+  tabs: a place, a menu, a collection, this guide. Closing a chat brings you back to
+  the page you were on. The flow runs find a place &rarr; open it and scan the menu / ask
   Help me order &rarr; log the visit. **Looking somewhere else?** On the find-a-place
   page a **City (optional)** box appears once you start typing. Leave it blank and
   the search leans on where you are now; type a city (say, Austin) and it searches
@@ -2003,6 +2044,11 @@ info, and which screen the app opens to (Startup).
 -----
 
 ## Places (your restaurants)
+
+**Recent places.** Once you have a few places, the top of **Places** shows the
+three with the latest activity (added, visited, or a menu added or changed,
+whichever happened last), then **Everything else** in the order you chose. Each
+place appears once. Recent steps aside while you search.
 
 **Adding a place.** Add a restaurant with its name, cuisine, city, address,
 phone, website, and any notes. You can mark it as a favorite and give it a
@@ -2109,6 +2155,13 @@ everything else stays your own private record.
 
 ## Menus
 
+**Knowing which menu you're on.** The top of a menu says **Menu** and the place's
+name in gold, with the menu's own name large beneath it. When the place has more
+than one menu they sit as tabs just below, the one you are on lit, and a tap
+switches. **Refresh**, **Rename**, **Split**, **Move into another menu**, **Share
+this menu** and **Delete this menu** are behind **•••** at the top right.
+**Translate** stays in view.
+
 **Scanning a menu.** Use "Scan or find a menu" and take or pick photos of the
 physical menu. The app reads it and turns it into a clean, digital menu -
 sections, dish names, descriptions, prices, and tags. A menu that needs several
@@ -2211,25 +2264,26 @@ photo**): you see the text it read before anything is saved.
 
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.
-Open the menu and tap **Split** to move sections into a menu of their own: tick
-the ones to move, name where they are going, and the rest stay put. To move just
-one section, tap the small split icon beside its heading; the new menu's name
-starts as the section's own. The same icon can remove a section you do not need
+Open the menu, tap **•••** and then **Split** to move sections out: tick
+the ones to move, then tap one of the place's other menus or name a new one, and
+the rest stay put. To move just one section, tap the small split icon beside its
+heading: tap one of the place's menus to send it there, or type a new name (it
+starts as the section's own). The same icon can remove a section you do not need
 - one that was scanned twice, say: tap **Delete this section instead**, and it
-asks once before it goes. To put a menu back, open it and tap **Move into**:
-pick the menu it should join, and all its sections move there and the empty
-menu is removed. Type the
-name of a menu you already have and they join it instead of starting a new one.
+asks once before it goes. To put a menu back, open it, tap **•••** and
+**Move into another menu**: pick the menu it should join, and all its sections
+move there and the empty menu is removed. Typing the name of a menu you already
+have does the same as tapping it.
 You cannot move every section out, because that would leave an empty menu - rename
 it instead.
 
 **Renaming a menu.** Tap the menu's name at the top of its page (the one with
-the small pencil beside it) and type a new one - **Dinner**, **Brunch**,
+the small pencil beside it), or **•••** and **Rename**, and type a new one - **Dinner**, **Brunch**,
 **Wine list**. Do it any time, not just right after you add it.
 
-**Re-scanning and deleting.** Open a menu and tap **Refresh** at the top to replace it
-with a fresh version - photograph it again or pull it from a link. It asks first, so a
-stray tap does nothing. You can delete a menu you no longer want from inside it too. Refreshing replaces the
+**Re-scanning and deleting.** Open a menu, tap **•••** at the top and then
+**Refresh** to replace it with a fresh version - photograph it again or pull it from a
+link. It asks first, so a stray tap does nothing. **Delete this menu** is there too. Refreshing replaces the
 old copy in place (no duplicate) and takes today's date, so any estimates saved
 on the old items are not carried over.
 
@@ -7912,12 +7966,41 @@ function BackBtn({ onClick }){
   );
 }
 
+/* Chat with us and Settings on every page you browse (2026-10-18, Chris: "we
+   should have access to the settings and chat support icons on every page").
+   The main tabs had them in their top bar since 2026-10-16; the pages opened
+   from them (a place, a menu, a collection, the guide) had only Back and Home.
+   The App hands the two actions down through NavCtx, so each page needs no new
+   props. Forms and editors (a visit, a place's details, a scan) have no Home
+   button and so get neither: a tap away there would lose what was typed. */
+const NavCtx = React.createContext(null);
+function NavIcons(){
+  const nav = React.useContext(NavCtx);
+  if (!nav) return null;
+  return (
+    <>
+      {nav.onChat ? (
+        <button type="button" className="x" onClick={nav.onChat} aria-label="Chat with us" title="Chat with us">
+          <Icon name="chat" size={19} />
+          {nav.chatDot ? <span className="chat-dot" aria-label="New message" /> : null}
+        </button>
+      ) : null}
+      <button type="button" className="x" onClick={nav.onSettings} aria-label="Settings" title="Settings">
+        <Icon name="gear" size={19} />
+        {nav.pendingReqs > 0 ? <span className="nav-badge">{nav.pendingReqs}</span> : null}
+      </button>
+    </>
+  );
+}
 function HomeBtn({ onHome }){
   if (!onHome) return <span style={{width:34}} />;
   return (
-    <button className="x" onClick={onHome} aria-label="Home" title="Home">
-      <Icon name="home" size={20} />
-    </button>
+    <span className="nav-cluster">
+      <NavIcons />
+      <button className="x" onClick={onHome} aria-label="Home" title="Home">
+        <Icon name="home" size={20} />
+      </button>
+    </span>
   );
 }
 
@@ -8786,6 +8869,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
       <div className="ovhead">
         <button className="x" onClick={onClose}>Back</button>
         <h2>Find a place</h2>
+        <span className="nav-cluster"><NavIcons /></span>
         <span style={{width:54}} />
       </div>
       <div className="ovbody">
@@ -9510,6 +9594,11 @@ function App({openShare}){
   function openChat(){
     if (supportOwner && supportOwner === config.userId) setOverlay({ type:"helpChats" });
     else setOverlay({ type:"support" });
+  }
+  // From a page (1.563.0): closing the chat returns to that page, not Home.
+  function openChatFrom(back){
+    const owner = supportOwner && supportOwner === config.userId;
+    setOverlay({ type: owner ? "helpChats" : "support", returnTo: back || null });
   }
   function refreshReplies(){
     if (!configComplete(config)) return;
@@ -10526,7 +10615,14 @@ function App({openShare}){
     }
   };
 
+  const navValue = {
+    onChat: configComplete(config) ? ()=> openChatFrom(overlay) : null,
+    chatDot: supportUnread > 0,
+    onSettings: ()=>{ setOverlay(null); setTab("settings"); },
+    pendingReqs: pendingReqs,
+  };
   return (
+    <NavCtx.Provider value={navValue}>
     <div id="app-shell">
       {/* Home owns its own header (wordmark + greeting + Settings gear), so the
           shared TopBar is hidden there to avoid a duplicate "MenuCaptain". */}
@@ -10777,7 +10873,7 @@ function App({openShare}){
           </>
         )}
         {tab === "restaurants" && (
-          <RestaurantsView restaurants={restaurants} visits={visits}
+          <RestaurantsView restaurants={restaurants} visits={visits} menus={menus}
             locations={locations}
             cfg={config}
             activeFilter={placesFilter}
@@ -11073,10 +11169,10 @@ function App({openShare}){
         <FeedbackForm cfg={config} onClose={()=> setOverlay(null)} />
       )}
       {overlay && overlay.type === "helpChats" && (
-        <HelpChats cfg={config} onClose={()=> setOverlay(null)} onChanged={refreshReplies} />
+        <HelpChats cfg={config} onClose={()=> setOverlay(overlay.returnTo || null)} onChanged={refreshReplies} />
       )}
       {overlay && overlay.type === "support" && (
-        <SupportChat cfg={config} onClose={()=>{ setOverlay(null); refreshReplies(); }} />
+        <SupportChat cfg={config} onClose={()=>{ setOverlay(overlay.returnTo || null); refreshReplies(); }} />
       )}
       {overlay && overlay.type === "atPlace" && (
         <AtRestaurantPicker
@@ -11408,6 +11504,8 @@ function App({openShare}){
           otherMenus={(menus[overlay.restaurantId] || [])
             .filter(m => m.menu_id !== overlay.menuId)
             .map(m => ({ id: m.menu_id, label: m.label }))}
+          menuTabs={(menus[overlay.restaurantId] || []).map(m => ({ id: m.menu_id, label: m.label }))}
+          onSwitchMenu={(id)=> setOverlay({ type:"menuDetail", restaurantId:overlay.restaurantId, menuId:id })}
           onMergeInto={(targetId)=>{
             // The way back after a split: every section joins the target, a saved
             // translation is merged (keyed by wording, so nothing collides), the
@@ -12053,6 +12151,7 @@ function App({openShare}){
         </div>
       )}
     </div>
+    </NavCtx.Provider>
   );
 }
 
@@ -12197,6 +12296,7 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit, onMerge }){
           <Icon name="back" size={20} />
         </button>
         <h2>{selPerson ? selPerson.name : "Dining companions"}</h2>
+        <span className="nav-cluster"><NavIcons /></span>
         <span style={{width:40}} />
       </div>
       <div className="ovbody">
@@ -13109,6 +13209,7 @@ function CollectionView({ cfg, collection, visits, restaurantById, onBack, onHom
       <div className="ovhead">
         <BackBtn onClick={onBack} />
         <h2 style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{c.name}</h2>
+        <span className="nav-cluster"><NavIcons /></span>
         {/* Edit sits where iPhone apps keep it: four buttons in the row below
             wrapped onto two lines at phone width. */}
         <button className="x" onClick={()=> setSheet("edit")}>Edit</button>
@@ -13820,7 +13921,7 @@ function PickerSheet({ title, options, value, onPick, onClose }){
   );
 }
 
-function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin, onCreateRestaurant, onDeleteRestaurant, onAddPlace, onScanMenu}){
+function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilter, onFilterChange, onOpenMap, onPublishList, onOpenMyLists, savedListCount, onOpen, onNearMe, onSpin, onCreateRestaurant, onDeleteRestaurant, onAddPlace, onScanMenu}){
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState("alpha");
   // Its own control, and it overrides sortBy while set: "any" | "newest" | "oldest".
@@ -14016,6 +14117,39 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
     dateOrder === "oldest" ? [...searched].sort(byAdded(1)) :
     sortBy === "rating" ? [...searched].sort((a,b)=> (avgRating(b.id) - avgRating(a.id)) || byName(a,b)) :
                           [...searched].sort(byName);  // "alpha"
+
+  // Recent (2026-10-18, Chris chose by card: "Latest activity", "list them
+  // once"): the three places with the latest activity, whichever came last of
+  // being added, a visit, or a menu added or changed. They sit above the list
+  // in whatever order is chosen and are left out of it below, so no place shows
+  // twice. Not while searching (the matches are the answer then), not under
+  // Loved (that list is only the hearts), and not until there are enough places
+  // for a top three to need a heading. Filters still apply.
+  const recent = (function(){
+    if (q || (sortBy === "fav" && dateOrder === "any") || searched.length < 7) return [];
+    const lastVisit = {};
+    (visits || []).forEach(v => {
+      if (!v || !v.restaurant_id) return;
+      const x = String(v.date || "").slice(0, 10);
+      if (x > (lastVisit[v.restaurant_id] || "")) lastVisit[v.restaurant_id] = x;
+    });
+    const activity = (r)=> {
+      let d = String(r.added_date || "").slice(0, 10);
+      if ((lastVisit[r.id] || "") > d) d = lastVisit[r.id];
+      ((menus || {})[r.id] || []).forEach(m => {
+        const x = String((m && (m.last_updated || m.captured_date)) || "").slice(0, 10);
+        if (x > d) d = x;
+      });
+      return d;
+    };
+    return searched.map(r => ({ r: r, d: activity(r) }))
+      .filter(o => o.d)
+      .sort((a, b)=> b.d.localeCompare(a.d)
+        || String(b.r.added_date || "").localeCompare(String(a.r.added_date || ""))
+        || byName(a.r, b.r))
+      .slice(0, 3).map(o => o.r);
+  })();
+  const recentIds = new Set(recent.map(r => r.id));
 
   const Card = (r)=> {
     const inner = (
@@ -14279,7 +14413,14 @@ function RestaurantsView({restaurants, visits, locations, cfg, activeFilter, onF
                 <div>Tap the heart on a place to add it here.</div>
               </div>
             ) : null)
-      ) : ordered.map(Card)}
+      ) : (recent.length ? (
+        <>
+          <div className="home-section" style={{margin:"4px 4px 10px"}}>Recent</div>
+          {recent.map(Card)}
+          <div className="home-section">Everything else</div>
+          {ordered.filter(r => !recentIds.has(r.id)).map(Card)}
+        </>
+      ) : ordered.map(Card))}
     </div>
   );
 }
@@ -14928,29 +15069,36 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
 
   return (
     <div className="overlay">
-      <div className="ovhead">
+      {/* Two rows (2026-10-18, Chris chose by card when chat and Settings joined
+          every page): the place's own actions, then chat and Settings, on the
+          top row with Back; the name large and full width beneath. In one row
+          the four actions already squeezed a long name to a few letters. */}
+      <div className="ovhead tworow">
         <BackBtn onClick={onClose} />
-        <h2>{r.name}</h2>
-        {onEdit ? (
-          <button className="x" onClick={onEdit} aria-label="Edit place" title="Edit place">
-            <Icon name="edit" size={19} color="#b3a591" />
+        <span className="tworow-acts">
+          <button className="x" onClick={onToggleFav} aria-label={r.favorite ? "Loved" : "Mark as loved"}>
+            <span style={{fontSize:23, lineHeight:1, color: r.favorite ? "#d64961" : "#80715f"}}>
+              {r.favorite ? "♥" : "♡"}
+            </span>
           </button>
-        ) : null}
-        <button className="x" onClick={()=> setShareSheet("main")} aria-label="Share" title="Share">
-          {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
-        </button>
-        {onToggleWishlist ? (
-          <button className="x" onClick={()=> onToggleWishlist(r)}
-            aria-label={r.wishlist ? "On your Want to try list" : "Add to Want to try"}
-            title={r.wishlist ? "On your Want to try list" : "Want to try"}>
-            <Icon name="book" size={19} color={r.wishlist ? "var(--accent)" : "#80715f"} />
+          {onToggleWishlist ? (
+            <button className="x" onClick={()=> onToggleWishlist(r)}
+              aria-label={r.wishlist ? "On your Want to try list" : "Add to Want to try"}
+              title={r.wishlist ? "On your Want to try list" : "Want to try"}>
+              <Icon name="book" size={19} color={r.wishlist ? "var(--accent)" : "#80715f"} />
+            </button>
+          ) : null}
+          <button className="x" onClick={()=> setShareSheet("main")} aria-label="Share" title="Share">
+            {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
           </button>
-        ) : null}
-        <button className="x" onClick={onToggleFav} aria-label={r.favorite ? "Loved" : "Mark as loved"}>
-          <span style={{fontSize:23, lineHeight:1, color: r.favorite ? "#d64961" : "#80715f"}}>
-            {r.favorite ? "♥" : "♡"}
-          </span>
-        </button>
+          {onEdit ? (
+            <button className="x" onClick={onEdit} aria-label="Edit place" title="Edit place">
+              <Icon name="edit" size={19} color="#b3a591" />
+            </button>
+          ) : null}
+        </span>
+        <span className="nav-cluster"><NavIcons /></span>
+        <h2 className="tworow-title">{r.name}</h2>
       </div>
       <div className="ovbody">
         {r.photo && cfg && (
@@ -15911,7 +16059,11 @@ function DishLookRow({ cfg, item, realPhotos, cuisine }){
   );
 }
 
-function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onDeleteSection, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome}){
+function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onDeleteSection, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome, menuTabs, onSwitchMenu}){
+  // ••• (1.563.0): the menu's tools, opened on demand. They are things done now
+  // and then, not on every visit, and six buttons in a row sat between the
+  // menu's name and the menu itself.
+  const [toolsOpen, setToolsOpen] = useState(false);
   // Move into another menu (2026-10-07): the way back after a split.
   const [merging, setMerging]   = useState(false);
   const [mergeTo, setMergeTo]   = useState(null);
@@ -16107,39 +16259,99 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   }
   return (
     <div className="overlay">
-      <div className="ovhead">
+      <div className="ovhead tworow">
         <BackBtn onClick={onClose} />
-        {/* The name IS the rename control (2026-10-03): a pencil in the action row
-            went unfound, because a bare pencil reads as "edit the dishes". */}
-        <h2 style={{minWidth:0}}>
-          {onRenameMenu ? (
-            <button className="title-btn" aria-expanded={renaming}
-              aria-label={"Rename this menu, now called " + (menu.label || "Menu")}
-              onClick={()=>{ setRenameText(menu.label || ""); setRenaming(r => !r); setSplitting(false); }}>
-              <span className="t">{menu.label || "Menu"}</span>
-              <Icon name="edit" size={15} color={renaming ? "var(--accent)" : "var(--text-dim)"} />
-            </button>
-          ) : (menu.label || "Menu")}
-        </h2>
+        <span className="tworow-acts">
+          <button type="button" className="mhead-more" aria-label="Menu options" aria-expanded={toolsOpen}
+            onClick={()=> setToolsOpen(o => !o)}>{"\u2022\u2022\u2022"}</button>
+        </span>
         <HomeBtn onHome={onHome} />
+        {/* Where you are (2026-10-18, Chris: "I still get confused that I'm on a
+            menu"; he chose this by card). "MENU · place" above the menu's own
+            name, so the menu is the headline and the place its label. On
+            2026-10-03 he had picked a place card over a line like this; with the
+            menu's name large and the tabs below, the line now does the job and
+            the card goes. Beneath the icons, full width, like the place page
+            (also 2026-10-18), so neither name is cut short. The name is still
+            the rename control. */}
+        <div className="mhead-stack">
+          <div className="mhead-over">Menu{restaurant && restaurant.name ? " \u00b7 " + restaurant.name : ""}</div>
+          <h2 className="mhead-title tworow-title" style={{minWidth:0}}>
+            {onRenameMenu ? (
+              <button className="title-btn" aria-expanded={renaming}
+                aria-label={"Rename this menu, now called " + (menu.label || "Menu")}
+                onClick={()=>{ setRenameText(menu.label || ""); setRenaming(r => !r); setSplitting(false); setToolsOpen(false); }}>
+                <span className="t">{menuDisplayLabel(menu.label || "Menu")}</span>
+                <Icon name="edit" size={14} color={renaming ? "var(--accent)" : "var(--text-dim)"} />
+              </button>
+            ) : menuDisplayLabel(menu.label || "Menu")}
+          </h2>
+        </div>
       </div>
       <div className="ovbody">
-        {/* Mini header (2026-10-03): the place and the date in the same tinted
-            card as the menu rows on the place page, so arriving here looks like
-            opening the card you tapped. Chris picked this over an eyebrow in the
-            top bar. */}
-        <div className="menu-head">
-          <span className="menu-row-ic" style={{marginRight:0}}>
-            <Icon name="book" size={17} color="var(--accent)" />
-          </span>
-          <div style={{minWidth:0, flex:1}}>
-            {restaurant && restaurant.name ? (
-              <div className="menu-head-place">{restaurant.name}</div>
+        {/* The place's menus as tabs (1.563.0), the one you are on lit, so the
+            page says which menu this is and the others are one tap away. Only
+            when there is more than one. */}
+        {(menuTabs || []).length > 1 && onSwitchMenu ? (
+          <div className="menu-tabs" role="tablist" aria-label="This place's menus">
+            {menuTabs.map(t => {
+              const on = t.id === menu.menu_id;
+              return (
+                <button key={t.id} type="button" role="tab" aria-selected={on}
+                  className={"menu-tab" + (on ? " on" : "")}
+                  onClick={()=>{ if (!on){ setToolsOpen(false); onSwitchMenu(t.id); } }}>
+                  {menuDisplayLabel(t.label || "Menu")}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        {toolsOpen ? (
+          <div className="menu-tools">
+            <button type="button" className="menu-tool" disabled={sharing}
+              onClick={()=>{ setToolsOpen(false); publishAndShareMenu(cfg, restaurant, menu, setSharing, setShareErr); }}>
+              {sharing ? <span className="spin" /> : <Icon name="share" size={17} color="var(--accent)" />}
+              <span>Share this menu<span className="tsub">Send it to a friend</span></span>
+            </button>
+            <button type="button" className="menu-tool"
+              onClick={()=>{ setToolsOpen(false); setConfirmRefresh(true); }}>
+              <Icon name="refresh" size={17} color="var(--accent)" />
+              <span>Refresh<span className="tsub">Replace it with new photos or a link</span></span>
+            </button>
+            {onRenameMenu ? (
+              <button type="button" className="menu-tool"
+                onClick={()=>{ setToolsOpen(false); setRenameText(menu.label || ""); setRenaming(true); setSplitting(false); }}>
+                <Icon name="edit" size={17} color="var(--accent)" />
+                <span>Rename<span className="tsub">Change what this menu is called</span></span>
+              </button>
             ) : null}
-            <div className="tiny faint">
-              Captured {fmtDate(menu.captured_date)}
-              {menu.source === "seed" ? " (starter data)" : ""}
-            </div>
+            {onSplitMenu && (menu.sections || []).length > 1 ? (
+              <button type="button" className="menu-tool"
+                onClick={()=>{ setToolsOpen(false); setSplitPick({}); setSplitText(""); setSplitTried(false);
+                               setSplitting(true); setRenaming(false); }}>
+                <Icon name="split" size={17} color="var(--accent)" />
+                <span>Split<span className="tsub">Move sections into a menu of their own</span></span>
+              </button>
+            ) : null}
+            {onMergeInto && (otherMenus || []).length > 0 ? (
+              <button type="button" className="menu-tool"
+                onClick={()=>{ setToolsOpen(false); setMergeTo((otherMenus.length === 1) ? otherMenus[0].id : null);
+                               setMerging(true); setSplitting(false); setRenaming(false); }}>
+                <Icon name="merge" size={17} color="var(--accent)" />
+                <span>Move into another menu<span className="tsub">Join this menu to another of this place's menus</span></span>
+              </button>
+            ) : null}
+            <button type="button" className="menu-tool danger"
+              onClick={()=>{ setToolsOpen(false); setConfirmDel(true); }}>
+              <Icon name="trash" size={17} color="#d9604e" />
+              <span>Delete this menu</span>
+            </button>
+          </div>
+        ) : null}
+        <div className="menu-meta">
+          <div className="tiny faint" style={{flex:1, minWidth:0}}>
+            Captured {fmtDate(menu.captured_date)}
+            {menu.source === "seed" ? " (starter data)" : ""}
           </div>
           {/* Show English lives here, the first thing on screen (2026-10-07):
               lower down it went unfound. Only on menus in another language. */}
@@ -16196,55 +16408,8 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           </div>
         ) : null}
 
-        {/* action row: share, refresh, split, delete. Rename lives on the title. */}
-        <div className="row" style={{gap:6, flexWrap:"wrap", marginBottom:10}}>
-            <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-              onClick={()=> publishAndShareMenu(cfg, restaurant, menu, setSharing, setShareErr)}
-              disabled={sharing} title="Share this menu">
-              {sharing ? <span className="spin" /> : <Icon name="share" size={15} />}
-            </button>
-            <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-              onClick={()=> setConfirmRefresh(c => !c)} aria-expanded={confirmRefresh}
-              title="Refresh this menu (re-photograph or pull from a link)">
-              <span className="row" style={{gap:5, alignItems:"center"}}>
-                <Icon name="refresh" size={15} color="var(--accent)" />Refresh</span>
-            </button>
-            {/* Only offered when there is something to split: one section cannot
-                leave a menu without emptying it. */}
-            {onSplitMenu && (menu.sections || []).length > 1 && (
-              <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-                onClick={()=>{ setSplitPick({}); setSplitText(""); setSplitTried(false);
-                               setSplitting(v => !v); setRenaming(false); }}
-                title="Move sections into their own menu">
-                <span className="row" style={{gap:5, alignItems:"center"}}>
-                  <Icon name="split" size={15} />Split</span>
-              </button>
-            )}
-            {onMergeInto && (otherMenus || []).length > 0 && (
-              <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-                onClick={()=>{ setMergeTo((otherMenus.length === 1) ? otherMenus[0].id : null);
-                               setMerging(v => !v); setSplitting(false); setRenaming(false); }}
-                title="Move this menu's sections into another menu">
-                <span className="row" style={{gap:5, alignItems:"center"}}>
-                  <Icon name="merge" size={15} />Move into</span>
-              </button>
-            )}
-            {onSplitMenu && (menu.sections || []).length > 1 && (
-              <InfoDot title="Split a menu">
-                <span className="idl">Moves sections into a menu of their own - handy when one link
-                  brought in dinner, drinks and brunch as a single menu.</span>
-                <span className="idl">Tap Split to move several at once, or the split icon beside any
-                  section to move just that one.</span>
-                <span className="idl">Name a menu you already have and the sections join it.</span>
-              </InfoDot>
-            )}
-            <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
-              onClick={()=> setConfirmDel(c => !c)} title="Delete this menu">
-              <Icon name="trash" size={15}
-                color={confirmDel ? "#d9604e" : "#80715f"} />
-            </button>
-        </div>
-
+        {/* The action row that sat here (share, refresh, split, move into, delete)
+            moved behind ••• in the heading (1.563.0). */}
         {merging && (otherMenus || []).length > 0 && (
           <div className="card" style={{marginBottom:10}}>
             <div className="small" style={{fontWeight:600, marginBottom:4}}>Move {menuDisplayLabel(menu.label || "Menu")} into</div>
@@ -16274,8 +16439,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             <div className="row" style={{gap:6, alignItems:"center", marginBottom:8}}>
               <span className="small" style={{fontWeight:600}}>Move sections out</span>
               <InfoDot title="Move sections out">
-                <span className="idl">Tick the sections to move, then name the menu they go to.</span>
-                <span className="idl">Type the name of a menu you already have and they join it.</span>
+                <span className="idl">Tick the sections to move, then tap one of this place's menus or name a new one.</span>
                 <span className="idl">What you leave unticked stays here, so you cannot empty this menu.</span>
               </InfoDot>
             </div>
@@ -16289,6 +16453,14 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
                 </label>
               ))}
             </div>
+            {(otherMenus || []).length ? (
+              <>
+                <div className="tiny faint" style={{marginBottom:7}}>Move them to:</div>
+                <MenuTargetChips names={(otherMenus || []).map(o => o.label)} value={splitText}
+                  onPick={nm => setSplitText(nm)} />
+                <div className="tiny faint" style={{marginBottom:6}}>or a new menu called:</div>
+              </>
+            ) : null}
             <ClearInput value={splitText}
               placeholder="New menu name (e.g. Drinks, Brunch)"
               onChange={e=> setSplitText(e.target.value)} />
@@ -16546,6 +16718,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
           fx={fx}
           onSplitSection={onSplitMenu && (menu.sections || []).length > 1
             ? (si, name)=> onSplitMenu([si], name) : null}
+          moveTargets={(otherMenus || []).map(o => o.label).filter(Boolean)}
           onDeleteSection={onDeleteSection && (menu.sections || []).length > 1 ? onDeleteSection : null}
           onHadThis={onHadThis}
           hadToday={(function(){
@@ -16568,7 +16741,35 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
-function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx}){
+/* This place's other menus as chips, when moving sections (2026-10-18, Chris:
+   "do we want to have a drop down here for existing menus, plus be able to
+   type"). A tap fills the name box with that menu's name, and a name that
+   matches an existing menu already joins it (splitMenuSections), so the chips
+   are a shortcut, not a second mechanism. Typing a new name still makes a new
+   menu. Chips, not a dropdown: a place has a handful of menus, and the scan
+   review names menus the same way. */
+function MenuTargetChips({names, value, onPick}){
+  const list = (names || []).filter(Boolean);
+  if (!list.length) return null;
+  const cur = String(value || "").trim().toLowerCase();
+  return (
+    <div className="chips" style={{gap:6, margin:"0 0 9px"}} role="group" aria-label="This place's menus">
+      {list.map(nm => {
+        const on = nm.trim().toLowerCase() === cur;
+        return (
+          <button key={nm} type="button" className={"chip pick" + (on ? " on" : "")} aria-pressed={on}
+            onClick={()=> onPick(nm)}>{menuDisplayLabel(nm)}</button>
+        );
+      })}
+    </div>
+  );
+}
+function moveTargetMatch(names, value){
+  const cur = String(value || "").trim().toLowerCase();
+  return cur ? ((names || []).find(nm => String(nm || "").trim().toLowerCase() === cur) || "") : "";
+}
+
+function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx, moveTargets}){
   // Show in $ (2026-10-15): "" when the switch is off or a price is unclear.
   const fxOf = p => (fx ? fxPriceText(p, fx) : "");
   // Per-section split (2026-10-07): {si, name} while that section's panel is open.
@@ -16775,16 +16976,27 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
           </div>
           {secSplit && secSplit.si === i ? (
             <div className="card" style={{margin:"4px 0 10px", padding:"11px 13px"}}>
-              <div className="small" style={{marginBottom:8}}>
-                Move <strong>{sectionHeading(s.name) || "this section"}</strong> into its own menu, called:</div>
+              {(moveTargets || []).length ? (
+                <>
+                  <div className="small" style={{marginBottom:8}}>
+                    Move <strong>{sectionHeading(s.name) || "this section"}</strong> to:</div>
+                  <MenuTargetChips names={moveTargets} value={secSplit.name}
+                    onPick={nm => setSecSplit(Object.assign({}, secSplit, { name: nm }))} />
+                  <div className="tiny faint" style={{marginBottom:6}}>or a new menu called:</div>
+                </>
+              ) : (
+                <div className="small" style={{marginBottom:8}}>
+                  Move <strong>{sectionHeading(s.name) || "this section"}</strong> into its own menu, called:</div>
+              )}
               <ClearInput value={secSplit.name} placeholder="Menu name (e.g. Desserts)"
                 onChange={e=> setSecSplit(Object.assign({}, secSplit, { name: e.target.value }))} />
-              <div className="tiny faint" style={{marginTop:6}}>
-                Type the name of a menu you already have to add it there instead.</div>
               <div className="row" style={{gap:8, marginTop:10}}>
                 <button className="btn ghost sm" onClick={()=> setSecSplit(null)}>Cancel</button>
                 <button className="btn primary sm" disabled={!(secSplit.name || "").trim()}
-                  onClick={()=>{ onSplitSection(i, secSplit.name.trim()); setSecSplit(null); }}>Move</button>
+                  onClick={()=>{ onSplitSection(i, secSplit.name.trim()); setSecSplit(null); }}>
+                  {moveTargetMatch(moveTargets, secSplit.name)
+                    ? "Move into " + menuDisplayLabel(moveTargetMatch(moveTargets, secSplit.name))
+                    : "Move"}</button>
               </div>
               {/* Deleting sits under moving, behind one more tap, and counts
                   what it will take: moving is the common wish and can be put
@@ -19889,6 +20101,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
       <div className="ovhead">
         <button className="x" onClick={onClose}>Back</button>
         <h2>Near me</h2>
+        <span className="nav-cluster"><NavIcons /></span>
         <span style={{width:54}} />
       </div>
     );
@@ -33324,9 +33537,11 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
    Updates\make_update.py, which puts it at menucaptain.com/news/ and names the
    newest one in news/latest.txt). This card only previews and sends it, through
    the server, which fills in each person's own unsubscribe link and the postal
-   address. Three deliberate taps: a preview to yourself, "Who gets it?", then
-   "Send to N people", where the server refuses if N has changed since the
-   check. See UPDATE EMAILS in the server for every guard. */
+   address. Three deliberate taps: a preview to yourself, "Send to everyone"
+   (which first shows how many people and the subject), then "Send to N
+   people", where the server refuses if N has changed since the check. See
+   UPDATE EMAILS in the server for every guard. The second button was "Who gets
+   it?" until 2026-10-18; Chris couldn't tell it was the way to send. */
 function UpdateEmailCard({ config }){
   const [issue, setIssue] = useState("");
   const [busy, setBusy]   = useState("");
@@ -33361,7 +33576,8 @@ function UpdateEmailCard({ config }){
     <div className="card" style={{marginTop:12}}>
       <div style={{fontWeight:600}}>Update email</div>
       <div className="small muted" style={{lineHeight:1.6, margin:"4px 0 10px"}}>
-        From the Captain’s Table. Email yourself a preview first, then send it to everyone.
+        From the Captain’s Table. First email yourself a preview. When it looks right, tap
+        Send to everyone. You’ll see how many people get it before anything goes out.
       </div>
       <label className="fld"><span className="lbl">Issue (its date)</span>
         <input className="input" value={issue} placeholder="2026-10-14" inputMode="numeric"
@@ -33375,7 +33591,7 @@ function UpdateEmailCard({ config }){
         <button className="btn ghost sm" disabled={!!busy || !issue.trim()} onClick={async ()=>{
           const d = await call("count");
           if (d) setCount(d);
-        }}>{busy === "count" ? "Checking..." : "Who gets it?"}</button>
+        }}>{busy === "count" ? "Counting..." : "Send to everyone"}</button>
       </div>
       {count ? (
         <div style={{marginTop:12}}>

@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.562.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.563.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.150.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.562.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.563.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,51 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The menu page says where you are; chat + Settings on every page; Recent on Places; menu chips when moving (2026-10-18, app 1.563.0)
+
+**Menu page heading.** Chris: "I still get confused that I'm on a menu ... is there a better way to
+have people visually lock in". He chose (by card, "Yes, all three"): a gold overline
+"MENU · {place}" with the menu's own name large beneath (still the rename control); the place's
+menus as pill tabs, current one lit, one-tap switching (`menuTabs` + `onSwitchMenu` from the App,
+which re-opens `menuDetail` with the other `menuId`; hidden with one menu); and the six tools
+(Share, Refresh, Rename, Split, Move into another menu, Delete) behind ••• (`toolsOpen`, a
+`.menu-tools` list that sets the same states the old row did). Translate / Show English stays in
+the meta row with "Captured {date}". The `.menu-head` place card (his 2026-10-03 pick) and the
+action row are gone; the comments say why.
+
+**Two-row top bar (`.ovhead.tworow`).** When chat + Settings joined the place page its top bar
+held six icons and cut long names to a few letters. Chris chose (by card) two rows: Back and the
+icons on top, the name large and full width beneath. The menu page uses the same layout, since in
+one row its overline cut "ESTIATORIO MILOS MIAMI BEACH" to "ESTIATORIO T…".
+
+**Chat + Settings on every browsing page.** Chris: "we should have access to the settings and chat
+support icons on every page". The tabs had them; pages opened from them did not. `NavCtx`
+(React context from the App: `onChat`, `chatDot`, `onSettings`, `pendingReqs`) feeds `NavIcons`,
+which `HomeBtn` now renders before Home, so all 19 pages with a Home button gain both with no new
+props. Find a place, Near me, Dining companions and a collection (Back but no Home) add
+`<span className="nav-cluster"><NavIcons /></span>`. Forms and editors (no Home button) get
+neither: a tap away would lose typing. Chat opened from a page carries `returnTo` and closing it
+returns there (`openChatFrom`); Settings closes the page and opens the Settings tab.
+
+**Recent on Places.** Chris chose (by card) "Latest activity", "list them once": the three places
+whose latest of `added_date`, latest visit `date`, or any menu `last_updated`/`captured_date` is
+newest, under "Recent", then "Everything else" in the chosen order without them. Hidden while
+searching, under Loved, and below 7 places; filters apply. `RestaurantsView` now takes `menus`.
+
+**Menu chips when moving sections.** Chris: "do we want to have a drop down here for existing menus,
+plus be able to type". `MenuTargetChips` shows the place's other menus in the per-section move
+panel (MenuView gets `moveTargets`) and in Split; a tap fills the name box, and the button reads
+"Move into {menu}" when the name matches one. `splitMenuSections` already merges on a matching
+name, so the chips are a shortcut, not a second path.
+
+**Update email.** The second button was "Who gets it?"; Chris couldn't tell it was the way to send.
+Now **Send to everyone** (it still shows the count and subject first, then **Send to N people**
+and a confirm), and the card's line says so.
+
+Playwright (`test_1563_ui.py`, 19 checks): on 1.562.0 Recent, the overline and the place-page icons
+fail; on 1.563.0 all pass, including tab switching, the ••• list, a chip moving "Lunch Specials"
+into Lunch, chat returning to the menu, and Settings opening from a page.
 
 ### Group order inside Help me order; the menu reader stays on the right branch (2026-10-18, app 1.562.0, backend 0.150.0)
 
@@ -1079,7 +1124,7 @@ refreshed the same day to the same standard. NEVER link the living promo brief: 
 filming brief with don't-film notes about real people.
 
 **Sending (owner only).** Settings → **Update email** (`UpdateEmailCard`, shown when `isOwner`):
-opens on `news/latest.txt`; **Email me a preview**, **Who gets it?**, then **Send to N people** with a
+opens on `news/latest.txt`; **Email me a preview**, **Send to everyone** (was "Who gets it?" until 1.563.0), then **Send to N people** with a
 confirm. Server `POST /api/admin/updates/send` {issue, mode preview|count|send, expect}:
 - fetches the issue from `APP_URL/news/`, refuses one without both placeholders or a subject;
 - preview goes to the owner's own account email, subject prefixed "[Preview] ";
