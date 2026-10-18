@@ -2,19 +2,23 @@ From the Captain’s Table · What’s new · October 16, 2026
 
 Dear Captain,
 
-Welcome to the Captain’s Table. It’s what we call the small circle of people who use MenuCaptain: diners who would rather remember a great meal than review it. You’re one of the very first, which makes you our power users. You put the app to the test at real tables, tell us what works and what doesn’t, and together we make it elegant, useful and loved. From time to time we’ll write to you here about what’s new and what we’ve changed because of you.
+Welcome to the Captain’s Table. It’s what we call the small circle of people who use MenuCaptain: diners who would rather remember a great meal than review it.
+
+You’re one of the very first, which makes you our power users. You put the app to the test at real tables, tell us what works and what doesn’t, and together we make it elegant, useful and loved. From time to time we’ll write to you here about what’s new and what we’ve changed because of you.
 
 Here is what’s new. It’s already in your app. If you see Update available, tap Refresh.
 
 SCAN A MENU, THEN WALK AWAY
 
-The more complicated the menu, the longer it takes to read, and not everyone wants to wait at the table. Now you don’t have to. Once your photos are sent, switch apps or put your phone away: the menu keeps being read, a note at the top of MenuCaptain tells you when it’s ready, and if you haven’t come back two minutes after it finishes, we’ll email you a link.
+The more complicated the menu, the longer it takes to read, and not everyone wants to wait at the table. Now you don’t have to. Once your photos are sent, switch apps or put your phone away. The menu keeps being read, a note at the top of MenuCaptain tells you when it’s ready, and if you haven’t come back two minutes after it finishes, we’ll email you a link.
 
 Scanning is also much quicker. We moved to a newer AI model and tuned how it reads a menu, so a typical menu now takes about 20 seconds, down from about a minute. A menu photographed in several pages is read all at once.
 
 MENUS IN ENGLISH
 
-A menu in Spanish, Italian or any other language now offers Show English. The original stays exactly as printed, with the English beneath each dish, so you can still point to the original when you order. A dish known by its own name, like crema catalana, gets a short line saying what it usually is. You can search in English as well: “octopus” finds the pulpo.
+A menu in Spanish, Italian or any other language now offers Show English. The original stays exactly as printed, with the English beneath each dish, so you can still point to the original when you order.
+
+A dish known by its own name, like crema catalana, gets a short line saying what it usually is. You can search in English as well: “octopus” finds the pulpo.
 
 PRICES IN YOUR CURRENCY
 
@@ -22,35 +26,52 @@ Traveling? On a menu priced in euros, pounds, yen or another major currency, tap
 
 COLLECTIONS
 
-Keep a trip together. Tap the + button and choose Start a collection, name it, say “Our honeymoon”, and give it the trip’s dates. Every meal you log between them joins by itself. A collection opens on a cover photo, then your favorite places and the dishes you loved, then every meal day by day. Or skip the dates and choose the meals yourself, like your favorite brunch spots. Find them all under You, then Collections, and share a whole collection with friends in a tap. A shared collection never includes your notes, who you dined with, or what you spent.
+Keep a trip together. Tap the + button and choose Start a collection, name it, say “Our honeymoon”, and give it the trip’s dates. Every meal you log between them joins by itself. Or skip the dates and choose the meals yourself, like your favorite brunch spots.
+
+A collection opens on a cover photo, then your favorite places and the dishes you loved, then every meal day by day. Find them all under You, then Collections, and share a whole collection with friends in a tap. A shared collection never includes your notes, who you dined with, or what you spent.
+
+NEW AT THE TABLE
+
+Three places whose menus are now at the Captain’s Table. When you’re there, tap Already at the restaurant and the menu is waiting, ready for Help me order.
+
+    Casa Bohème Bistro · San Pantaleo, Sardinia
+    A bistro on the church square of a village in the Gallura hills, near the Costa Smeralda. Chef William Felicetti cooks with the season, and the house has a library, a wine cellar and a room inspired by Stanley Kubrick.
+
+    HIDE · Piccadilly, London
+    One Michelin star in the 2026 guide. HIDE opened in 2018 with the team behind Hedonism Wines, so the wine list is something to behold.
+
+    Estiatorio Milos · South Beach, Miami
+    A Greek seafood house where you choose your fish from the ice and have it grilled simply. It’s in the Michelin Guide.
 
 SEE WHAT A DISH LOOKS LIKE
 
 When you ask MenuCaptain to explain particular dishes, each one now offers a photo: yours, if you’ve photographed it there, the restaurant’s own, when they publish one, or similar dishes from the web, clearly labeled as not this exact dish.
 
-CHAT WITH US
-
-A chat bubble now sits at the top right of Home, Places, History and You. Tap it to write to us, and we answer right there in the app. A small dot on the bubble means a reply is waiting.
-
-REPLIES
+SHARING WITH FRIENDS
 
 When a friend sends you a place, a menu or a visit, you can answer with a tap or a few words, and they can write back. If they’ve sent a menu, tick the dishes you’d choose and send your picks back without leaving the app.
 
-RICHER RECOMMENDATIONS
+Sending a place now carries your rating, the dishes you loved and photos from your visits, and a single tick leaves the photos out. A shared visit includes what makes the place special. Select all reaches every friend at once, and photos you share stay visible for as long as you keep them.
 
-Sending a place now carries your rating, the dishes you loved and photos from your visits, and a single tick leaves the photos out. A shared visit now includes what makes the place special. Select all reaches every friend at once, and photos you share now stay visible for as long as you keep them.
-
-SHARING, TIDIER
-
-The Sharing screen now leads with what friends have sent you, marks each one Seen, and clears it away once you reply or save it, while still keeping a record of what you’ve sent and to whom. A menu you’ve shared with other diners can be taken back at any time with Stop sharing, and if someone shares a newer menu in place of yours, we’ll let you know by email.
+The Sharing screen leads with what friends have sent you, marks each one Seen, and clears it away once you reply or save it. A menu you’ve shared with other diners can be taken back at any time with Stop sharing, and if someone shares a newer menu in place of yours, we’ll let you know by email.
 
 LOGGING A VISIT
 
-Dish search now looks through every menu at a place, reads descriptions as well as names, and ignores accents, so “tiramisu” finds Tiramisù. Type a section’s name, like “flautas”, and every dish under that heading comes up too. Had a special? Add it, then tap Mark as special, and it reads as a special in gold wherever it appears, including on a visit you share. Each visit now holds up to fifteen photos, and correcting a dish’s name once corrects it on your past visits there as well.
+Dish search now looks through every menu at a place, reads descriptions as well as names, and ignores accents, so “tiramisu” finds Tiramisù. Type a section’s name, like “flautas”, and every dish under that heading comes up too.
+
+Had a special? Add it, then tap Mark as special, and it reads as a special in gold wherever it appears, including on a visit you share. Each visit now holds up to fifteen photos, and correcting a dish’s name once corrects it on your past visits there as well.
 
 AROUND THE APP
 
-On Home, Recently added now says what happened last at each place: a visit you logged, the friend who sent it, or that you added it yourself. Tapping a dietary filter such as Gluten-free on a place gathers matching dishes from every menu there, each labeled with the menu it’s on. Bar is now one of the quick names when you add a menu, beside Drinks and Cocktails. Calorie estimates are now a choice, under Settings, then Calorie estimates, so the visit form stays short unless you want them. And our welcome page shows how to put MenuCaptain on your Home Screen, on iPhone or Android, so it opens like any other app.
+- Recently added on Home says what happened last at each place: a visit you logged, the friend who sent it, or that you added it yourself.
+- A dietary filter such as Gluten-free gathers matching dishes from every menu at a place, each labeled with its menu.
+- Bar is now a quick name when you add a menu, beside Drinks and Cocktails.
+- Calorie estimates are now a choice, in Settings, so the visit form stays short unless you want them.
+- Our welcome page shows how to put MenuCaptain on your Home Screen, on iPhone or Android, so it opens like any other app.
+
+CHAT WITH US
+
+A chat bubble now sits at the top right of Home, Places, History and You. Tap it to write to us, and we answer right there in the app. A small dot on the bubble means a reply is waiting.
 
 YOUR MEALS, SAFELY KEPT
 
@@ -62,7 +83,7 @@ Chris built MenuCaptain and would love to see where you’re eating. Tap here to
 
 YOUR IDEAS SHAPE MENUCAPTAIN
 
-Spotted something that isn’t quite right, or wish MenuCaptain did something it doesn’t yet? We read every note. Tap the chat bubble at the top right to write to us, or open Settings (the gear at the top of Home) and tap Share feedback to send a bug, a feature request or a suggestion. Or simply reply to this email.
+Spotted something that isn’t quite right, or wish MenuCaptain did something it doesn’t yet? We read every note. Tap the chat bubble to write to us, or open Settings and tap Share feedback to send a bug, a feature request or a suggestion. Or simply reply to this email.
 
 Bon appétit,
 The MenuCaptain team
