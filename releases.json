@@ -239,5 +239,13 @@
     "email_notes": "updated: next-issue-notes line for the split tip fix",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows, BRIEFING, Log"
+  },
+  "1.559.0": {
+    "what": "The split summary opens at the top",
+    "guide": "n/a: a scroll fix; the guide does not describe scrolling",
+    "promo": "n/a: a fix, no new card; inventory reviewed",
+    "email_notes": "n/a: too small for the newsletter",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows, BRIEFING, Log"
   }
 }

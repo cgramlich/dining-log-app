@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.558.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.559.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.558.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.559.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,15 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The split summary opens at the top (2026-10-18, app 1.559.0)
+
+Found filming: "See the split summary" sits at the foot of the long Split a check form, and
+`setStep("result")` swapped the content but kept `.ovbody`'s scroll, so the summary opened with the
+first people above the fold. The split overlay now resets its own `.ovbody` to the top on every
+`step` change (a `useEffect` on step with a rAF, scoped by `splitRootRef`), the same reset the app
+does when any overlay opens. Covers Back and Edit too. Playwright at 393x852: on 1.558.0 the
+summary opened at scrollTop 207 after a form scrolled to 1097; on 1.559.0 it opens at 0.
 
 ### A tip added after scanning a check goes on top of its total (2026-10-17, app 1.558.0)
 

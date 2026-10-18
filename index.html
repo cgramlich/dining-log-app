@@ -1241,7 +1241,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.558.0";
+const APP_VERSION   = "1.559.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -18464,6 +18464,19 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   // the duplicate lines are removed.
   const looksDoubled = overriding && printedCents > 0 && subtotalCents > Math.round(printedCents * 1.05);
 
+  // Moving between the form and the summary starts at the top (2026-10-18,
+  // found filming: "See the split summary" sits at the foot of a long form,
+  // and the summary kept that scroll, opening with the first people above the
+  // fold). Same reset the app does when any overlay opens, scoped to this one.
+  const splitRootRef = useRef(null);
+  useEffect(()=>{
+    const id = requestAnimationFrame(()=>{
+      const root = splitRootRef.current;
+      if (root) root.querySelectorAll(".ovbody").forEach(el => { el.scrollTop = 0; });
+    });
+    return ()=> cancelAnimationFrame(id);
+  }, [step]);
+
   function doSplit(){
     const res = computeManualSplit(lines, people, assign, "", String(grandPreview/100));
     setSplit(res);
@@ -18687,7 +18700,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   };
 
   return (
-    <div className="overlay">
+    <div className="overlay" ref={splitRootRef}>
       <div className="ovhead">
         <button className="x" onClick={
           step === "result" ? ()=> setStep("edit")
