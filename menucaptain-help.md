@@ -53,7 +53,9 @@ The one you are on is highlighted.
   happened last: a visit logged, from a friend by name, or added by you) and **Recent
   visits** (the meals you've logged). (Scanning is also on the **+** button and every
   place page.) **Settings** is behind the gear, top-right, beside the **chat bubble**
-  that reaches us. The flow runs find a place &rarr; open it and scan the menu / ask
+  that reaches us. Both are at the top of every page you browse, not only the main
+  tabs: a place, a menu, a collection, this guide. Closing a chat brings you back to
+  the page you were on. The flow runs find a place &rarr; open it and scan the menu / ask
   Help me order &rarr; log the visit. **Looking somewhere else?** On the find-a-place
   page a **City (optional)** box appears once you start typing. Leave it blank and
   the search leans on where you are now; type a city (say, Austin) and it searches
@@ -81,6 +83,11 @@ info, and which screen the app opens to (Startup).
 -----
 
 ## Places (your restaurants)
+
+**Recent places.** Once you have a few places, the top of **Places** shows the
+three with the latest activity (added, visited, or a menu added or changed,
+whichever happened last), then **Everything else** in the order you chose. Each
+place appears once. Recent steps aside while you search.
 
 **Adding a place.** Add a restaurant with its name, cuisine, city, address,
 phone, website, and any notes. You can mark it as a favorite and give it a
@@ -187,6 +194,13 @@ everything else stays your own private record.
 
 ## Menus
 
+**Knowing which menu you're on.** The top of a menu says **Menu** and the place's
+name in gold, with the menu's own name large beneath it. When the place has more
+than one menu they sit as tabs just below, the one you are on lit, and a tap
+switches. **Refresh**, **Rename**, **Split**, **Move into another menu**, **Share
+this menu** and **Delete this menu** are behind **•••** at the top right.
+**Translate** stays in view.
+
 **Scanning a menu.** Use "Scan or find a menu" and take or pick photos of the
 physical menu. The app reads it and turns it into a clean, digital menu -
 sections, dish names, descriptions, prices, and tags. A menu that needs several
@@ -289,25 +303,26 @@ photo**): you see the text it read before anything is saved.
 
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.
-Open the menu and tap **Split** to move sections into a menu of their own: tick
-the ones to move, name where they are going, and the rest stay put. To move just
-one section, tap the small split icon beside its heading; the new menu's name
-starts as the section's own. The same icon can remove a section you do not need
+Open the menu, tap **•••** and then **Split** to move sections out: tick
+the ones to move, then tap one of the place's other menus or name a new one, and
+the rest stay put. To move just one section, tap the small split icon beside its
+heading: tap one of the place's menus to send it there, or type a new name (it
+starts as the section's own). The same icon can remove a section you do not need
 - one that was scanned twice, say: tap **Delete this section instead**, and it
-asks once before it goes. To put a menu back, open it and tap **Move into**:
-pick the menu it should join, and all its sections move there and the empty
-menu is removed. Type the
-name of a menu you already have and they join it instead of starting a new one.
+asks once before it goes. To put a menu back, open it, tap **•••** and
+**Move into another menu**: pick the menu it should join, and all its sections
+move there and the empty menu is removed. Typing the name of a menu you already
+have does the same as tapping it.
 You cannot move every section out, because that would leave an empty menu - rename
 it instead.
 
 **Renaming a menu.** Tap the menu's name at the top of its page (the one with
-the small pencil beside it) and type a new one - **Dinner**, **Brunch**,
+the small pencil beside it), or **•••** and **Rename**, and type a new one - **Dinner**, **Brunch**,
 **Wine list**. Do it any time, not just right after you add it.
 
-**Re-scanning and deleting.** Open a menu and tap **Refresh** at the top to replace it
-with a fresh version - photograph it again or pull it from a link. It asks first, so a
-stray tap does nothing. You can delete a menu you no longer want from inside it too. Refreshing replaces the
+**Re-scanning and deleting.** Open a menu, tap **•••** at the top and then
+**Refresh** to replace it with a fresh version - photograph it again or pull it from a
+link. It asks first, so a stray tap does nothing. **Delete this menu** is there too. Refreshing replaces the
 old copy in place (no duplicate) and takes today's date, so any estimates saved
 on the old items are not carried over.
 
