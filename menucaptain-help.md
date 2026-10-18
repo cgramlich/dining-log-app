@@ -1078,7 +1078,9 @@ Scan the receipt (or tap **Enter by hand**) and the app reads the line items and
 the total. Type in who's at the table, then tap the names under each item to say
 who shared it - anything you leave unassigned is split evenly across everyone.
 There are **Tax** and **Tip** fields - each can be a dollar amount or a percent -
-and the **Total** updates as you go, or you can type your own to hard-code it. An
+and the **Total** updates as you go, or you can type your own to hard-code it. A
+scanned check keeps its printed total, and a tip you add goes on top of it, since
+most checks are printed before the tip. An
 **Everyone shares everything** shortcut for the simplest case. When a line covers
 several of the same item (like **3 GL Prisoner** at one price), a **Split into 3**
 button breaks it into separate per-unit rows so you can give each one to a

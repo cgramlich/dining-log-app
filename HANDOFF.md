@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.557.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.558.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.557.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.558.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,28 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A tip added after scanning a check goes on top of its total (2026-10-17, app 1.558.0)
+
+Found by the video session filming Split the check on the demo account: scan a check (items 210.00,
+tax 17.33, total 227.33), add a 20% tip, and the Total stayed 227.33, "Splitting $227.33", with
+"Tax & tip" showing the tax alone. The scan fills `rtotal`, and a filled `rtotal` is the hard-coded
+override, so the tip vanished into it (a "Use $X instead" card offered the right figure, but only
+if noticed). Most itemized checks are printed before the tip, so shares came out too low.
+
+New `scanAnchor` state ({tipCents} = the tip the scanned check already held, auto-gratuity
+included): while set, the split total is printed total + (current tip - scanned tip). So a tip
+typed after the scan goes on top, and changing a scanned tip moves the total by the difference.
+Typing into Total (or "Use $X instead", Start over, Enter by hand) clears it, and a typed Total is
+hard-coded as before. Saved in the split's inputs, so a reopened split keeps the rule; splits saved
+before 1.558.0 have no anchor and behave as they did. The double-scan guard compares items with the
+PRINTED total, not the tipped one. A line under Total says "The check's $227.33, plus your $42.00
+tip." Guide updated. Playwright with a stubbed receipt reply: on 1.557.0, 4 of 6 checks failed
+(total stuck at 227.33 for 20% and for $45); on 1.558.0 all 6 pass (269.33, 272.33, typed 300
+stays).
+
+Also from the same report: the place rating line said "service a third"; the code weighs it 0.3,
+so it now says "food counts half, service 30%, atmosphere 20%", matching the guide.
 
 ### Android: system bars match the app; native images; plain sign-in note (2026-10-17, app 1.557.0)
 
