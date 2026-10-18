@@ -247,5 +247,13 @@
     "email_notes": "n/a: too small for the newsletter",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows, BRIEFING, Log"
+  },
+  "1.560.0": {
+    "what": "Collections on You and in the + menu",
+    "guide": "updated: Collections paragraph starts from the + button and You",
+    "promo": "updated: Collections card says where they live; new Finding a place group (Discovery gap)",
+    "email_notes": "updated: first issue's Collections section names the new places",
+    "welcome": "n/a: the welcome card never said where collections live",
+    "handoff": "updated: section, version rows, BRIEFING, Log"
   }
 }

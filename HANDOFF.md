@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.559.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.560.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.559.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.560.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,22 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Collections on You and in the + menu (2026-10-18, app 1.560.0)
+
+Chris, reviewing the newsletter: Collections "seemed a little obfuscated in my app history tab". He
+chose (by card) a Collections row on You plus Start a collection in the + menu. New
+`CollectionsListView` (overlay `collections`): a short line on what they are, Start a collection, and
+every collection as a row (cover, name, dates and meal count). You's row counts them
+(`collectionsCount`). The + menu gains `collectionNew` (the sheet maps straight to overlay types).
+Opening a collection or starting one from the list carries `returnTo:{type:"collections"}`, so Back
+returns there; deleting one returns there too. History keeps its strip. Guide's Collections
+paragraph now starts from the + button and You. Playwright: on 1.559.0 neither the You row nor the
+menu item existed; on 1.560.0, 6 checks pass (row, count, list, Back, menu item, form opens).
+
+Promo inventory: the Collections card says where they live, and a new "Finding a place" group
+(Already at the restaurant, Find places near me, Find a place, Can't decide?) closes the gap the
+video session reported on 2026-10-17: Discovery had no entries.
 
 ### The split summary opens at the top (2026-10-18, app 1.559.0)
 

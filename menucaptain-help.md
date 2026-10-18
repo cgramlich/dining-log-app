@@ -1109,8 +1109,9 @@ rides along on the visit and is saved when you save the visit.
 
 ## Collections
 
-**Keep a trip together.** In **History**, tap **Start a collection** (or **New**
-beside Collections once you have one), give it a name, say "Our honeymoon", and
+**Keep a trip together.** Tap the **+** button and choose **Start a collection**
+(or open **You**, then **Collections**, where all of them live; History shows
+them too), give it a name, say "Our honeymoon", and
 tick **It's a trip, with dates**. Every meal you log between those dates joins
 it by itself, including the ones you log tomorrow; leave the end date empty
 while you're still travelling. A collection without dates is hand-picked: add

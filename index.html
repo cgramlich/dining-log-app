@@ -1241,7 +1241,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.559.0";
+const APP_VERSION   = "1.560.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3031,8 +3031,9 @@ rides along on the visit and is saved when you save the visit.
 
 ## Collections
 
-**Keep a trip together.** In **History**, tap **Start a collection** (or **New**
-beside Collections once you have one), give it a name, say "Our honeymoon", and
+**Keep a trip together.** Tap the **+** button and choose **Start a collection**
+(or open **You**, then **Collections**, where all of them live; History shows
+them too), give it a name, say "Our honeymoon", and
 tick **It's a trip, with dates**. Every meal you log between those dates joins
 it by itself, including the ones you log tomorrow; leave the end date empty
 while you're still travelling. A collection without dates is hand-picked: add
@@ -10899,6 +10900,7 @@ function App({openShare}){
             onOpenPeople={()=> setOverlay({ type:"people" })}
             onOpenLeaderboard={()=> setOverlay({ type:"leaderboard" })}
             onOpenShares={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }} sharesCount={sharesCount + friendUnread}
+            onOpenCollections={()=> setOverlay({ type:"collections" })} collectionsCount={(collections || []).length}
             onOpenConnections={()=>{ setReqSeen(pendingReqs); setOverlay({ type:"connections" }); }}
             pendingReqs={pendingReqs}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
@@ -11992,9 +11994,15 @@ function App({openShare}){
           onHome={()=> setOverlay(null)} />
       )}
 
+      {overlay && overlay.type === "collections" && (
+        <CollectionsListView collections={collections} visits={visits} cfg={config}
+          onOpen={(c)=> setOverlay({ type:"collection", id:c.id, returnTo:{ type:"collections" } })}
+          onNew={()=> setOverlay({ type:"collectionNew", returnTo:{ type:"collections" } })}
+          onBack={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
+      )}
       {overlay && overlay.type === "collectionNew" && (
         <CollectionEditor onClose={()=> setOverlay(overlay.returnTo || null)}
-          onSave={(f)=>{ const c = createCollection(f); setOverlay({ type:"collection", id:c.id }); }} />
+          onSave={(f)=>{ const c = createCollection(f); setOverlay({ type:"collection", id:c.id, returnTo: overlay.returnTo || null }); }} />
       )}
       {overlay && overlay.type === "collection" && (()=>{
         const c = (collections || []).find(x => x.id === overlay.id);
@@ -12003,7 +12011,7 @@ function App({openShare}){
           <CollectionView cfg={config} collection={c} visits={visits} restaurantById={restaurantById}
             onBack={()=> setOverlay(overlay.returnTo || null)} onHome={()=> setOverlay(null)}
             onChange={(nc)=> upsertCollection(nc)}
-            onDelete={(dc)=>{ deleteCollection(dc); setOverlay(null); }}
+            onDelete={(dc)=>{ deleteCollection(dc); setOverlay(overlay.returnTo || null); }}
             onOpenVisit={(v)=> setOverlay({ type:"editVisit", visit:v, returnTo:{ type:"collection", id:c.id } })}
             onShowMap={(ids)=> setOverlay({ type:"map", only:ids, title:c.name, returnTo:{ type:"collection", id:c.id } })} />
         );
@@ -12325,6 +12333,7 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit, onMerge }){
 function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
                         onOpenYearInFood, onOpenPassport, onOpenLeaderboard, onOpenPeople,
                         onOpenShares, sharesCount, onOpenConnections, pendingReqs,
+                        onOpenCollections, collectionsCount,
                         onScanMenu, onLogVisit, onAddPlace, onPublishList, onOpenMyLists,
                         savedListCount, onShareApp,
                         onOpenSplit, onNewSplit, onDeleteSplit }){
@@ -12382,6 +12391,20 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
               color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
               justifyContent:"center", flex:"none", marginRight:8}}>{sharesCount}</span>
           ) : null}
+          <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+            <Icon name="back" size={15} color="var(--text-faint)" />
+          </span>
+        </div>
+      ) : null}
+      {onOpenCollections ? (
+        <div className="yif-entry tap" onClick={onOpenCollections}>
+          <span className="yif-entry-ic"><Icon name="book" size={16} color="var(--accent)" /></span>
+          <span className="yif-entry-tx">
+            <span className="yif-entry-t">Collections</span>
+            <span className="yif-entry-s">{collectionsCount
+              ? (collectionsCount + (collectionsCount === 1 ? " collection" : " collections") + ": trips and meals kept together")
+              : "Keep a trip, or any meals you love, together"}</span>
+          </span>
           <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
             <Icon name="back" size={15} color="var(--text-faint)" />
           </span>
@@ -12827,6 +12850,52 @@ function CollectionsStrip({ collections, visits, cfg, onOpen, onNew }){
               </div>
               <div className="col-card-name">{c.name}</div>
               <div className="col-card-sub">{colDateLine(c) || (mem.length + (mem.length === 1 ? " meal" : " meals"))}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Every collection on one page, opened from You (2026-10-18, Chris: it
+// "seemed a little obfuscated in my app history tab"; he chose a You row plus
+// Start a collection in the + menu). History keeps its strip as well.
+function CollectionsListView({ collections, visits, cfg, onOpen, onNew, onBack, onHome }){
+  const list = (collections || []).slice().sort((a, b) =>
+    (b.start || "").localeCompare(a.start || "") || ((b.updated_at || 0) - (a.updated_at || 0)));
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onBack}>Back</button>
+        <h2>Collections</h2><HomeBtn onHome={onHome} />
+      </div>
+      <div className="ovbody">
+        <div className="small muted" style={{margin:"2px 2px 12px", lineHeight:1.55}}>
+          Keep a trip, or any meals you love, together. A trip with dates gathers
+          every meal you log on those days by itself.
+        </div>
+        <button className="btn primary" style={{width:"100%", marginBottom:16}} onClick={onNew}>
+          <Icon name="plus" size={16} color="#1b1714" />Start a collection</button>
+        {list.map(c => {
+          const mem = colVisits(c, visits);
+          const cover = colCoverPath(c, mem);
+          return (
+            <div key={c.id} className="yif-entry tap" onClick={()=> onOpen(c)}>
+              <span style={{width:52, height:52, borderRadius:10, overflow:"hidden", flex:"none",
+                            display:"flex", alignItems:"center", justifyContent:"center",
+                            background:"var(--surface-2, rgba(255,255,255,0.05))"}}>
+                {cover ? <PhotoImg cfg={cfg} path={cover} /> : <Icon name="book" size={20} color="var(--text-faint)" />}
+              </span>
+              <span className="yif-entry-tx">
+                <span className="yif-entry-t">{c.name}</span>
+                <span className="yif-entry-s">
+                  {(colDateLine(c) ? colDateLine(c) + " \u00b7 " : "") + mem.length + (mem.length === 1 ? " meal" : " meals")}
+                </span>
+              </span>
+              <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+                <Icon name="back" size={15} color="var(--text-faint)" />
+              </span>
             </div>
           );
         })}
@@ -20268,6 +20337,7 @@ function ActionSheet({onClose, onPick, pendingReqs, sharesCount}){
         <Item what="logVisit"   icon="plate"   t1="Log a visit"          t2="Record a meal and rate it" />
         <Item what="splitCheck" icon="receipt" t1="Split the check"      t2="Snap the receipt, split by who had what" />
         <Item what="groupStart" icon="nodes"   t1="Start a group order"  t2="Everyone adds what they want" />
+        <Item what="collectionNew" icon="book" t1="Start a collection"   t2="Keep a trip, or any meals you love, together" />
         {/* Connections also lives in Settings, but people look for friends
             here - and a pending request is worth surfacing on the + button. */}
         <Item what="shares" icon="share" t1="Sharing"
