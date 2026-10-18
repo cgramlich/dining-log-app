@@ -97,11 +97,13 @@ ALSO FIXED
 - Cancel on Edit place takes you back to the place, not to Home.
 - Menu section headings printed in quote marks now show without them.
 - In their words, a restaurant’s own story, is now laid out in clear paragraphs instead of one long block.
-- Restaurants you add abroad keep their town, and place search ignores accents, so “cafe” finds Café.
+- Places outside the US now get their town. The app only understood American addresses, so a place in Spain or Italy could be saved without its town and slip out of your town filters. Those fill themselves in.
+- Place search ignores accents, so “cafe” finds Café.
 - Suggestions for dishes, and for the people you dined with, no longer cover the page as you type.
 - The Back button no longer hides behind the clock on things friends send you.
 - Votes in Where shall we eat? are saved as they should be.
-- A MenuCaptain icon added from our welcome page opens the app itself, and signing up is simpler.
+- Added MenuCaptain to your Home Screen from our welcome page? That icon now opens the app, not the welcome page.
+- Creating an account is clearer: Sign in and Create account sit side by side, and nothing suggests waiting for an email.
 
 See everything MenuCaptain does: https://menucaptain.com/welcome.html
 Read every issue of From the Captain’s Table: https://menucaptain.com/news/
