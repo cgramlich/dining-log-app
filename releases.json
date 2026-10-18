@@ -255,5 +255,13 @@
     "email_notes": "updated: first issue's Collections section names the new places",
     "welcome": "n/a: the welcome card never said where collections live",
     "handoff": "updated: section, version rows, BRIEFING, Log"
+  },
+  "1.561.0": {
+    "what": "Every newsletter issue, from a row on You",
+    "guide": "updated: Every newsletter paragraph",
+    "promo": "n/a: a reading convenience, not a promo feature; inventory reviewed",
+    "email_notes": "updated: email foot links to every issue; New at the Table section planned from Oct 22",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows, BRIEFING, Log"
   }
 }

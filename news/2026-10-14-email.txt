@@ -18,11 +18,11 @@ A menu in Spanish, Italian or any other language now offers Show English. The or
 
 PRICES IN YOUR CURRENCY
 
-On a menu priced in euros, pounds, yen or another major currency, tap Show in $ and every price gets an estimate in dollars underneath, while the printed price stays the one you point at. Tap the currency to show another instead. The rates are the European Central Bank’s, updated every working day, and the date is shown. Your card’s rate will differ a little.
+Traveling? On a menu priced in euros, pounds, yen or another major currency, tap Show in $. Each price gets a dollar estimate just beneath it, and the menu’s own price stays as printed. Prefer another currency? Tap the currency’s name to switch. Rates come from the European Central Bank and are updated every working day, so your card’s rate may differ slightly.
 
 COLLECTIONS
 
-Keep a trip together. Tap the + button and choose Start a collection, name it, say “Our honeymoon”, and give it the trip’s dates. Every meal you log between them joins by itself. A collection opens on a cover photo, then your favorite places and the dishes you loved, then every meal day by day. Leave out the dates to hand-pick any meals you like. Find them all under You, then Collections, and share a whole collection with friends in a tap. A shared collection never includes your notes, who you dined with, or what you spent.
+Keep a trip together. Tap the + button and choose Start a collection, name it, say “Our honeymoon”, and give it the trip’s dates. Every meal you log between them joins by itself. A collection opens on a cover photo, then your favorite places and the dishes you loved, then every meal day by day. Or skip the dates and choose the meals yourself, like your favorite brunch spots. Find them all under You, then Collections, and share a whole collection with friends in a tap. A shared collection never includes your notes, who you dined with, or what you spent.
 
 SEE WHAT A DISH LOOKS LIKE
 
@@ -75,7 +75,7 @@ ALSO FIXED
 - Refresh has moved off the menu rows, where it was easy to tap by accident, and asks before replacing a menu.
 - Cancel on Edit place takes you back to the place, not to Home.
 - Menu section headings printed in quote marks now show without them.
-- A restaurant’s story reads as proper paragraphs.
+- In their words, a restaurant’s own story, is now laid out in clear paragraphs instead of one long block.
 - Restaurants you add abroad keep their town, and place search ignores accents, so “cafe” finds Café.
 - Suggestions for dishes, and for the people you dined with, no longer cover the page as you type.
 - The Back button no longer hides behind the clock on things friends send you.
@@ -83,6 +83,7 @@ ALSO FIXED
 - A MenuCaptain icon added from our welcome page opens the app itself, and signing up is simpler.
 
 See everything MenuCaptain does: https://menucaptain.com/welcome.html
+Read every issue of From the Captain’s Table: https://menucaptain.com/news/
 
 —
 You’re receiving this because you have a MenuCaptain account.

@@ -1241,7 +1241,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.560.0";
+const APP_VERSION   = "1.561.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3038,6 +3038,10 @@ tick **It's a trip, with dates**. Every meal you log between those dates joins
 it by itself, including the ones you log tomorrow; leave the end date empty
 while you're still travelling. A collection without dates is hand-picked: add
 any meals you like with **Add meals**.
+
+**Every newsletter.** Open **You**, then **From the Captain's Table**, to read
+every issue of our newsletter: what's new, what we fixed, and places new at the
+Table.
 
 **The collection page** opens on a cover photo (tap it to choose another from
 the collection's own pictures), then your favorite places and the dishes you
@@ -10901,6 +10905,7 @@ function App({openShare}){
             onOpenLeaderboard={()=> setOverlay({ type:"leaderboard" })}
             onOpenShares={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }} sharesCount={sharesCount + friendUnread}
             onOpenCollections={()=> setOverlay({ type:"collections" })} collectionsCount={(collections || []).length}
+            onOpenNews={()=> setOverlay({ type:"newsArchive" })}
             onOpenConnections={()=>{ setReqSeen(pendingReqs); setOverlay({ type:"connections" }); }}
             pendingReqs={pendingReqs}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
@@ -11994,6 +11999,9 @@ function App({openShare}){
           onHome={()=> setOverlay(null)} />
       )}
 
+      {overlay && overlay.type === "newsArchive" && (
+        <NewsArchiveView onBack={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
+      )}
       {overlay && overlay.type === "collections" && (
         <CollectionsListView collections={collections} visits={visits} cfg={config}
           onOpen={(c)=> setOverlay({ type:"collection", id:c.id, returnTo:{ type:"collections" } })}
@@ -12333,7 +12341,7 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit, onMerge }){
 function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
                         onOpenYearInFood, onOpenPassport, onOpenLeaderboard, onOpenPeople,
                         onOpenShares, sharesCount, onOpenConnections, pendingReqs,
-                        onOpenCollections, collectionsCount,
+                        onOpenCollections, collectionsCount, onOpenNews,
                         onScanMenu, onLogVisit, onAddPlace, onPublishList, onOpenMyLists,
                         savedListCount, onShareApp,
                         onOpenSplit, onNewSplit, onDeleteSplit }){
@@ -12404,6 +12412,18 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
             <span className="yif-entry-s">{collectionsCount
               ? (collectionsCount + (collectionsCount === 1 ? " collection" : " collections") + ": trips and meals kept together")
               : "Keep a trip, or any meals you love, together"}</span>
+          </span>
+          <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+            <Icon name="back" size={15} color="var(--text-faint)" />
+          </span>
+        </div>
+      ) : null}
+      {onOpenNews ? (
+        <div className="yif-entry tap" onClick={onOpenNews}>
+          <span className="yif-entry-ic"><Icon name="note" size={16} color="var(--accent)" /></span>
+          <span className="yif-entry-tx">
+            <span className="yif-entry-t">From the Captain&rsquo;s Table</span>
+            <span className="yif-entry-s">Every issue of our newsletter: what&rsquo;s new, and places new at the Table</span>
           </span>
           <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
             <Icon name="back" size={15} color="var(--text-faint)" />
@@ -12853,6 +12873,28 @@ function CollectionsStrip({ collections, visits, cfg, onOpen, onNew }){
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// Every issue of the newsletter, inside the app (2026-10-18, Chris: "Where
+// do they see access to prior feature and fix emails as well as featured
+// restaurants?"; he chose a row on You). It frames the public archive at
+// menucaptain.com/news/ (written by make_update.py --publish) rather than
+// keeping a second copy of every issue in the app. An absolute address, so the
+// phone apps, whose own files do not include news/, show the same page.
+const NEWS_ARCHIVE_URL = "https://menucaptain.com/news/";
+function NewsArchiveView({ onBack, onHome }){
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onBack}>Back</button>
+        <h2>From the Captain&rsquo;s Table</h2><HomeBtn onHome={onHome} />
+      </div>
+      <div className="ovbody" style={{padding:0, display:"flex", flexDirection:"column"}}>
+        <iframe title="Every issue of From the Captain's Table" src={NEWS_ARCHIVE_URL}
+          style={{flex:1, width:"100%", minHeight:"calc(100vh - 70px)", border:0, background:"#f3eee6"}} />
       </div>
     </div>
   );

@@ -1117,6 +1117,10 @@ it by itself, including the ones you log tomorrow; leave the end date empty
 while you're still travelling. A collection without dates is hand-picked: add
 any meals you like with **Add meals**.
 
+**Every newsletter.** Open **You**, then **From the Captain's Table**, to read
+every issue of our newsletter: what's new, what we fixed, and places new at the
+Table.
+
 **The collection page** opens on a cover photo (tap it to choose another from
 the collection's own pictures), then your favorite places and the dishes you
 loved, then every meal day by day with its photos. **Map** shows every place in

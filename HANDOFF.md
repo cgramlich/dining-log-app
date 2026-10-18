@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.560.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.561.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.149.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.560.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.561.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,21 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Every newsletter issue, from a row on You (2026-10-18, app 1.561.0)
+
+Chris: "Where do they see access to prior feature and fix emails as well as featured restaurants?"
+He chose a row on You, plus links at the foot of the email. `NewsArchiveView` (overlay
+`newsArchive`) frames the public archive `https://menucaptain.com/news/` (absolute, so the native
+apps, which do not bundle news/, show the same page) rather than keeping copies in the app. You's
+row: "From the Captain's Table: every issue of our newsletter". The archive and web copies are
+written by `make_update.py --publish` (news/index.html and news/<date>.html, new today); in a web
+copy, every link except the newsletter's own pages opens outside the frame (target=_blank), so an
+add-a-friend link never opens the app inside the app. The email gains a visible "Read every issue"
+link under its button, beside the footer's "Read past issues". Featured restaurants (Chris, by
+card): a "New at the Table" section inside the weekly email from the 2026-10-22 issue, 1 to 3
+places he picks, from menus he shared until more diners share. Playwright: on 1.560.0 no row; on
+1.561.0 the row opens the framed archive listing the first issue, and Back closes it.
 
 ### Collections on You and in the + menu (2026-10-18, app 1.560.0)
 
