@@ -26,7 +26,7 @@
    - everything else (other API, list pages) -> default network
 */
 
-const VERSION = "1.570.0";                 // keep in lockstep with APP_VERSION
+const VERSION = "1.571.0";                 // keep in lockstep with APP_VERSION
 const SHELL_CACHE = "mc-shell-" + VERSION;
 const ASSET_CACHE = "mc-assets-" + VERSION;
 const DATA_CACHE  = "mc-data-v1";           // user collections; UN-versioned so it
@@ -229,4 +229,39 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   // Everything else (API calls, OSM tiles, per-list pages) -> default network.
+});
+
+/* ---- notifications (2026-10-19) ---------------------------------------------
+   Tapping a notification opens the Home Screen app itself, which a link in an
+   email cannot do on an iPhone. The server sends {title, body, url}; url is one
+   of the app's own ?open= links. An already-open window is brought forward and
+   told where to go (index.html listens for "mc-open"); otherwise a new one
+   opens at that address. Only our own origin is ever opened. */
+self.addEventListener("push", (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; }
+  catch (e) { d = { body: event.data ? event.data.text() : "" }; }
+  event.waitUntil(self.registration.showNotification(d.title || "MenuCaptain", {
+    body: d.body || "",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    data: { url: d.url || "/" },
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  let url = "/";
+  try {
+    const u = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin);
+    if (u.origin === self.location.origin) url = u.pathname + u.search;
+  } catch (e) { /* open the front door */ }
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    const win = list.find((c) => { try { return new URL(c.url).origin === self.location.origin; } catch (e) { return false; } });
+    if (win) {
+      win.postMessage({ type: "mc-open", url: url });
+      return win.focus();
+    }
+    return self.clients.openWindow(url);
+  }));
 });

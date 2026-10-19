@@ -335,5 +335,13 @@
     "email_notes": "updated: a Refinements line for the Oct 25 issue",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
+  },
+  "1.571.0": {
+    "what": "Notifications for the Home Screen app: tapping one opens MenuCaptain right on the visit, share, reply or ready menu; emails say where each thing is waiting",
+    "guide": "updated: a Notifications paragraph",
+    "promo": "n/a: inventory reviewed, as-of bumped; a promo line waits for a real-iPhone test",
+    "email_notes": "updated: a feature line and a Captain's tip candidate for the Oct 25 issue",
+    "welcome": "n/a: nothing on the promo page changes until it is proven on an iPhone",
+    "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
   }
 }

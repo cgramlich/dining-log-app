@@ -1297,7 +1297,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.570.0";
+const APP_VERSION   = "1.571.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2861,6 +2861,12 @@ the visit** opens it. What
 you ate, your notes, and what you spent stay yours alone, and your ratings stay
 separate - you are welcome to disagree about the food. If you were not there, **Want to
 try** still saves it as a recommendation instead.
+
+**Notifications.** Turn on Settings, **Notifications**, and MenuCaptain tells you the
+moment a friend shares something with you, joins your visit or replies, and when a menu
+you scanned is ready. Tapping one opens MenuCaptain right there. On iPhone they work in
+MenuCaptain opened from your Home Screen (in Safari, tap Share, then **Add to Home
+Screen**). The emails still come too, and say where each thing is waiting.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
 **When one person shows up twice.** Somebody you tagged by first name for
@@ -9790,6 +9796,19 @@ function App({openShare}){
     else window.addEventListener("load", onLoad);
     return ()=> window.removeEventListener("load", onLoad);
   },[]);
+  // A notification tapped while the app is already open: sw.js brings this
+  // window forward and says where to go. Only our own paths are followed.
+  useEffect(()=>{
+    if (IS_NATIVE || !("serviceWorker" in navigator)) return;
+    const onMsg = (e)=>{
+      const d = (e && e.data) || {};
+      if (d.type === "mc-open" && typeof d.url === "string" && d.url.charAt(0) === "/" && d.url.charAt(1) !== "/"){
+        location.assign(d.url);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMsg);
+    return ()=> navigator.serviceWorker.removeEventListener("message", onMsg);
+  },[]);
 
   /* ---- online/offline indicator (offline Phase 2) ---------- */
   // Reads still work offline (collections are cached); this just tells the user
@@ -10084,6 +10103,7 @@ function App({openShare}){
   useEffect(()=>{
     if (!ready || needSetup || !configComplete(config)) return;
     refreshPendingReqs(); refreshShares(); refreshSharedVisits();
+    pushRefresh(config);                      // notifications on here? keep the server's copy fresh
     runPendingInvite();                       // did they accept since last launch?
     const onVis = ()=> { if (document.visibilityState === "visible"){
       refreshPendingReqs(); refreshShares(); refreshSharedVisits(); runPendingInvite(); } };
@@ -32614,6 +32634,174 @@ function LeaderboardScreen({config, profile, onProfileChange, onClose, onHome}){
 /* ============================================================
    SHARES (Phase 3): send a place to connections -> their inbox.
    ============================================================ */
+// ---- notifications for the Home Screen app (2026-10-19) -----------------------
+// On an iPhone a link in an email always opens Safari, never the app on the
+// Home Screen; a notification opens the Home Screen app itself. Chris chose
+// these by card (Chris: "it's just going to Safari. should've go to the actual
+// app"). Web Push only: the store build will use the phone's own notifications,
+// so none of this runs there. iPhone allows web notifications only in the app
+// opened from the Home Screen (iOS 16.4 and later), never in a Safari tab.
+function pushSupported(){
+  return !IS_NATIVE && ("serviceWorker" in navigator) && ("PushManager" in window) && ("Notification" in window);
+}
+function isIPhoneBrowserTab(){
+  const ua = navigator.userAgent || "";
+  const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
+    || navigator.standalone === true;
+  return ios && !standalone;
+}
+function b64uToBytes(t){
+  const b = atob((t + "=".repeat((4 - t.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/"));
+  const out = new Uint8Array(b.length);
+  for (let i = 0; i < b.length; i++) out[i] = b.charCodeAt(i);
+  return out;
+}
+function bytesToB64u(buf){
+  const a = new Uint8Array(buf); let t = "";
+  for (let i = 0; i < a.length; i++) t += String.fromCharCode(a[i]);
+  return btoa(t).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+// The worker can be missing (registration failed, a test page): never wait for ever.
+function swReady(ms){
+  return Promise.race([navigator.serviceWorker.ready,
+    new Promise((_, no)=> setTimeout(()=> no(new Error("The app's background worker is not running.")), ms || 4000))]);
+}
+async function pushServerKey(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/push/web-key");
+  if (!res.ok) throw new Error("Notifications are not available right now.");
+  return (await res.json()).key;
+}
+function samePushKey(sub, key){
+  try { const k = sub.options && sub.options.applicationServerKey; return !k || bytesToB64u(k) === key; }
+  catch(e){ return true; }
+}
+async function pushRegister(cfg, sub){
+  const res = await fetch(apiBase(cfg) + "/api/push/register", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ token: JSON.stringify(sub.toJSON ? sub.toJSON() : sub), platform:"web" }),
+  });
+  if (!res.ok){
+    const d = await res.json().catch(()=> ({}));
+    throw new Error((d && d.detail) || "Could not turn on notifications.");
+  }
+}
+// From a tap only (iPhone refuses to ask otherwise): ask, subscribe with this
+// server's key, tell the server. Returns the answer: granted, denied, default.
+async function pushEnable(cfg){
+  if (!pushSupported()) throw new Error("This browser cannot show notifications.");
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") return perm;
+  const key = await pushServerKey(cfg);
+  const reg = await swReady();
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && !samePushKey(sub, key)){ try { await sub.unsubscribe(); } catch(e){} sub = null; }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: b64uToBytes(key) });
+  await pushRegister(cfg, sub);
+  return "granted";
+}
+async function pushDisable(cfg){
+  if (!pushSupported()) return;
+  const reg = await swReady();
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) return;
+  try {
+    await fetch(apiBase(cfg) + "/api/push/unregister", {
+      method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body: JSON.stringify({ token: JSON.stringify(sub.toJSON()), platform:"web" }),
+    });
+  } catch(e){ /* the server drops it anyway once the push service says it is gone */ }
+  await sub.unsubscribe();
+}
+async function pushIsOn(){
+  if (!pushSupported() || Notification.permission !== "granted") return false;
+  try { const reg = await swReady(); return !!(await reg.pushManager.getSubscription()); }
+  catch(e){ return false; }
+}
+// Each launch, silently: if notifications are on here, make sure the server
+// has this phone, and subscribe again if the server's key changed. Never asks.
+async function pushRefresh(cfg){
+  if (!pushSupported() || Notification.permission !== "granted") return;
+  try {
+    const reg = await swReady();
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) return;                      // switched off on this phone: leave it off
+    const key = await pushServerKey(cfg);
+    if (!samePushKey(sub, key)){
+      await sub.unsubscribe();
+      sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: b64uToBytes(key) });
+    }
+    await pushRegister(cfg, sub);
+  } catch(e){ logMsg("PUSH", "refresh failed: " + (e && e.message)); }
+}
+
+function NotificationsSetting({ cfg }){
+  // checking | on | off | blocked | iphone-tab | unsupported
+  const [state, setState] = useState("checking");
+  const [busy, setBusy]   = useState(false);
+  const [err, setErr]     = useState("");
+  useEffect(()=>{
+    let live = true;
+    (async ()=>{
+      if (IS_NATIVE){ live && setState("unsupported"); return; }
+      if (isIPhoneBrowserTab()){ live && setState("iphone-tab"); return; }
+      if (!pushSupported()){ live && setState("unsupported"); return; }
+      if (Notification.permission === "denied"){ live && setState("blocked"); return; }
+      const on = await pushIsOn();
+      live && setState(on ? "on" : "off");
+    })();
+    return ()=> { live = false; };
+  }, []);
+  async function toggle(){
+    if (busy || (state !== "on" && state !== "off")) return;
+    setBusy(true); setErr("");
+    try {
+      if (state === "on"){ await pushDisable(cfg); setState("off"); }
+      else {
+        const r = await pushEnable(cfg);
+        setState(r === "granted" ? "on" : r === "denied" ? "blocked" : "off");
+      }
+    } catch(e){ setErr(e.message || "Could not change notifications."); }
+    finally { setBusy(false); }
+  }
+  if (state === "unsupported" || state === "checking") return null;
+  const on = state === "on";
+  return (
+    <>
+      <div className="set-group">Notifications</div>
+      <div className="card notif-setting">
+        {state === "iphone-tab" ? (
+          <div className="tiny faint" style={{lineHeight:1.5}}>
+            On iPhone, notifications work in MenuCaptain opened from your Home Screen. In Safari,
+            tap <b>Share</b>, then <b>Add to Home Screen</b>, open it from there, and turn them on here.
+          </div>
+        ) : state === "blocked" ? (
+          <div className="tiny faint" style={{lineHeight:1.5}}>
+            Notifications are switched off for MenuCaptain on this device. To allow them, open your
+            phone&rsquo;s <b>Settings</b>, then <b>Notifications</b>, then <b>MenuCaptain</b>.
+          </div>
+        ) : (
+          <div className="theme-row" onClick={toggle}>
+            <div style={{flex:1, minWidth:0}}>
+              <div className="theme-name">On this device</div>
+              <div className="tiny faint" style={{marginTop:3, lineHeight:1.45}}>
+                When a friend shares with you, joins your visit or replies, and when a menu you
+                scanned is ready. Tapping one opens MenuCaptain right there.
+              </div>
+            </div>
+            {busy ? <span className="spin" /> : (
+              <button type="button" className={"mc-switch" + (on ? " on" : "")} role="switch"
+                aria-checked={on} aria-label="Notifications"
+                onClick={(e)=>{ e.stopPropagation(); toggle(); }} />
+            )}
+          </div>
+        )}
+        {err ? <div className="tiny" style={{color:"#e7a99e", marginTop:8}}>{err}</div> : null}
+      </div>
+    </>
+  );
+}
+
 // ---- shared visits ------------------------------------------------------
 // A meal you were BOTH at. Your own visit row stays yours - your dishes, your
 // rating, your notes, what you spent. The shared record holds only the facts
@@ -34691,6 +34879,8 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
             onClick={(e)=>{ e.stopPropagation(); setCaloriesWhenLogging(!calOn); setCalOn(!calOn); }} />
         </div>
       </div>
+
+      <NotificationsSetting cfg={config} />
 
       <div className="set-group">More</div>
 

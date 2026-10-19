@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.570.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.154.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.570.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.571.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.156.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.571.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,42 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Notifications for the Home Screen app; emails say where it waits (2026-10-19, app 1.571.0, backend 0.155.0 and 0.156.0)
+
+Chris: "When I click on her link in the email ... it's just going to Safari. should've go to the actual
+app that I have linked to the home screen". On iOS a link NEVER opens a Home Screen web app; Apple hands
+it to Safari, which has its own sign-in. No page or email can change that. Chris chose by card: (2) the
+email wording now, and (1) notifications, because tapping a notification DOES open the Home Screen app
+(iOS 16.4+, once allowed there). The store app's universal links are the long-term answer.
+
+- **Emails (0.155.0):** `_email_shell(where=...)`: a tinted panel "On your phone? Open MenuCaptain from
+  your Home Screen. It's waiting under You, then Sharing." comes BEFORE the button, which becomes an
+  outlined backup with the browser caveat; the plain-text copy says it too. `WHERE_SHARING` (shared,
+  joined, replies), `WHERE_FRIENDS` (requests, accepted), `WHERE_CHAT` (help-chat replies),
+  `WHERE_SCAN` (menu ready). Emails with no direction are unchanged. The instruction-only email of
+  2026-10-11 stays dead: there is always a button. Test `test_email_where.py` (7 fail on 0.154.0).
+- **Notifications (0.156.0):** standard Web Push with NO new dependency: RFC 8291 encryption with
+  `cryptography` (matches the RFC's Appendix A example byte for byte) and VAPID signed with `pyjwt`.
+  The VAPID key is DERIVED from `SUPABASE_SERVICE_ROLE_KEY` by HKDF (the unsubscribe/photo-link
+  pattern): no person handles it, it survives restarts, and rotating the secret rotates it (the app
+  re-subscribes on its next launch when `/api/push/web-key` changes; dead subscriptions answer 404/410
+  and are deleted). SSRF guard: `/api/push/register` with platform `web` accepts only a well-formed
+  subscription on `WEB_PUSH_HOSTS` (web.push.apple.com, fcm.googleapis.com, Mozilla, Microsoft), stored
+  canonical so one device is one row. A tap opens the same `?open=` links as the emails
+  (`_push_open_url`). Native tokens stay inert. The `device_tokens` table the code had expected since
+  the native-push groundwork had NEVER been created: migration `device_tokens_for_notifications`
+  (Chris's yes; RLS on, no policies, anon/authenticated revoked, service_role granted, cascade on user
+  delete; `sql/device_tokens.sql`). Test `test_webpush.py` (21 checks).
+- **App (1.571.0):** Settings, **Notifications**, "On this device" switch (`NotificationsSetting`):
+  asks only from a tap, subscribes with the server's key, registers; off unsubscribes and unregisters.
+  An iPhone Safari tab is told to add the app to the Home Screen; a denied permission says where to
+  allow it. Hidden in the store build (`IS_NATIVE`). Each launch `pushRefresh` re-registers silently,
+  never asks. `sw.js` shows the notification and, on a tap, focuses an open window and posts
+  `mc-open` (the app follows only same-origin paths) or opens a new one. `swReady` times out so a
+  missing worker never hangs Settings. Test `test_push_ui.py` (11 checks; headless Chromium answers
+  "denied", so permission and the push service are stood in for).
+- NOT yet tested on a real iPhone: Chris to turn it on in the Home Screen app and have a friend share.
 
 ### One meal, one shared record (2026-10-19, app 1.570.0, backend 0.154.0)
 
