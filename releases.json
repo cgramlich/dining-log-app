@@ -303,5 +303,13 @@
     "email_notes": "updated: next-issue-notes line added",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
+  },
+  "1.567.0": {
+    "what": "Saving photos apart only for two different restaurants (two places); the by-hand version is gone",
+    "guide": "updated: Menus paragraph is now Two restaurants in one scan",
+    "promo": "n/a: no promo card covers it; inventory reviewed, as-of bumped",
+    "email_notes": "updated: next-issue-notes line narrowed to two restaurants",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
   }
 }

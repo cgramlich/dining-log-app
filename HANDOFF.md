@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.566.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.567.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.152.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.566.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.567.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,20 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Saving photos apart is for two restaurants only (2026-10-19, app 1.567.0)
+
+Chris, the evening after 1.566.0: "Can we only do the split if there's two different Google places? I
+mean, this is a rare deal, so I don't wanna make a big deal of it". So: the offer appears only when the
+photos print two or more different restaurant names (as before), the by-hand "Photos from more than one
+menu?" link and the manual mode ("Menu 1/2", "+ Another menu", `fromNames`, `addSplitGroup`) are gone,
+and Save needs a different place for each restaurant (`splitPlaceKey`, `splitPlacesDistinct`: two
+groups at one place show "Choose a different place for each restaurant" and Save stays off). Two
+menus of ONE place stay with "Customize each section". Copy now says "Save each restaurant to its own
+place" and "These photos come from two restaurants: Japón and Jaya." If dismissed with "Keep as one
+menu", one line brings it back ("These photos name Japón and Jaya. Save each to its own place"). The
+guide paragraph is now "Two restaurants in one scan". `test_split_scan_ui.py` (7): one place for both
+refused, no offer at all for one restaurant without names; 3 fail on 1.566.0.
 
 ### Photos from two menus are saved apart, each to its own place (2026-10-18, app 1.566.0)
 
