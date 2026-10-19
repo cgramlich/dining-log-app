@@ -877,7 +877,9 @@ a place has no Google score saved, sharing fetches it once.
 and they get an extra choice: **I was there**. That joins your visit rather than
 starting a separate one. The place, the date, and the photos are shared from
 then on, so a photo either of you adds turns up on both phones, and both visits
-read "Shared visit with ..." so you can see at a glance who you were with. What
+read "Shared visit with ..." so you can see at a glance who you were with. When
+someone joins your visit you hear about it in **Sharing** and by email, and **See
+the visit** opens it. What
 you ate, your notes, and what you spent stay yours alone, and your ratings stay
 separate - you are welcome to disagree about the food. If you were not there, **Want to
 try** still saves it as a recommendation instead.

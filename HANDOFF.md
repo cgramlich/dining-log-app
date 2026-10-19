@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.569.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.153.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.569.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.570.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.154.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.570.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,38 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### One meal, one shared record (2026-10-19, app 1.570.0, backend 0.154.0)
+
+Chris: "she joined my visit but not sure what i am supposed to see". Kristin joined his Jaya at The
+Setai visit and nothing showed. Cause: he had shared the visit three times in one minute and each
+share opened its OWN `shared_visits` record (the share screens send `visit.sv`, and a screen still
+holding the visit as it was before the first share sends none). She joined the first record; his
+visit pointed at the third. 8 visits had duplicates (46 records for 35 visits).
+
+- **Server:** `POST /api/shared-visits` reuses the record the caller's visit is already on
+  (`_sv_existing_for`, matched on the caller's own membership, so a friend who joined and later
+  shares their own visit of the meal lands on it too). New column `shared_visits.merged_into`:
+  `_sv_row` follows it, so old links, inbox rows and invitations land on the live record; join and
+  patch then use the live id. `/mine` lists live records only, each with `aliases` (the ids merged
+  into it); `/shares/activity` counts a merged id under its live record (`ck()`).
+- **Merge (Chris's yes by card):** migration `shared_visits_merge_duplicates`, the same SQL as
+  `dining-captain-backend/sql/shared_visits_merge.sql`. The live record is the one the opener's visit
+  points at, else most members, else oldest. Members and any photo only a duplicate had move across,
+  replies (`share_replies.subject_key`) follow; the duplicate keeps its row as a pointer. Result: 11
+  records merged, 0 visits still split, memberships 51 to 40 (13 off duplicates, 2 friends moved).
+  Rehearsed first on Docker `postgres:16` (`sv_merge_test.sql`, including a second run changing
+  nothing). `shares.payload.sv`, `share_log` and `share_events` were NOT rewritten: the alias
+  handles them, and diary rows (`visits.data`) were not touched (the app re-points `sv` itself).
+- **App:** the shared-visit cache files a record under its aliases too; the sync re-points a visit
+  whose `sv` is an alias; ONE sync at a time (`_svSyncing`), because launching from the email
+  started two and copied a friend's photo twice (caught by the test). "Joined your visit" now opens
+  the VISIT: email and push go to `?open=visit&sv=<id>` (parked across sign-in like the others),
+  the Sharing row has **See the visit** (returns to Sharing), and the edit screen shows "Shared visit
+  with ...". No visit of that meal on the phone: Sharing, as before.
+- Tests: `test_sv_backend.py` (8 fail on 0.153.0, all pass) and `test_sv_ui.py` (8 fail on 1.569.0,
+  all 11 pass). The companion kit (Kristin's copy) has the same bug: tell Chris, never edit it from
+  here.
 
 ### Link scans: the database refused them; fixed, and the app now falls back (2026-10-19, app 1.569.0)
 

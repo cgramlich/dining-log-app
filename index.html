@@ -1297,7 +1297,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.569.0";
+const APP_VERSION   = "1.570.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2855,7 +2855,9 @@ a place has no Google score saved, sharing fetches it once.
 and they get an extra choice: **I was there**. That joins your visit rather than
 starting a separate one. The place, the date, and the photos are shared from
 then on, so a photo either of you adds turns up on both phones, and both visits
-read "Shared visit with ..." so you can see at a glance who you were with. What
+read "Shared visit with ..." so you can see at a glance who you were with. When
+someone joins your visit you hear about it in **Sharing** and by email, and **See
+the visit** opens it. What
 you ate, your notes, and what you spent stay yours alone, and your ratings stay
 separate - you are welcome to disagree about the food. If you were not there, **Want to
 try** still saves it as a recommendation instead.
@@ -10040,6 +10042,37 @@ function App({openShare}){
     flash("Added your visit to " + rest.name);
   }
 
+  // My visit of a shared meal: the one carrying its id (or an id merged into
+  // it), else the one the record itself says is mine.
+  function visitForShared(svId){
+    if (!svId) return null;
+    const sv = sharedVisit(svId);
+    const ids = [svId].concat(sv ? [sv.id].concat(sv.aliases || []) : []);
+    return visitsRef.current.find(v => v && v.sv && ids.indexOf(v.sv) !== -1)
+      || (sv && sv.my_visit_id ? (visitsRef.current.find(v => v && v.id === sv.my_visit_id) || null) : null);
+  }
+  /* Open my visit of a shared meal (2026-10-19, Chris: "she joined my visit but
+     not sure what i am supposed to see". The email opened a notice that only
+     said Got it). Pulls the record first, so a friend's new photos are on the
+     visit when it opens. No visit of that meal on this phone: the inbox, as
+     before. */
+  async function openSharedVisit(svId, back){
+    let patches = {};
+    try {
+      patches = (await syncSharedVisits(config, visitsRef.current, (p)=>{
+        const next = visitsRef.current.map(v => p[v.id] ? Object.assign({}, v, p[v.id]) : v);
+        commit({ visits: next }, ["visits"]);
+      })) || {};
+    } catch(e){ /* open what this phone already has */ }
+    const v = visitForShared(svId);
+    if (v){
+      setOverlay({ type:"editVisit", visit: patches[v.id] ? Object.assign({}, v, patches[v.id]) : v,
+                   returnTo: back || null });
+      return;
+    }
+    setSharesSeen(sharesCount); setOverlay({ type:"shares" });
+  }
+
   // Pull down whatever the other people on my shared visits have added.
   function refreshSharedVisits(){
     if (!configComplete(config)) return;
@@ -10269,8 +10302,17 @@ function App({openShare}){
      what iOS hands back on the next launch of an installed app, and a
      notification link that reopens its overlay for ever is the trap the vote
      codes taught us about. */
+  // "?open=visit&sv=<id>" waits here until the visits have loaded.
+  const [pendingSv, setPendingSv] = useState("");
   useEffect(()=>{
-    let want = "", job = "";
+    if (!pendingSv || !ready || needSetup || !configComplete(config)) return;
+    const sid = pendingSv;
+    setPendingSv("");
+    openSharedVisit(sid, null);
+  // eslint-disable-next-line
+  }, [pendingSv, ready, needSetup]);
+  useEffect(()=>{
+    let want = "", job = "", svq = "";
     try {
       const om = (location.search || "").match(/[?&]open=([a-z]+)/);
       if (om) want = om[1];
@@ -10278,6 +10320,9 @@ function App({openShare}){
       // shaped like the server's (a UUID) is taken.
       const jm = (location.search || "").match(/[?&]job=([0-9a-fA-F-]{36})(?:&|$)/);
       if (jm) job = jm[1].toLowerCase();
+      // "?open=visit&sv=<id>": "someone joined your visit". A UUID only.
+      const sm = (location.search || "").match(/[?&]sv=([0-9a-fA-F-]{36})(?:&|$)/);
+      if (sm) svq = sm[1].toLowerCase();
     } catch(e){}
     if (!want) return;
     try { history.replaceState(null, "", location.pathname); } catch(e){}
@@ -10285,13 +10330,15 @@ function App({openShare}){
     // in reloads the page, which would drop the overlay set below. Park the
     // destination so the post-sign-in return brings you back to it. Only the
     // known destinations are parked, so a crafted link cannot bounce anywhere.
-    if (!configComplete(loadConfig()) && (want === "shares" || want === "connections" || (want === "scan" && job))){
-      rememberAfterSignup(location.origin + location.pathname + "?open=" + want + (want === "scan" ? "&job=" + job : ""));
+    if (!configComplete(loadConfig()) && (want === "shares" || want === "connections" || (want === "scan" && job) || (want === "visit" && svq))){
+      rememberAfterSignup(location.origin + location.pathname + "?open=" + want
+        + (want === "scan" ? "&job=" + job : "") + (want === "visit" ? "&sv=" + svq : ""));
       return;
     }
     if (want === "shares"){ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }
     else if (want === "connections"){ setOverlay({ type:"connections" }); }
     else if (want === "scan" && job){ setScanLink(job); }
+    else if (want === "visit" && svq){ setPendingSv(svq); }
   // eslint-disable-next-line
   }, []);
 
@@ -10301,7 +10348,8 @@ function App({openShare}){
       if (t === "connection_request" || t === "connection_accepted"){
         setOverlay({ type:"connections" });
       } else if (t === "share"){
-        setOverlay({ type:"shares" });
+        if (e.detail.kind === "joined" && e.detail.sv) setPendingSv(String(e.detail.sv));
+        else setOverlay({ type:"shares" });
       } else if (t === "group_invite"){
         setOverlay(null); setTab("restaurants");
       } else if (t === "scan_ready" && e.detail.job){
@@ -11588,6 +11636,7 @@ function App({openShare}){
       )}
       {overlay && overlay.type === "shares" && (
         <ShareInbox config={config} onKeepDoor={keepReplyDoor}
+          onOpenVisit={(sid)=> { refreshShares(); openSharedVisit(sid, { type:"shares" }); }}
           onClose={()=> { setOverlay(null); refreshShares(); }}
           onHome={()=> { setOverlay(null); refreshShares(); }}
           onLogVisit={(seed)=>{
@@ -23373,6 +23422,9 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
         </div>
       ) : null}
       <div className="ovbody">
+        {existing && existing.sv ? (
+          <div style={{marginTop:-4, marginBottom:12}}><SharedWith svId={existing.sv} /></div>
+        ) : null}
         <label className="fld"><span className="lbl">Restaurant</span></label>
         <div style={{position:"relative", marginBottom:14}}>
           {chosenRest && !restOpen ? (
@@ -32657,7 +32709,14 @@ function loadSharedVisits(){
 function sharedVisit(id){ return id ? (loadSharedVisits()[id] || null) : null; }
 function storeSharedVisits(list){
   const m = {};
-  (list || []).forEach(sv => { if (sv && sv.id) m[sv.id] = sv; });
+  (list || []).forEach(sv => {
+    if (!sv || !sv.id) return;
+    m[sv.id] = sv;
+    // A visit can still carry an id that was merged into this record (server
+    // 0.154.0: one meal had been opened as several records). File the record
+    // under those ids too, so "Shared visit with" finds it either way.
+    (sv.aliases || []).forEach(a => { if (a && !m[a]) m[a] = sv; });
+  });
   _svCache = m;
   try { localStorage.setItem("mc_shared_visits", JSON.stringify(m)); } catch(e){}
   return m;
@@ -32674,12 +32733,23 @@ function sharedVisitOthers(id){
 // Pull the shared visits I'm on and copy in any photos the OTHER people added,
 // so both phones end up holding the same album. Best-effort throughout: a photo
 // that will not copy is skipped, and a dead network changes nothing.
-async function syncSharedVisits(cfg, visits, onVisitsPatched){
+// ONE sync at a time: launching from the "joined" email starts the usual
+// launch sync and the open-this-visit sync together, and two runs would copy a
+// friend's photo twice. A second caller shares the first run and gets the same
+// patches back; the first caller's onVisitsPatched saves them.
+let _svSyncing = null;
+function syncSharedVisits(cfg, visits, onVisitsPatched){
+  if (_svSyncing) return _svSyncing;
+  _svSyncing = _syncSharedVisitsRun(cfg, visits, onVisitsPatched)
+    .finally(()=> { _svSyncing = null; });
+  return _svSyncing;
+}
+async function _syncSharedVisitsRun(cfg, visits, onVisitsPatched){
   let list = [];
   try { const d = await svMine(cfg); list = (d && d.visits) || []; }
-  catch(e){ return; }
+  catch(e){ return {}; }
   storeSharedVisits(list);
-  if (!Array.isArray(visits) || !visits.length) return;
+  if (!Array.isArray(visits) || !visits.length) return {};
   const byId = {};
   visits.forEach(v => { if (v && v.id) byId[v.id] = v; });
   const patches = {};
@@ -32687,6 +32757,11 @@ async function syncSharedVisits(cfg, visits, onVisitsPatched){
     const sv = list[i];
     const mine = byId[sv.my_visit_id];
     if (!mine) continue;
+    // The visit points at an id merged into this record: point it at the live
+    // one, so it no longer needs the alias.
+    if (mine.sv && mine.sv !== sv.id && (sv.aliases || []).indexOf(mine.sv) !== -1){
+      patches[mine.id] = Object.assign({}, patches[mine.id] || {}, { sv: sv.id });
+    }
     const me = ((sv.members || []).find(m => m && m.is_me) || {}).user_id || "";
     // Anything under photos/shared/ arrived FROM this record - pushing those
     // back would just echo. Everything else is a photo I took.
@@ -32716,13 +32791,14 @@ async function syncSharedVisits(cfg, visits, onVisitsPatched){
     }
     // Record every key we looked at, not just the ones that copied, so a photo
     // that can never be fetched does not get retried on every single launch.
-    patches[mine.id] = {
+    patches[mine.id] = Object.assign({}, patches[mine.id] || {}, {
       photos: (mine.photos || []).concat(added),
       sv_photo_keys: (mine.sv_photo_keys || []).concat(want.map(w => w.key)),
-    };
+    });
     if (added.length) logMsg("SHAREDVISIT", "pulled " + added.length + " photo(s) into " + mine.id);
   }
   if (Object.keys(patches).length && onVisitsPatched) onVisitsPatched(patches);
+  return patches;
 }
 
 async function sendShare(cfg, toIds, kind, title, payload){
@@ -33822,7 +33898,7 @@ function SentList({cfg}){
 
 // "Shared with you" inbox overlay: received places/lists; tap to view (reuses
 // the public viewers, which include "Save to my places"), or dismiss.
-function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
+function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor, onOpenVisit}){
   const [reporting, setReporting] = useState(null);   // the share being reported
   const [shares, setShares] = useState(null);
   const [open, setOpen]     = useState(null);   // the share being viewed
@@ -34019,6 +34095,7 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
           // with confirmed they were there too. It reads and clears in one row.
           if (s.kind === "joined"){
             const where = (s.payload && s.payload.r) || "your visit";
+            const svOpen = (s.payload && s.payload.sv && onOpenVisit) ? s.payload.sv : "";
             return (
               <SwipeToDelete key={s.id} onDelete={()=> remove(s.id)}>
                 <div className="card" style={{display:"flex", alignItems:"center", gap:10}}>
@@ -34030,8 +34107,13 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor}){
                     <div style={{fontWeight:600}}>{s.title || (s.from + " joined your visit")}</div>
                     <div className="tiny faint">You were there together, so you will both see each other&rsquo;s photos on it.</div>
                   </div>
-                  <button className="btn ghost sm" style={{flex:"none"}} disabled={busyId===s.id}
-                    onClick={()=> remove(s.id)}>Got it</button>
+                  {svOpen ? (
+                    <button className="btn ghost sm" style={{flex:"none"}} disabled={busyId===s.id}
+                      onClick={()=> { remove(s.id); onOpenVisit(svOpen); }}>See the visit</button>
+                  ) : (
+                    <button className="btn ghost sm" style={{flex:"none"}} disabled={busyId===s.id}
+                      onClick={()=> remove(s.id)}>Got it</button>
+                  )}
                 </div>
               </SwipeToDelete>
             );

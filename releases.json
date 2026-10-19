@@ -327,5 +327,13 @@
     "email_notes": "n/a: a fix that no member hit",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
+  },
+  "1.570.0": {
+    "what": "A meal shared more than once stays one shared visit; 'joined your visit' opens the visit, which says who was there",
+    "guide": "updated: A meal you were both at (the joined notice and See the visit)",
+    "promo": "n/a: a fix; inventory reviewed, as-of bumped",
+    "email_notes": "added: a Refinements line for the Oct 25 issue",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
   }
 }

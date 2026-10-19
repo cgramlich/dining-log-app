@@ -45,8 +45,8 @@ find.
 
 | Figure | Value | As of |
 |---|---|---|
-| Web app | v1.569.0, live | 2026-10-19 |
-| Backend | v0.153.0, live | 2026-10-19 |
+| Web app | v1.570.0, live | 2026-10-19 |
+| Backend | v0.154.0, live | 2026-10-19 |
 | Front end | a single HTML file, ~1.41 MB, no build step | 2026-09-25 |
 | Backend | ~7,600 lines of Python (FastAPI) | 2026-09-25 |
 | Free tier | 75 AI calls + 15 Discovery lookups, lifetime | current |
