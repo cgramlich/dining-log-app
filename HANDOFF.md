@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.565.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.566.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.152.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.565.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.566.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,37 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Photos from two menus are saved apart, each to its own place (2026-10-18, app 1.566.0)
+
+At The Setai Chris was handed Japón's and Jaya's menus together and scanned all eight photos at
+once. Pages merge by section name (`mergeMenuPages`), so both menus' "Signatures", "Raw", "Salads",
+"Caviar" and sides blended into single sections that "Customize each section" could not separate.
+He approved by card ("Yes, build it"), and chose two places for the two restaurants.
+
+**How.** `scanPagesToMenu` now keeps each photo's own reading on the result as `_pages` (a JSON copy
+taken before the merge, which moves and updates items in place). `suggestPageGroups(pages)` groups
+photos by the printed `restaurant_name` when two or more different names appear; an unnamed photo
+joins the last named group before it (first group if none). On review (new scans only, not a Refresh)
+a `split-card` shows each photo (thumbnail, or its number on a resumed scan) with `pageSummary` and
+one chip per group, then per group a **Save to** select (`main` = the place above, `rest:<id>`, or
+`new` = a new place named after the group, `printedNameCase`, since `toTitleCase` breaks at accents)
+and a **Menu name** (Main by default when the groups came from printed names, since each is that
+place's menu). `guessGroupDest` sends a group to the place above when its name is in that place's
+name, else to a saved place of that name, else the first group to the place above and the rest to a
+new place. Without printed names it is offered, not assumed ("Photos from more than one menu? Save
+them separately"; two groups, "+ Another menu" up to four). The preview shows each menu separately.
+`saveSplit` builds `buildGroupMenu(pages, idxs)` per group (the same merge, on that group's photos),
+reuses a same-named menu's id when the duplicate choice is Replace, carries each group's printed
+story to its own place, and calls `onSave` ONCE with `opts.extra` for the other places: the App
+applies them in the same commit (a second onSave would start from stale menus and undo the first).
+Toast: "2 menus saved to 2 places". Only for photos read page by page (2 to 8); the single-request
+fallback has no per-photo reading.
+
+Tests: `test_split_scan_ui.py` (7: offered with both names, separate Signatures, a no-name photo
+moved by chip, Japón to the place above and Jaya to a new place, each with exactly its own dishes;
+with no names it is offered not assumed; two menus at one place) fails on 1.565.0; the 1.563 to 1.565
+suites still pass.
 
 ### The weekly newsletter: drafted on a schedule, a Home card when it's ready, sent once for good (2026-10-18, app 1.565.0, backend 0.152.0)
 

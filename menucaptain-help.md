@@ -303,6 +303,15 @@ for word, in an **In their words** card on the place. If it is a separate page,
 open the place and tap **Add their story from a photo** (or **Replace from a
 photo**): you see the text it read before anything is saved.
 
+**Two menus in one scan.** Some places hand you two menus at once (two restaurants
+in one hotel, or dinner and drinks). When the photos print different restaurant
+names, the review offers **Save these as separate menus**: each photo is put with
+the name it shows (tap a chip to move one), and each menu goes to the place you
+choose, this one, another you've saved, or a new one. Photos that print no names
+can be split the same way: tap **Photos from more than one menu? Save them
+separately**. Without it, sections with the same name (say, both menus'
+**Signatures**) are joined into one.
+
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.
 Open the menu, tap **•••** and then **Split** to move sections out: tick

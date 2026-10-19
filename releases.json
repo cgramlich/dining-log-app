@@ -295,5 +295,13 @@
     "email_notes": "n/a: not newsletter news (it is how the newsletter is sent); notes now say Sunday sends",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
+  },
+  "1.566.0": {
+    "what": "Photos from two menus in one scan are saved as separate menus, each to the place you choose",
+    "guide": "updated: Menus, new paragraph Two menus in one scan",
+    "promo": "n/a: a review-screen option, no new promo card; inventory reviewed, as-of bumped",
+    "email_notes": "updated: next-issue-notes line added",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
   }
 }

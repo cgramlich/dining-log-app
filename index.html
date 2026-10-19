@@ -508,6 +508,16 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .ovhead .x{font-size:15px; color:var(--text-dim); padding:6px 4px; font-weight:600;}
     /* Chat, Settings and Home together at the right of a page's top bar (1.563.0). */
     .nav-cluster{display:flex; align-items:center; gap:4px; flex:none;}
+    /* Photos from more than one menu, saved apart (1.566.0). */
+    .split-card{border:1px solid rgba(224,118,74,0.40); padding:12px 14px; margin-bottom:12px;}
+    .split-photo{display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--line-soft);}
+    .split-thumb{width:44px; height:58px; border-radius:7px; object-fit:cover; flex:none; background:var(--surface);}
+    .split-num{display:flex; align-items:center; justify-content:center; font-weight:600; color:var(--text-dim);
+      border:1px solid var(--line);}
+    .split-sum{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .split-group{margin-top:12px; padding-top:10px; border-top:1px solid var(--line-soft);}
+    .split-group-title{font-weight:600; color:var(--accent); margin-bottom:6px;}
+    .linkish{background:none; border:none; padding:0; color:var(--accent); cursor:pointer; font-family:inherit; text-align:left;}
     /* The owner's "issue ready" card on Home (1.565.0): the newsletter's gold. */
     .card.issue-ready{border:1px solid rgba(201,160,106,0.55); background:rgba(201,160,106,0.07);}
     .issue-ready-over{font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#C9A06A; font-weight:500;}
@@ -1284,7 +1294,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.565.0";
+const APP_VERSION   = "1.566.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2267,6 +2277,15 @@ are, what they cook and why. Scanning a menu that includes one keeps it, word
 for word, in an **In their words** card on the place. If it is a separate page,
 open the place and tap **Add their story from a photo** (or **Replace from a
 photo**): you see the text it read before anything is saved.
+
+**Two menus in one scan.** Some places hand you two menus at once (two restaurants
+in one hotel, or dinner and drinks). When the photos print different restaurant
+names, the review offers **Save these as separate menus**: each photo is put with
+the name it shows (tap a chip to move one), and each menu goes to the place you
+choose, this one, another you've saved, or a new one. Photos that print no names
+can be split the same way: tap **Photos from more than one menu? Save them
+separately**. Without it, sections with the same name (say, both menus'
+**Signatures**) are joined into one.
 
 **Splitting a menu up.** A single pull from a restaurant's website often brings
 back their whole page at once - dinner, lunch, drinks and brunch in one menu.
@@ -6138,9 +6157,57 @@ function scanPagesToMenu(json, n){
     return parsed;
   });
   if (menuPagesDisagreeOnLanguage(raws)) throw new Error("the pages are in different languages");
+  // Each photo's own reading, kept beside the merged menu (1.566.0) so the
+  // review can save photos from two menus apart (see suggestPageGroups).
+  // Copied BEFORE the merge, which moves and updates items in place.
+  const pagesCopy = JSON.parse(JSON.stringify(raws));
   const merged = mergeMenuPages(raws);
   logMsg("VISION","Merged " + raws.length + " pages into " + merged.sections.length + " section(s)");
-  return finishDigitizedMenu(merged);
+  const out = finishDigitizedMenu(merged);
+  if (pagesCopy.length >= 2) out._pages = pagesCopy;
+  return out;
+}
+
+/* PHOTOS FROM MORE THAN ONE MENU (1.566.0; Chris approved by card on
+   2026-10-18 at The Setai, where Japón's and Jaya's menus came to the table
+   together). Read together, pages merge by section name, so both menus'
+   "Signatures" became one blended section that could not be pulled apart.
+   When the photos print two or more different restaurant names, the review
+   offers to save them apart: photos grouped by the name printed on them, a
+   photo with no name joining the group of the last named photo before it
+   (fix any with one tap), and each group saved as its own menu, at the same
+   place or another. Anyone can also turn it on by hand for photos that print
+   no names. Only for photos read page by page (2 to 8); a single request has
+   no per-photo reading to split. */
+function suggestPageGroups(pages){
+  const key = pg => foldText(String((pg && pg.restaurant_name) || "").trim());
+  const groups = [], at = {};
+  (pages || []).forEach(pg => {
+    const k = key(pg);
+    if (k && at[k] == null){ at[k] = groups.length; groups.push({ title: String(pg.restaurant_name).trim(), pages: [] }); }
+  });
+  if (groups.length < 2) return null;
+  const firstNamed = (pages || []).findIndex(pg => key(pg));
+  let cur = at[key(pages[firstNamed])];
+  (pages || []).forEach((pg, i) => { const k = key(pg); if (k) cur = at[k]; groups[cur].pages.push(i); });
+  return groups;
+}
+// A printed name as a name: "JAPÓN" -> "Japón". Not toTitleCase, whose word
+// boundaries break at accented letters ("JapóN").
+function printedNameCase(t){
+  return String(t || "").trim().toLowerCase().replace(/(^|[\s\-\/&'])(\S)/g, (m, a, b) => a + b.toUpperCase());
+}
+// One group's photos -> its menu, merged the same way as the whole scan.
+function buildGroupMenu(pages, idxs){
+  const raws = idxs.map(i => JSON.parse(JSON.stringify(pages[i])));
+  return finishDigitizedMenu(mergeMenuPages(raws));
+}
+// "Signatures, Raw · 9 dishes": what a photo holds, to tell photos apart.
+function pageSummary(pg){
+  const secs = ((pg && pg.sections) || []).filter(x => x && (x.items || []).length);
+  const n = secs.reduce((a, x) => a + x.items.length, 0);
+  const names = secs.slice(0, 3).map(x => sectionHeading(x.name)).filter(Boolean).join(", ");
+  return (names ? names + " \u00b7 " : "") + n + (n === 1 ? " dish" : " dishes");
 }
 
 async function digitizeMenu(cfg, dataUrls){
@@ -12096,8 +12163,26 @@ function App({openShare}){
                 .concat(menusToSave.filter(m => !had.has(m.menu_id)));
             }
             const nextM = Object.assign({}, menus, { [restId]:newRestMenus });
+            // Photos from more than one menu, saved apart (1.566.0): the other
+            // places' menus go in this SAME write. A second onSave would start
+            // from the menus it was handed and undo this one.
+            const extra = (opts && opts.extra) || [];
+            let extraPlaces = false;
+            extra.forEach(part => {
+              if (part.newRestaurant){ nextR = [part.newRestaurant].concat(nextR); extraPlaces = true; }
+              if (part.houseStory){
+                nextR = nextR.map(x => x.id === part.restId
+                  ? Object.assign({}, x, { house_story: part.houseStory, house_story_at: todayISO() }) : x);
+                extraPlaces = true;
+              }
+              const had = nextM[part.restId] || [];
+              const incoming = new Map(part.menus.map(m => [m.menu_id, m]));
+              const ids = new Set(had.map(m => m.menu_id));
+              nextM[part.restId] = had.map(m => incoming.get(m.menu_id) || m)
+                .concat(part.menus.filter(m => !ids.has(m.menu_id)));
+            });
             commit({ restaurants:nextR, menus:nextM },
-                   (newRestaurant || houseStory) ? ["restaurants","menus"] : ["menus"]);
+                   (newRestaurant || houseStory || extraPlaces) ? ["restaurants","menus"] : ["menus"]);
             // stayOpen: the flow is looping through several found menus - data
             // is saved but the sheet stays up so the next one is one tap away.
             // Otherwise: if we were launched from somewhere (e.g. the log-visit
@@ -12111,7 +12196,9 @@ function App({openShare}){
                   : { type:"restaurant", id:restId });
             }
             const savedPlace = newRestaurant || restaurantById(restId);
-            const baseMsg = !menusToSave.length ? "Saved their story to In their words"
+            const extraCount = extra.reduce((a, part) => a + part.menus.length, 0);
+            const baseMsg = extraCount ? (menusToSave.length + extraCount) + " menus saved to " + (1 + extra.length) + " places"
+              : !menusToSave.length ? "Saved their story to In their words"
               : isReplace ? "Menu replaced"
               : (menusToSave.length > 1 ? menusToSave.length + " menus saved" : "Menu saved");
             // Deliberately no share offer here. The restaurant page already
@@ -24492,6 +24579,11 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [addedUrls,setAddedUrls]   = useState([]);      // which of foundMenus are already saved this session (the add-another loop)
   // "replace" (a same-named menu here is the same menu, refreshed) or "both".
   const [dupMode,setDupMode]   = useState("replace");
+  // Photos from more than one menu, saved apart (1.566.0): null when it can't
+  // apply, else { on, fromNames, assign: group per photo, groups: [{ title,
+  // label, dest }] } where dest is "main" (the place chosen above), "rest:<id>"
+  // or "new" (a new place named after the group).
+  const [split,setSplit]       = useState(null);
   const [restId,setRestId]     = useState(presetRestaurantId || "");
   const [newName,setNewName]   = useState("");
   // Website of the destination place (if linked to Google) - enables "Find the menu for me".
@@ -24522,6 +24614,22 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     // "Cocktails" pill, even though they mean the same destination.
     setSectionExtracts((result.sections || []).map(s => toTitleCase(s.name || "")));
     setSaveMode("one");
+    // Photos from more than one menu (see suggestPageGroups).
+    const pg = result._pages;
+    if (presetMenu || !pg || pg.length < 2){ setSplit(null); return; }
+    const sug = suggestPageGroups(pg);
+    if (sug){
+      const assign = pg.map(()=> 0);
+      sug.forEach((g, gi) => g.pages.forEach(i => { assign[i] = gi; }));
+      // Menus named after restaurants are each that place's menu, so they are
+      // called Main there; the place carries the restaurant's name.
+      setSplit({ on:true, fromNames:true, assign:assign,
+                 groups: sug.map((g, gi) => ({ title: printedNameCase(g.title), label: "Main",
+                                              dest: guessGroupDest(g.title, gi === 0) })) });
+    } else {
+      setSplit({ on:false, fromNames:false, assign: pg.map(()=> 0),
+                 groups: [{ title:"Menu 1", label:"", dest:"main" }, { title:"Menu 2", label:"", dest:"main" }] });
+    }
   },[result]);
 
   // tracks "processing M of N" status during onFiles so the UI can show
@@ -24801,6 +24909,81 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     }
   }
 
+  // Where a group of photos goes by default: the place chosen above when its
+  // printed name is that place's, else a saved place of that name, else (for
+  // the first group) the place above, else a new place named after it.
+  function guessGroupDest(title, isFirst){
+    const k = foldText(String(title || "").trim());
+    const main = restaurants.find(r => r.id === (restId || presetRestaurantId));
+    if (k && main && foldText(main.name || "").indexOf(k) >= 0) return "main";
+    const hit = k ? restaurants.find(r => { const n = foldText(r.name || ""); return n === k || n.indexOf(k + " ") === 0; }) : null;
+    if (hit && (!main || hit.id !== main.id)) return "rest:" + hit.id;
+    return isFirst ? "main" : "new";
+  }
+  function groupPlaceName(g){
+    return split && split.fromNames ? g.title : ((g.label || "").trim() || "New place");
+  }
+  function setSplitGroup(gi, patch){
+    setSplit(sp => Object.assign({}, sp, { groups: sp.groups.map((g, i) => i === gi ? Object.assign({}, g, patch) : g) }));
+  }
+  function assignPhoto(i, gi){
+    setSplit(sp => Object.assign({}, sp, { assign: sp.assign.map((a, j) => j === i ? gi : a) }));
+  }
+  function addSplitGroup(){
+    setSplit(sp => sp.groups.length >= 4 ? sp : Object.assign({}, sp, { groups: sp.groups.concat([
+      { title: "Menu " + (sp.groups.length + 1), label: "", dest: "main" }]) }));
+  }
+
+  // Saving photos from more than one menu: one menu per group, each to its
+  // place, in ONE save (onSave's extra), so a second place is not lost to a
+  // second write that never saw the first.
+  function saveSplit(){
+    let mainId = restId, mainNew = null;
+    const parts = new Map();
+    const blankPlace = (id, name) => ({ id, name, cuisine:"", location:"", address:"", phone:"", website:"",
+                                        notes:"", favorite:false, added_date:todayISO() });
+    function partFor(g){
+      if (g.dest === "main"){
+        if (!mainId){
+          mainId = uid("rest");
+          mainNew = blankPlace(mainId, (newName || result.restaurant_name || "New restaurant").trim());
+        }
+        if (!parts.has(mainId)) parts.set(mainId, { restId: mainId, menus: [], newRestaurant: mainNew, houseStory: "" });
+        return parts.get(mainId);
+      }
+      if (String(g.dest || "").indexOf("rest:") === 0){
+        const id = g.dest.slice(5);
+        if (!parts.has(id)) parts.set(id, { restId: id, menus: [], newRestaurant: null, houseStory: "" });
+        return parts.get(id);
+      }
+      const id = uid("rest");
+      const part = { restId: id, menus: [], newRestaurant: blankPlace(id, groupPlaceName(g)), houseStory: "" };
+      parts.set(id, part);
+      return part;
+    }
+    splitMenus.forEach(sm => {
+      const g = split.groups[sm.gi];
+      const lbl = (g.label || "").trim();
+      const part = partFor(g);
+      const have = ((menus || {})[part.restId] || []).find(x => ((x && x.label) || "").trim().toLowerCase() === lbl.toLowerCase());
+      part.menus.push({
+        menu_id: (have && dupMode === "replace") ? have.menu_id : uid("menu"),
+        label: lbl, restaurant_id: part.restId,
+        captured_date: result.captured_date || todayISO(), last_updated: todayISO(),
+        source: result.source || "photo_ocr",
+        sections: sm.menu.sections, raw_text: "",
+        translation: sm.menu.translation || undefined,
+      });
+      // A printed story belongs to the place whose photos printed it.
+      if (sm.menu.house_story && !part.houseStory) part.houseStory = sm.menu.house_story;
+    });
+    const all = Array.from(parts.values());
+    logMsg("SCAN", "Saving " + splitMenus.length + " menus from one scan to " + all.length + " place(s)");
+    onSave(all[0].restId, all[0].menus, all[0].newRestaurant, false,
+           { houseStory: all[0].houseStory, extra: all.slice(1) });
+    if (jobId && jobLoaded.current){ collectScanJob(config, jobId); jobLoaded.current = false; setJobId(""); }
+  }
+
   // focus the freeform label input (used by the "Other..." pill)
   function focusOtherLabel(){
     setLabel("");
@@ -24808,6 +24991,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   }
 
   function save(){
+    if (splitActive){ saveSplit(); return; }
     let targetRestId  = restId;
     let newRestaurant = null;
     if (!targetRestId){
@@ -24944,8 +25128,16 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
   // ---- review-step helpers ----
   const sectionCount = result ? (result.sections || []).length : 0;
+  const splitOn = !!(split && split.on && result && result._pages);
+  const splitMenus = splitOn ? split.groups.map((g, gi) => {
+    const idxs = split.assign.map((a, i) => a === gi ? i : -1).filter(i => i >= 0);
+    return idxs.length ? { gi: gi, idxs: idxs, menu: buildGroupMenu(result._pages, idxs) } : null;
+  }).filter(Boolean) : [];
+  const splitActive = splitOn && splitMenus.length >= 2;
+  const splitReady = splitActive && splitMenus.every(sm => (split.groups[sm.gi].label || "").trim())
+    && (restId || newName.trim() || result.restaurant_name || !splitMenus.some(sm => split.groups[sm.gi].dest === "main"));
   // top-level toggle is only shown for multi-section new scans
-  const showModeToggle = !presetMenu && sectionCount >= 2;
+  const showModeToggle = !presetMenu && sectionCount >= 2 && !splitOn;
   const inCustomMode   = showModeToggle && saveMode === "custom";
 
   // in custom mode every section needs a non-empty destination
@@ -24980,7 +25172,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   }
   const previewMenus = previewDestinations();
 
-  const canSave = !!result &&
+  const canSave = splitOn ? splitReady : !!result &&
     (restId || newName.trim() || (result && result.restaurant_name)) &&
     (inCustomMode
       ? allCustomLabeled && previewMenus.length > 0
@@ -25278,6 +25470,81 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               </label>
             )}
 
+            {split && !splitOn ? (
+              <button type="button" className="linkish small" style={{margin:"2px 2px 10px"}}
+                onClick={()=> setSplit(Object.assign({}, split, { on:true }))}>
+                Photos from more than one menu? Save them separately
+              </button>
+            ) : null}
+            {splitOn ? (
+              <div className="card split-card">
+                <div className="between" style={{alignItems:"baseline"}}>
+                  <div className="small" style={{fontWeight:600}}>Save these as separate menus</div>
+                  <button type="button" className="linkish tiny" onClick={()=> setSplit(Object.assign({}, split, { on:false }))}>
+                    Keep as one menu</button>
+                </div>
+                <div className="tiny faint" style={{margin:"4px 0 10px", lineHeight:1.5}}>
+                  {split.fromNames
+                    ? "These photos come from more than one menu: they name " +
+                      split.groups.map(g => g.title).join(" and ") + ". Each is saved on its own, so their dishes don't mix."
+                    : "Tap which menu each photo belongs to. Each is saved on its own, so their dishes don't mix."}
+                </div>
+                {result._pages.map((pg, i) => (
+                  <div key={i} className="split-photo">
+                    {previews[i] ? <img src={previews[i]} alt="" className="split-thumb" />
+                      : <span className="split-thumb split-num">{i + 1}</span>}
+                    <div style={{flex:1, minWidth:0}}>
+                      <div className="tiny" style={{fontWeight:600}}>Photo {i + 1}</div>
+                      <div className="tiny faint split-sum">{pageSummary(pg)}</div>
+                      <div className="chips" style={{gap:5, marginTop:5}}>
+                        {split.groups.map((g, gi) => (
+                          <button key={gi} type="button" className={"chip pick" + (split.assign[i] === gi ? " on" : "")}
+                            aria-pressed={split.assign[i] === gi} onClick={()=> assignPhoto(i, gi)}>
+                            {g.title}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {split.groups.length < 4 && !split.fromNames ? (
+                  <button type="button" className="linkish tiny" style={{marginTop:4}} onClick={addSplitGroup}>+ Another menu</button>
+                ) : null}
+                {split.groups.map((g, gi) => {
+                  const sm = splitMenus.find(x => x.gi === gi);
+                  if (!sm) return null;
+                  const n = (sm.menu.sections || []).reduce((a, x) => a + (x.items || []).length, 0);
+                  const destId = g.dest === "main" ? restId : (String(g.dest).indexOf("rest:") === 0 ? g.dest.slice(5) : "");
+                  const clash = destId && ((menus || {})[destId] || []).find(x =>
+                    ((x && x.label) || "").trim().toLowerCase() === (g.label || "").trim().toLowerCase() && (g.label || "").trim());
+                  return (
+                    <div key={gi} className="split-group">
+                      <div className="tiny split-group-title">{g.title} &middot; {sm.idxs.length} {sm.idxs.length === 1 ? "photo" : "photos"}, {n} {n === 1 ? "dish" : "dishes"}</div>
+                      <label className="fld" style={{marginBottom:6}}><span className="lbl">Save to</span>
+                        <select className="input" value={g.dest} onChange={e=> setSplitGroup(gi, { dest: e.target.value })}>
+                          <option value="main">{restId ? ((restaurants.find(r => r.id === restId) || {}).name || "This place") + " (above)"
+                            : "The new restaurant above"}</option>
+                          {restaurants.filter(r => r.id !== restId).map(r => <option key={r.id} value={"rest:" + r.id}>{r.name}</option>)}
+                          <option value="new">{"A new place named \u201c" + groupPlaceName(g) + "\u201d"}</option>
+                        </select>
+                      </label>
+                      <label className="fld" style={{marginBottom:0}}><span className="lbl">Menu name</span>
+                        <ClearInput value={g.label} placeholder="e.g. Main, Dinner, Drinks"
+                          onChange={e=> setSplitGroup(gi, { label: e.target.value })} />
+                      </label>
+                      {clash ? (
+                        <div className="tiny faint" style={{marginTop:5}}>
+                          {dupMode === "replace" ? "Replaces the " + clash.label + " menu saved there." : "Kept beside the " + clash.label + " menu saved there."}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {!splitActive ? (
+                  <div className="tiny" style={{color:"#d9604e", marginTop:8}}>Put at least one photo in each of two menus, or keep them as one.</div>
+                ) : null}
+              </div>
+            ) : null}
+
             {/* ===== top-level toggle, only for multi-section new scans ===== */}
             {showModeToggle && (
               <div className="card" style={{padding:"12px 14px",marginTop:4}}>
@@ -25314,7 +25581,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
             {/* ===== ONE-MENU PATH: single label input ===== */}
             {/* (covers: re-scan, 1-section new scan, and 2+ sections in "one" mode) */}
-            {(!showModeToggle || saveMode === "one") && (
+            {!splitOn && (!showModeToggle || saveMode === "one") && (
               <label className="fld">
                 <span className="lbl">
                   Menu name {presetMenu &&
@@ -25447,17 +25714,31 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               </div>
             )}
 
-            <div className="divider-label">
-              Preview &middot; {sectionCount} section(s)
-            </div>
-            <div className="card" style={{padding:"6px 14px 10px"}}>
-              <MenuView menu={result} />
-            </div>
+            {splitActive ? splitMenus.map(sm => (
+              <div key={sm.gi}>
+                <div className="divider-label">
+                  {split.groups[sm.gi].title} &middot; {(sm.menu.sections || []).length} section(s)
+                </div>
+                <div className="card" style={{padding:"6px 14px 10px"}}>
+                  <MenuView menu={sm.menu} />
+                </div>
+              </div>
+            )) : (
+              <>
+                <div className="divider-label">
+                  Preview &middot; {sectionCount} section(s)
+                </div>
+                <div className="card" style={{padding:"6px 14px 10px"}}>
+                  <MenuView menu={result} />
+                </div>
+              </>
+            )}
             <button className="btn primary" onClick={save} disabled={!canSave}
               style={{marginTop:8}}>
               <Icon name="check" size={18} color="#1b1714" />
               {presetMenu
                 ? "Replace " + presetMenu.label + " menu"
+                : splitActive ? "Save " + splitMenus.length + " menus"
                 : previewMenus.length > 1
                   ? "Save " + previewMenus.length + " menus"
                   : "Save this menu"}
