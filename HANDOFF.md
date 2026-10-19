@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.568.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.569.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.153.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.568.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.569.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,24 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Link scans: the database refused them; fixed, and the app now falls back (2026-10-19, app 1.569.0)
+
+Found while refreshing the companion kit's schema: `scan_jobs` has `scan_jobs_kind_check` allowing
+only 'pages' and 'single', but backend 0.151.0 (2026-10-18) inserts kind 'link'. Every link scan would
+have failed with a 500 from the insert, and the app (1.564.0) showed the error instead of reading the
+link the old way. The Railway log showed no link job had been tried yet, so nobody hit it. Chris
+approved the fix by card: migration `scan_jobs_allow_link` widens the check to
+('pages','single','link') (verified with `pg_get_constraintdef`). App: `startLinkJob` now returns null
+on any 5xx, so a server fault falls back to `readUrlOnPhone` instead of dead-ending
+(`test_link_jobs_ui.py` check 12; fails on 1.568.0). LESSON: a new value written to a column needs a
+look at that column's CHECK constraints (`select pg_get_constraintdef(oid) from pg_constraint where
+conrelid = 'public.<table>'::regclass`), the same way a new table needs its grant.
+
+Also 2026-10-19: the first newsletter went out 2026-10-19 02:43 UTC (23 sent, 0 failed, `news_sends`)
+with "Dear Captain,". The greeting change and "[Preview v10]" came AFTER that, by mistake; the archive
+copy was reverted to exactly what was sent (commit "Revert First issue v10"). "Dear friends," starts
+with the 2026-10-25 issue.
 
 ### Price discovery: what a place costs, before you go (2026-10-19, app 1.568.0, backend 0.153.0)
 

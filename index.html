@@ -1297,7 +1297,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.568.0";
+const APP_VERSION   = "1.569.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6506,6 +6506,13 @@ async function startLinkJob(cfg, url, extra){
     if (typeof _detail !== "string") _detail = "";
     if (res.status === 400 && /unknown kind/i.test(_detail)){
       logMsg("SCAN","This server reads links on the phone");
+      return null;
+    }
+    // The server could not start it (2026-10-19: its database refused the new
+    // "link" kind until a constraint was widened). The phone can still read a
+    // link the old way, so a server fault never dead-ends one.
+    if (res.status >= 500){
+      logMsg("SCAN","Link job could not start (" + res.status + ") - reading it on the phone");
       return null;
     }
     logMsg("ERROR","Link job -> " + res.status + " " + txt.slice(0,180));

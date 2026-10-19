@@ -319,5 +319,13 @@
     "email_notes": "updated: next-issue-notes makes it the Oct 25 lead, with the measured figure",
     "welcome": "updated: new card Real prices, before you go",
     "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
+  },
+  "1.569.0": {
+    "what": "A menu link the server can't start reading is read on the phone instead (with a database fix so link scans start)",
+    "guide": "n/a: nothing a member does changes",
+    "promo": "n/a: a fix; inventory reviewed, as-of bumped",
+    "email_notes": "n/a: a fix that no member hit",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
   }
 }
