@@ -84,6 +84,14 @@ info, and which screen the app opens to (Startup).
 
 ## Places (your restaurants)
 
+**Prices before you go.** A place shows what most of its dishes cost, say **Most
+dishes $40 to $82**, with where the prices came from (your photo, another diner's
+photo, or the restaurant's website) and the date they were seen, because prices
+change. It's the middle half of the food prices, so drinks, sides, market prices
+and add-ons don't stretch it, and it only appears once a menu has enough prices to
+say. You'll see it on your own places, on menus other diners shared, and on **Find
+a place** results, before you've even added the place.
+
 **Recent places.** Once you have a few places, the top of **Places** shows the
 three with the latest activity (added, visited, or a menu added or changed,
 whichever happened last), then **Everything else** in the order you chose. Each

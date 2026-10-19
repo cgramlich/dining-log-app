@@ -311,5 +311,13 @@
     "email_notes": "updated: next-issue-notes line narrowed to two restaurants",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
+  },
+  "1.568.0": {
+    "what": "Price discovery: places show what most dishes cost, with where and when the prices were seen, even in Find a place results (backend 0.153.0)",
+    "guide": "updated: Places, new paragraph Prices before you go",
+    "promo": "n/a: the filming brief has no card for it yet; inventory reviewed, as-of bumped",
+    "email_notes": "updated: next-issue-notes makes it the Oct 25 lead, with the measured figure",
+    "welcome": "updated: new card Real prices, before you go",
+    "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
   }
 }

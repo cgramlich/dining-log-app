@@ -508,6 +508,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .ovhead .x{font-size:15px; color:var(--text-dim); padding:6px 4px; font-weight:600;}
     /* Chat, Settings and Home together at the right of a page's top bar (1.563.0). */
     .nav-cluster{display:flex; align-items:center; gap:4px; flex:none;}
+    /* Price discovery (1.568.0). */
+    .price-line{font-size:12.5px; margin-top:3px; line-height:1.45; color:var(--text-dim);}
+    .price-line .price-range{color:#C9A06A; font-weight:600;}
     /* Photos from more than one menu, saved apart (1.566.0). */
     .split-card{border:1px solid rgba(224,118,74,0.40); padding:12px 14px; margin-bottom:12px;}
     .split-photo{display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--line-soft);}
@@ -1294,7 +1297,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.567.0";
+const APP_VERSION   = "1.568.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2058,6 +2061,14 @@ info, and which screen the app opens to (Startup).
 -----
 
 ## Places (your restaurants)
+
+**Prices before you go.** A place shows what most of its dishes cost, say **Most
+dishes $40 to $82**, with where the prices came from (your photo, another diner's
+photo, or the restaurant's website) and the date they were seen, because prices
+change. It's the middle half of the food prices, so drinks, sides, market prices
+and add-ons don't stretch it, and it only appears once a menu has enough prices to
+say. You'll see it on your own places, on menus other diners shared, and on **Find
+a place** results, before you've even added the place.
 
 **Recent places.** Once you have a few places, the top of **Places** shows the
 three with the latest activity (added, visited, or a menu added or changed,
@@ -5700,6 +5711,97 @@ function menuCurrency(menu, address){
   const cc = countryCodeFromAddress(address);
   return FX_EURO.includes(cc) ? "EUR" : (FX_BY_COUNTRY[cc] || "");
 }
+/* PRICE DISCOVERY (1.568.0; Chris chose it by card, 2026-10-19: "most menus
+   online don't have prices ... our community will establish price discovery
+   for potential diners"). 90.6% of the dishes in shared menus carry a price
+   (measured 2026-10-19); most restaurant sites show none. So a place shows
+   "Most dishes $26 to $54" with where and when those prices came from: a
+   diner's photo or their website, and the date, because prices change. The
+   range is the middle half of the food prices (25th to 75th percentile), so a
+   caviar tin does not stretch it. Left out: drinks, and sides and add-ons
+   (ten $17 sides made Milos read "$17 to $51" when its dishes run $40 to
+   $95). A price that is not a dish's price is skipped too: market price
+   ("MP+20"), an add-on ("Additional $10", "+$8"), or a size grid ("30g 218").
+   Fewer than 6 prices say nothing. The server hands over only the printed
+   price strings by section (price_book); the rule lives here. */
+function isPriceLeftOutSection(name){
+  const n = foldText(String(name || "")).trim();
+  if (/^(red|white|rose|orange|sparkling|dessert)( wines?)?$/.test(n)) return true;
+  return /\b(wines?|vinos?|vins?|cocktails?|mocktails?|sake|beers?|cervezas?|spirits|whiske?y|bourbon|scotch|tequila|mezcal|gin|vodka|rum|champagne|bubbles|drinks?|beverages?|bebidas|coffee|espresso|teas?|juices?|sodas?|aperitifs?|aperitivos?|digestifs?|liqueurs?|cordials?|by the glass|coravin|zero proof|non alcoholic|sides?|side dishes|extras?|add ons?|add-ons?|sauces?|toppings?|condiments?|kids|children)\b/.test(n);
+}
+function dishPriceValue(pr){
+  const t = String(pr || "");
+  if (/\bmp\b|market|seasonal price|add|^\s*\+|\d\s*(g|gr|oz|ml|cl)\b/i.test(t)) return null;
+  return parsePrice(t);
+}
+function priceBookOfMenus(menus){
+  const book = [];
+  (menus || []).forEach(m => ((m && m.sections) || []).forEach(sec => {
+    const prices = ((sec && sec.items) || []).map(it => String((it && it.price) || "")).filter(pr => /\d/.test(pr));
+    if (prices.length) book.push([String((sec && sec.name) || ""), prices]);
+  }));
+  return book;
+}
+function priceRangeOfBook(book){
+  const vals = [];
+  (book || []).forEach(row => {
+    if (!row || isPriceLeftOutSection(row[0])) return;
+    (row[1] || []).forEach(pr => { const v = dishPriceValue(pr); if (v && v >= 3 && v < 5000) vals.push(v); });
+  });
+  if (vals.length < 6) return null;
+  vals.sort((a, b) => a - b);
+  const at = f => vals[Math.round(f * (vals.length - 1))];
+  return { lo: Math.round(at(0.25)), hi: Math.round(at(0.75)), n: vals.length };
+}
+function priceRangeText(book, address){
+  const r = priceRangeOfBook(book);
+  if (!r) return "";
+  let code = menuCurrency({ sections: (book || []).map(row => ({ items: ((row && row[1]) || []).map(pr => ({ price: pr })) })) }, address);
+  // A US street address ("Miami Beach, FL 33139") names no country, and a bare
+  // "$" could be several currencies, so menuCurrency says nothing for either.
+  if (!code && /,\s*[A-Z]{2}\s+\d{5}(-\d{4})?(\s*,\s*(USA|United States))?\s*$/.test(String(address || ""))) code = "USD";
+  const sign = !code && (book || []).some(row => ((row && row[1]) || []).some(pr => /\$/.test(pr))) ? "$" : "";
+  const f = v => code ? fxMoney(v, code, 0) : sign + v;
+  return r.lo === r.hi ? "Most dishes about " + f(r.lo) : "Most dishes " + f(r.lo) + " to " + f(r.hi);
+}
+function shortPriceDate(iso){
+  const d = new Date(String(iso || "").slice(0, 10) + "T12:00:00");
+  if (isNaN(d.getTime())) return "";
+  const opts = { month:"short", day:"numeric" };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString(undefined, opts);
+}
+// "Most dishes $26 to $54 · from a diner's photo, Oct 18". Nothing when there
+// are too few prices to say. mine: your own menus ("your photo").
+function PriceLine({ book, address, asOf, taken, mine, style }){
+  const range = priceRangeText(book, address);
+  if (!range) return null;
+  const when = shortPriceDate(asOf);
+  const from = taken === "web" ? "from their website"
+    : taken === "photo" ? (mine ? "from your photo" : "from a diner\u2019s photo")
+    : (mine ? "prices as of" : "shared");
+  const tail = from === "prices as of" ? (when ? "prices as of " + when : "")
+    : (from + (when ? ", " + when : ""));
+  return (
+    <div className="price-line" style={style}>
+      <span className="price-range">{range}</span>{tail ? <span className="faint">{" \u00b7 " + tail}</span> : null}
+    </div>
+  );
+}
+async function communityPrices(cfg, placeIds){
+  const ids = (placeIds || []).filter(Boolean).slice(0, 25);
+  if (!ids.length) return {};
+  try {
+    const res = await fetch(apiBase(cfg) + "/api/community/prices", {
+      method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body: JSON.stringify({ place_ids: ids }),
+    });
+    if (!res.ok) return {};
+    const d = await res.json().catch(()=> null);
+    return (d && d.places) || {};
+  } catch(e){ return {}; }   // prices are a bonus: never in the way of search
+}
+
 // Your currency: the one you picked, else the phone's region, else dollars.
 function fxHomeDefault(){
   try { const v = localStorage.getItem("mc_home_ccy"); if (v && FX_CODES.includes(v)) return v; } catch(e){}
@@ -8917,6 +9019,16 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
   const [gBusy, setGBusy]     = useState(false);
   const [gErr, setGErr]       = useState("");
   const [gResults, setGResults] = useState(null);   // null = not searched yet
+  const [gPrices, setGPrices]   = useState({});     // place_id -> shared menus' prices (price discovery)
+  useEffect(()=>{
+    let alive = true;
+    setGPrices({});
+    if (Array.isArray(gResults) && gResults.length && cfg){
+      communityPrices(cfg, gResults.map(c => c.place_id)).then(m => { if (alive) setGPrices(m || {}); });
+    }
+    return ()=>{ alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gResults]);
 
   function getGeoOnce(){
     // Native sensor under Capacitor, browser geolocation otherwise.
@@ -9073,6 +9185,10 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
                         <div className="small" style={{fontWeight:600}}>{c.name}</div>
                         {cz ? <div className="tiny" style={{marginTop:2, color:"var(--accent)"}}>{cz}</div> : null}
                         {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
+                        {gPrices[c.place_id] ? (
+                          <PriceLine book={gPrices[c.place_id].price_book} address={c.address}
+                            asOf={gPrices[c.place_id].as_of} taken={gPrices[c.place_id].taken} />
+                        ) : null}
                         {/* Closed now, or closed for a while - always shown, never a filter. */}
                         <div style={{marginTop:2}}><PlaceStatus place={c} size={11.5} /></div>
                       </div>
@@ -14747,6 +14863,8 @@ function CommunityMenuPanel({cfg, restaurant, localMenus, onImport, initialOpen,
                         <span className="tiny faint">{" · " + cm.item_count + " item" + (cm.item_count===1?"":"s") + (cm.contributor_count > 1 ? " · " + cm.contributor_count + " diners" : "") + (age.label ? " · " + age.label : "")}</span>
                       </span>
                     </div>
+                    <PriceLine book={cm.price_book} address={restaurant.address || restaurant.location}
+                      asOf={cm.captured_date || cm.updated_at} taken={cm.taken} style={{paddingLeft:26}} />
                     <div className="tiny" style={{display:"flex", gap:10, alignItems:"center", paddingLeft:26, marginTop:1}}>
                       {/* Yours, but under a name you no longer use and with
                           dishes that match none of your menus (a menu you
@@ -15307,6 +15425,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           {r.cuisine || "Restaurant"}
           {r.location ? "  \u00b7  " + r.location : ""}
         </div>
+        <PriceLine book={priceBookOfMenus(menuList)} address={r.address || r.location} mine
+          asOf={menuList.reduce((a, m) => ((m && m.captured_date) || "") > a ? m.captured_date : a, "")}
+          taken={menuList.some(m => m && m.taken === "photo") ? "photo"
+            : (menuList.length && menuList.every(m => m && m.taken === "web") ? "web" : "")}
+          style={{margin:"-4px 2px 12px"}} />
         {/* Replies about this place, for both people (2026-10-11). If YOU shared
             it, they are found by the place's own name and city. If it was
             shared WITH you and you saved it, the door kept at save time says
@@ -24964,7 +25087,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         menu_id: (have && dupMode === "replace") ? have.menu_id : uid("menu"),
         label: lbl, restaurant_id: part.restId,
         captured_date: result.captured_date || todayISO(), last_updated: todayISO(),
-        source: result.source || "photo_ocr",
+        source: result.source || "photo_ocr", taken: result.source === "web" ? "web" : "photo",
         sections: sm.menu.sections, raw_text: "",
         translation: sm.menu.translation || undefined,
       });
@@ -25020,6 +25143,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         captured_date: result.captured_date || todayISO(),
         last_updated:  todayISO(),
         source:        result.source || "photo_ocr",   // keep "web" on a web re-pull
+        taken:         result.source === "web" ? "web" : "photo",   // price discovery: where the prices came from
         sections:      sections,
         raw_text:      result.raw_text || "",
         translation:   result.translation || undefined,   // printed English, if the menu has it
@@ -25048,7 +25172,10 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         restaurant_id: targetRestId,
         captured_date: result.captured_date,
         last_updated:  todayISO(),
-        source:        "photo_ocr",
+        // A menu from a link said "photo_ocr" here until 1.568.0, so older
+        // menus cannot tell a website from a photo. taken says it plainly.
+        source:        result.source || "photo_ocr",
+        taken:         result.source === "web" ? "web" : "photo",
         sections:      g.sections,
         raw_text:      "",
         translation:   result.translation || undefined,   // keyed by wording: extra entries are harmless
@@ -25064,7 +25191,10 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         restaurant_id: targetRestId,
         captured_date: result.captured_date,
         last_updated:  todayISO(),
-        source:        "photo_ocr",
+        // A menu from a link said "photo_ocr" here until 1.568.0, so older
+        // menus cannot tell a website from a photo. taken says it plainly.
+        source:        result.source || "photo_ocr",
+        taken:         result.source === "web" ? "web" : "photo",
         sections:      sections,
         raw_text:      result.raw_text || "",
         translation:   result.translation || undefined,
@@ -33138,7 +33268,8 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
       let n = 0;
       for (let i = 0; i < ms.length; i++){
         await communityShareMenu(cfg, { place_id: placeId, place_name: restaurant.name || "",
-          label: ms[i].label || "Main", menu: { sections: sanitizeMenuForShare(ms[i].sections) } });
+          label: ms[i].label || "Main", menu: { sections: sanitizeMenuForShare(ms[i].sections),
+            captured_date: ms[i].captured_date || undefined, taken: ms[i].taken || undefined } });
         n++;
       }
       try { await communityPruneMine(cfg, placeId, myMenus.map(m => m.label || "Main")); } catch(_e){}

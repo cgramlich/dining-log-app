@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.567.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.152.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.567.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.568.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.153.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.568.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,42 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Price discovery: what a place costs, before you go (2026-10-19, app 1.568.0, backend 0.153.0)
+
+Chris: most menus online don't show prices, "and I think our community will establish price discovery
+for potential diners, and I think that can be a real feature to make known". Measured first (Supabase,
+aggregates, 2026-10-19): 90.6% of 11,331 dishes across 155 shared community menus carry a price;
+91.8% of 16,961 dishes on 274 photographed menus. "Websites rarely show prices" is NOT measured
+(only 2 menus still say "web": see the fix below). He chose by card all three, in order.
+
+**1. A menu remembers how it was captured.** New menus saved `source:"photo_ocr"` even when they came
+from a link (only a Refresh kept "web"), so old data can't tell a website from a photo. Every save
+path (Replace, one menu, customize, split) now writes `source: result.source || "photo_ocr"` and a new
+`taken: "web" | "photo"`. A community share sends `captured_date` and `taken`; the server's
+`_sanitize_shared_menu` keeps exactly those two (validated) beside the public sections.
+
+**2. The app shows it.** `PriceLine` renders "Most dishes $40 to $82 · from a diner's photo, Oct 18"
+(or "from your photo", "from their website", "shared", "prices as of"). The rule
+(`priceRangeOfBook`): the 25th to 75th percentile of food prices, rounded; `isPriceLeftOutSection`
+drops drinks, sides, extras, add-ons, sauces, kids (ten $17 sides made Milos read "$17 to $51");
+`dishPriceValue` skips market price ("MP+20"), add-ons ("Additional $10", "+$8") and size grids
+("30g 218"); fewer than 6 prices say nothing. Currency: `menuCurrency`, then a US street address
+("FL 33139") means USD, then a printed "$" is kept. Shown on your own place (under the cuisine line,
+from your menus), on each shared menu in "Menus shared here" (and so on "You're all set"), and on Find
+a place results via the new `POST /api/community/prices` (max 25 Google place ids; freshest copy per
+menu, hidden and blocked copies skipped; returns `price_book` = section names and printed price
+strings only, `as_of`, `taken`). The community list also returns `price_book`, `captured_date`,
+`taken`. Server hands over strings; the rule lives once, in the app.
+
+**3. Said out loud.** welcome.html gets a card "Real prices, before you go" (no unmeasured claim
+about websites). The Oct 25 newsletter leads with it (next-issue-notes).
+
+Tests: `test_price_range.js` (7: skipped strings, left-out and kept sections, Milos $40 to $82 from
+24 prices, nothing below 6, drinks-only, unpriced); `test_prices_backend.py` (7: date and how kept,
+nothing private, odd values dropped, price book, freshest copy per menu, newest date and "photo",
+hidden/blocked skipped; fails on 0.152.0); `test_prices_ui.py` (4: your place, a shared menu, a search
+result, nothing without prices; fails on 1.567.0).
 
 ### Saving photos apart is for two restaurants only (2026-10-19, app 1.567.0)
 
