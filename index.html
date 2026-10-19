@@ -1297,7 +1297,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.571.0";
+const APP_VERSION   = "1.572.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2861,6 +2861,12 @@ the visit** opens it. What
 you ate, your notes, and what you spent stay yours alone, and your ratings stay
 separate - you are welcome to disagree about the food. If you were not there, **Want to
 try** still saves it as a recommendation instead.
+
+**A weak signal.** Scanning a menu where the signal is poor? The photos are saved on
+your phone first and go up one at a time. If the signal gives out, the scan says it is
+**Waiting for signal**, a bar at the top says the same, and it finishes by itself the
+next time MenuCaptain has signal (leave it open, or just open it again later). A photo
+that already got through is never sent twice.
 
 **Notifications.** Turn on Settings, **Notifications**, and MenuCaptain tells you the
 moment a friend shares something with you, joins your visit or replies, and when a menu
@@ -6449,20 +6455,23 @@ function buildScanJobBody(dataUrls, extra){
 
 // Start a job: {id, status} back at once. null = the server predates jobs (the
 // caller reads the menu the old way). A refusal throws in digitizeMenu's words.
-async function startScanJob(cfg, dataUrls, extra){
+async function startScanJob(cfg, dataUrls, extra, staged){
   const body = buildScanJobBody(dataUrls, extra);
-  logMsg("VISION","Sending " + dataUrls.length + " photo(s) to be read on the server (" + body.kind + ")");
+  if (staged) stageScanBody(body, staged);
+  logMsg("VISION","Sending " + dataUrls.length + " photo(s) to be read on the server (" + body.kind +
+                  (staged ? ", sent ahead" : "") + ")");
   let res;
   try {
-    res = await fetch(apiBase(cfg) + "/api/scan-jobs", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
-      body:JSON.stringify(body),
-    });
+    const opts = { method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+                   body:JSON.stringify(body) };
+    res = staged ? await fetchWithin(apiBase(cfg) + "/api/scan-jobs", opts, 60000)
+                 : await fetch(apiBase(cfg) + "/api/scan-jobs", opts);
   } catch(err){
     logMsg("ERROR","Scan photos not sent: " + ((err && err.message) || "no reason given"));
-    throw new Error("Couldn't send the photos - " + ((err && err.message) || "no reason given") +
-                    ". If you are on a weak signal, try again.");
+    const e = new Error("Couldn't send the photos - " + ((err && err.message) || "no reason given") +
+                        ". If you are on a weak signal, try again.");
+    e.retry = true;                          // no answer at all: the signal, not a refusal
+    throw e;
   }
   if (res.status === 404 || res.status === 405){
     logMsg("SCAN","This server has no background scans - reading on the phone");
@@ -6473,14 +6482,162 @@ async function startScanJob(cfg, dataUrls, extra){
     logMsg("ERROR","Scan job -> " + res.status + " " + txt.slice(0,180));
     let _detail = "";
     try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){ _detail = ""; }
-    if (res.status === 401) throw new Error("Server rejected the request (401). Check your sign-in.");
-    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
+    const fail = (msg)=> { const e = new Error(msg); e.status = res.status; return e; };
+    if (res.status === 401) throw fail("Server rejected the request (401). Check your sign-in.");
+    if (res.status === 402) throw fail(limit402Message(_detail, "ai"));
     if (typeof _detail !== "string") _detail = "";
-    if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
-    if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
-    throw new Error(_detail || ("Couldn't start reading the menu (" + res.status + ")"));
+    if (res.status === 503) throw fail(_detail || "AI is temporarily unavailable. Please try again in a bit.");
+    if (res.status === 429) throw fail(_detail || "The AI service is busy. Wait a moment and try again.");
+    throw fail(_detail || ("Couldn't start reading the menu (" + res.status + ")"));
   }
   return await res.json();
+}
+
+/* ---- a scan that survives a weak signal (2026-10-19) ---------------------------
+   Chris at COTE: one bar of signal, four photos (about 2 MB) in ONE request
+   tried for over 3 minutes, then Safari gave up ("Load failed"). The server
+   never saw them and the only way on was to start again. He chose by card:
+   keep the photos, send them ONE AT A TIME (a small request gets through where
+   a big one dies), and when even that fails, say so and finish by itself once
+   there is signal.
+
+   How: the scan is saved on the phone first (the photos in IndexedDB, a small
+   list in localStorage for the bar). Each photo then goes up on its own
+   through the ordinary photo upload, to photos/scan-staging/<scan>/<n>.jpg in
+   your own storage, and is marked sent, so a photo that got through is never
+   sent twice and a closed app picks up where it stopped. Last, the job names
+   those copies (server 0.157.0 reads them in and deletes them). A web page on
+   an iPhone cannot send anything while it is closed, so "by itself" means:
+   whenever MenuCaptain is open (at launch, when it comes back to the front,
+   when the phone says it is online, and every 30 seconds while one waits). */
+const PENDING_SCANS_KEY = "mc_pending_scans";
+const _pendingMem = {};                      // id -> record, also when IndexedDB is unavailable
+const _scanSending = {};                     // id -> the send in progress (one at a time)
+function pendingScansList(){
+  try { const l = JSON.parse(localStorage.getItem(PENDING_SCANS_KEY) || "[]"); return Array.isArray(l) ? l : []; }
+  catch(e){ return []; }
+}
+function pendingScansSave(list){
+  try { localStorage.setItem(PENDING_SCANS_KEY, JSON.stringify(list)); } catch(e){}
+  try { window.dispatchEvent(new Event("mc-pending-scans")); } catch(e){}
+}
+function pendingScanTouch(id, patch){
+  pendingScansSave(pendingScansList().map(p => p.id === id ? Object.assign({}, p, patch) : p));
+}
+async function idbDeleteKey(key){
+  const db = await idbOpen();
+  if (!db) return;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror    = () => resolve();
+    } catch(e){ resolve(); }
+  });
+}
+async function pendingScanSaveRec(rec){
+  _pendingMem[rec.id] = rec;
+  try { await idbPutBlob("pending-scan:" + rec.id, new Blob([JSON.stringify(rec)], { type:"application/json" })); }
+  catch(e){ /* kept in memory for as long as the app is open */ }
+}
+async function pendingScanCreate(rec){
+  await pendingScanSaveRec(rec);
+  pendingScansSave(pendingScansList().filter(p => p.id !== rec.id).concat([
+    { id:rec.id, place:rec.place || "", n:rec.dataUrls.length, sent:0, at:Date.now() }]));
+}
+async function pendingScanGet(id){
+  if (_pendingMem[id]) return _pendingMem[id];
+  const b = await idbGetBlob("pending-scan:" + id);
+  if (!b) return null;
+  try { const rec = JSON.parse(await b.text()); _pendingMem[id] = rec; return rec; }
+  catch(e){ return null; }
+}
+// Forget a saved scan. deleteStaged: also remove the copies already sent ahead
+// (a job that started has the server delete them; one that never will, we do).
+async function pendingScanDrop(cfg, id, opts){
+  const rec = _pendingMem[id] || await pendingScanGet(id);
+  delete _pendingMem[id];
+  await idbDeleteKey("pending-scan:" + id);
+  pendingScansSave(pendingScansList().filter(p => p.id !== id));
+  if (opts && opts.deleteStaged && rec && cfg){
+    const paths = (rec.staged || []).filter(Boolean);
+    for (let i = 0; i < paths.length; i++){
+      try { await fetch(apiBase(cfg) + "/api/photos?path=" + encodeURIComponent(paths[i]),
+                        { method:"DELETE", headers: await authHeaders(cfg) }); } catch(e){}
+    }
+  }
+}
+function fetchWithin(url, opts, ms){
+  const AC = window.AbortController;
+  const ctl = AC ? new AC() : null;
+  const t = ctl ? setTimeout(()=> ctl.abort(), ms) : null;
+  return fetch(url, ctl ? Object.assign({}, opts, { signal: ctl.signal }) : opts)
+    .finally(()=> { if (t) clearTimeout(t); });
+}
+// Worth trying again later: no answer at all, or an answer that may change.
+function scanRetryable(e){
+  const st = e && e.status;
+  return !st || st === 401 || st === 408 || st === 409 || st === 429 || st >= 500;
+}
+// Each photo in a scan request, in order, swapped for its copy already sent ahead.
+function stageScanBody(body, paths){
+  let k = 0;
+  const swap = (msgs)=> (msgs || []).forEach(m => (Array.isArray(m && m.content) ? m.content : []).forEach(bk => {
+    if (bk && bk.type === "image" && k < paths.length) bk.source = { type:"staged", path: paths[k++] };
+  }));
+  (body.pages || []).forEach(pg => swap(pg && pg.messages));
+  swap(body.messages);
+  return body;
+}
+async function uploadScanPhoto(cfg, path, dataUrl){
+  const res = await fetchWithin(apiBase(cfg) + "/api/photos", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ path: path, image_base64: dataUrl }),
+  }, 90000);
+  if (!res.ok){ const e = new Error("Photo upload " + res.status); e.status = res.status; throw e; }
+}
+// Send a saved scan: each photo on its own, then the job naming them. Returns
+// {job} once the server has it ({job:null}: a server without jobs), or
+// {waiting:true, sent, of} when the signal gave out (what got through is
+// kept). Throws only a refusal worth showing, such as being out of scans.
+function sendPendingScan(cfg, id, onProgress){
+  if (_scanSending[id]) return _scanSending[id];
+  _scanSending[id] = (async ()=>{
+    const rec = await pendingScanGet(id);
+    if (!rec) return { gone:true };
+    rec.staged = rec.staged || [];
+    const n = rec.dataUrls.length;
+    for (let i = 0; i < n; i++){
+      if (rec.staged[i]) continue;
+      const path = "photos/scan-staging/" + id + "/" + i + ".jpg";
+      try { await uploadScanPhoto(cfg, path, rec.dataUrls[i]); }
+      catch(e){
+        if (!scanRetryable(e)){ await pendingScanDrop(cfg, id, { deleteStaged:true }); throw e; }
+        logMsg("SCAN", "Photo " + (i + 1) + " of " + n + " not sent yet (" + ((e && (e.status || e.message)) || "no signal") + ")");
+        return { waiting:true, sent: rec.staged.filter(Boolean).length, of:n };
+      }
+      rec.staged[i] = path;
+      await pendingScanSaveRec(rec);
+      const sent = rec.staged.filter(Boolean).length;
+      pendingScanTouch(id, { sent: sent });
+      if (onProgress) onProgress(sent, n);
+    }
+    let job;
+    try { job = await startScanJob(cfg, rec.dataUrls, rec.extra, rec.staged); }
+    catch(e){
+      if (e && e.status === 409){            // a copy went missing: send them all again
+        rec.staged = []; await pendingScanSaveRec(rec); pendingScanTouch(id, { sent:0 });
+        return { waiting:true, sent:0, of:n };
+      }
+      if (e && (e.retry || scanRetryable(e))) return { waiting:true, sent:n, of:n };
+      await pendingScanDrop(cfg, id, { deleteStaged:true });
+      throw e;
+    }
+    await pendingScanDrop(cfg, id, { deleteStaged: !job });
+    return { job: job };
+  })().finally(()=> { delete _scanSending[id]; });
+  return _scanSending[id];
 }
 
 /* A menu from a web link, read on the server like a photo scan (1.564.0, server
@@ -10277,6 +10434,52 @@ function App({openShare}){
     return ()=> document.removeEventListener("visibilitychange", onVis);
   // eslint-disable-next-line
   }, [ready, needSetup]);
+  // Scans saved on this phone, waiting to send (see sendPendingScan): tried at
+  // launch, when the phone says it is online, when the app comes back to the
+  // front, and every 30 seconds while one waits and the app is on screen.
+  const [pendingScans, setPendingScans] = useState(()=> pendingScansList());
+  async function resendPendingScans(){
+    const list = pendingScansList();
+    setPendingScans(list);
+    if (!list.length || !configComplete(config)) return;
+    for (let i = 0; i < list.length; i++){
+      try {
+        const r = await sendPendingScan(config, list[i].id);
+        if (r && r.job && r.job.id){
+          logMsg("SCAN", "A saved scan was sent and is being read on the server");
+          refreshScanJobs();
+        }
+      } catch(e){
+        flash(((list[i].place ? "The menu for " + list[i].place : "A saved menu scan") + " couldn't be sent: " + (e.message || "")).trim());
+      }
+    }
+    setPendingScans(pendingScansList());
+  }
+  useEffect(()=>{
+    const onChange = ()=> setPendingScans(pendingScansList());
+    window.addEventListener("mc-pending-scans", onChange);
+    return ()=> window.removeEventListener("mc-pending-scans", onChange);
+  }, []);
+  useEffect(()=>{
+    if (!ready || needSetup || !configComplete(config)) return;
+    resendPendingScans();
+    const onOnline = ()=> resendPendingScans();
+    const onVis = ()=>{ if (document.visibilityState === "visible") resendPendingScans(); };
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVis);
+    return ()=>{ window.removeEventListener("online", onOnline); document.removeEventListener("visibilitychange", onVis); };
+  // eslint-disable-next-line
+  }, [ready, needSetup]);
+  useEffect(()=>{
+    if (!pendingScans.length) return;
+    const iv = setInterval(()=>{ if (document.visibilityState === "visible") resendPendingScans(); }, 30000);
+    return ()=> clearInterval(iv);
+  // eslint-disable-next-line
+  }, [pendingScans.length]);
+  function stopPendingScan(p){
+    if (!window.confirm("Stop sending this menu? Its photos will be removed from MenuCaptain.")) return;
+    pendingScanDrop(config, p.id, { deleteStaged:true });
+  }
   const scanJobRunning = scanJobs.some(j => j.status === "running");
   useEffect(()=>{
     if (!scanJobRunning) return;
@@ -11001,6 +11204,20 @@ function App({openShare}){
           <span>Offline - showing your saved data{pendingCount > 0 ? "; changes will sync when you're back online" : ""}</span>
         </div>
       )}
+
+      {/* Scans saved on this phone, waiting for signal (see sendPendingScan). */}
+      {overlayType !== "scanMenu" && pendingScans.slice(0, 3).map(p => (
+        <div key={p.id} className="syncbar warn scanbar pending-scan">
+          <span className="dot" style={{background:"var(--amber)"}} />
+          <span style={{flex:1, minWidth:0}}>
+            {(p.place ? "Menu for " + p.place : "Your menu scan") + " is waiting for signal"
+              + (p.sent ? " (" + p.sent + " of " + p.n + " photos sent)" : "")}
+          </span>
+          <button onClick={()=> resendPendingScans()}>Try now</button>
+          <button aria-label="Stop sending this menu" style={{marginLeft:2, padding:"0 2px", color:"var(--text-faint)"}}
+            onClick={()=> stopPendingScan(p)}>&#x2715;</button>
+        </div>
+      ))}
 
       {/* Background menu scans (see startScanJob). Hidden while the scan
           screen itself is open: it says the same thing, better. */}
@@ -24708,12 +24925,18 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [jobId,setJobId]       = useState(resumeJob || "");
   const [phase,setPhase]       = useState(resumeJob ? "reading" : "");
   const jobLoaded              = useRef(false);   // its result is on screen: clear it on save or close
+  // The scan saved on this phone while its photos go up ("sending"), or wait
+  // for signal ("waiting"). [sent, of] for the progress line.
+  const savedScanId            = useRef("");
+  const [sendProgress, setSendProgress] = useState([0, 0]);
   // Set while a scan needs the app open; cleared when that ends, however it
   // ends, and when this screen closes. See SCAN_INFLIGHT_KEY.
   useEffect(()=>{
     try {
-      if (step === "working" && phase !== "reading"){
-        localStorage.setItem(SCAN_INFLIGHT_KEY, String(Date.now()) + (phase === "sending" ? ":photos" : ""));
+      // Sending or waiting photos are saved on the phone and finish by
+      // themselves (1.572.0), so leaving then is no longer "interrupted".
+      if (step === "working" && phase !== "reading" && phase !== "sending" && phase !== "waiting"){
+        localStorage.setItem(SCAN_INFLIGHT_KEY, String(Date.now()));
       } else localStorage.removeItem(SCAN_INFLIGHT_KEY);
     } catch(e){}
   }, [step, phase]);
@@ -24762,6 +24985,11 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   // the top of the app brings it back when it is ready.
   function close(){
     if (jobId && jobLoaded.current) collectScanJob(config, jobId);
+    onClose();
+  }
+  function stopWaiting(){
+    pendingScanDrop(config, savedScanId.current, { deleteStaged:true });
+    logMsg("SCAN","Saved scan stopped by the user before it was sent");
     onClose();
   }
   function stopScan(){
@@ -24866,21 +25094,34 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     }
   }
 
+  // The scan is saved on the phone first, then sent a photo at a time (see
+  // sendPendingScan), so a weak signal can only delay it, never lose it.
   async function runOcr(){
     if (!dataUrls.length) return;
+    const here = presetRestaurantId ? restaurants.find(r => r.id === presetRestaurantId) : null;
+    const id = "sc" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    savedScanId.current = id;
+    await pendingScanCreate({ id: id, dataUrls: dataUrls, place: (here && here.name) || "",
+      extra: { place_name: (here && here.name) || null,
+               meta: { restaurant_id: presetRestaurantId || "", menu_id: presetMenuId || "" } } });
+    sendSaved(id);
+  }
+  async function sendSaved(id){
     setErrMsg(""); setPhase("sending"); setStep("working");
-    let job = null;
-    try {
-      const here = presetRestaurantId ? restaurants.find(r => r.id === presetRestaurantId) : null;
-      job = await startScanJob(config, dataUrls, {
-        place_name: (here && here.name) || null,
-        meta: { restaurant_id: presetRestaurantId || "", menu_id: presetMenuId || "" },
-      });
-    } catch(err){
+    setSendProgress(p => [p[0] || 0, dataUrls.length || p[1]]);
+    let r = null;
+    try { r = await sendPendingScan(config, id, (sent, of)=> setSendProgress([sent, of])); }
+    catch(err){
       logMsg("ERROR","Digitize failed: " + err.message);
       setPhase(""); setErrMsg(err.message); setStep("error");
       return;
     }
+    if (r && r.waiting){
+      logMsg("SCAN", "Saved on the phone; " + r.sent + " of " + r.of + " photos sent, the rest go when there is signal");
+      setSendProgress([r.sent, r.of]); setPhase("waiting");
+      return;
+    }
+    const job = r && r.job;
     if (job && job.id){
       logMsg("SCAN","Scan " + String(job.id).slice(0,8) + " is being read on the server");
       setJobId(job.id); setPhase("reading");
@@ -25595,12 +25836,34 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
           </div>
         )}
 
-        {step === "working" && (
+        {step === "working" && phase === "waiting" && (
+          <div className="empty scan-waiting" style={{paddingTop:"14vh"}}>
+            <div className="big">Waiting for signal</div>
+            <div>{(sendProgress[0] ? sendProgress[0] + " of " + sendProgress[1] + " photos got through. " : "")
+              + "The signal is too weak to send the rest right now."}</div>
+            <div className="card" style={{margin:"18px auto 0", maxWidth:420, padding:"12px 14px", textAlign:"left",
+                 border:"1px solid rgba(224,118,74,0.45)"}}>
+              <div className="small" style={{fontWeight:600}}>Your photos are saved on this phone</div>
+              <div className="tiny faint" style={{marginTop:4, lineHeight:1.5}}>
+                They send by themselves as soon as MenuCaptain has signal, then the menu is read as usual
+                and a bar at the top of MenuCaptain takes you to it. Leave MenuCaptain open, or just open
+                it again later.
+              </div>
+              <button className="btn primary" style={{marginTop:12, width:"100%"}} onClick={close}>Done for now</button>
+              <button className="btn ghost sm" style={{marginTop:8}} onClick={()=> sendSaved(savedScanId.current)}>Try now</button>
+              <button className="btn ghost sm" style={{marginTop:8, marginLeft:8}} onClick={stopWaiting}>Stop this scan</button>
+            </div>
+          </div>
+        )}
+
+        {step === "working" && phase !== "waiting" && (
           <div className="empty" style={{paddingTop: phase === "reading" ? "14vh" : "22vh"}}>
             <Loader size={46} />
             <div className="big" style={{marginTop:16}}>{phase === "sending" ? "Sending the photos"
               : phase === "opening" ? "Opening the page" : "Reading the menu"}</div>
-            <div>{(phase === "sending" || phase === "opening")
+            <div>{phase === "sending" && sendProgress[1] > 1
+              ? sendProgress[0] + " of " + sendProgress[1] + " sent. A weak signal can make this slow."
+              : (phase === "sending" || phase === "opening")
               ? "This takes a few seconds."
               : "This usually takes a minute or two. A big menu with lots of items or photos takes longer, and a short one is quick."}</div>
             {phase === "reading" ? (
@@ -25621,12 +25884,12 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               <div className="card" style={{margin:"18px auto 0", maxWidth:420, padding:"11px 14px", textAlign:"left",
                    border:"1px solid rgba(231,178,76,0.4)"}}>
                 <div className="small" style={{fontWeight:600}}>
-                  {phase === "sending" ? "Keep MenuCaptain open while the photos send"
+                  {phase === "sending" ? "Your photos are saved on this phone"
                     : phase === "opening" ? "Keep MenuCaptain open for a moment" : "Keep MenuCaptain open until it's done"}
                 </div>
                 <div className="tiny faint" style={{marginTop:3}}>
                   {phase === "sending"
-                    ? "Once they're sent, you can leave and the menu keeps being read."
+                    ? "If you leave before they're sent, they finish sending next time MenuCaptain is open. Once they're sent, the menu keeps being read without you."
                     : phase === "opening"
                     ? "Once the page is open, you can leave and the menu keeps being read."
                     : "Switching to another app or locking your phone can stop this, and you would have to start again."}

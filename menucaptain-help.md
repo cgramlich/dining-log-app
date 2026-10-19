@@ -884,6 +884,12 @@ you ate, your notes, and what you spent stay yours alone, and your ratings stay
 separate - you are welcome to disagree about the food. If you were not there, **Want to
 try** still saves it as a recommendation instead.
 
+**A weak signal.** Scanning a menu where the signal is poor? The photos are saved on
+your phone first and go up one at a time. If the signal gives out, the scan says it is
+**Waiting for signal**, a bar at the top says the same, and it finishes by itself the
+next time MenuCaptain has signal (leave it open, or just open it again later). A photo
+that already got through is never sent twice.
+
 **Notifications.** Turn on Settings, **Notifications**, and MenuCaptain tells you the
 moment a friend shares something with you, joins your visit or replies, and when a menu
 you scanned is ready. Tapping one opens MenuCaptain right there. On iPhone they work in

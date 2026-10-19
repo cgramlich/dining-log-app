@@ -343,5 +343,13 @@
     "email_notes": "updated: a feature line and a Captain's tip candidate for the Oct 25 issue",
     "welcome": "n/a: nothing on the promo page changes until it is proven on an iPhone",
     "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
+  },
+  "1.572.0": {
+    "what": "A menu scan survives a weak signal: photos are saved, sent one at a time, and finish by themselves when there is signal",
+    "guide": "updated: a 'A weak signal' paragraph",
+    "promo": "n/a: a reliability fix; inventory reviewed, as-of bumped",
+    "email_notes": "updated: a Refinements line for the Oct 25 issue",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
   }
 }

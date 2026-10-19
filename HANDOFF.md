@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.571.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.156.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.571.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.572.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.157.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.572.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,35 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A menu scan survives a weak signal (2026-10-19, app 1.572.0, backend 0.157.0)
+
+Chris at COTE (Miami), one bar of signal: four photos in ONE `POST /api/scan-jobs` (about 2 MB) ran 193 s,
+then Safari gave up ("Load failed"; Railway logged a 499) and the server never saw them; the only way on was
+to start again. He chose by card: send the photos one at a time and finish by itself when signal returns.
+
+- **App:** `runOcr` now saves the scan FIRST (`pendingScanCreate`: the photos in IndexedDB under
+  `pending-scan:<id>` in the existing `dininglog/photos` store, a small list in localStorage
+  `mc_pending_scans` for the bar), then `sendPendingScan` uploads each photo through the ordinary
+  `POST /api/photos` to `photos/scan-staging/<id>/<n>.jpg` (90 s timeout each, `fetchWithin`), marks it
+  sent, and finally starts the job with `startScanJob(..., staged)`, which swaps each image block for
+  `{"source":{"type":"staged","path":...}}` (`stageScanBody`). One send per scan at a time
+  (`_scanSending`). No answer, 401/408/409/429/5xx = wait and retry; a 409 (a copy went missing) re-sends
+  them all; anything else is shown and the scan is dropped (with its sent copies deleted). Phase
+  "waiting" on the scan screen ("Waiting for signal", Done for now / Try now / Stop this scan) and an
+  amber bar at the top of the app ("... is waiting for signal (1 of 2 photos sent)", Try now, ✕ with a
+  confirm). App-level `resendPendingScans`: at launch, on `online`, on coming to the front, and every
+  30 s ONLY while one waits and the app is on screen (a web page on an iPhone cannot send anything while
+  closed; the copy says "as soon as MenuCaptain has signal: leave it open, or open it again later").
+  Leaving while photos send no longer sets the "interrupted" marker (`SCAN_INFLIGHT_KEY`).
+- **Server 0.157.0:** `_scan_resolve_staged` reads each staged photo back from the caller's own
+  `photos/scan-staging/` folder (anything else 400; `..` and `//` refused; missing 409) and inlines it
+  before the kind checks, so the rest of the job is unchanged; `_scan_delete_staged` removes the copies
+  once the job has started. Old apps (photos inline) are untouched.
+- Known gap: copies sent ahead for a scan that is never started and never stopped (the phone lost for
+  good) stay in that person's storage folder; small, and stopping the scan deletes them.
+- Tests: `test_staged_backend.py` (12; fails on 0.156.0), `test_staged_ui.py` (12; fails on 1.571.0:
+  good signal, weak signal with 1 of 2 through, reopen finishes it without re-sending, stop deletes).
 
 ### Notifications for the Home Screen app; emails say where it waits (2026-10-19, app 1.571.0, backend 0.155.0 and 0.156.0)
 
