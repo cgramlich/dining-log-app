@@ -1297,7 +1297,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.575.0";
+const APP_VERSION   = "1.576.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -5797,9 +5797,56 @@ function shortPriceDate(iso){
 }
 // "Most dishes $26 to $54 · from a diner's photo, Oct 18". Nothing when there
 // are too few prices to say. mine: your own menus ("your photo").
-function PriceLine({ book, address, asOf, taken, mine, style }){
-  const range = priceRangeText(book, address);
+/* Which meal a range is for (2026-10-20). Chris at Zaytinya: "Most dishes $17
+   to $24", but only the breakfast and lunch menus were saved, and a blended
+   range says nothing about dinner either. By card: the headline names its
+   meal and dinner wins when there is one; tap for each menu's own range.
+   A menu's meal comes from its name. A generic name ("Menu", "A La Carte",
+   "Food", the place's own word) is the MAIN menu, used when there is no
+   dinner menu, without a meal in front. Drinks, dessert, kids' and happy
+   hour menus never set the headline while there is food to go on. */
+const MEAL_DAY = ["breakfast", "brunch", "lunch"];
+function menuMeal(label){
+  const l = String(label || "").toLowerCase();
+  if (/\b(drinks?|wines?|cocktails?|beers?|bar|spirits|sake|beverages?|happy hour|desserts?|sweets|kids?|children)\b/.test(l)) return "other";
+  if (/\b(breakfast|morning)\b/.test(l)) return "breakfast";
+  if (/\bbrunch\b/.test(l)) return "brunch";
+  if (/\b(lunch|midday|noon)\b/.test(l)) return "lunch";
+  if (/\b(dinner|supper|evening|night)\b/.test(l)) return "dinner";
+  return "main";
+}
+function mealListText(meals){
+  const names = MEAL_DAY.filter(m => meals.indexOf(m) !== -1);
+  const cap = names.map((m, i) => i === 0 ? m.charAt(0).toUpperCase() + m.slice(1) : m);
+  return cap.length <= 1 ? (cap[0] || "") : cap.slice(0, -1).join(", ") + " and " + cap[cap.length - 1];
+}
+// Pure: {headline, parts:[{label, text}]} for a place's menus [{label, book}].
+function priceSummary(books, address){
+  const ms = (books || []).filter(x => x && x.book && x.book.length)
+    .map(x => ({ label: String(x.label || "Menu"), meal: menuMeal(x.label), book: x.book }));
+  const pool = arr => arr.reduce((a, x) => a.concat(x.book), []);
+  const pick = f => ms.filter(f);
+  const dinner = pick(x => x.meal === "dinner"), main = pick(x => x.meal === "main");
+  const day = pick(x => MEAL_DAY.indexOf(x.meal) !== -1);
+  let head = "", prefix = "";
+  if (dinner.length && priceRangeOfBook(pool(dinner))){ head = pool(dinner); prefix = "Dinner"; }
+  else if (main.length && priceRangeOfBook(pool(main))){ head = pool(main); }
+  else if (day.length && priceRangeOfBook(pool(day))){ head = pool(day); prefix = mealListText(day.map(x => x.meal)); }
+  else if (priceRangeOfBook(pool(ms))){ head = pool(ms); }
+  const text = head ? priceRangeText(head, address) : "";
+  const headline = !text ? "" : prefix ? prefix + ": " + text.charAt(0).toLowerCase() + text.slice(1) : text;
+  const parts = ms.map(x => {
+    const t = priceRangeText(x.book, address);
+    return t ? { label: x.label, text: t.replace(/^Most dishes /, "") } : null;
+  }).filter(Boolean);
+  return { headline: headline, parts: parts };
+}
+function PriceLine({ book, books, address, asOf, taken, mine, style }){
+  const [openParts, setOpenParts] = useState(false);
+  const sum = (books && books.length) ? priceSummary(books, address) : null;   // none: one blended book, as before
+  const range = sum ? sum.headline : priceRangeText(book, address);
   if (!range) return null;
+  const more = !!(sum && sum.parts.length > 1);
   const when = shortPriceDate(asOf);
   const from = taken === "web" ? "from their website"
     : taken === "photo" ? (mine ? "from your photo" : "from a diner\u2019s photo")
@@ -5807,8 +5854,19 @@ function PriceLine({ book, address, asOf, taken, mine, style }){
   const tail = from === "prices as of" ? (when ? "prices as of " + when : "")
     : (from + (when ? ", " + when : ""));
   return (
-    <div className="price-line" style={style}>
+    <div className={"price-line" + (more ? " has-parts" : "")} style={Object.assign({}, style || {}, more ? { cursor:"pointer" } : {})}
+      onClick={more ? ((e)=>{ e.stopPropagation(); setOpenParts(o => !o); }) : undefined}>
       <span className="price-range">{range}</span>{tail ? <span className="faint">{" \u00b7 " + tail}</span> : null}
+      {more ? <span style={{display:"inline-flex", verticalAlign:"middle", marginLeft:4}}><Chevron open={openParts} size={12} color="var(--text-faint)" /></span> : null}
+      {more && openParts ? (
+        <div className="price-parts" style={{marginTop:4}}>
+          {sum.parts.map((p, i) => (
+            <div key={i} className="tiny" style={{display:"flex", gap:8}}>
+              <span className="faint" style={{minWidth:90}}>{p.label}</span><span>{p.text}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -9369,6 +9427,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
                         {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
                         {gPrices[c.place_id] ? (
                           <PriceLine book={gPrices[c.place_id].price_book} address={c.address}
+                            books={(gPrices[c.place_id].books || []).map(x => ({ label: x.label, book: x.price_book }))}
                             asOf={gPrices[c.place_id].as_of} taken={gPrices[c.place_id].taken} />
                         ) : null}
                         {/* Closed now, or closed for a while - always shown, never a filter. */}
@@ -15737,6 +15796,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           {r.location ? "  \u00b7  " + r.location : ""}
         </div>
         <PriceLine book={priceBookOfMenus(menuList)} address={r.address || r.location} mine
+          books={menuList.map(m => ({ label: m && m.label, book: priceBookOfMenus([m]) }))}
           asOf={menuList.reduce((a, m) => ((m && m.captured_date) || "") > a ? m.captured_date : a, "")}
           taken={menuList.some(m => m && m.taken === "photo") ? "photo"
             : (menuList.length && menuList.every(m => m && m.taken === "web") ? "web" : "")}

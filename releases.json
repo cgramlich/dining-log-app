@@ -375,5 +375,13 @@
     "email_notes": "updated: a Refinements line for the Oct 25 issue",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
+  },
+  "1.576.0": {
+    "what": "A place's price range names its meal (dinner first) and opens to each menu's own range",
+    "guide": "n/a: the guide's price paragraph does not quote the line's wording; the line explains itself",
+    "promo": "n/a: inventory reviewed, as-of bumped",
+    "email_notes": "updated: folded into the price-discovery lead for Oct 25",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
   }
 }

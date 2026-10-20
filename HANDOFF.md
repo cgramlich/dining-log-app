@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.575.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.576.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.159.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.575.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.576.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,19 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### A price range names its meal, dinner first (2026-10-20, app 1.576.0, backend 0.160.0)
+
+Chris at Zaytinya: "Most dishes $17 to $24", but only the breakfast and lunch menus were saved, and the
+range blended every menu. By card: `priceSummary(books, address)` reads each menu's own book; `menuMeal`
+classifies by the menu's NAME (breakfast/brunch/lunch/dinner; drinks, wine, bar, dessert, kids, happy
+hour = "other"; anything else, e.g. "Menu", "A La Carte", = "main"). Headline: dinner menus if they make a
+range, else main menus (no meal in front, as before), else the day menus ("Breakfast and lunch: most
+dishes ..."), else everything. "Other" menus never set it while there is food. A line with more than one
+menu's range opens (tap) to each menu's own range. Own places pass `books` per menu; Find a place uses the
+server's new per-menu `books` (0.160.0), falling back to the blended `price_book` from an older server.
+The community menu row (one menu) is unchanged. NOTE: the 0.160.0 push reached GitHub but Railway did not
+start a deploy on its own (no webhook); see the Log. Test `test_price_meals.py` (6; 5 fail on 1.575.0).
 
 ### Sharing tidied: who already has it, one row per thing, shorter lists (2026-10-20, app 1.575.0)
 
