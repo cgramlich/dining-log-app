@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.574.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.575.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.159.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.574.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.575.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,23 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Sharing tidied: who already has it, one row per thing, shorter lists (2026-10-20, app 1.575.0)
+
+Chris sent his COTE visit at dinner (11 friends) and again at 7 AM (9 of them): one shared record (the
+0.154.0 fix held), but 9 friends got it twice, emails too, and nothing in the picker said so. He also
+asked whether this was the best way to organize Sharing, and how to see that Kristin joined. By card:
+
+- **Picker** (visit and place): `useSentBefore(cfg, open, kind, key)` reads the Sent list when the picker
+  opens and marks friends who already have it ("Sent 15 h ago"); `SentBeforeNote` says how many;
+  `PickAllRow` (new `sentBefore` prop) becomes "Select everyone who doesn't have it" and merges into the
+  current picks. Keyed like `_share_subject_key`: visit = shared record id, place = Google place id.
+- **Sent** (`groupSent`): one row per kind + subject_key (else title), newest first; "sent twice/N times",
+  everyone once, both send times when opened, Remove takes every row; "Kris was there too" from
+  `sharedVisitOthers(sv)` (people who JOINED, which they chose to tell you). Whether a friend SAVED
+  something stays unshown: that read receipt was declined 2026-10-13. `SENT_LIST_SHOWN` 20 to 5.
+- **Replies:** unread first, five, then "Show all N".
+- Tests: `test_sharing_ui.py` (10; all fail on 1.574.0). Collections and group invites keep the old picker.
 
 ### The weekly issue without email: a Home card and a notification (2026-10-20, app 1.574.0, backend 0.159.0)
 

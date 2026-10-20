@@ -367,5 +367,13 @@
     "email_notes": "updated: a feature line for the Oct 25 issue",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
+  },
+  "1.575.0": {
+    "what": "Sharing tidied: the picker marks friends who already have it; Sent is one row per visit or place with who was there too; lists start at five",
+    "guide": "updated: a 'Sending something again' paragraph",
+    "promo": "n/a: inventory reviewed, as-of bumped",
+    "email_notes": "updated: a Refinements line for the Oct 25 issue",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
   }
 }

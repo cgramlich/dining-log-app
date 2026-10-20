@@ -1297,7 +1297,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.574.0";
+const APP_VERSION   = "1.575.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2803,6 +2803,12 @@ works for people who have never heard of the app. Either way it carries the
 place, your star rating alongside Google's, what you had, the photos, who you
 were with, and the menu. It never carries your private notes or what you spent,
 and the dish list is names only - no per-dish notes and no prices you paid.
+
+**Sending something again.** Friends who already have the visit or place are marked
+**Sent** with when, stay unticked, and are left out of **Select everyone who doesn't have
+it**, so a second send only reaches the people you choose. Under Sharing, **Sent** keeps one
+row per visit or place: it says when it was sent more than once, everyone it went to, and
+who was there too.
 
 **Sending to several friends at once.** In the list of friends, tick as many as
 you like, or tap **Select all** at the top; tap it again to clear them. The
@@ -32251,15 +32257,56 @@ function pickAllToggle(conns, pick){
 function pickCount(pick){
   return Object.keys(pick || {}).filter(k => pick[k]).length;
 }
-function PickAllRow({conns, pick, setPick}){
-  const t = pickAllToggle(conns, pick);
+function PickAllRow({conns, pick, setPick, sentBefore}){
+  // Friends who already have it are left out of "Select all" (2026-10-20).
+  const skip = sentBefore || {};
+  const fresh = (conns || []).filter(c => c && !skip[c.user_id]);
+  const t = pickAllToggle(fresh, pick);
   if (t.ids.length < 2) return null;
+  const some = fresh.length < (conns || []).length;
   return (
     <div className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
-      onClick={()=> setPick(t.next)}>
+      onClick={()=> setPick(Object.assign({}, pick, t.all
+        ? Object.fromEntries(t.ids.map(id => [id, false])) : t.next))}>
       <span className="go-check" style={{flex:"none"}}>{t.all ? "\u2713" : ""}</span>
-      <span style={{flex:1, minWidth:0, fontWeight:600}}>Select all
+      <span style={{flex:1, minWidth:0, fontWeight:600}}>{some ? "Select everyone who doesn't have it" : "Select all"}
         <span className="tiny faint" style={{fontWeight:400}}>{" " + t.ids.length + " friends"}</span></span>
+    </div>
+  );
+}
+/* Who already has this (2026-10-20). Chris sent his COTE visit at dinner and
+   again the next morning; 9 friends got it twice, emails too, and nothing in
+   the picker said so. Friends who already have it are marked "Sent <when>",
+   stay unticked, and are left out of "Select all". Matched the way the Sent
+   list keys a send: a visit by its shared record, a place by its Google id.
+   Asked only when the picker opens. */
+function useSentBefore(cfg, active, kind, key){
+  const [map, setMap] = useState({});
+  useEffect(()=>{
+    if (!active || !key) return;
+    let alive = true;
+    fetchSentShares(cfg).then(list => {
+      if (!alive || !list) return;
+      const m = {};
+      list.forEach(e => {
+        if (!e || e.kind !== kind || e.subject_key !== key) return;
+        (e.to_ids || []).forEach(id => { if (id && (!m[id] || m[id] < e.created_at)) m[id] = e.created_at; });
+      });
+      setMap(m);
+    }).catch(()=>{ /* no marks; sending still works */ });
+    return ()=>{ alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, kind, key]);
+  return map;
+}
+function SentBeforeNote({ sentBefore, what }){
+  const n = Object.keys(sentBefore || {}).length;
+  if (!n) return null;
+  return (
+    <div className="small sent-before-note" style={{margin:"0 0 10px", padding:"8px 10px", borderRadius:10,
+         background:"rgba(224,118,74,0.10)", border:"1px solid rgba(224,118,74,0.35)"}}>
+      {"You already sent this " + what + " to " + n + (n === 1 ? " friend" : " friends") +
+       ". They're marked below, and only the friends you tick get it."}
     </div>
   );
 }
@@ -34049,6 +34096,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide, lovedDishes, 
   // themselves. Hiding this control on menu-less places left the OS share
   // sheet as the only option, which sends a link rather than the place.
   const hasMenu = (menuList || []).some(m => m && (m.sections || []).length);
+  const sentBefore = useSentBefore(cfg, open, "place", (restaurant && restaurant.google_place_id) || "");
   async function openPicker(){
     setOpen(true); setMsg(""); setMsgErr(false); setLoadFail(false);
     if (conns === null){ try { const d = await getConnections(cfg); setConns(d.connections || []); } catch(e){ setLoadFail(true); } }
@@ -34133,7 +34181,8 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide, lovedDishes, 
                 </span>
               </label>
             ) : null}
-            <PickAllRow conns={conns} pick={pick} setPick={setPick} />
+            <SentBeforeNote sentBefore={sentBefore} what="place" />
+            <PickAllRow conns={conns} pick={pick} setPick={setPick} sentBefore={sentBefore} />
             {conns === null ? (
               <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
             ) : conns.length === 0 ? (
@@ -34145,13 +34194,15 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide, lovedDishes, 
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
               const l = connLabel(c); const on = !!pick[c.user_id];
               const isFav = favSet.has(c.user_id);
+              const had = sentBefore[c.user_id];
               return (
-                <div key={c.user_id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+                <div key={c.user_id} className={"pick-row" + (had ? " sent-before" : "")} style={{display:"flex", alignItems:"center", gap:10}}
                   onClick={()=> setPick(p => Object.assign({}, p, { [c.user_id]: !p[c.user_id] }))}>
                   <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
                   <span style={{flex:1, minWidth:0}}>
                     {isFav ? <span style={{color:"var(--accent)"}}>★ </span> : null}
                     {l.primary}{l.secondary ? <span className="tiny faint"> {l.secondary}</span> : null}</span>
+                  {had ? <span className="tiny faint" style={{flex:"none"}}>{"Sent " + replyWhen(had)}</span> : null}
                 </div>
               );
             })}
@@ -34182,6 +34233,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
   const [loadFail, setLoadFail] = useState(false);
   const favSet = loadConnFavs();
   const place = (restaurant && restaurant.name) || (visit && visit.restaurant_name) || "this visit";
+  const sentBefore = useSentBefore(cfg, open, "visit", (visit && visit.sv) || "");
   async function openPicker(){
     setOpen(true); setMsg(""); setMsgErr(false); setLoadFail(false);
     if (conns === null){ try { const d = await getConnections(cfg); setConns(d.connections || []); } catch(e){ setLoadFail(true); } }
@@ -34242,7 +34294,8 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
               They'll get it in their &ldquo;Shared with you&rdquo; inbox - the place, the menu,
               your rating, what you had, and the photos. Never your private notes or what you spent.
             </div>
-            <PickAllRow conns={conns} pick={pick} setPick={setPick} />
+            <SentBeforeNote sentBefore={sentBefore} what="visit" />
+            <PickAllRow conns={conns} pick={pick} setPick={setPick} sentBefore={sentBefore} />
             {conns === null ? (
               <div className="empty" style={{padding:"20px 0"}}><span className="spin" /></div>
             ) : conns.length === 0 ? (
@@ -34254,13 +34307,15 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
               const l = connLabel(c); const on = !!pick[c.user_id];
               const isFav = favSet.has(c.user_id);
+              const had = sentBefore[c.user_id];
               return (
-                <div key={c.user_id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
+                <div key={c.user_id} className={"pick-row" + (had ? " sent-before" : "")} style={{display:"flex", alignItems:"center", gap:10}}
                   onClick={()=> setPick(p => Object.assign({}, p, { [c.user_id]: !p[c.user_id] }))}>
                   <span className="go-check" style={{flex:"none"}}>{on ? "✓" : ""}</span>
                   <span style={{flex:1, minWidth:0}}>
                     {isFav ? <span style={{color:"var(--accent)"}}>★ </span> : null}
                     {l.primary}{l.secondary ? <span className="tiny faint"> {l.secondary}</span> : null}</span>
+                  {had ? <span className="tiny faint" style={{flex:"none"}}>{"Sent " + replyWhen(had)}</span> : null}
                 </div>
               );
             })}
@@ -34289,7 +34344,35 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
    It shows what, who and when. It does NOT show whether a friend opened or
    saved the thing: that version was offered and declined, because it is a
    read receipt and it would run both ways. */
-const SENT_LIST_SHOWN = 20;
+// Five, then "Show all" (2026-10-20, Chris: "is this the best way to organize
+// the sharing pages"). It was 20, which buried everything below it.
+const SENT_LIST_SHOWN = 5;
+/* Pure: the Sent list as ONE row per thing sent (2026-10-20). The server lists
+   each send; a visit sent at dinner and again the next morning was two rows.
+   Grouped by kind and what it is about (subject_key: a visit's shared record,
+   a place's Google id), else by title. Newest first. `to`/`to_ids` are
+   everyone it went to, once each; `ids` are all the rows, so Remove takes the
+   whole thing off the list. */
+function groupSent(list){
+  const out = [], index = {};
+  (list || []).forEach(e => {
+    if (!e) return;
+    const key = (e.kind || "") + "|" + (e.subject_key || ("t:" + (e.title || "")));
+    let g = index[key];
+    if (!g){
+      g = { key: key, kind: e.kind, title: e.title, subject_key: e.subject_key, created_at: e.created_at,
+            sends: [], ids: [], to: [], to_ids: [] };
+      index[key] = g; out.push(g);
+    }
+    g.sends.push(e.created_at);
+    (e.ids || []).forEach(id => g.ids.push(id));
+    (e.to_ids || []).forEach((id, i) => {
+      if (id && g.to_ids.indexOf(id) !== -1) return;
+      g.to_ids.push(id); g.to.push((e.to || [])[i]);
+    });
+  });
+  return out;
+}
 // null = this backend has no Sent list (older build), which hides the section
 // rather than showing an error for something that was never there.
 async function fetchSentShares(cfg){
@@ -34353,7 +34436,7 @@ function SentList({cfg}){
     finally { setBusy(false); }
   }
   if (sent === null) return null;
-  const list = sent || [];
+  const list = groupSent(sent || []);
   const shown = showAll ? list : list.slice(0, SENT_LIST_SHOWN);
   return (
     <div style={{marginTop:22}}>
@@ -34369,11 +34452,15 @@ function SentList({cfg}){
           Nothing sent yet. When you send a place or a visit to a friend, it is listed here.
         </div>
       ) : shown.map(e => {
-        const key = (e.ids || []).join("-");
+        const key = e.key;
         const names = sentNames(e, getConnName);
         const open = openKey === key;
+        // A visit someone said they were at too (they chose to tell you: the
+        // "joined your visit" notice). Whether a friend SAVED something stays
+        // unshown: that read receipt was offered and declined (2026-10-13).
+        const joined = e.kind === "visit" && e.subject_key ? sharedVisitOthers(e.subject_key) : [];
         return (
-          <div key={key} className="card" style={{cursor:"pointer"}}
+          <div key={key} className="card sent-row" style={{cursor:"pointer"}}
             onClick={()=> setOpenKey(open ? null : key)}>
             {/* The arrow is what says "there is more behind this": without it
                 nothing showed that a tap lists every name. */}
@@ -34384,7 +34471,16 @@ function SentList({cfg}){
                 </div>
                 <div className="tiny faint">
                   {sentKindLabel(e.kind)}{"  \u00b7  "}{replyWhen(e.created_at)}{"  \u00b7  "}{sentToLine(names)}
+                  {e.sends.length > 1 ? "  \u00b7  sent " + (e.sends.length === 2 ? "twice" : e.sends.length + " times") : ""}
                 </div>
+                {joined.length ? (
+                  <div className="tiny sent-joined" style={{color:"var(--accent)", marginTop:2}}>
+                    <span className="row" style={{gap:5}}>
+                      <Icon name="people" size={12} color="var(--accent)" />
+                      {joined.join(", ") + (joined.length === 1 ? " was" : " were") + " there too"}
+                    </span>
+                  </div>
+                ) : null}
               </div>
               <span style={{flex:"none", display:"inline-flex"}}>
                 <Chevron open={open} size={16} color="var(--text-faint)" />
@@ -34395,6 +34491,11 @@ function SentList({cfg}){
                 <div className="chips">
                   {names.map((n, i) => <span key={i} className="chip">{n}</span>)}
                 </div>
+                {e.sends.length > 1 ? (
+                  <div className="tiny faint" style={{marginTop:7}}>
+                    {"Sent " + e.sends.map(replyWhen).reverse().join(", then ")}
+                  </div>
+                ) : null}
                 <div className="tiny faint" style={{marginTop:9}}>
                   <a href="#" style={{color:"var(--text-faint)"}}
                      onClick={(ev)=>{ ev.preventDefault(); remove(e); }}>
@@ -34429,6 +34530,7 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor, onOpenVisi
   // item they started from, so they load on their own and are listed first.
   const [threads, setThreads] = useState([]);
   const [talk, setTalk] = useState(null);       // id of the conversation being read
+  const [allReplies, setAllReplies] = useState(false);   // five, then "Show all" (2026-10-20)
   function loadReplies(){
     // Help chats live in their own screen (2026-10-16), not among friends' replies.
     fetchReplies(config).then(d => setThreads(((d && d.threads) || []).filter(t => t && t.subject_kind !== "support")))
@@ -34663,7 +34765,11 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor, onOpenVisi
         {threads.length ? (
           <div style={{margin:"16px 0"}}>
             <div className="section-subhead">Replies</div>
-            {threads.map(t => {
+            {(()=>{
+              // Unread first, then as they come (newest first). Five, then Show all.
+              const ordered = threads.filter(t => t.unread).concat(threads.filter(t => !t.unread));
+              return allReplies ? ordered : ordered.slice(0, 5);
+            })().map(t => {
               const last = t.messages[t.messages.length - 1] || {};
               return (
                 <SwipeToDelete key={t.thread} onDelete={()=> removeThread(t)}>
@@ -34683,6 +34789,12 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor, onOpenVisi
                 </SwipeToDelete>
               );
             })}
+            {!allReplies && threads.length > 5 ? (
+              <div style={{textAlign:"center", marginTop:8}}>
+                <button className="btn ghost sm" style={{margin:"0 auto"}}
+                  onClick={()=> setAllReplies(true)}>Show all {threads.length}</button>
+              </div>
+            ) : null}
           </div>
         ) : null}
         {/* What YOU sent, under what was sent to you. Its own component: it

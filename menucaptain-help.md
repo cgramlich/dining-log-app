@@ -826,6 +826,12 @@ place, your star rating alongside Google's, what you had, the photos, who you
 were with, and the menu. It never carries your private notes or what you spent,
 and the dish list is names only - no per-dish notes and no prices you paid.
 
+**Sending something again.** Friends who already have the visit or place are marked
+**Sent** with when, stay unticked, and are left out of **Select everyone who doesn't have
+it**, so a second send only reaches the people you choose. Under Sharing, **Sent** keeps one
+row per visit or place: it says when it was sent more than once, everyone it went to, and
+who was there too.
+
 **Sending to several friends at once.** In the list of friends, tick as many as
 you like, or tap **Select all** at the top; tap it again to clear them. The
 button says how many will get it - **Send to 10** - before you press it. The
