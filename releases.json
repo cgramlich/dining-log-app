@@ -351,5 +351,13 @@
     "email_notes": "updated: a Refinements line for the Oct 25 issue",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
+  },
+  "1.573.0": {
+    "what": "Settings, Email: switch the weekly update email off or back on, without the old email's link",
+    "guide": "updated: the Notifications paragraph mentions Settings, Email",
+    "promo": "n/a: inventory reviewed, as-of bumped",
+    "email_notes": "updated: a Refinements line for the Oct 25 issue",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section (with the DMARC change), version rows (web, backend, native), BRIEFING, Log"
   }
 }

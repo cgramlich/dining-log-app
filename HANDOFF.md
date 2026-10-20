@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.572.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.157.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.572.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.573.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.158.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.573.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,24 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The weekly email switch; DMARC enforced (2026-10-20, app 1.573.0, backend 0.158.0)
+
+Chris asked whether unsubscribing was all or nothing. It never was: the link (and mail apps' one-click
+button) only adds the person to `update_email_optouts`, which stops the weekly email and nothing else.
+He then asked for a way back that doesn't need the old email's link: **Settings, Email, "Weekly update
+email"** (`WeeklyEmailSetting`), backed by `GET/POST /api/updates/subscription` (signed-in person's own
+row only; 401 signed out). Hidden when the server can't say; reverts and says so if a save fails.
+Tests: `test_weekly_switch.py` (server 4 + app 4; fails on 0.157.0 / 1.572.0).
+
+**DMARC (same day, Chris's yes by card, then "ok let's enforce"):** `_dmarc.menucaptain.com` at Porkbun
+is now `v=DMARC1; p=quarantine; rua=mailto:support@menucaptain.com` (was `p=none;` with no reports).
+Checked first: a real Resend email in Chris's Gmail showed dkim=pass (d=menucaptain.com, s=resend),
+spf=pass (send.menucaptain.com), dmarc=pass; Resend is the only sender (Chris replies to support@ from his
+own gmail.com, no "send as"). Why: work addresses miss MenuCaptain mail (Owen's newsletter; earlier the
+sign-up verification emails), all accepted (23/23 delivered, 0 bounced) and then held by company filters;
+enforcement raises trust, it guarantees nothing. Reports land in Chris's Gmail via the support@ forward:
+read them around 2026-11-03. Undo: set `p=none` on that record.
 
 ### A menu scan survives a weak signal (2026-10-19, app 1.572.0, backend 0.157.0)
 

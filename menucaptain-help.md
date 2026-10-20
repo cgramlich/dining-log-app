@@ -894,7 +894,9 @@ that already got through is never sent twice.
 moment a friend shares something with you, joins your visit or replies, and when a menu
 you scanned is ready. Tapping one opens MenuCaptain right there. On iPhone they work in
 MenuCaptain opened from your Home Screen (in Safari, tap Share, then **Add to Home
-Screen**). The emails still come too, and say where each thing is waiting.
+Screen**). The emails still come too, and say where each thing is waiting. The weekly
+update email can be switched off, or back on, in Settings, **Email**. Emails about your
+account and from friends always arrive.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
 **When one person shows up twice.** Somebody you tagged by first name for

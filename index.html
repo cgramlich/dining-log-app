@@ -1297,7 +1297,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.572.0";
+const APP_VERSION   = "1.573.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2872,7 +2872,9 @@ that already got through is never sent twice.
 moment a friend shares something with you, joins your visit or replies, and when a menu
 you scanned is ready. Tapping one opens MenuCaptain right there. On iPhone they work in
 MenuCaptain opened from your Home Screen (in Safari, tap Share, then **Add to Home
-Screen**). The emails still come too, and say where each thing is waiting.
+Screen**). The emails still come too, and say where each thing is waiting. The weekly
+update email can be switched off, or back on, in Settings, **Email**. Emails about your
+account and from friends always arrive.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
 **When one person shows up twice.** Somebody you tagged by first name for
@@ -32998,6 +33000,63 @@ async function pushRefresh(cfg){
   } catch(e){ logMsg("PUSH", "refresh failed: " + (e && e.message)); }
 }
 
+// Settings, Email: the weekly update email, on or off (2026-10-20). Chris
+// asked for a way back in that doesn't need the old email's unsubscribe link.
+// Account and friend emails are never affected, and the copy says so.
+function WeeklyEmailSetting({ cfg }){
+  const [on, setOn]     = useState(null);    // null = still asking; hidden if the server can't say
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState("");
+  useEffect(()=>{
+    let live = true;
+    (async ()=>{
+      try {
+        const res = await fetch(apiBase(cfg) + "/api/updates/subscription", { headers: await authHeaders(cfg) });
+        if (!res.ok) throw new Error(String(res.status));
+        const d = await res.json();
+        if (live) setOn(!!d.subscribed);
+      } catch(e){ logMsg("NEWS", "weekly email setting unavailable: " + (e && e.message)); }
+    })();
+    return ()=> { live = false; };
+  }, []);
+  async function toggle(){
+    if (busy || on === null) return;
+    const want = !on;
+    setBusy(true); setErr(""); setOn(want);
+    try {
+      const res = await fetch(apiBase(cfg) + "/api/updates/subscription", {
+        method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+        body: JSON.stringify({ subscribed: want }),
+      });
+      if (!res.ok) throw new Error("Couldn't save that. Please try again.");
+    } catch(e){ setOn(!want); setErr((e && e.message && e.message.indexOf("Couldn't") === 0) ? e.message : "Couldn't save that. Please try again."); }
+    finally { setBusy(false); }
+  }
+  if (on === null) return null;
+  return (
+    <>
+      <div className="set-group">Email</div>
+      <div className="card weekly-email-setting">
+        <div className="theme-row" onClick={toggle}>
+          <div style={{flex:1, minWidth:0}}>
+            <div className="theme-name">Weekly update email</div>
+            <div className="tiny faint" style={{marginTop:3, lineHeight:1.45}}>
+              One email a week with what's new at MenuCaptain. Emails about your account and from
+              friends always arrive either way.
+            </div>
+          </div>
+          {busy ? <span className="spin" /> : (
+            <button type="button" className={"mc-switch" + (on ? " on" : "")} role="switch"
+              aria-checked={on} aria-label="Weekly update email"
+              onClick={(e)=>{ e.stopPropagation(); toggle(); }} />
+          )}
+        </div>
+        {err ? <div className="tiny" style={{color:"#e7a99e", marginTop:8}}>{err}</div> : null}
+      </div>
+    </>
+  );
+}
+
 function NotificationsSetting({ cfg }){
   // checking | on | off | blocked | iphone-tab | unsupported
   const [state, setState] = useState("checking");
@@ -35144,6 +35203,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       </div>
 
       <NotificationsSetting cfg={config} />
+      <WeeklyEmailSetting cfg={config} />
 
       <div className="set-group">More</div>
 
