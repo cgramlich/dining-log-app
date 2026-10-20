@@ -896,7 +896,9 @@ you scanned is ready. Tapping one opens MenuCaptain right there. On iPhone they 
 MenuCaptain opened from your Home Screen (in Safari, tap Share, then **Add to Home
 Screen**). The emails still come too, and say where each thing is waiting. The weekly
 update email can be switched off, or back on, in Settings, **Email**. Emails about your
-account and from friends always arrive.
+account and from friends always arrive. Each new issue also shows on Home as **This week's
+issue is out**, and with notifications on you get one when it goes out; **Read it** opens it
+in the app.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
 **When one person shows up twice.** Somebody you tagged by first name for

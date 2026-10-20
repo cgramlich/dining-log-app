@@ -1297,7 +1297,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.573.0";
+const APP_VERSION   = "1.574.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2874,7 +2874,9 @@ you scanned is ready. Tapping one opens MenuCaptain right there. On iPhone they 
 MenuCaptain opened from your Home Screen (in Safari, tap Share, then **Add to Home
 Screen**). The emails still come too, and say where each thing is waiting. The weekly
 update email can be switched off, or back on, in Settings, **Email**. Emails about your
-account and from friends always arrive.
+account and from friends always arrive. Each new issue also shows on Home as **This week's
+issue is out**, and with notifications on you get one when it goes out; **Read it** opens it
+in the app.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
 **When one person shows up twice.** Somebody you tagged by first name for
@@ -9532,6 +9534,7 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
       </div>
 
       {onSendIssue ? <IssueReadyCard cfg={cfg} tick={newsTick} onRead={onReadIssue} onSend={onSendIssue} /> : null}
+      {onReadIssue ? <NewsIssueCard cfg={cfg} onRead={onReadIssue} /> : null}
 
       {/* Two doors. "Already at the restaurant?" (the "I'm here now" moment)
           leads; "Looking for somewhere to eat?" opens FindPlaceView (by-name
@@ -10537,7 +10540,7 @@ function App({openShare}){
   // eslint-disable-next-line
   }, [pendingSv, ready, needSetup]);
   useEffect(()=>{
-    let want = "", job = "", svq = "";
+    let want = "", job = "", svq = "", issq = "";
     try {
       const om = (location.search || "").match(/[?&]open=([a-z]+)/);
       if (om) want = om[1];
@@ -10548,6 +10551,9 @@ function App({openShare}){
       // "?open=visit&sv=<id>": "someone joined your visit". A UUID only.
       const sm = (location.search || "").match(/[?&]sv=([0-9a-fA-F-]{36})(?:&|$)/);
       if (sm) svq = sm[1].toLowerCase();
+      // "?open=news&issue=<date>": "this week's issue is out". A date only.
+      const im = (location.search || "").match(/[?&]issue=(\d{4}-\d{2}-\d{2})(?:&|$)/);
+      if (im) issq = im[1];
     } catch(e){}
     if (!want) return;
     try { history.replaceState(null, "", location.pathname); } catch(e){}
@@ -10564,6 +10570,7 @@ function App({openShare}){
     else if (want === "connections"){ setOverlay({ type:"connections" }); }
     else if (want === "scan" && job){ setScanLink(job); }
     else if (want === "visit" && svq){ setPendingSv(svq); }
+    else if (want === "news" && issq){ markNewsSeen(issq); setOverlay({ type:"newsArchive", url: NEWS_SITE + "/news/" + issq + ".html" }); }
   // eslint-disable-next-line
   }, []);
 
@@ -10572,6 +10579,9 @@ function App({openShare}){
       const t = (e.detail && e.detail.type) || "";
       if (t === "connection_request" || t === "connection_accepted"){
         setOverlay({ type:"connections" });
+      } else if (t === "news" && /^\d{4}-\d{2}-\d{2}$/.test(String(e.detail.issue || ""))){
+        markNewsSeen(String(e.detail.issue));
+        setOverlay({ type:"newsArchive", url: NEWS_SITE + "/news/" + e.detail.issue + ".html" });
       } else if (t === "share"){
         if (e.detail.kind === "joined" && e.detail.sv) setPendingSv(String(e.detail.sv));
         else setOverlay({ type:"shares" });
@@ -34785,6 +34795,50 @@ function UpdateEmailCard({ config }){
    (0.152.0), so a deploy can't bring it back. Says nothing on any failure:
    Settings, Update email still works. The draft itself reaches Chris's Gmail
    from the Wednesday drafting task, not from here. */
+/* "This week's issue is out" on Home, for everyone (2026-10-20). Owen never
+   saw the first issue: his work address accepted it and then held it, out of
+   his sight. The weekly news should never depend on email alone, so the
+   latest SENT issue (never one still waiting for Sunday) shows here until it
+   is read or dismissed, for 8 days. Read it opens the issue in the app. */
+const NEWS_SEEN_KEY = "mc_news_seen";
+function newsSeen(){ try { return localStorage.getItem(NEWS_SEEN_KEY) || ""; } catch(e){ return ""; } }
+function markNewsSeen(issue){ try { localStorage.setItem(NEWS_SEEN_KEY, issue); } catch(e){} }
+function NewsIssueCard({ cfg, onRead }){
+  const [issue, setIssue] = useState(null);
+  useEffect(()=>{
+    let alive = true;
+    (async ()=>{
+      try {
+        const res = await fetch(apiBase(cfg) + "/api/news/latest", { headers: await authHeaders(cfg) });
+        const d = res.ok ? await res.json() : null;
+        const iss = d && d.issue;
+        if (!alive || !iss || !/^\d{4}-\d{2}-\d{2}$/.test(iss) || newsSeen() === iss) return;
+        const sent = Date.parse(d.sent_at || "") || 0;
+        if (!sent || Date.now() - sent > 8 * 86400000) return;
+        setIssue(iss);
+      } catch(e){ /* quiet: the issue is still under You, What's new */ }
+    })();
+    return ()=>{ alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg && cfg.userId]);
+  if (!issue) return null;
+  const when = new Date(issue + "T12:00:00").toLocaleDateString(undefined, { month:"long", day:"numeric" });
+  return (
+    <div className="card issue-ready news-issue" style={{marginBottom:12, position:"relative"}}>
+      <button className="x" aria-label="Dismiss" style={{position:"absolute", top:8, right:8, background:"transparent", border:"none", padding:6}}
+        onClick={()=>{ markNewsSeen(issue); setIssue(null); }}>
+        <Icon name="close" size={14} color="var(--text-faint)" />
+      </button>
+      <div className="issue-ready-over">From the Captain&rsquo;s Table</div>
+      <div className="issue-ready-title">This week&rsquo;s issue is out</div>
+      <div className="small muted" style={{marginTop:3}}>{"What’s new at MenuCaptain, " + when + "."}</div>
+      <div className="row" style={{gap:8, marginTop:12}}>
+        <button className="btn primary sm" onClick={()=>{ markNewsSeen(issue); setIssue(null); onRead(issue); }}>Read it</button>
+      </div>
+    </div>
+  );
+}
+
 function IssueReadyCard({ cfg, tick, onRead, onSend }){
   const [st, setSt] = useState(null);   // {issue, subject} while waiting to be sent
   useEffect(()=>{

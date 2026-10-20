@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.573.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.158.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.573.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.574.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.159.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.574.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,21 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### The weekly issue without email: a Home card and a notification (2026-10-20, app 1.574.0, backend 0.159.0)
+
+Owen never saw the first issue: delivered (his work address accepted it) and then held by his
+company's filter, not even in Junk. Chris chose by card that the weekly news must not depend on email.
+
+- **Home card** `NewsIssueCard` (everyone): "From the Captain's Table / This week's issue is out",
+  **Read it** opens `/news/<issue>.html` in the archive view; ✕ dismisses. Shown for the latest SENT issue
+  only (`GET /api/news/latest`: newest `news_sends` row with `finished_at`; a published issue waiting for
+  Sunday is never shown early), for 8 days, until read or dismissed (`mc_news_seen` in localStorage).
+  NOTE: on release day this showed the first issue (2026-10-14, sent 2026-10-19) to everyone until 2026-10-27.
+- **Notification:** after `admin_updates_send` finishes, `_safe_push` to the SAME recipients (opt-outs
+  excluded, so the Settings switch covers it): title "From the Captain's Table", body the subject, tap
+  opens `?open=news&issue=<date>` (`_push_open_url`, date-only). The app opens that issue (link and push).
+- Tests: `test_news_card.py` (11; fails on 0.158.0 / 1.573.0).
 
 ### The weekly email switch; DMARC enforced (2026-10-20, app 1.573.0, backend 0.158.0)
 

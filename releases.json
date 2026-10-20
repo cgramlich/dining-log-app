@@ -359,5 +359,13 @@
     "email_notes": "updated: a Refinements line for the Oct 25 issue",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section (with the DMARC change), version rows (web, backend, native), BRIEFING, Log"
+  },
+  "1.574.0": {
+    "what": "Each new issue shows on Home ('This week's issue is out') and, with notifications on, arrives as a notification that opens it",
+    "guide": "updated: the Notifications paragraph",
+    "promo": "n/a: inventory reviewed, as-of bumped",
+    "email_notes": "updated: a feature line for the Oct 25 issue",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
   }
 }
