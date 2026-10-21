@@ -394,6 +394,25 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
+### Browser-built menu pages: full render, then "take screenshots" (2026-10-21, backend 0.161.0, NOT YET DEPLOYED)
+
+Chris's Maghil link (simply-south-irving.maghil.com/restaurant/simply-south-irving/menu/DineIn) failed with
+"Couldn't read a menu from that page". The page is an empty JavaScript shell (1,373 bytes, "You need to
+enable JavaScript to run this app", empty `<div id="root">`); in a real browser it lists about 400 priced
+dishes, loaded from Maghil's own menu service. Chosen by card: `js_app` = an empty JS shell (no real text
+plus "enable javascript" or an empty root/app div) or a `_JS_MENU_HOSTS` host (maghil.com, magilhub.com);
+it sets `is_ordering_app` (whole page, `waitFor` 8 s). Still no menu after that (or no render possible, e.g.
+credits used up): 422 "take screenshots of the menu as you scroll, then add them with Add a menu, then
+Library" (`needs_screenshots`). Not built: reading Maghil's menu service directly (its requests use the
+app's own encoding; the Olo decision of 2026-07-11). Test `test_js_shell.py` (6). Firecrawl credits were
+"low" on /health (67 on 10-19; resets 10-25), the likely reason even the stealth render came back empty.
+
+**DEPLOY STATE:** 0.160.0 and 0.161.0 are on GitHub but NOT live (live = 0.159.0): Railway paused all new
+builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its push webhook did not start a
+deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
+reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
+Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
 ### Switching menus visibly changes the page (2026-10-21, app 1.577.0)
 
 Chris on the menu tabs at Zaytinya (Lunch, Breakfast, Breakfast Table): "highlights that menu, but it
