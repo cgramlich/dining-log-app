@@ -383,5 +383,13 @@
     "email_notes": "updated: folded into the price-discovery lead for Oct 25",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
+  },
+  "1.577.0": {
+    "what": "Switching menus visibly changes the page: Help me order is one line until tapped, and a line under the tabs says what the menu holds",
+    "guide": "n/a: where things are is unchanged; Help me order still opens from the menu page",
+    "promo": "n/a: inventory reviewed, as-of bumped",
+    "email_notes": "updated: a Refinements line for the Oct 25 issue",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
   }
 }

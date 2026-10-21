@@ -1275,7 +1275,17 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .pick-tray-ct{ font-size:13px; font-weight:600; color:var(--text); }
     .pick-tray-names{ font-size:11.5px; color:var(--text-faint);
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  </style>
+  /* The menu page's contents line and the one-line Help me order (1.577.0). */
+.menu-contents{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;width:100%;margin:8px 0 2px;padding:0;
+  background:none;border:none;text-align:left;cursor:pointer;color:var(--text-dim);font:inherit;font-size:13px;line-height:1.4}
+.menu-contents-text{flex:1 1 auto;min-width:0}
+.menu-contents-go{flex:none;color:var(--accent);font-weight:600;font-size:12.5px}
+.ask-compact{padding:10px 14px}
+.ask-open{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;padding:4px 0;cursor:pointer;
+  color:var(--text);font:inherit;text-align:left}
+.ask-open-title{font-family:'Fraunces',serif;font-size:16px}
+.ask-open-hint{flex:1;min-width:0;color:var(--text-faint);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
   <script>
     /* Apply the saved theme before first paint so there is no flash of the
        default palette on reload. "brown" is the default (no attribute). */
@@ -1297,7 +1307,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.576.0";
+const APP_VERSION   = "1.577.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -16858,6 +16868,15 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
   const [askThread,setAskThread]= useState([]);   // short running exchange [{q,a}] - replies carry context
   const [activeChip,setActiveChip] = useState(null); // which suggestion chip fired the in-flight ask
   const [askErr,   setAskErr]   = useState(null);
+  // One line until tapped (2026-10-20, Chris on the menu tabs: "highlights that
+  // menu, but it doesn't really do anything"). The open box filled the screen,
+  // so switching menus changed only the title; the dishes were out of sight.
+  // It opens by itself while there is a conversation or a typed question.
+  const [askOpen, setAskOpen] = useState(false);
+  const showAsk = askOpen || askThread.length > 0 || !!askInput || asking;
+  // Another menu, a clean slate: lunch answers must not sit on the breakfast menu.
+  const askMenuId = menu && menu.menu_id;
+  useEffect(()=>{ setAskThread([]); setAskInput(""); setAskErr(null); setAskOpen(false); }, [askMenuId]);
   // "explain the menu" state
   const [explainOpen, setExplainOpen] = useState(false);   // pick-dishes mode
   const [explainPicks, setExplainPicks] = useState({});    // dish name -> bool
@@ -16994,6 +17013,24 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             })}
           </div>
         ) : null}
+        {(menuTabs || []).length > 1 && onSwitchMenu ? (()=>{
+          // What the menu on screen holds, so a tap on a tab visibly changes
+          // something, and a way down to its dishes (2026-10-20).
+          const secs = (menu.sections || []).filter(x => x && (x.items || []).length);
+          const dishes = secs.reduce((n, x) => n + (x.items || []).length, 0);
+          if (!dishes) return null;
+          const names = secs.slice(0, 3).map(x => printedNameCase(String(x.name || "").trim())).filter(Boolean);
+          const more = secs.length - names.length;
+          return (
+            <button type="button" className="menu-contents"
+              onClick={()=>{ const el = document.querySelector(".overlay .msec-headrow, .overlay .menu-fold"); if (el && el.scrollIntoView) el.scrollIntoView({ behavior:"smooth", block:"start" }); }}>
+              <span className="menu-contents-text">
+                {dishes + (dishes === 1 ? " dish" : " dishes") + (names.length ? ": " + names.join(", ") + (more > 0 ? " and " + more + " more" : "") : "")}
+              </span>
+              <span className="menu-contents-go">See the dishes &darr;</span>
+            </button>
+          );
+        })() : null}
         {toolsOpen ? (
           <div className="menu-tools">
             <button type="button" className="menu-tool" disabled={sharing}
@@ -17225,6 +17262,19 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
         )}
 
         {/* ---- help me order (AI) ---- */}
+        {!showAsk ? (
+          <div className="card ask ask-compact">
+            <button type="button" className="ask-open"
+              onClick={()=>{ setAskOpen(true); setTimeout(()=>{ const t = document.querySelector(".overlay .ask-input"); if (t) t.focus(); }, 60); }}>
+              <Icon name="sparkle" size={15} color="var(--accent)" />
+              <span className="ask-open-title">Help me order</span>
+              <span className="ask-open-hint">What are you in the mood for?</span>
+            </button>
+            {cfg && menu && menu.menu_id ? (
+              <GroupOrderButton cfg={cfg} menu={menu} restaurantName={restaurant ? restaurant.name : ""} variant="line" />
+            ) : null}
+          </div>
+        ) : (
         <div className="card ask">
           <div className="ask-head">
             <Icon name="sparkle" size={15} color="var(--accent)" />
@@ -17300,6 +17350,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
             <GroupOrderButton cfg={cfg} menu={menu} restaurantName={restaurant ? restaurant.name : ""} variant="line" />
           ) : null}
         </div>
+        )}
 
         {/* ---- explain the menu (AI) ---- */}
         <div className="card ask">

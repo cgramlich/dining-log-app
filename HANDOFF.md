@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.576.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.577.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.159.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.576.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.577.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -393,6 +393,22 @@ own word and travels in the share payload; `house_story` is the restaurant's mar
 copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chose this over
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
+
+### Switching menus visibly changes the page (2026-10-21, app 1.577.0)
+
+Chris on the menu tabs at Zaytinya (Lunch, Breakfast, Breakfast Table): "highlights that menu, but it
+doesn't really do anything." It did switch (title and dishes), but the open Help me order box filled the
+screen, so the dishes were out of sight and only the title changed. By card ("Show the menu right away"):
+
+- **Help me order is one line** (`ask-compact`: sparkle, "Help me order", "What are you in the mood
+  for?", and the group-order line still at its foot) until tapped; `showAsk` also opens it while there is
+  a conversation, a typed question or an answer coming. Tapping focuses the question field.
+- **A contents line under the tabs** (`menu-contents`, only with more than one menu): "51 dishes:
+  Breakfast Classics, Eggs, Full Breakfast and 4 more", ALL-CAPS names via `printedNameCase`, and
+  "See the dishes" scrolls to the first section.
+- **A new menu, a clean Help me order:** switching menus clears the previous menu's question and
+  answers (keyed on `menu.menu_id`), so lunch answers never sit on the breakfast menu.
+- Test `test_menu_tabs.py` (6; fails on 1.576.0); `test_1563_ui.py` (the tabs) still passes.
 
 ### A price range names its meal, dinner first (2026-10-20, app 1.576.0, backend 0.160.0)
 
