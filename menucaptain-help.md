@@ -458,6 +458,12 @@ there is little history yet, so even a first visit gets a personal suggestion. I
 never overrides what you actually asked for. When you are done with an answer, tap
 the small x in its corner to close it and clear the space.
 
+You can also compare with another place you have saved. Ask "what's closest to the
+Rico salad at Mi Cocina?" and it looks up that dish on your Mi Cocina menu (and in
+your visits there), then points you to the nearest thing on the menu in front of
+you. Name the place as you saved it. It works with your own saved places; menus
+other diners shared are not included yet.
+
 -----
 
 ## Marking a dish from the menu
