@@ -23,7 +23,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 | Piece | Version | Where |
 |---|---|---|
 | Web app | **1.578.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.159.0** | Railway, `/health` reports `db connected` |
+| Backend | **0.161.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.578.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -394,7 +394,7 @@ copyrighted text, so it is private and is NOT in `buildPlacePayload`. Chris chos
 filling About this place automatically and over keeping it manual. Both cards carry an info icon
 instead of explanatory text, at his request.
 
-### Browser-built menu pages: full render, then "take screenshots" (2026-10-21, backend 0.161.0, NOT YET DEPLOYED)
+### Browser-built menu pages: full render, then "take screenshots" (2026-10-21, backend 0.161.0)
 
 Chris's Maghil link (simply-south-irving.maghil.com/restaurant/simply-south-irving/menu/DineIn) failed with
 "Couldn't read a menu from that page". The page is an empty JavaScript shell (1,373 bytes, "You need to
@@ -407,7 +407,8 @@ Library" (`needs_screenshots`). Not built: reading Maghil's menu service directl
 app's own encoding; the Olo decision of 2026-07-11). Test `test_js_shell.py` (6). Firecrawl credits were
 "low" on /health (67 on 10-19; resets 10-25), the likely reason even the stealth render came back empty.
 
-**DEPLOY STATE:** 0.160.0 and 0.161.0 are on GitHub but NOT live (live = 0.159.0): Railway paused all new
+**DEPLOYED 2026-10-23:** `/health` reports 0.161.0 (found while releasing app 1.578.0): Railway's builds came back
+and it deployed main by itself. History: 0.160.0 and 0.161.0 waited on GitHub because Railway paused all new
 builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its push webhook did not start a
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
