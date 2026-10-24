@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.578.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.579.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.161.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.578.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.579.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -413,6 +413,26 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### No "menu is ready" bar for a menu you just saved (2026-10-24, app 1.579.0)
+
+Chris at Lakewood Country Club: he waited for a scan (job de0a64f7: done in 10 s, on screen 2 s later,
+saved 2.5 min after that, no email or push sent), saved it as Breakfast, then saw the "your menu is ready"
+bar for that same menu; tapping it said "Something went wrong". Cause: closing the scan screen refetches
+the waiting list, and that list can arrive before the fire-and-forget `collectScanJob` has reached the
+server, so the just-saved job came back as ready. The resumed job was done with its result emptied, and
+`scanJobToMenu` treated that as a failure.
+
+- `_collectedScanIds` (module Set) + `waitingScansToShow(list)`: anything this app saved, let go or stopped
+  is left off the bar, whatever an early list says. `collectScanJob` also fires `mc-scan-collected`, and the
+  App drops that job from the bar at once.
+- `scanJobAlreadyTaken(job)` (done with no result, or 404 gone): the scan screen shows **Already saved**
+  ("...You'll find it with Lakewood Country Club's menus", **Open <place>**, **Done**) instead of the error.
+  `ScanMenuFlow` gets `onOpenPlace`.
+- Also found: he saw no way to share it with the community because Lakewood is not linked to Google (no
+  `google_place_id`), which hides both the "Share your menu?" card and Add to the community. Told him to use
+  Find on Google. A card to show the option with a link step on unlinked places was declined; unchanged.
+- Test `test_scan_bar.js` (13; fails on 1.578.0).
 
 ### Help me order compares with another saved place (2026-10-23, app 1.578.0)
 

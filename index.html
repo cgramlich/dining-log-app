@@ -1307,7 +1307,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.578.0";
+const APP_VERSION   = "1.579.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -6816,10 +6816,35 @@ async function listWaitingScanJobs(cfg){
   } catch(e){ return null; }
 }
 
+// Scans this app has saved, let go or stopped in this session (1.579.0).
+// Chris at Lakewood Country Club (2026-10-24): he waited for a scan, saved it
+// as Breakfast, and then the "your menu is ready" bar appeared for that same
+// menu. The waiting list is fetched when the scan screen closes, and it can
+// arrive before the server has recorded the save (collectScanJob below is
+// fire and forget), so a just-saved scan came back as "ready". Tapping it
+// found nothing to review and showed "Something went wrong". Anything in this
+// set is left off the bar, whatever a list fetched a moment too early says.
+const _collectedScanIds = new Set();
+
+// Pure: the waiting scans worth a bar, without the ones already taken here.
+function waitingScansToShow(list){
+  return (list || []).filter(j => j && j.id && !_collectedScanIds.has(String(j.id)));
+}
+
+// Pure: a scan with nothing left to review. Done but empty means the app
+// already saved it or let it go (that empties the result on the server); gone
+// means the row itself is deleted (after 7 days). Either way: "Already saved",
+// not an error.
+function scanJobAlreadyTaken(job){
+  return !!(job && (job.gone || (job.status === "done" && !job.result)));
+}
+
 // Saved, let go, or stopped: the server drops what it read. Fire and forget;
 // if it fails, the server deletes the row within 7 days anyway.
 function collectScanJob(cfg, id){
   if (!id) return;
+  _collectedScanIds.add(String(id));
+  try { window.dispatchEvent(new CustomEvent("mc-scan-collected", { detail:{ id:String(id) } })); } catch(e){}
   (async ()=>{
     try {
       await fetch(apiBase(cfg) + "/api/scan-jobs/" + encodeURIComponent(id) + "/collected", {
@@ -10678,8 +10703,17 @@ function App({openShare}){
   const [scanLink, setScanLink] = useState("");      // a job to open, from the email link or a push
   function refreshScanJobs(){
     if (!configComplete(config)) return;
-    listWaitingScanJobs(config).then(list => { if (list) setScanJobs(list); });
+    listWaitingScanJobs(config).then(list => { if (list) setScanJobs(waitingScansToShow(list)); });
   }
+  // Saved or let go on the scan screen: off the bar at once (1.579.0).
+  useEffect(()=>{
+    const onCollected = e => {
+      const id = e && e.detail && e.detail.id;
+      if (id) setScanJobs(list => list.filter(x => String(x.id) !== String(id)));
+    };
+    window.addEventListener("mc-scan-collected", onCollected);
+    return ()=> window.removeEventListener("mc-scan-collected", onCollected);
+  }, []);
   useEffect(()=>{
     if (!ready || needSetup || !configComplete(config)) return;
     refreshScanJobs();
@@ -10763,7 +10797,7 @@ function App({openShare}){
     const want = scanLink;
     setScanLink("");
     listWaitingScanJobs(config).then(list => {
-      const j = (list || []).find(x => x.id === want);
+      const j = waitingScansToShow(list).find(x => x.id === want);
       if (j) reviewScanJob(j);
       else flashAction(SCAN_JOB_GONE, "OK", null);
     });
@@ -12809,6 +12843,7 @@ function App({openShare}){
           presetRestaurantId={overlay.restaurantId}
           presetMenuId={overlay.menuId}
           resumeJob={overlay.resumeJob}
+          onOpenPlace={(rid)=> setOverlay({ type:"restaurant", id:rid })}
           onClose={()=> setOverlay(overlay.returnTo || null)}
           onSave={(restId, menusToSave, newRestaurant, isReplace, opts)=>{
             let nextR = restaurants;
@@ -25221,7 +25256,7 @@ const LABEL_SUGGESTIONS = [
 const SCAN_INFLIGHT_KEY = "mc_scan_inflight";
 
 function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMenuId,
-                       resumeJob, onClose, onSave}){
+                       resumeJob, onClose, onSave, onOpenPlace}){
   // find the existing menu we're re-scanning (if any), to lock its label
   const presetMenu = (presetRestaurantId && presetMenuId)
     ? (menus[presetRestaurantId] || []).find(m => m.menu_id === presetMenuId)
@@ -25262,6 +25297,13 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       try {
         const job = await getScanJob(config, jobId);
         if (!alive || !job || job.status === "running") return;
+        if (scanJobAlreadyTaken(job)){
+          // Opened from the bar, a notification or the email after it was
+          // already saved (or let go): say so, calmly (1.579.0).
+          logMsg("SCAN","Scan " + jobId.slice(0,8) + " was already saved or let go");
+          setJobId(""); setPhase(""); setStep("saved");
+          return;
+        }
         let parsed = null, why = "";
         try { parsed = scanJobToMenu(job); }
         catch(err){ why = (err && err.message) || "The menu could not be read this time. Please try again."; }
@@ -26209,6 +26251,25 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             )}
           </div>
         )}
+
+        {step === "saved" && (function(){
+          const place = presetRestaurantId ? restaurants.find(x => x.id === presetRestaurantId) : null;
+          return (
+            <div>
+              <div className="card">
+                <div style={{fontWeight:600,marginBottom:6}}>Already saved</div>
+                <div className="small muted">
+                  This menu was saved earlier (or let go), so there is nothing left to review.
+                  {place ? " You'll find it with " + (place.name || "the place") + "'s menus." : " You'll find it with the place's menus."}
+                </div>
+              </div>
+              {place && onOpenPlace ? (
+                <button className="btn primary" onClick={()=> onOpenPlace(place.id)}>Open {place.name || "the place"}</button>
+              ) : null}
+              <button className="btn ghost" style={place && onOpenPlace ? {marginTop:8} : undefined} onClick={onClose}>Done</button>
+            </div>
+          );
+        })()}
 
         {step === "error" && (
           <div>

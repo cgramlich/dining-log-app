@@ -399,5 +399,13 @@
     "email_notes": "updated: a line for the Oct 25 issue",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
+  },
+  "1.579.0": {
+    "what": "A menu you just saved no longer comes back as \"your menu is ready\"; opening one already saved says Already saved instead of an error",
+    "guide": "n/a: no new steps; the bar simply stops showing saved scans",
+    "promo": "n/a: inventory reviewed, as-of bumped",
+    "email_notes": "updated: a Refinements line for the Oct 25 issue",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
   }
 }
