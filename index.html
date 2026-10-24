@@ -1307,7 +1307,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.577.0";
+const APP_VERSION   = "1.578.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2445,6 +2445,12 @@ as a gentle hint. That is most helpful at a place you have barely been to, where
 there is little history yet, so even a first visit gets a personal suggestion. It
 never overrides what you actually asked for. When you are done with an answer, tap
 the small x in its corner to close it and clear the space.
+
+You can also compare with another place you have saved. Ask "what's closest to the
+Rico salad at Mi Cocina?" and it looks up that dish on your Mi Cocina menu (and in
+your visits there), then points you to the nearest thing on the menu in front of
+you. Name the place as you saved it. It works with your own saved places; menus
+other diners shared are not included yet.
 
 -----
 
@@ -7669,9 +7675,172 @@ function dishHistory(visits){
   return { loved, disliked, detail };
 }
 
+/* ---- Help me order: a dish from ANOTHER of your places (1.578.0) ----
+   Chris, at Manny's Tex-Mex (2026-10-23): "What is the closest thing to the
+   Rico salad at Mi Cocina here?" Help me order answered that it couldn't see
+   Mi Cocina, although his saved Mi Cocina menu lists the Rico Salad with its
+   ingredients and he had logged it. It only ever saw the menu that was open.
+   By card ("Yes, from my places"): when the question names a place you have
+   SAVED, the dish you mention is looked up on that place's menus and in your
+   visits there, and rides along as a short note. Only your own saved places:
+   other members' shared menus live on the server, so that part waits for a
+   server release. Both functions are pure (no state, no network). */
+
+// Words that never identify a dish on their own: dish types, meats, and the
+// small words of a question. "Rico Salad" is found by "rico", never by
+// "salad" alone (that would pull in every salad on the other menu).
+const ELSEWHERE_GENERIC = new Set(("salad taco burrito bowl plate platter combo soup sandwich wrap " +
+  "burger pizza pasta chicken beef pork steak fish shrimp veggie vegetarian special house side " +
+  "appetizer starter dessert drink fajita enchilada quesadilla nacho tamale chip queso rice bean " +
+  "roll sushi ramen noodle curry cake pie salmon tuna lunch dinner breakfast brunch " +
+  "the and with what closest close thing here like similar have had get got order ordered menu " +
+  "dish there their this that from best good something anything kind sort version equivalent " +
+  "compare same any does can you see other place restaurant whats which one usually always " +
+  "del los las con mis").split(" "));
+
+// Trailing words of a place's name that people leave off when they say it.
+const ELSEWHERE_PLACE_WORDS = new Set(("restaurant restaurante cafe grill grille bar kitchen cantina " +
+  "steakhouse bistro taqueria tex mex mexican italian tavern house eatery pizzeria diner and co " +
+  "company brasserie trattoria osteria pub").split(" "));
+
+function elseFold(x){
+  return foldText(x).replace(/['\u2019]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function elseStem(t){ return t.length > 4 && /s$/.test(t) ? t.slice(0, -1) : t; }
+function elseTokens(x){
+  return elseFold(x).split(" ").filter(t => t.length >= 3).map(elseStem);
+}
+
+// Which of your saved places does this question name, and which of their
+// dishes does it mean? Returns at most 2 places, each with up to 4 dishes
+// ({name, price, description, menu, verdict, count, lastDate}) or, when no
+// dish is named, the dishes you have ordered there (or failing that, a short
+// list of names from its menus).
+function placesMentioned(text, restaurants, menusByRid, allVisits, here){
+  const raw = foldText(text || "");
+  // Two readings: apostrophes dropped ("manny's" -> "mannys", matching a saved
+  // "Manny's") and a possessive dropped ("mi cocina's" -> "mi cocina").
+  const q1 = " " + raw.replace(/['\u2019]/g, "").replace(/[^a-z0-9]+/g, " ").trim() + " ";
+  const q2 = " " + raw.replace(/['\u2019]s\b/g, "").replace(/['\u2019]/g, "").replace(/[^a-z0-9]+/g, " ").trim() + " ";
+  const qTok = new Set(q1.trim().split(" ").concat(q2.trim().split(" "))
+    .filter(t => t.length >= 3).map(elseStem));
+  // A place's own name, its name without a branch ("Mi Cocina - Preston"),
+  // and the short name people say ("Manny's" for "Manny's Tex-Mex": trailing
+  // words like Tex-Mex, Grill or Restaurant and a leading "The" dropped). A
+  // short name that is only a generic word ("Taco") never counts.
+  const namesOf = r => {
+    const full = elseFold(r && r.name);
+    const base = elseFold(String((r && r.name) || "").split(/\s+[-\u2013\u2014|]\s+|\s*\(|,/)[0]);
+    const w = base.split(" ");
+    while (w.length > 1 && ELSEWHERE_PLACE_WORDS.has(w[w.length - 1])) w.pop();
+    if (w.length > 1 && w[0] === "the") w.shift();
+    const short = w.join(" ");
+    return [full, base, short].filter((n, i, a) => n && n.length >= 4 && a.indexOf(n) === i &&
+                                      !ELSEWHERE_GENERIC.has(elseStem(n)));
+  };
+  const hereNames = here ? namesOf(here) : [];
+  const hereId = here && here.id;
+  const hits = [];
+  (restaurants || []).forEach(r => {
+    if (!r || !r.name || r.id === hereId) return;
+    // A branch of the place you are AT is not "another place".
+    const names = namesOf(r).filter(n => hereNames.indexOf(n) < 0);
+    const hit = names.find(n => q1.indexOf(" " + n + " ") >= 0 || q2.indexOf(" " + n + " ") >= 0);
+    if (!hit) return;
+    const vis = (allVisits || []).filter(v => v && v.restaurant_id === r.id);
+    hits.push({ r: r, len: hit.length, vis: vis, key: elseFold(r.name) });
+  });
+  // Longest name first ("Mi Cocina Highland Park" over "Mi Cocina"), then the
+  // branch you have been to most; one entry per place name.
+  hits.sort((a, b) => b.len - a.len || b.vis.length - a.vis.length);
+  const seen = new Set();
+  const picked = hits.filter(h => !seen.has(h.key) && seen.add(h.key)).slice(0, 2);
+
+  return picked.map(h => {
+    const placeTok = new Set(elseTokens(h.r.name).concat(here ? elseTokens(here.name) : []));
+    // Every dish on that place's menus, once by name; the first copy that has
+    // a description wins.
+    const items = new Map();
+    ((menusByRid && menusByRid[h.r.id]) || []).forEach(m => {
+      ((m && m.sections) || []).forEach(sec => ((sec && sec.items) || []).forEach(it => {
+        if (!it || !it.name) return;
+        const k = it.name.trim().toLowerCase();
+        const prev = items.get(k);
+        if (!prev || (!prev.description && it.description)){
+          items.set(k, { name: it.name.trim(), price: it.price || "",
+                         description: it.description || "", menu: (m.label || "Main") });
+        }
+      }));
+    });
+    const hist = new Map();
+    (dishHistory(h.vis).detail || []).forEach(d => hist.set(d.name.trim().toLowerCase(), d));
+    const withHist = d => {
+      const e = hist.get(d.name.trim().toLowerCase());
+      return e ? Object.assign({}, d, { verdict: e.verdict, count: e.count, lastDate: e.lastDate }) : d;
+    };
+    // Named dishes: they share a word with the question that is neither a
+    // generic word nor part of a place's name.
+    const scored = [];
+    const consider = (d) => {
+      const dt = Array.from(new Set(elseTokens(d.name)));
+      const matched = dt.filter(t => qTok.has(t));
+      const telling = matched.some(t => !ELSEWHERE_GENERIC.has(t) && !placeTok.has(t));
+      if (telling) scored.push({ d: d, score: matched.length });
+    };
+    items.forEach(consider);
+    hist.forEach((e, k) => { if (!items.has(k)) consider({ name: e.name, price: "", description: "", menu: "" }); });
+    scored.sort((a, b) => b.score - a.score || (b.d.description ? 1 : 0) - (a.d.description ? 1 : 0));
+    let dishes = scored.slice(0, 4).map(x => withHist(x.d));
+    let names = [];
+    if (!dishes.length){
+      // No dish named: what you have ordered there, loved first.
+      const rank = v => v === "loved" ? 3 : v === "again" ? 2 : v === "skip" ? 0 : 1;
+      dishes = Array.from(hist.values())
+        .sort((a, b) => rank(b.verdict) - rank(a.verdict) || b.count - a.count)
+        .slice(0, 6)
+        .map(e => withHist(items.get(e.name.trim().toLowerCase()) ||
+                           { name: e.name, price: "", description: "", menu: "" }));
+      if (!dishes.length) names = Array.from(items.values()).slice(0, 20).map(d => d.name);
+    }
+    return { name: h.r.name, dishes: dishes, names: names, menuCount: items.size };
+  });
+}
+
+// The note that rides along in the Help me order prompt. Empty when the
+// question names no other saved place.
+function elsewhereToPrompt(places, hereName){
+  if (!places || !places.length) return "";
+  let s = "- OTHER PLACES THE DINER MENTIONED. They saved these in MenuCaptain, so here is " +
+    "what that place's own menu says and what they ordered there. Use it to compare, and to " +
+    "answer what they ask about that place. Still recommend ONLY dishes from THE MENU BELOW at " +
+    hereName + ". Never say you cannot see the other place. If a dish there has no " +
+    "description, compare by its name and say so in a few words:\n";
+  places.forEach(p => {
+    s += "    " + p.name + ":\n";
+    (p.dishes || []).forEach(d => {
+      let line = "      " + d.name;
+      if (d.price) line += " (" + (/^\d/.test(String(d.price)) ? "$" : "") + d.price + ")";
+      if (d.description) line += ": " + String(d.description).slice(0, 240);
+      const bits = [];
+      if (d.verdict === "loved") bits.push("they LOVED it");
+      else if (d.verdict === "again") bits.push("they would order it again");
+      else if (d.verdict === "skip") bits.push("they did not like it");
+      if (d.count) bits.push("ordered " + d.count + (d.count === 1 ? " time" : " times") +
+                             (d.lastDate ? ", last on " + d.lastDate : ""));
+      if (bits.length) line += " [" + bits.join("; ") + "]";
+      s += line + "\n";
+    });
+    if (p.names && p.names.length){
+      s += "      Dishes on its menu: " + p.names.join(", ") +
+           (p.menuCount > p.names.length ? " and " + (p.menuCount - p.names.length) + " more" : "") + "\n";
+    }
+  });
+  return s.length > 2400 ? s.slice(0, 2400) + "\n" : s;
+}
+
 // Ask Claude to recommend from THIS menu. `question` may be a question, a
 // command ("give me something healthy"), or a mood ("craving something rich").
-async function askMenu(cfg, restaurant, menu, visits, question, allVisits, thread){
+async function askMenu(cfg, restaurant, menu, visits, question, allVisits, thread, elsewhere){
   const rName    = (restaurant && restaurant.name) ? restaurant.name : "this restaurant";
   const menuText = menuToText(menu);
   const hist     = dishHistory(visits);
@@ -7771,6 +7940,10 @@ async function askMenu(cfg, restaurant, menu, visits, question, allVisits, threa
     if (profDisliked.length) prompt += "    Tends to avoid: " + profDisliked.join(", ") + "\n";
   }
 
+  // A dish at another of their saved places, when the question names one (1.578.0).
+  const elsewhereText = elsewhereToPrompt(elsewhere, rName);
+  if (elsewhereText) prompt += elsewhereText;
+
   // A short running exchange rides along so the diner can REPLY to the last
   // answer ("yes, the spicy one") and be understood. Capped upstream at the
   // last 3 exchanges; answers trimmed so context stays cheap.
@@ -7788,6 +7961,7 @@ async function askMenu(cfg, restaurant, menu, visits, question, allVisits, threa
   logMsg("ASK","Asking " + ASK_MODEL + " (menu " + menuText.length +
          " chars, history=" + (hasHist ? "yes" : "none") +
          ", taste=" + (hasProfile ? (profLoved.length + "+" + profDisliked.length) : "none") +
+         ", elsewhere=" + (elsewhereText ? elsewhere.map(p => p.name + ":" + p.dishes.length).join("|") : "none") +
          ", calorie-aware=" + (/\bcal\]/.test(menuText) || /cal;/.test(menuText) ? "yes" : "none") + ")");
   let res;
   try {
@@ -12114,6 +12288,8 @@ function App({openShare}){
           menu={(menus[overlay.restaurantId] || []).find(m => m.menu_id === overlay.menuId)}
           visits={visitsFor(overlay.restaurantId)}
           allVisits={visits}
+          allRestaurants={restaurants}
+          allMenus={menus}
           cfg={config}
           onClose={()=> setOverlay({ type:"restaurant", id:overlay.restaurantId })}
           onReScan={()=> setOverlay({
@@ -16757,7 +16933,7 @@ function DishLookRow({ cfg, item, realPhotos, cuisine }){
   );
 }
 
-function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onDeleteSection, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome, menuTabs, onSwitchMenu}){
+function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMenus, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onDeleteSection, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome, menuTabs, onSwitchMenu}){
   // ••• (1.563.0): the menu's tools, opened on demand. They are things done now
   // and then, not on every visit, and six buttons in a row sat between the
   // menu's name and the menu itself.
@@ -16914,7 +17090,13 @@ function MenuDetail({restaurant, menu, visits, allVisits, cfg, onClose, onReScan
     try {
       // The last few exchanges ride along so a reply ("yes, the spicy one")
       // actually lands. The menu dominates token cost either way.
-      const a = await askMenu(cfg, restaurant, menu, visits, q, allVisits, askThread.slice(-3));
+      // Name another saved place ("the Rico salad at Mi Cocina") and its dish
+      // rides along. Recent questions count too, so a follow-up still knows
+      // which place the conversation is about (1.578.0).
+      const recent = askThread.slice(-3);
+      const elsewhere = placesMentioned([q].concat(recent.map(h => h.q || "")).join("\n"),
+                                        allRestaurants, allMenus, allVisits, restaurant);
+      const a = await askMenu(cfg, restaurant, menu, visits, q, allVisits, recent, elsewhere);
       setAskThread(t => t.concat([{ q: q, a: a }]));
       setAskInput("");
       setActiveChip(null);

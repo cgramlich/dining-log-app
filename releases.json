@@ -391,5 +391,13 @@
     "email_notes": "updated: a Refinements line for the Oct 25 issue",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
+  },
+  "1.578.0": {
+    "what": "Help me order compares with another saved place: name it, and the dish you mean is looked up on that place's menu and your visits there",
+    "guide": "updated: a paragraph in Help me order",
+    "promo": "updated: the Help me order inventory line; as-of bumped",
+    "email_notes": "updated: a line for the Oct 25 issue",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
   }
 }

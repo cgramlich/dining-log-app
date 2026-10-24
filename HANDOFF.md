@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.577.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.578.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.159.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.577.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.578.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -412,6 +412,28 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### Help me order compares with another saved place (2026-10-23, app 1.578.0)
+
+Chris at Manny's Tex-Mex: "What is the closest thing to the Rico salad at Mi Cocina here?" Help me order
+said it couldn't see Mi Cocina, though his saved Mi Cocina menu lists the Rico Salad ($17.45, fajita
+chicken, avocado, bacon...) and he logged it in June as "would order again". It only ever saw the open
+menu. By card ("Yes, from my places"):
+
+- **`placesMentioned(text, restaurants, menusByRid, allVisits, here)`** (pure): finds saved places the
+  question names (full name, name without a branch, or the short name people say: "Manny's" for "Manny's
+  Tex-Mex"; accents folded; possessives handled; the place you are at never counts). At most 2 places.
+  For each, dishes on its menus or in your visits that share a TELLING word with the question (not a
+  generic dish word like "salad", not a word of a place's name): "Rico Salad" and "Rico Wrap", never
+  "Mi Cocina Salad". Up to 4, with price, description and your verdict. No dish named: what you ordered
+  there, loved first; failing that, up to 20 dish names from its menus.
+- **`elsewhereToPrompt(places, hereName)`**: the note in the prompt, capped at 2,400 characters. It
+  keeps picks on the open menu and tells the model not to say it cannot see the other place.
+- `runAsk` scans the question plus the last 3 questions, so a follow-up still knows the place.
+  `MenuDetail` gets `allRestaurants` and `allMenus`. App only: no server change, so it ships while
+  Railway is paused. Other members' shared menus are NOT searched (that needs a server release).
+- Help: a paragraph in "Help me order". Test `test_elsewhere.js` (20 checks, runs the real functions
+  out of index.html in Node; fails on 1.577.0).
 
 ### Switching menus visibly changes the page (2026-10-21, app 1.577.0)
 
