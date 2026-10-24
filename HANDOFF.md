@@ -430,8 +430,11 @@ server, so the just-saved job came back as ready. The resumed job was done with 
   ("...You'll find it with Lakewood Country Club's menus", **Open <place>**, **Done**) instead of the error.
   `ScanMenuFlow` gets `onOpenPlace`.
 - Also found: he saw no way to share it with the community because Lakewood is not linked to Google (no
-  `google_place_id`), which hides both the "Share your menu?" card and Add to the community. Told him to use
-  Find on Google. A card to show the option with a link step on unlinked places was declined; unchanged.
+  `google_place_id`), which hides both the "Share your menu?" card and Add to the community. Chris: the club
+  is NOT on Google at all, so it can never be linked. Community menus are keyed by Google Place ID, so a place
+  Google doesn't list (private clubs, pop-ups) cannot share with the community today; Send to a friend works.
+  A card to show the option with a link step was declined; unchanged. A non-Google community key would be a
+  server change (not proposed yet).
 - Test `test_scan_bar.js` (13; fails on 1.578.0).
 
 ### Help me order compares with another saved place (2026-10-23, app 1.578.0)
