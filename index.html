@@ -1307,7 +1307,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.579.0";
+const APP_VERSION   = "1.580.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -7863,6 +7863,27 @@ function elsewhereToPrompt(places, hereName){
   return s.length > 2400 ? s.slice(0, 2400) + "\n" : s;
 }
 
+/* ---- AI answers need room to think AND to answer (1.580.0) ----
+   Chris at Bourbon Steak Orange County (2026-10-25): a Help me order answer
+   stopped mid-sentence ("The Brendel Cabernet ... ($22 for 6oz) is"), and
+   the next answer began "to finish my earlier thought". The server sends the
+   judgement tasks (Help me order, Explain, the estimates) with no thinking
+   setting, so the model it routes them to (Sonnet 5.5) thinks before it
+   answers, and that thinking counts against max_tokens. A 700 cap left about
+   a hundred words for the answer. The caps below now leave room for both;
+   they are ceilings, not spend: only what is used is billed. If an answer
+   still runs out, it says so instead of stopping mid-word. */
+const AI_CUT_SHORT_NOTE = "(This answer was cut short. Ask again for the rest.)";
+function aiCutShort(json){ return !!(json && json.stop_reason === "max_tokens"); }
+// The answer's text, with the note added when it ran out of room. Empty when
+// the model used all its room before writing anything.
+function aiAnswerText(json){
+  const text = ((json && json.content) || [])
+    .filter(b => b && b.type === "text").map(b => b.text).join("\n").trim();
+  if (text && aiCutShort(json)) return text + "\n\n" + AI_CUT_SHORT_NOTE;
+  return text;
+}
+
 // Ask Claude to recommend from THIS menu. `question` may be a question, a
 // command ("give me something healthy"), or a mood ("craving something rich").
 async function askMenu(cfg, restaurant, menu, visits, question, allVisits, thread, elsewhere){
@@ -7999,7 +8020,7 @@ async function askMenu(cfg, restaurant, menu, visits, question, allVisits, threa
       body:JSON.stringify({
         task:"help_me_order",
         model:ASK_MODEL,
-        max_tokens:700,
+        max_tokens:4000,          // thinking + the answer (1.580.0); was 700
         messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
       }),
     });
@@ -8021,9 +8042,8 @@ async function askMenu(cfg, restaurant, menu, visits, question, allVisits, threa
     throw new Error(_detail || ("AI request failed (" + res.status + ")"));
   }
   const json = await res.json();
-  const text = (json.content || [])
-    .filter(b => b.type === "text").map(b => b.text).join("\n").trim();
-  logMsg("ASK","Received answer (" + text.length + " chars)");
+  const text = aiAnswerText(json);
+  logMsg("ASK","Received answer (" + text.length + " chars" + (aiCutShort(json) ? ", cut short" : "") + ")");
   if (!text) throw new Error("The model returned an empty answer. Try rephrasing.");
   return text;
 }
@@ -8101,7 +8121,7 @@ async function pickNearbySpot(cfg, candidates, taste, mood){
     body:JSON.stringify({
       task:"help_me_order",           // reuse the metered text task; no backend change
       model:ASK_MODEL,
-      max_tokens:220,
+      max_tokens:2000,                // thinking + a name and a reason (1.580.0); was 220
       messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
     }),
   });
@@ -8186,7 +8206,7 @@ async function explainMenu(cfg, restaurant, menu, selectedNames){
       body:JSON.stringify({
         task:"explain_menu",
         model:ASK_MODEL,
-        max_tokens: focused ? 800 : 1200,
+        max_tokens: focused ? 4000 : 6000,   // thinking + the explanation (1.580.0); was 800 / 1200
         messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
       }),
     });
@@ -8204,9 +8224,8 @@ async function explainMenu(cfg, restaurant, menu, selectedNames){
     throw new Error(_detail || ("AI request failed (" + res.status + ")"));
   }
   const json = await res.json();
-  const text = (json.content || [])
-    .filter(b => b.type === "text").map(b => b.text).join("\n").trim();
-  logMsg("EXPLAIN","Received explanation (" + text.length + " chars)");
+  const text = aiAnswerText(json);
+  logMsg("EXPLAIN","Received explanation (" + text.length + " chars" + (aiCutShort(json) ? ", cut short" : "") + ")");
   if (!text) throw new Error("The model returned an empty answer. Try again.");
   return text;
 }
@@ -8309,7 +8328,7 @@ async function estimateNutrition(cfg, file){
       body:JSON.stringify({
         task:"estimate_photo",
         model:VISION_MODEL,
-        max_tokens:1500,
+        max_tokens:4000,          // thinking + the estimate (1.580.0); was 1500
         messages:[{ role:"user", content:[
           { type:"image", source:{ type:"base64", media_type:"image/jpeg",
             data:dataUrl.split(",")[1] } },
@@ -8385,7 +8404,7 @@ async function estimateItemNutrition(cfg, restaurantName, item){
       body:JSON.stringify({
         task:"estimate_text",
         model:ASK_MODEL,
-        max_tokens:700,
+        max_tokens:3000,          // thinking + the estimate (1.580.0); was 700
         messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
       }),
     });
@@ -8453,7 +8472,7 @@ async function estimateItemFromImage(cfg, restaurantName, item){
       body:JSON.stringify({
         task:"estimate_photo",
         model:VISION_MODEL,
-        max_tokens:700,
+        max_tokens:3000,          // thinking + the estimate (1.580.0); was 700
         messages:[{ role:"user", content:[
           { type:"image", source:{ type:"url", url:item.web_image } },
           { type:"text", text:prompt },

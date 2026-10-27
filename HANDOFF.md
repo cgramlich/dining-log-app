@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.579.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Web app | **1.580.0** | menucaptain.com (GitHub Pages), confirmed live |
 | Backend | **0.161.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.579.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.580.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -413,6 +413,26 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### AI answers get room to finish (2026-10-27, app 1.580.0)
+
+Chris at Bourbon Steak Orange County (screenshot 10-25, relayed by the weekly-draft session): a Help me order
+answer stopped mid-sentence ("The Brendel Cabernet ... ($22 for 6oz) is") and the next began "to finish my
+earlier thought". Cause, from the code and the API guide: the server routes the judgement tasks to
+`claude-sonnet-5-5` and deliberately sends them no thinking setting (only scans and translations get
+`between_tools`, see `_thinking_kwargs`), and on Sonnet 5.5 no setting means adaptive thinking at effort high.
+Thinking counts against `max_tokens`, so a 700 cap left roughly a hundred words. No call checked
+`stop_reason`. Not confirmed from the server log (the Railway connector is still disconnected), but the
+code path and the symptom match. By card ("Give answers room"):
+
+- Caps (ceilings, not spend: only tokens used are billed): Help me order 700 to 4000; the spot picker 220
+  to 2000; Explain 800/1200 to 4000/6000; estimate_photo 1500 and 700 to 4000 and 3000; estimate_text 700
+  to 3000. Server ceiling is 32000.
+- `aiAnswerText(json)` / `aiCutShort(json)`: Help me order and Explain read through it; an answer that still
+  runs out ends with "(This answer was cut short. Ask again for the rest.)".
+- Not done (option offered, not chosen): telling the server to think less (effort medium) on Help me order
+  and Explain for faster answers.
+- Test `test_ai_room.js` (12; fails on 1.579.0).
 
 ### No "menu is ready" bar for a menu you just saved (2026-10-24, app 1.579.0)
 
