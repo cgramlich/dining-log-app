@@ -1,0 +1,86 @@
+From the Captain’s Table · What’s new · October 26, 2026
+
+Dear friends,
+
+This week MenuCaptain learned something most restaurant websites won’t tell you: what dinner will cost. Here is what’s new. It’s already in your app. If you see Update available, tap Refresh.
+
+REAL PRICES BEFORE YOU GO
+
+Many restaurants leave the prices off the menus they put online. The menus our members photograph at the table keep them: 9 in 10 dishes on the menus shared at the Captain’s Table carry a price.
+
+So a place now tells you what it costs, with a line like “Dinner: most dishes $38 to $48”. Beside it you’ll see where those prices came from (your photo, another diner’s photo or the restaurant’s website) and when. If a place has no dinner menu saved, the line names the meal it covers, like “Breakfast and lunch”. Tap it to see each menu’s own range.
+
+It’s taken from the middle of the food prices, so drinks, sides and market prices don’t tip it. You’ll find it on your places, on menus other diners have shared, and in Find a place results, before you’ve even added the place. Prices do change, so take it as a guide.
+
+HELP ME ORDER KNOWS YOUR OTHER PLACES
+
+Craving a dish you love somewhere else? Ask Help me order for the closest thing to it, naming the dish and the place. If it’s one of your saved places, MenuCaptain looks up that dish on its menu and in your visits there, then finds the nearest match on the menu in front of you.
+
+ADD A MENU FROM A LINK, THEN WALK AWAY
+
+A scanned menu already keeps being read after you leave the app. Now a link does too. Paste a menu’s link, or tap Find the menu for me and let MenuCaptain look on the restaurant’s site. After a few seconds you’ll see “You don’t have to wait here”. Tap Done for now, and the bar at the top of MenuCaptain, or an email if you’re gone a while, brings you back to review it.
+
+A whole link now counts as one scan, however long the page. And ordering sites that build their menu as the page loads can now be read too.
+
+SCANS THAT WAIT FOR SIGNAL
+
+Only one bar of signal at the table? Your menu photos are saved on your phone first and sent one at a time. If the signal gives out, the scan says Waiting for signal and finishes by itself the next time MenuCaptain has signal. Nothing to start again.
+
+ALWAYS KNOW WHICH MENU YOU’RE ON
+
+A menu’s page now says so at the top: Menu and the place’s name in gold, with the menu’s own name large beneath. A place with several menus shows them as tabs, so lunch, dinner and drinks are a tap apart. Under the tabs, a line says what each menu holds, with See the dishes, and Help me order waits as a single line until you want it. The menu’s tools sit behind ••• at the top right.
+
+The chat bubble and Settings are now at the top of every page you browse, not only the main tabs. And Places opens with your three most recent places, the ones you added, visited or gave a new menu lately, then everything else in your usual order.
+
+NEW AT THE TABLE
+
+Three Miami places whose menus are now at the Captain’s Table. When you’re there, tap Already at the restaurant and the menu is waiting, ready for Help me order.
+
+    COTE Miami (https://www.cotekoreansteakhouse.com/) · Design District, Miami
+    The Miami home of the New York Korean steakhouse, with a Michelin star. It marries the fun of Korean barbecue with a classic American steakhouse.
+
+    Jaya at The Setai (https://www.thesetaihotel.com/dining/jaya/) · Miami Beach
+    Jaya means “victory” in Sanskrit. The kitchen cooks the dishes of South Asia, from the tandoor oven to the wok, served indoors or in an open air courtyard with live entertainment every night.
+
+    Michael’s Genuine Food & Drink (https://www.michaelsgenuine.com/) · Design District, Miami
+    A neighborhood restaurant built on fresh, seasonal ingredients and warm hospitality. Bon Appétit called it “refreshingly approachable yet upscale”.
+
+CAPTAIN’S TIP
+
+    Scanned a menu? Share it, and the next Captain at that table can skip the scan. On the place, tap Share, then Add to the community, and choose the menus to share. It shows for places found on Google, which is how other diners find the same place. Only the menu goes out, never your visits, notes or ratings.
+
+NEVER MISS AN ISSUE
+
+Some inboxes tuck this email away. Each new issue now also appears on MenuCaptain’s Home screen as This week’s issue is out, and opens right in the app. Prefer not to get it by email? Settings now has an Email section where you can switch it off, or back on, any time. Emails about your account and from friends always arrive.
+
+ADD THE FOUNDER AS A FRIEND
+
+Chris built MenuCaptain and would love to see where you’re eating. Tap here to add him as a friend (https://menucaptain.com/?inv=cjgramlich&nm=Chris), or in the app open You, then Friends, and add @cjgramlich.
+
+YOUR IDEAS SHAPE MENUCAPTAIN
+
+Spotted something that isn’t quite right, or wish MenuCaptain did something it doesn’t yet? We read every note. Tap the chat bubble to write to us, or open Settings and tap Share feedback. Or simply reply to this email.
+
+Bon appétit,
+The MenuCaptain team
+
+ALSO IMPROVED
+
+- Share a visit with several friends and it stays one visit: whoever joins shows on yours, and the email takes you straight to it.
+- Send a visit or place again and friends who already have it are marked Sent, so it only reaches the people you choose. Sent keeps one line per visit or place, and shows who was there with you.
+- Handed two restaurants’ menus at once, say two in one hotel? Scan them together, and MenuCaptain offers to save each to its own place.
+- A menu read from a restaurant chain’s website now stays with the location you’re at, and no longer picks up another city’s dishes.
+- Start a group order now sits at the foot of Help me order, where you’d look for it.
+- Moving a section into another menu, the place’s other menus appear as buttons to tap.
+- The emails we send now say where each thing is waiting in the app.
+- Waited for a menu scan and saved it? The “your menu is ready” reminder no longer pops up for it afterwards.
+- If a menu link can’t be read in the background, MenuCaptain reads it while you wait, so you always get the menu.
+
+See everything MenuCaptain does: https://menucaptain.com/welcome.html
+Read every issue of From the Captain’s Table: https://menucaptain.com/news/
+
+—
+You’re receiving this because you have a MenuCaptain account.
+Read past issues: https://menucaptain.com/news/
+Unsubscribe from these updates: %%UNSUBSCRIBE_URL%%
+%%POSTAL_ADDRESS%%
