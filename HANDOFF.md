@@ -444,7 +444,8 @@ you're not just looking for it with that screen open." Decided by card (all four
   switch that mutes this one order.
 - **Mute** lives in `group_order_mutes` (`sql/group_order_mutes.sql`; RLS on, no policies, grant to
   service_role). Until that table exists nobody is muted and `GET /api/group/{code}/notify` answers
-  `muted: null`, so the app shows no switch.
+  `muted: null`, so the app shows no switch. **Applied 2026-10-30** with Chris's yes by card (migration
+  `group_order_mutes`; checked: RLS on, 0 policies, service_role can read, add and delete).
 - **Still unproven:** web push on a real iPhone (open since 1.571.0). First test = one group order between
   Chris and Kristin. The newsletter line waits for that.
 - Tests: `test_group_notify.py` (17, the real server functions against a fake database) and
