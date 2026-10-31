@@ -903,8 +903,9 @@ next time MenuCaptain has signal (leave it open, or just open it again later). A
 that already got through is never sent twice.
 
 **Notifications.** Turn on Settings, **Notifications**, and MenuCaptain tells you the
-moment a friend shares something with you, joins your visit or replies, and when a menu
-you scanned is ready. Tapping one opens MenuCaptain right there. On iPhone they work in
+moment a friend shares something with you, joins your visit or replies, when anything
+happens on a group order you are in, and when a menu you scanned is ready. Tapping one
+opens MenuCaptain right there. On iPhone they work in
 MenuCaptain opened from your Home Screen (in Safari, tap Share, then **Add to Home
 Screen**). The emails still come too, and say where each thing is waiting. The weekly
 update email can be switched off, or back on, in Settings, **Email**. Emails about your
@@ -1064,6 +1065,17 @@ or **Remove** to take them off - the tally updates. Step away any time with
 tap **Close order** only when you are done - it stops new picks and also closes
 itself after a day. The shared link shows only the menu and the
 table's own picks - nothing else of yours.
+
+**Never miss a change.** With notifications on, everyone signed in to MenuCaptain who is
+in the order (you as host, the friends you invited and anyone who joined with their account)
+hears about every change: someone sends or changes their order, passes, the menu changes,
+or the order is placed or closed. A busy order sends one notification that keeps updating
+rather than a pile of them, and tapping it opens the order. Turn them on from the order
+itself (**Never miss a change**, then **Turn on**), and use the switch there to mute one
+order without turning notifications off everywhere. People without notifications get an
+email only for the big moments: the order placed or closed, or the host changing or
+removing their order. Someone who opened your link without a MenuCaptain account sees
+the changes when they look at the link again.
 
 **Turning the order into a visit.** A closed order already knows where you were,
 who was there and what each of them ordered, so closing offers **Close and log

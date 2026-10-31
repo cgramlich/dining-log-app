@@ -26,7 +26,7 @@
    - everything else (other API, list pages) -> default network
 */
 
-const VERSION = "1.580.0";                 // keep in lockstep with APP_VERSION
+const VERSION = "1.581.0";                 // keep in lockstep with APP_VERSION
 const SHELL_CACHE = "mc-shell-" + VERSION;
 const ASSET_CACHE = "mc-assets-" + VERSION;
 const DATA_CACHE  = "mc-data-v1";           // user collections; UN-versioned so it
@@ -241,12 +241,17 @@ self.addEventListener("push", (event) => {
   let d = {};
   try { d = event.data ? event.data.json() : {}; }
   catch (e) { d = { body: event.data ? event.data.text() : "" }; }
-  event.waitUntil(self.registration.showNotification(d.title || "MenuCaptain", {
+  const opts = {
     body: d.body || "",
     icon: "/icon-192.png",
     badge: "/icon-192.png",
     data: { url: d.url || "/" },
-  }));
+  };
+  // Same tag = this one REPLACES the earlier notification instead of stacking
+  // another (1.581.0: one per group order, updated as people act on it).
+  // renotify makes the replacement still sound; browsers only allow it with a tag.
+  if (d.tag) { opts.tag = String(d.tag).slice(0, 64); opts.renotify = true; }
+  event.waitUntil(self.registration.showNotification(d.title || "MenuCaptain", opts));
 });
 
 self.addEventListener("notificationclick", (event) => {

@@ -415,5 +415,13 @@
     "email_notes": "updated: a Refinements line for the next issue",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, native), BRIEFING, Log"
+  },
+  "1.581.0": {
+    "what": "Group orders you cannot miss: everyone in the order hears every change in one notification that keeps itself up to date; turn them on and mute one order from the order itself",
+    "guide": "updated: Group order, Never miss a change; Notifications paragraph",
+    "promo": "updated: Group order card gains a line (drafted for Chris's wording), as-of bumped",
+    "email_notes": "updated: a feature line for the next issue, held until tested on a real iPhone",
+    "welcome": "n/a: the promo page's group order card does not cover notifications",
+    "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
   }
 }

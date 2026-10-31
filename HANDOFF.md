@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.580.0** | menucaptain.com (GitHub Pages), confirmed live |
-| Backend | **0.161.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.580.0** | built and pushed, **not yet submitted to any store** |
+| Web app | **1.581.0** | menucaptain.com (GitHub Pages), confirmed live |
+| Backend | **0.162.0** | Railway, `/health` reports `db connected` |
+| Native shell | **1.581.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -413,6 +413,42 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### Group order notifications (2026-10-30, app 1.581.0, server 0.162.0)
+
+Chris, relayed word for word by the newsletter-draft session: "anytime somebody does something on the group
+order, that should be a notification like it should not be missed by any means, and it's easy to miss if
+you're not just looking for it with that screen open." Decided by card (all four recommendations):
+
+- **Who hears what:** everyone in the order hears every action: the host, everyone invited
+  (`group_invites`) and everyone signed in who joined (pick token `u:<uid>`), never about their own actions.
+  A link guest with no account cannot be reached (no account to send to; an iPhone allows web
+  notifications only from a Home Screen app).
+- **Grouped:** `_group_note(code, kind, ...)` queues an action; after `GROUP_NOTIFY_WINDOW_S` (20 s)
+  `_group_flush` sends each person ONE message about what OTHER people did ("Sam sent their order. Alex is
+  not ordering."; three lines, then the newest two plus "Plus N earlier updates"), tagged `group-<code>`.
+  `sw.js` now honours the tag (with `renotify`), so the newest replaces the last on the phone. In memory,
+  one uvicorn worker: a restart inside the window drops that batch. Road not taken: one push per action.
+- **Actions:** sent / changed (submit), passed / rejoined, the host editing or removing someone's order
+  (that person reads "changed YOUR order"), menu changed, placed / not placed, closed. Not covered: votes
+  (ballots) and the host's roster.
+- **No notifications on:** an email only for the big moments (placed, closed, the host changed or removed
+  YOUR order), only to people with no web subscription. This replaces the old "placed" email to invitees.
+  Road not taken: email every action.
+- **Tapping** opens `?open=group&gc=<code>&as=host|guest` (`gc`, not `g`, so the no-account `?g=` route is
+  untouched): the host's board (new overlay `groupHost`) or your own order. The invite notification uses
+  it too (it used to open Home). Parked through sign-in like the other `?open=` links.
+- **On the order itself:** `GroupNotifyBar` on the host board and the guest screen (signed-in only; not
+  when the host orders for someone, not on the host's own order inside the board): "Never miss a change"
+  + Turn on, a Home Screen hint in an iPhone Safari tab, a Settings hint when blocked, and once on a
+  switch that mutes this one order.
+- **Mute** lives in `group_order_mutes` (`sql/group_order_mutes.sql`; RLS on, no policies, grant to
+  service_role). Until that table exists nobody is muted and `GET /api/group/{code}/notify` answers
+  `muted: null`, so the app shows no switch.
+- **Still unproven:** web push on a real iPhone (open since 1.571.0). First test = one group order between
+  Chris and Kristin. The newsletter line waits for that.
+- Tests: `test_group_notify.py` (17, the real server functions against a fake database) and
+  `t1581/test.js` (13: link parsing, the mute helpers, sw tag, versions). Compile and names OK.
 
 ### AI answers get room to finish (2026-10-27, app 1.580.0)
 

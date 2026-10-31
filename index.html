@@ -1307,7 +1307,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.580.0";
+const APP_VERSION   = "1.581.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2891,8 +2891,9 @@ next time MenuCaptain has signal (leave it open, or just open it again later). A
 that already got through is never sent twice.
 
 **Notifications.** Turn on Settings, **Notifications**, and MenuCaptain tells you the
-moment a friend shares something with you, joins your visit or replies, and when a menu
-you scanned is ready. Tapping one opens MenuCaptain right there. On iPhone they work in
+moment a friend shares something with you, joins your visit or replies, when anything
+happens on a group order you are in, and when a menu you scanned is ready. Tapping one
+opens MenuCaptain right there. On iPhone they work in
 MenuCaptain opened from your Home Screen (in Safari, tap Share, then **Add to Home
 Screen**). The emails still come too, and say where each thing is waiting. The weekly
 update email can be switched off, or back on, in Settings, **Email**. Emails about your
@@ -3052,6 +3053,17 @@ or **Remove** to take them off - the tally updates. Step away any time with
 tap **Close order** only when you are done - it stops new picks and also closes
 itself after a day. The shared link shows only the menu and the
 table's own picks - nothing else of yours.
+
+**Never miss a change.** With notifications on, everyone signed in to MenuCaptain who is
+in the order (you as host, the friends you invited and anyone who joined with their account)
+hears about every change: someone sends or changes their order, passes, the menu changes,
+or the order is placed or closed. A busy order sends one notification that keeps updating
+rather than a pile of them, and tapping it opens the order. Turn them on from the order
+itself (**Never miss a change**, then **Turn on**), and use the switch there to mute one
+order without turning notifications off everywhere. People without notifications get an
+email only for the big moments: the order placed or closed, or the host changing or
+removing their order. Someone who opened your link without a MenuCaptain account sees
+the changes when they look at the link again.
 
 **Turning the order into a visit.** A closed order already knows where you were,
 who was there and what each of them ordered, so closing offers **Close and log
@@ -10842,7 +10854,7 @@ function App({openShare}){
   // eslint-disable-next-line
   }, [pendingSv, ready, needSetup]);
   useEffect(()=>{
-    let want = "", job = "", svq = "", issq = "";
+    let want = "", job = "", svq = "", issq = "", gcq = "", asq = "";
     try {
       const om = (location.search || "").match(/[?&]open=([a-z]+)/);
       if (om) want = om[1];
@@ -10856,6 +10868,13 @@ function App({openShare}){
       // "?open=news&issue=<date>": "this week's issue is out". A date only.
       const im = (location.search || "").match(/[?&]issue=(\d{4}-\d{2}-\d{2})(?:&|$)/);
       if (im) issq = im[1];
+      // "?open=group&gc=<code>&as=host|guest": something happened on a group
+      // order you are in. "gc", not "g": a bare ?g= is the no-account guest
+      // link, which must not be confused with this signed-in route.
+      const gm = (location.search || "").match(/[?&]gc=([A-Za-z0-9]{1,32})(?:&|$)/);
+      if (gm) gcq = gm[1];
+      const am = (location.search || "").match(/[?&]as=(host|guest)(?:&|$)/);
+      if (am) asq = am[1];
     } catch(e){}
     if (!want) return;
     try { history.replaceState(null, "", location.pathname); } catch(e){}
@@ -10863,9 +10882,10 @@ function App({openShare}){
     // in reloads the page, which would drop the overlay set below. Park the
     // destination so the post-sign-in return brings you back to it. Only the
     // known destinations are parked, so a crafted link cannot bounce anywhere.
-    if (!configComplete(loadConfig()) && (want === "shares" || want === "connections" || (want === "scan" && job) || (want === "visit" && svq))){
+    if (!configComplete(loadConfig()) && (want === "shares" || want === "connections" || (want === "scan" && job) || (want === "visit" && svq) || (want === "group" && gcq))){
       rememberAfterSignup(location.origin + location.pathname + "?open=" + want
-        + (want === "scan" ? "&job=" + job : "") + (want === "visit" ? "&sv=" + svq : ""));
+        + (want === "scan" ? "&job=" + job : "") + (want === "visit" ? "&sv=" + svq : "")
+        + (want === "group" ? "&gc=" + gcq + "&as=" + (asq || "guest") : ""));
       return;
     }
     if (want === "shares"){ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }
@@ -10873,6 +10893,7 @@ function App({openShare}){
     else if (want === "scan" && job){ setScanLink(job); }
     else if (want === "visit" && svq){ setPendingSv(svq); }
     else if (want === "news" && issq){ markNewsSeen(issq); setOverlay({ type:"newsArchive", url: NEWS_SITE + "/news/" + issq + ".html" }); }
+    else if (want === "group" && gcq){ setOverlay(asq === "host" ? { type:"groupHost", code: gcq } : { type:"groupGuest", code: gcq }); }
   // eslint-disable-next-line
   }, []);
 
@@ -10887,6 +10908,9 @@ function App({openShare}){
       } else if (t === "share"){
         if (e.detail.kind === "joined" && e.detail.sv) setPendingSv(String(e.detail.sv));
         else setOverlay({ type:"shares" });
+      } else if ((t === "group" || t === "group_invite") && /^[A-Za-z0-9]{1,32}$/.test(String(e.detail.code || ""))){
+        const gc = String(e.detail.code);
+        setOverlay(e.detail.as === "host" ? { type:"groupHost", code: gc } : { type:"groupGuest", code: gc });
       } else if (t === "group_invite"){
         setOverlay(null); setTab("restaurants");
       } else if (t === "scan_ready" && e.detail.job){
@@ -12082,6 +12106,10 @@ function App({openShare}){
           onMerge={(keepId, dropIds)=> mergeDuplicatePlaces(keepId, dropIds)} />
       )}
 
+      {overlay && overlay.type === "groupHost" && (
+        <GroupOrderHost cfg={config} menu={null} restaurantName="" resumeCode={overlay.code}
+          onClose={()=> setOverlay(null)} />
+      )}
       {overlay && overlay.type === "groupStart" && (
         <RestaurantPicker
           restaurants={restaurants}
@@ -27693,6 +27721,125 @@ async function groupUpdateMenu(cfg, code, snapshot, title){
   if (!res.ok) throw new Error("menu update failed: " + res.status);
   return res.json();
 }
+// Mute ONE group order (1.581.0). null = the server cannot mute yet, so the
+// screen shows no switch rather than one that would not work.
+async function groupNotifyGet(cfg, code){
+  try {
+    const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/notify",
+      { headers:{ ...(await authHeaders(cfg)) } });
+    if (!res.ok) return null;
+    const d = await res.json().catch(()=> ({}));
+    return (typeof d.muted === "boolean") ? d.muted : null;
+  } catch(e){ return null; }
+}
+async function groupNotifySet(cfg, code, muted){
+  const res = await fetch(apiBase(cfg) + "/api/group/" + encodeURIComponent(code) + "/notify", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body: JSON.stringify({ muted: !!muted }),
+  });
+  const d = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error((d && d.detail) || "Could not change that.");
+  return !!d.muted;
+}
+
+/* Group order notifications (1.581.0). Chris, 2026-10-30: "anytime somebody
+   does something on the group order, that should be a notification ... it's
+   easy to miss if you're not just looking for it with that screen open."
+   The server sends one notification per order that updates itself (see
+   _group_flush in the backend). Nobody gets them until they allow them once on
+   their phone, so this bar asks right where it matters, and lets anyone quiet
+   one busy order. Signed-in people only: a link guest has no account to send to. */
+function GroupNotifyBar({cfg, code}){
+  const signedIn = !!(cfg && configComplete(cfg));
+  // checking | on | off | blocked | iphone-tab | unsupported
+  const [push, setPush]   = useState("checking");
+  const [muted, setMuted] = useState(null);
+  const [busy, setBusy]   = useState(false);
+  const [err, setErr]     = useState("");
+  useEffect(()=>{
+    if (!signedIn || !code) return;
+    let live = true;
+    (async ()=>{
+      if (IS_NATIVE){ live && setPush("unsupported"); return; }
+      if (isIPhoneBrowserTab()){ live && setPush("iphone-tab"); return; }
+      if (!pushSupported()){ live && setPush("unsupported"); return; }
+      if (Notification.permission === "denied"){ live && setPush("blocked"); return; }
+      const on = await pushIsOn();
+      if (!live) return;
+      setPush(on ? "on" : "off");
+      if (on){ const m = await groupNotifyGet(cfg, code); live && setMuted(m); }
+    })();
+    return ()=>{ live = false; };
+  // eslint-disable-next-line
+  }, [code, signedIn]);
+  async function turnOn(){
+    if (busy) return;
+    setBusy(true); setErr("");
+    try {
+      const r = await pushEnable(cfg);
+      setPush(r === "granted" ? "on" : r === "denied" ? "blocked" : "off");
+      if (r === "granted") setMuted(await groupNotifyGet(cfg, code));
+    } catch(e){ setErr(e.message || "Could not turn on notifications."); }
+    finally { setBusy(false); }
+  }
+  async function toggleMute(){
+    if (busy || muted === null) return;
+    setBusy(true); setErr("");
+    try { setMuted(await groupNotifySet(cfg, code, !muted)); }
+    catch(e){ setErr(e.message || "Could not change that."); }
+    finally { setBusy(false); }
+  }
+  if (!signedIn || push === "checking" || push === "unsupported") return null;
+  const box = {margin:"0 0 14px", padding:"10px 14px", borderRadius:12, textAlign:"left",
+    background:"var(--surface-2, rgba(255,255,255,0.04))", border:"1px solid var(--line)"};
+  const errLine = err ? <div className="tiny" style={{color:"#e7a99e", marginTop:6}}>{err}</div> : null;
+  if (push === "iphone-tab" || push === "blocked") return (
+    <div style={box}>
+      <div className="tiny faint" style={{lineHeight:1.5}}>
+        {push === "iphone-tab"
+          ? <>To hear the moment anyone changes this order, open MenuCaptain from your Home Screen and turn on notifications there.</>
+          : <>To hear when anyone changes this order, allow notifications: open your phone&rsquo;s <b>Settings</b>, then <b>Notifications</b>, then <b>MenuCaptain</b>.</>}
+      </div>
+    </div>
+  );
+  if (push === "off") return (
+    <div style={box}>
+      <div className="row" style={{alignItems:"center", gap:12}}>
+        <div style={{flex:1, minWidth:0}}>
+          <div className="small" style={{fontWeight:600}}>Never miss a change</div>
+          <div className="tiny faint" style={{marginTop:2, lineHeight:1.45}}>
+            Get a notification when anyone joins, changes their order, or the order is placed.
+          </div>
+        </div>
+        <button className="btn primary sm" style={{flex:"none"}} disabled={busy} onClick={turnOn}>
+          {busy ? <span className="spin" /> : "Turn on"}
+        </button>
+      </div>
+      {errLine}
+    </div>
+  );
+  return (
+    <div style={box}>
+      <div className="row" style={{alignItems:"center", gap:12}}>
+        <div style={{flex:1, minWidth:0}}>
+          <div className="small" style={{fontWeight:600}}>
+            {muted ? "This order is muted" : "\u2713 You\u2019ll hear about every change"}
+          </div>
+          <div className="tiny faint" style={{marginTop:2, lineHeight:1.45}}>
+            {muted ? "Changes still show here. Turn it back on to get notifications."
+              : "One notification for this order, updated as people act on it."}
+          </div>
+        </div>
+        {muted === null ? null : busy ? <span className="spin" /> : (
+          <button type="button" className={"mc-switch" + (muted ? "" : " on")} role="switch"
+            aria-checked={!muted} aria-label="Notifications for this order" onClick={toggleMute} />
+        )}
+      </div>
+      {errLine}
+    </div>
+  );
+}
+
 async function groupRemovePick(cfg, code, token){
   // Host-only: take one guest off the order. guest_token comes from the
   // host-only fields the server returns in GET /api/group/{code}.
@@ -28933,6 +29080,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
           )
         ) : (
           <>
+            <GroupNotifyBar cfg={cfg} code={code} />
             {orderFor ? (
               <div style={{position:"fixed", inset:0, zIndex:72, background:"var(--bg)", overflowY:"auto"}}>
                 <div style={{maxWidth:600, margin:"0 auto", padding:"calc(14px + env(safe-area-inset-top)) 16px 14px"}}>
@@ -28973,7 +29121,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
             {myOrder ? (
               <div style={{position:"fixed", inset:0, zIndex:72, background:"var(--bg)", overflowY:"auto"}}>
                 <div style={{maxWidth:600, margin:"0 auto", padding:"calc(14px + env(safe-area-inset-top)) 16px 14px"}}>
-                  <GroupOrderGuest code={code} cfg={cfg} profile={hostProfile}
+                  <GroupOrderGuest code={code} cfg={cfg} profile={hostProfile} noNotifyBar
                     onClose={async ()=>{
                       setMyOrder(false);
                       // Pull once rather than waiting for the next poll, so your
@@ -29985,7 +30133,7 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
   );
 }
 
-function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
+function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken, noNotifyBar}){
   const home = location.origin + location.pathname;
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30254,6 +30402,7 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken}){
               ? "Tap what you'd like - or write your own - and send it back. You can change it any time until the host closes it."
               : "Pick what you'd like and send it back. You can change your order any time until the host closes it."}
       </div>
+      {!asName && !noNotifyBar ? <GroupNotifyBar cfg={cfg} code={code} /> : null}
 
       {/* The host's note (entered at start) - stored as `title`. Notes can be
           long and multiline (e.g. a catering order with a list of options), so
@@ -33537,8 +33686,9 @@ function NotificationsSetting({ cfg }){
             <div style={{flex:1, minWidth:0}}>
               <div className="theme-name">On this device</div>
               <div className="tiny faint" style={{marginTop:3, lineHeight:1.45}}>
-                When a friend shares with you, joins your visit or replies, and when a menu you
-                scanned is ready. Tapping one opens MenuCaptain right there.
+                When a friend shares with you, joins your visit or replies, when anything happens
+                on a group order you are in, and when a menu you scanned is ready. Tapping one opens
+                MenuCaptain right there.
               </div>
             </div>
             {busy ? <span className="spin" /> : (
