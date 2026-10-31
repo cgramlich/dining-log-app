@@ -1,0 +1,67 @@
+From the Captain’s Table · What’s new · November 1, 2026
+
+Dear friends,
+
+This week MenuCaptain learned to tap you on the shoulder. Here is what’s new. It’s already in your app. If you see Update available, tap Refresh.
+
+GROUP ORDERS NOBODY MISSES
+
+A group order moves fast. Someone sends their order, someone changes it, someone passes, and the host places it. Until now you only saw it happen with the order open on your screen. Now everyone in the order with MenuCaptain can hear about every change: the host, the friends invited, and anyone who joined with their account.
+
+A busy order sends one notification that keeps itself up to date, never a pile of them. Tap it and the order opens: the host sees who has ordered, and everyone else sees their own order.
+
+To turn it on, open the order and tap Turn on beside Never miss a change. Ordering with a lively table? The switch there mutes that one order, and leaves your other notifications as they are. Friends who haven’t turned notifications on still get an email for the big moments: the order placed or closed, or the host changing their order.
+
+NOTIFICATIONS FOR EVERYTHING ELSE
+
+Group orders are only the start. In Settings, under Notifications, switch on On this device and MenuCaptain lets you know when a friend shares with you, joins your visit or replies, and when a menu you scanned is ready. Tapping one opens MenuCaptain right there.
+
+On iPhone, notifications work in MenuCaptain opened from your Home Screen. In Safari, tap Share, then Add to Home Screen, and open MenuCaptain from there.
+
+ANSWERS THAT FINISH
+
+Help me order and Explain the menu take a moment to think before they answer. On a long menu, that thinking could crowd out the answer itself, and it stopped in the middle of a sentence. Both now have room for the whole answer. If one ever does run out, it tells you so, and asking again brings the rest.
+
+NEW AT THE TABLE
+
+Three places whose menus are now at the Captain’s Table, from the California coast to Kansas City and Dallas. When you’re there, tap Already at the restaurant and the menu is waiting, ready for Help me order.
+
+    Bourbon Steak Orange County (https://www.bourbonsteak.com/location/orange-county/) · Dana Point
+    Chef Michael Mina’s take on the American steakhouse, from the Maine lobster pot pie to an American Wagyu tomahawk, with a long wine list to match.
+
+    The Peanut (https://www.peanutmidwest.com/) · Kansas City
+    Kansas City’s oldest bar and grill, open since 1933 and famous for its wings, with neighborhood spots across the metro.
+
+    Manny’s Tex-Mex (https://www.mannystexmex.com/) · Dallas
+    A family owned Dallas tradition, started in 2005 by a retired Army veteran. Tex-Mex favorites made by hand every day, served with what the house calls legendary hospitality.
+
+CAPTAIN’S TIP
+
+    Dining abroad? On a menu priced in euros, pounds, yen or another major currency, tap Show in $ near the top of the menu, under Show English. Each price gets an estimate in dollars just beneath it, and the printed price stays as it is, so it’s still the one you point to. Tap the currency code beside the rate to see another currency. Rates are the European Central Bank’s daily figures, so your card’s rate will differ a little.
+
+ADD THE FOUNDER AS A FRIEND
+
+Chris built MenuCaptain and would love to see where you’re eating. Tap here to add him as a friend (https://menucaptain.com/?inv=cjgramlich&nm=Chris), or in the app open You, then Friends, and add @cjgramlich.
+
+YOUR IDEAS SHAPE MENUCAPTAIN
+
+Spotted something that isn’t quite right, or wish MenuCaptain did something it doesn’t yet? We read every note. Tap the chat bubble to write to us, or open Settings and tap Share feedback. Or simply reply to this email.
+
+Bon appétit,
+The MenuCaptain team
+
+ALSO IMPROVED
+
+- Help me order and Explain the menu no longer stop in the middle of a long answer.
+- Calorie estimates get the same extra room, so they finish too.
+- Open a menu scan you’ve already saved and MenuCaptain now says Already saved, instead of showing an error.
+- A group order invitation opens the order itself, not the Home screen.
+
+See everything MenuCaptain does: https://menucaptain.com/welcome.html
+Read every issue of From the Captain’s Table: https://menucaptain.com/news/
+
+—
+You’re receiving this because you have a MenuCaptain account.
+Read past issues: https://menucaptain.com/news/
+Unsubscribe from these updates: %%UNSUBSCRIBE_URL%%
+%%POSTAL_ADDRESS%%
