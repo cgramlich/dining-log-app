@@ -1155,7 +1155,13 @@ who shared it - anything you leave unassigned is split evenly across everyone.
 There are **Tax** and **Tip** fields - each can be a dollar amount or a percent -
 and the **Total** updates as you go, or you can type your own to hard-code it. A
 scanned check keeps its printed total, and a tip you add goes on top of it, since
-most checks are printed before the tip. An
+most checks are printed before the tip. Not sure what to tip? Tap **Recommend a
+tip** under those fields and the app suggests what to add for okay, good and great
+service, each with the total it makes. It weighs the kind of place, where it is,
+and what you had (a pricey bottle of wine does not always need the full rate), says
+so if a service charge is already on the check, and works on the price before tax.
+Tap one to put it in the **Tip** field. It works with no names added, so it suits
+a dinner for two. It uses one AI request. An
 **Everyone shares everything** shortcut for the simplest case. When a line covers
 several of the same item (like **3 GL Prisoner** at one price), a **Split into 3**
 button breaks it into separate per-unit rows so you can give each one to a

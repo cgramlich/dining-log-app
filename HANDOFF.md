@@ -22,8 +22,8 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.582.0** | menucaptain.com (GitHub Pages), pushed 2026-11-02 |
-| Backend | **0.162.0** | Railway, `/health` reports `db connected` |
+| Web app | **1.583.0** | menucaptain.com (GitHub Pages), pushed 2026-11-02 |
+| Backend | **0.163.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.581.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -413,6 +413,28 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### Recommend a tip (2026-11-02, app 1.583.0, server 0.163.0)
+
+Chris and Kristin's idea, from a dinner with a bottle of wine: "you really don't need to tip 20% on a
+bottle of wine ... a recommended tip would be really cool, maybe in a range, and then it tell you what the
+total is". He chose by card that it rests on "best practices, common sense, expectations, traditions, not
+deterministic", and that it lives in Split a check and works with no names added.
+
+- **Where:** Split a check, a **Recommend a tip** button under Tax and Tip. The card shows what to add for
+  okay, good and great service, each with its percent of the pre-tax items and the Total it makes. A tap
+  fills the Tip field (service charge + the chosen tip). It says when the items changed since it was asked.
+- **Who judges what:** `recommendTip()` sends the lines, pre-tax subtotal, tax, any service charge, any tip
+  already written, party size and the place (name, cuisine, price level, address) to relay task
+  `recommend_tip` (Sonnet 5.5, thinking on, like explain_menu). The model returns three whole amounts,
+  up to 3 reasons and a note. The app does every sum. Answers are checked: three non-negative numbers,
+  sorted, and the high one no more than half the pre-tax bill plus $5, or it says try again.
+- **Service charge:** the receipt scan still folds a service charge into Tip, but now also keeps it apart
+  (`svcCents`, saved with the split) so the advice knows it is already paid.
+- **Grounding written into the prompt (read 2026-11-02):** Emily Post Institute, 15 to 20 percent of the
+  pre-tax bill at a sit-down restaurant. On wine the experts split (VinePair: full rate. Wine Spectator,
+  St. Louis Magazine: a costly bottle need not carry it), so low end lighter, high end full rate.
+- **Not yet:** tried on a real check by Chris. Costs one AI request per tap, metered like the others.
 
 ### Group order notifications (2026-10-30, app 1.581.0, server 0.162.0)
 

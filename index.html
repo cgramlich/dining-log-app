@@ -1155,6 +1155,15 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .amt-seg{ display:flex; align-items:stretch; flex:none; border:1px solid var(--line); border-radius:11px; overflow:hidden; }
     .amt-seg-b{ width:40px; padding:0; background:transparent; color:var(--text-dim); font-size:15px; font-weight:600; border:none; cursor:pointer; -webkit-tap-highlight-color:transparent; }
     .amt-seg-b.on{ background:var(--accent); color:#fff; }
+    /* Recommend a tip: three side-by-side choices, each a tip and its total. */
+    .tip-opts{ display:flex; gap:8px; }
+    .tip-opt{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px;
+              padding:10px 4px; border-radius:11px; border:1px solid var(--line); background:none;
+              color:var(--text); cursor:pointer; font:inherit; text-align:center; }
+    .tip-opt.on{ border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+    .tip-amt{ font-weight:700; font-size:17px; }
+    .tip-sub{ font-size:11.5px; color:var(--text-dim); line-height:1.25; }
+    .tip-tot{ font-size:12px; font-weight:600; }
     .spl-pricebox{ width:88px; text-align:right; flex:0 0 auto; }
     .spl-who{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
     .spl-shared{ font-size:12px; color:var(--text-dim); margin-top:7px; }
@@ -1307,7 +1316,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.582.0";
+const APP_VERSION   = "1.583.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3143,7 +3152,13 @@ who shared it - anything you leave unassigned is split evenly across everyone.
 There are **Tax** and **Tip** fields - each can be a dollar amount or a percent -
 and the **Total** updates as you go, or you can type your own to hard-code it. A
 scanned check keeps its printed total, and a tip you add goes on top of it, since
-most checks are printed before the tip. An
+most checks are printed before the tip. Not sure what to tip? Tap **Recommend a
+tip** under those fields and the app suggests what to add for okay, good and great
+service, each with the total it makes. It weighs the kind of place, where it is,
+and what you had (a pricey bottle of wine does not always need the full rate), says
+so if a service charge is already on the check, and works on the price before tax.
+Tap one to put it in the **Tip** field. It works with no names added, so it suits
+a dinner for two. It uses one AI request. An
 **Everyone shares everything** shortcut for the simplest case. When a line covers
 several of the same item (like **3 GL Prisoner** at one price), a **Split into 3**
 button breaks it into separate per-unit rows so you can give each one to a
@@ -8240,6 +8255,127 @@ async function explainMenu(cfg, restaurant, menu, selectedNames){
   logMsg("EXPLAIN","Received explanation (" + text.length + " chars" + (aiCutShort(json) ? ", cut short" : "") + ")");
   if (!text) throw new Error("The model returned an empty answer. Try again.");
   return text;
+}
+
+/* Recommend a tip (1.583.0, 2026-11-02). Chris and Kristin's idea: a bottle of
+   wine does not need 20% the way the food does, and other things count too, so
+   suggest a RANGE and show what the total comes to. Chris chose by card that it
+   rests on "best practices, common sense, expectations, traditions, not
+   deterministic", so the judgement is the model's, with the norms it should
+   weigh written out below. The arithmetic stays here: the model returns three
+   tip amounts and its reasons; totals and percentages are computed by the app,
+   so a figure on screen always adds up.
+
+   Grounding (read 2026-11-02): the Emily Post Institute gives 15 to 20 percent
+   of the PRE-TAX bill at a sit-down restaurant. On wine the experts split:
+   VinePair says if you can afford the bottle you can afford 20% on it, while
+   Wine Spectator and St. Louis Magazine say a costly bottle need not carry the
+   full rate. So the prompt asks for judgement, not a formula.
+
+   ctx: { place:{name,cuisine,city,address,priceLevel}, people, lines:[{name,
+   qty,priceCents}], subtotalCents, taxCents, svcCents, writtenTipCents }.
+   Returns { low, suggested, high, reasons[], note } in whole dollars; low,
+   suggested and high are the tip to ADD beyond any service charge on the check. */
+async function recommendTip(cfg, ctx){
+  const c = ctx || {};
+  const p = c.place || {};
+  const d = (cents)=> (Math.round(cents) / 100).toFixed(2);
+  // Validate the input before spending a request: no priced items, nothing
+  // to judge (and a $0 bill would make every percentage meaningless).
+  const lines = (c.lines || []).filter(l => l && l.name && l.priceCents > 0);
+  if (!lines.length || !(c.subtotalCents > 0)) throw new Error("Add the items and their prices first.");
+
+  const placeBits = [];
+  if (p.name) placeBits.push("Restaurant: " + p.name);
+  if (p.cuisine) placeBits.push("Cuisine: " + p.cuisine);
+  if (p.priceLevel) placeBits.push("Price level: " + p.priceLevel);
+  if (p.address || p.city) placeBits.push("Location: " + (p.address || p.city));
+  const prompt =
+    "You help a diner decide what to tip at the end of a restaurant meal. Recommend "+
+    "a sensible tip RANGE using current etiquette, local custom and common sense. "+
+    "This is a judgement, not a formula.\n\n"+
+    (placeBits.length ? placeBits.join("\n") + "\n" : "Restaurant: unknown\n") +
+    "People at the table: " + (c.people > 0 ? c.people : "not given") + "\n\n"+
+    "THE CHECK (line, quantity, line price):\n" +
+    lines.map(l => "- " + l.name + (l.qty > 1 ? " x" + l.qty : "") + "  " + d(l.priceCents)).join("\n") + "\n\n"+
+    "Items before tax: " + d(c.subtotalCents) + "\n" +
+    "Tax: " + (c.taxCents > 0 ? d(c.taxCents) : "none shown") + "\n" +
+    "Mandatory service charge or auto-gratuity already on the check: " +
+      (c.svcCents > 0 ? d(c.svcCents) : "none") + "\n" +
+    "Tip already written on the slip: " + (c.writtenTipCents > 0 ? d(c.writtenTipCents) : "none") + "\n\n"+
+    "Things to weigh:\n"+
+    "- In the US at a full-service, sit-down restaurant, the Emily Post Institute's "+
+    "guide is 15 to 20 percent of the PRE-TAX bill. Tip on the amount before tax.\n"+
+    "- Wine: experts disagree. Some say tip the full rate on a bottle like the food. "+
+    "Others say an expensive bottle (especially one that costs a lot relative to the "+
+    "food, or a long way above the list's cheaper bottles) does not need the full "+
+    "percentage. Let the low end reflect the lighter view and the high end the full "+
+    "rate, and judge by the bottle's price. Glasses of wine, cocktails and beer are "+
+    "tipped like food.\n"+
+    "- If a mandatory service charge or auto-gratuity is already on the check, the "+
+    "tip to ADD is usually nothing, or a little for exceptional service. Say so.\n"+
+    "- Casual or counter-service places, takeout, or a very small check can call for "+
+    "a different range. A dollar or two minimum on a tiny check is common courtesy.\n"+
+    "- Outside the US, follow local custom. Where service is normally included, say "+
+    "so and keep the range small. Use the check's own currency.\n"+
+    "- Never invent items. Do not add up totals, the app does that.\n\n"+
+    "Return ONLY valid JSON, no other text:\n"+
+    '{ "low": number, "suggested": number, "high": number, "reasons": [string], "note": string|null }\n'+
+    "- low: the tip to add for adequate service, suggested: for good service, "+
+    "high: for excellent service. Whole units, low <= suggested <= high. All three "+
+    "are what to add ON TOP of any service charge already on the check.\n"+
+    "- reasons: 1 to 3 short plain-English reasons, each under 90 characters.\n"+
+    "- note: one short heads-up (for example a service charge already on the check), or null.";
+
+  logMsg("TIP","Recommending a tip: " + lines.length + " lines, pre-tax " + d(c.subtotalCents) +
+         (c.svcCents > 0 ? ", service charge " + d(c.svcCents) : ""));
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body:JSON.stringify({
+        task:"recommend_tip",
+        model:ASK_MODEL,       // advisory; the server routes by task
+        max_tokens:3000,       // thinking + a few lines of JSON
+        messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
+      }),
+    });
+  } catch(err){
+    logMsg("ERROR","Tip network failure: " + err.message);
+    throw new Error("Could not reach the AI service. If you are on a weak signal, try again.");
+  }
+  if (!res.ok){
+    const txt = await res.text().catch(()=> "");
+    let _detail = ""; try { _detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
+    if (res.status === 402) throw new Error(limit402Message(_detail, "ai"));
+    if (res.status === 503) throw new Error(_detail || "AI is temporarily unavailable. Please try again in a bit.");
+    if (res.status === 429) throw new Error(_detail || "The AI service is busy. Wait a moment and try again.");
+    throw new Error(_detail || ("AI request failed (" + res.status + ")"));
+  }
+  const json = await res.json();
+  let parsed;
+  try { parsed = parseJsonLoose(aiAnswerText(json)); }
+  catch(err){
+    logMsg("ERROR","Tip JSON unreadable: " + err.message);
+    throw new Error("The suggestion came back garbled. Try again.");
+  }
+  // Check the answer before showing it: three real, non-negative amounts in
+  // order, and none absurd against the bill (over half the pre-tax total would
+  // be a misread, not advice).
+  const n = (v)=> { const x = Number(v); return (isFinite(x) && x >= 0) ? Math.round(x) : null; };
+  const trio = [n(parsed.low), n(parsed.suggested), n(parsed.high)];
+  if (trio.some(x => x === null)) throw new Error("The suggestion didn't add up. Try again.");
+  trio.sort((a,b)=> a - b);
+  if (trio[2] * 100 > c.subtotalCents * 0.5 + 500){
+    logMsg("ERROR","Tip suggestion out of range: " + trio.join("/") + " on " + d(c.subtotalCents));
+    throw new Error("The suggestion didn't add up. Try again.");
+  }
+  const reasons = (Array.isArray(parsed.reasons) ? parsed.reasons : [])
+    .map(r => String(r || "").trim()).filter(Boolean).slice(0, 3).map(r => r.slice(0, 140));
+  const note = parsed.note ? String(parsed.note).trim().slice(0, 160) : "";
+  logMsg("TIP","Suggested " + trio.join(" / "));
+  return { low: trio[0], suggested: trio[1], high: trio[2], reasons: reasons, note: note };
 }
 
 /* Find real photos of a dish on the web (Pro). The backend runs the image
@@ -19589,6 +19725,12 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     return extra > 0.005 ? extra.toFixed(2) : "";
   });         // amount string ($ or %)
   const [taxMode, setTaxMode] = useState(reopened && reopened.taxMode ? reopened.taxMode : "$");
+  // Recommend a tip (1.583.0). svcCents keeps a scanned service charge apart:
+  // the scan folds it into Tip, and the advice has to know it is already paid.
+  const [svcCents, setSvcCents]     = useState(reopened && reopened.svcCents ? reopened.svcCents : 0);
+  const [tipRec, setTipRec]         = useState(null);   // {low,suggested,high,reasons,note,forCents} | null
+  const [tipRecBusy, setTipRecBusy] = useState(false);
+  const [tipRecErr, setTipRecErr]   = useState("");
   const [split, setSplit]     = useState(null);       // computeManualSplit result
   const [saveRest, setSaveRest]   = useState(presetRestId || (initialSplit && initialSplit.restaurant_id) || "");  // restaurant id on the save step
   const [saveVisit, setSaveVisit] = useState(presetVisitId || "new"); // "new" or an existing visit id
@@ -19654,6 +19796,8 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       setTipMode("$");
       setRtotal(parsed.total != null ? Number(parsed.total).toFixed(2) : "");
       setScanAnchor(parsed.total != null ? { tipCents: Math.round(tipN * 100) } : null);
+      setSvcCents(Math.round((Number(parsed.service_charge) || 0) * 100));
+      setTipRec(null); setTipRecErr("");
       if (parsed.merchant) setScannedMerchant(parsed.merchant);
       setAssign({});
       logMsg("SPLIT","Receipt parsed: " + newLines.length + " lines, total=" + parsed.total);
@@ -19671,7 +19815,8 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
 
   function startManual(){
     setLines([{ id:uid("spl"), name:"", price:"" }]);
-    setRtotal(""); setScanAnchor(null); setTax(""); setTip(""); setAssign({}); setErrMsg(""); setStep("edit");
+    setRtotal(""); setScanAnchor(null); setTax(""); setTip(""); setAssign({}); setErrMsg("");
+    setSvcCents(0); setTipRec(null); setTipRecErr(""); setStep("edit");
   }
 
   // Wipe the whole check (scanned photos, items, tax/tip/total, assignments,
@@ -19684,6 +19829,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
     setShots([]); setLines([]); setAssign({});
     setTax(""); setTaxMode("$"); setTip(""); setTipMode("$"); setRtotal(""); setScanAnchor(null);
     setSplit(null); setErrMsg("");
+    setSvcCents(0); setTipRec(null); setTipRecErr("");
     setStep("pick");
   }
 
@@ -19802,6 +19948,45 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
   // the duplicate lines are removed.
   const looksDoubled = overriding && printedCents > 0 && subtotalCents > Math.round(printedCents * 1.05);
 
+  // ---- recommend a tip ----
+  // The model judges the range; everything on screen is computed here.
+  function placeForTip(){
+    const r = (restaurants || []).find(x => x.id === (presetRestId || saveRest));
+    if (r) return { name: r.name, cuisine: r.cuisine, city: r.city, address: r.address,
+                    priceLevel: priceLevelToDollars(r.g_price_level) || "" };
+    return { name: scannedMerchant || "" };
+  }
+  async function askTip(){
+    setTipRecErr(""); setTipRecBusy(true);
+    try {
+      const rec = await recommendTip(config, {
+        place: placeForTip(), people: people.length,
+        lines: lines.map(l => ({ name: (l.name || "").trim(), qty: Math.max(1, parseInt(l.qty, 10) || 1),
+                                 priceCents: Math.max(0, Math.round((Number(l.price) || 0) * 100)) })),
+        subtotalCents: subtotalCents, taxCents: taxCents, svcCents: svcCents,
+        // A tip already written on a scanned slip (the scan's tip less the charge).
+        writtenTipCents: scanAnchor ? Math.max(0, (scanAnchor.tipCents || 0) - svcCents) : 0,
+      });
+      setTipRec(Object.assign({ forCents: subtotalCents }, rec));
+    } catch(err){
+      setTipRecErr(err.message || "Couldn't get a suggestion. Try again.");
+    } finally { setTipRecBusy(false); }
+  }
+  // What the Total will read with this much in the Tip field, by the same rules
+  // as the Total above: a scanned total moves with the tip; otherwise it is
+  // items + tax + tip. (A typed-over total stays put, and the card below the
+  // Total already offers the calculated one.)
+  function totalWithTipField(fieldCents){
+    if (scanAnchor && printedCents > 0 && rtotal !== "")
+      return Math.max(subtotalCents, printedCents + fieldCents - (scanAnchor.tipCents || 0));
+    return subtotalCents + taxCents + fieldCents;
+  }
+  // Use one: the Tip field holds any service charge plus the tip chosen.
+  function applyTip(dollars){
+    setTipMode("$");
+    setTip(((svcCents + Math.round(dollars * 100)) / 100).toFixed(2));
+  }
+
   // Moving between the form and the summary starts at the top (2026-10-18,
   // found filming: "See the split summary" sits at the foot of a long form,
   // and the summary kept that scroll, opening with the first people above the
@@ -19888,6 +20073,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
       assign: assign,
       tip: tip, tipMode: tipMode,
       tax: tax, taxMode: taxMode,
+      svcCents: svcCents,
     };
   }
 
@@ -20266,6 +20452,60 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                   <div className="tiny faint" style={{marginTop:5}}>= {(tipCents/subtotalCents*100).toFixed(1)}%</div>}
               </label>
             </div>
+            {/* Recommend a tip (1.583.0): what to tip for okay, good and great
+                service, each with the total it makes. One AI request, on a tap. */}
+            {subtotalCents > 0 ? (
+              tipRec ? (
+                <div className="card" style={{marginTop:12, padding:"12px 12px 10px"}}>
+                  <div className="between" style={{alignItems:"baseline", marginBottom:8}}>
+                    <span style={{fontWeight:600}}>{svcCents > 0 ? "Recommended extra tip" : "Recommended tip"}</span>
+                    <button type="button" className="tiny" onClick={()=>{ setTipRec(null); setTipRecErr(""); }}
+                      style={{background:"none", border:"none", padding:"2px 4px", color:"var(--text-dim)", cursor:"pointer"}}>Hide</button>
+                  </div>
+                  {tipRec.note ? <div className="tiny" style={{marginBottom:8, color:"var(--amber)", lineHeight:1.4}}>{tipRec.note}</div> : null}
+                  <div className="tip-opts">
+                    {[["low","Okay service"],["suggested","Good service"],["high","Great service"]].map(([k, lbl]) => {
+                      const amt = tipRec[k];
+                      const fieldCents = svcCents + amt * 100;
+                      const on = tipMode === "$" && tipCents === fieldCents;
+                      const pct = Math.round(amt * 10000 / subtotalCents);
+                      return (
+                        <button key={k} type="button" className={"tip-opt" + (on ? " on" : "")} aria-pressed={on}
+                          onClick={()=> applyTip(amt)}>
+                          <span className="tip-amt">{money(amt * 100)}</span>
+                          <span className="tip-sub">{pct}% &middot; {lbl}</span>
+                          <span className="tip-tot">Total {money(totalWithTipField(fieldCents))}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {tipRec.reasons && tipRec.reasons.length ? (
+                    <ul className="tiny" style={{margin:"10px 0 0", paddingLeft:18, color:"var(--text-dim)", lineHeight:1.45}}>
+                      {tipRec.reasons.map((r, i) => <li key={i}>{r}</li>)}
+                    </ul>
+                  ) : null}
+                  <div className="tiny faint" style={{marginTop:8}}>
+                    {tipRec.forCents !== subtotalCents
+                      ? "The items changed since this was worked out. "
+                      : "Worked out on " + money(tipRec.forCents) + " before tax. Tap one to use it. "}
+                    <button type="button" className="tiny" disabled={tipRecBusy} onClick={askTip}
+                      style={{background:"none", border:"none", padding:0, color:"var(--accent)", fontWeight:600, cursor:"pointer"}}>
+                      {tipRecBusy ? <span className="spin" /> : "Ask again"}</button>
+                  </div>
+                  {tipRecErr ? <div className="tiny" style={{color:"#d9604e", marginTop:6}}>{tipRecErr}</div> : null}
+                </div>
+              ) : (
+                <div style={{marginTop:10}}>
+                  <button type="button" className="btn ghost sm" style={{width:"100%"}} disabled={tipRecBusy} onClick={askTip}>
+                    {tipRecBusy ? <span className="spin" /> : "Recommend a tip"}
+                  </button>
+                  <div className="tiny faint" style={{textAlign:"center", marginTop:5}}>
+                    A tip range for this meal, with the total. Uses an AI request.
+                  </div>
+                  {tipRecErr ? <div className="tiny" style={{color:"#d9604e", marginTop:6, textAlign:"center"}}>{tipRecErr}</div> : null}
+                </div>
+              )
+            ) : null}
             <label className="fld" style={{marginTop:12,marginBottom:0}}>
               <span className="lbl">Total</span>
               <ClearInput value={overriding ? (scanAnchor ? (overrideCents/100).toFixed(2) : rtotal) : computedGrandStr}

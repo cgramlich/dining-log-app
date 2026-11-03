@@ -431,5 +431,13 @@
     "email_notes": "updated: a Refinements line for the next issue",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: web version row, BRIEFING"
+  },
+  "1.583.0": {
+    "what": "Recommend a tip in Split a check: what to add for okay, good and great service, each with its total, judged on custom and what you had (a pricey bottle need not carry the full rate), on the pre-tax amount, and aware of a service charge already on the check. One AI request (server task recommend_tip, 0.163.0).",
+    "guide": "updated: Splitting a check (no group needed)",
+    "promo": "n/a: the promo page does not cover Split a check",
+    "email_notes": "updated: a feature line for the next issue",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: section, version rows (web, backend), BRIEFING"
   }
 }
