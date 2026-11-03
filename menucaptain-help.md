@@ -338,8 +338,8 @@ it instead.
 the small pencil beside it), or **•••** and **Rename**, and type a new one - **Dinner**, **Brunch**,
 **Wine list**. Do it any time, not just right after you add it.
 
-**Re-scanning and deleting.** Open a menu, tap **•••** at the top and then
-**Refresh** to replace it with a fresh version - photograph it again or pull it from a
+**Re-scanning and deleting.** Open a menu and tap **Refresh** beside the date it was
+captured (it is under **•••** at the top too) to replace it with a fresh version - photograph it again or pull it from a
 link. It asks first, so a stray tap does nothing. **Delete this menu** is there too. Refreshing replaces the
 old copy in place (no duplicate) and takes today's date, so any estimates saved
 on the old items are not carried over.

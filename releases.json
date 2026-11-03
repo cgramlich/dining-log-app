@@ -423,5 +423,13 @@
     "email_notes": "updated: a feature line for the next issue, held until tested on a real iPhone",
     "welcome": "n/a: the promo page's group order card does not cover notifications",
     "handoff": "updated: section, version rows (web, backend, native), BRIEFING, Log"
+  },
+  "1.582.0": {
+    "what": "Refresh in plain sight: a Refresh link beside the menu's Captured date, so an old menu can be replaced without finding the ••• button. Same ask-first step.",
+    "guide": "updated: Re-scanning and deleting",
+    "promo": "n/a: the promo page does not describe refreshing a menu",
+    "email_notes": "updated: a Refinements line for the next issue",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: web version row, BRIEFING"
   }
 }

@@ -1307,7 +1307,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.581.0";
+const APP_VERSION   = "1.582.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2326,8 +2326,8 @@ it instead.
 the small pencil beside it), or **•••** and **Rename**, and type a new one - **Dinner**, **Brunch**,
 **Wine list**. Do it any time, not just right after you add it.
 
-**Re-scanning and deleting.** Open a menu, tap **•••** at the top and then
-**Refresh** to replace it with a fresh version - photograph it again or pull it from a
+**Re-scanning and deleting.** Open a menu and tap **Refresh** beside the date it was
+captured (it is under **•••** at the top too) to replace it with a fresh version - photograph it again or pull it from a
 link. It asks first, so a stray tap does nothing. **Delete this menu** is there too. Refreshing replaces the
 old copy in place (no duplicate) and takes today's date, so any estimates saved
 on the old items are not carried over.
@@ -17341,6 +17341,15 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
           <div className="tiny faint" style={{flex:1, minWidth:0}}>
             Captured {fmtDate(menu.captured_date)}
             {menu.source === "seed" ? " (starter data)" : ""}
+            {/* Refresh in plain sight, beside the date that tells you it is old
+                (2026-11-02, Chris at a restaurant: "I don't see my ability to
+                refresh it"; it lived only under •••, which he chose to change
+                by card). Same ask-first step as the ••• one. */}
+            {" · "}
+            <button type="button" className="tiny" aria-label="Refresh this menu"
+              onClick={()=>{ setToolsOpen(false); setConfirmDel(false); setConfirmRefresh(true); }}
+              style={{background:"none", border:"none", padding:"4px 2px", color:"var(--accent)", fontWeight:600, cursor:"pointer"}}>
+              Refresh</button>
           </div>
           {/* Show English lives here, the first thing on screen (2026-10-07):
               lower down it went unfound. Only on menus in another language. */}
