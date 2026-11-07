@@ -1164,6 +1164,12 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .tip-amt{ font-weight:700; font-size:17px; }
     .tip-sub{ font-size:11.5px; color:var(--text-dim); line-height:1.25; }
     .tip-tot{ font-size:12px; font-weight:600; }
+    /* Wine profile: the label photo tile on Add a wine. */
+    .wine-label-tile{ height:190px; border-radius:14px; border:1px dashed var(--line); background:var(--bg-2);
+                      display:flex; align-items:center; justify-content:center; overflow:hidden;
+                      cursor:pointer; margin-bottom:12px; }
+    .wine-label-tile img{ width:100%; height:100%; object-fit:contain; }
+    .wine-ask-link{ background:none; border:0; padding:2px 0; font:inherit; color:var(--text-dim); cursor:pointer; }
     .spl-pricebox{ width:88px; text-align:right; flex:0 0 auto; }
     .spl-who{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
     .spl-shared{ font-size:12px; color:var(--text-dim); margin-top:7px; }
@@ -1316,7 +1322,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.583.0";
+const APP_VERSION   = "1.584.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -1865,7 +1871,7 @@ function signOutHard(){
   try { localStorage.removeItem(CFG_KEY); localStorage.removeItem(DATA_KEY); } catch(e){}
   // The collections copy too (1.528.0): the privacy policy says signing out
   // clears what the app keeps on the device, and 1.527.0 added this one.
-  try { localStorage.removeItem("dininglog_collections"); localStorage.removeItem("dininglog_collections_dirty"); } catch(e){}
+  try { localStorage.removeItem("dininglog_collections"); localStorage.removeItem("dininglog_collections_dirty"); localStorage.removeItem("dininglog_wines"); localStorage.removeItem("dininglog_wines_dirty"); } catch(e){}
   try {
     if (navigator.serviceWorker && navigator.serviceWorker.controller){
       navigator.serviceWorker.controller.postMessage({ type:"clearCache" });
@@ -3217,6 +3223,38 @@ spent. They can reply, just as with a shared visit.
 Collections are private until you share one, sync to every device you sign in
 on, and still open on this phone with a weak signal.
 
+## Wine profile
+
+**Set it up once.** Open **You**, then **Wine profile**, and answer a few one-tap
+questions: what you usually drink, dry or sweet, light or full, crisp or smooth,
+soft or firm reds, oaky wines, what you usually spend on a glass and a bottle,
+and whether you like to try something new. Skip anything you're not sure about,
+and change it any time with **Edit**.
+
+**Wine for me.** On a menu at any place with a wine list (even when the wine list
+is a menu of its own), tap **Wine for me** under **Help me order**. Say what you're
+eating if you like, and it picks two or three wines from that list for your
+taste, by the glass or the bottle, each with the reason. It only picks wines on
+the list, and shows the list's own price. It uses one AI request. **Help me
+order** reads your wine profile too when you ask it about wine.
+
+**How was it?** Tap **I'm having this** on a pick and the app keeps it for you.
+The next time you open the app (or an hour later if it stays open), Home asks how
+it was: **Loved**, **Again** or **Skip**, with **Add a note or photo** for more.
+Log a visit that includes a wine from the menu and Home offers to add it to your
+wines too, with the mark you gave it on the visit. **Not now** asks again next
+time, and after two of those the wine waits under **To rate** on the Wine profile
+page.
+
+**Add a wine yourself.** Tap the **+** button and choose **Add a wine**, or use
+**Add a wine** on the Wine profile page. Take a photo of the label and the app
+reads it and fills in the wine, producer, vintage, grape and region for you to
+check (one AI request). Then say how it was and add a note.
+
+Your wine profile is private, syncs to every device you sign in on, and still
+works on this phone with a weak signal. Every wine you rate makes the next picks
+fit you better.
+
 ## Publishing a list
 On the **You** tab under **Your lists**, tap **Publish a list**, give it a title,
 and tick the restaurants to include (your favorites and
@@ -3286,8 +3324,8 @@ description, and why you can always redo an estimate from a better source.
 
 ## Your plan and the AI features
 
-The AI features - menu scanning, "Help me order," and the calorie and macro
-estimates - are built in. There is nothing to configure and no key to manage.
+The AI features - menu scanning, "Help me order," Wine for me, reading a wine
+label, and the calorie and macro estimates - are built in. There is nothing to configure and no key to manage.
 
 Every account starts on the **free plan**, which includes a taste of the AI
 features so you can try everything. The Plan card in **Settings** shows how
@@ -3305,7 +3343,7 @@ card details. If you cancel, Pro keeps working until the end of the period you
 paid for - the card shows the exact date.
 
 `}Everything that is not AI - logging visits, rating dishes, places, the map,
-History, Year in Food, the passport, and sharing - is free and unlimited on
+History, Year in Food, the passport, your wine profile and notes, and sharing - is free and unlimited on
 every plan.
 
 -----
@@ -7913,7 +7951,7 @@ function aiAnswerText(json){
 
 // Ask Claude to recommend from THIS menu. `question` may be a question, a
 // command ("give me something healthy"), or a mood ("craving something rich").
-async function askMenu(cfg, restaurant, menu, visits, question, allVisits, thread, elsewhere){
+async function askMenu(cfg, restaurant, menu, visits, question, allVisits, thread, elsewhere, wineNote){
   const rName    = (restaurant && restaurant.name) ? restaurant.name : "this restaurant";
   const menuText = menuToText(menu);
   const hist     = dishHistory(visits);
@@ -8013,6 +8051,15 @@ async function askMenu(cfg, restaurant, menu, visits, question, allVisits, threa
     if (profDisliked.length) prompt += "    Tends to avoid: " + profDisliked.join(", ") + "\n";
   }
 
+  // Their wine profile (1.584.0), when the place has a wine list.
+  if (wineNote){
+    prompt +=
+      "- Their wine profile, which they set up in the app. Use it only when they ask about wine or "+
+      "something to drink, or when a wine suggestion clearly helps. Never let it change your food picks, "+
+      "and recommend only wines that are on the menu below:\n" +
+      wineNote.split("\n").map(l => "    " + l).join("\n") + "\n";
+  }
+
   // A dish at another of their saved places, when the question names one (1.578.0).
   const elsewhereText = elsewhereToPrompt(elsewhere, rName);
   if (elsewhereText) prompt += elsewhereText;
@@ -8035,6 +8082,7 @@ async function askMenu(cfg, restaurant, menu, visits, question, allVisits, threa
          " chars, history=" + (hasHist ? "yes" : "none") +
          ", taste=" + (hasProfile ? (profLoved.length + "+" + profDisliked.length) : "none") +
          ", elsewhere=" + (elsewhereText ? elsewhere.map(p => p.name + ":" + p.dishes.length).join("|") : "none") +
+         ", wine=" + (wineNote ? "yes" : "none") +
          ", calorie-aware=" + (/\bcal\]/.test(menuText) || /cal;/.test(menuText) ? "yes" : "none") + ")");
   let res;
   try {
@@ -8376,6 +8424,916 @@ async function recommendTip(cfg, ctx){
   const note = parsed.note ? String(parsed.note).trim().slice(0, 160) : "";
   logMsg("TIP","Suggested " + trio.join(" / "));
   return { low: trio[0], suggested: trio[1], high: trio[2], reasons: reasons, note: note };
+}
+
+/* ===================================================================
+   WINE PROFILE (1.584.0, 2026-11-07)
+
+   Chris: "a wine profile feature that someone can add. Set up can ask basic
+   questions and allow for future notes on wines tried and pics of labels.
+   Then the menu can suggest menu scanned wines and even prompt for notes
+   after that go into profile". By card: the app reads a label photo (one AI
+   request), asks for notes both after "I'm having this" and when a logged
+   visit has a wine, free for everyone, and its own table (one row a person).
+
+   The setup asks what a sommelier needs, in plain words. The taste questions
+   follow the traits Wine Folly uses to describe a wine (sweetness, acidity,
+   tannin, body; oak is the other source of tannin), and the rest is what
+   sommeliers say they ask: budget, the food, dislikes, and how adventurous
+   you are. Read 2026-11-07: winefolly.com "How Basic Wine Characteristics
+   Help You Find Favorites"; Food52 "The Wine Terms You Need to Know to Talk
+   to a Sommelier"; Firstleaf "Beginner's Guide to Food and Wine Pairing".
+
+   Data, one object a person: {profile, wines, updated_at}.
+   A wine: {id, name, producer, vintage, grape, region, color, label (a photo
+   path), verdict ("loved"|"again"|"skip"|""), note, restaurant_id, place,
+   price, serve ("glass"|"bottle"|""), date, source ("menu"|"visit"|"manual"),
+   status, visit_id, snoozes, snoozed_at, created_at, updated_at}.
+     status "pending": picked with I'm having this. Home asks how it was
+       once the meal is likely over: the next time the app opens, or an hour
+       later if it stays open.
+     status "offer": a wine on a visit you logged. Home offers to add it; it
+       joins your wines only when you say how it was.
+     status "tasted": in your list.
+   "Not now" waits for the next open; after two of those it stops asking and
+   the wine waits under To rate on the Wine profile page.
+
+   Saved like collections: the server copy plus this phone's copy, so a note
+   typed on a weak signal waits here and goes up later.
+   =================================================================== */
+const WINE_CACHE_KEY = "dininglog_wines";
+const WINE_DIRTY_KEY = "dininglog_wines_dirty";
+const APP_OPENED_AT = Date.now();          // "the next time you open the app"
+const WINE_ASK_AFTER_MS = 60 * 60 * 1000;  // or an hour on, if it stays open
+const WINE_MAX_SNOOZES = 2;
+const WINE_LIST_CAP = 300;                 // wines sent to Wine for me
+
+function readWineCache(uid){
+  try {
+    const o = JSON.parse(localStorage.getItem(WINE_CACHE_KEY) || "null");
+    return (o && uid && o.u === uid && o.book && typeof o.book === "object") ? o.book : {};
+  } catch(e){ return {}; }
+}
+function writeWineCache(uid, book){
+  try { localStorage.setItem(WINE_CACHE_KEY, JSON.stringify({ u: uid || "", book: book || {} })); } catch(e){}
+}
+// Names WHOSE changes wait, like collections: another person signing in on
+// this phone never sends someone else's wines over their own.
+function wineDirtyFor(uid){
+  try { return !!uid && localStorage.getItem(WINE_DIRTY_KEY) === uid; } catch(e){ return false; }
+}
+function setWineDirty(uid){ try { localStorage.setItem(WINE_DIRTY_KEY, uid || ""); } catch(e){} }
+function clearWineDirty(){ try { localStorage.removeItem(WINE_DIRTY_KEY); } catch(e){} }
+
+// The setup questions. Each answer is one tap; any can be left blank.
+const WINE_Q = [
+  { key:"colors", multi:true, label:"What do you usually drink?",
+    opts:[["red","Red"],["white","White"],["rose","Rosé"],["sparkling","Sparkling"],["dessert","Dessert"]] },
+  { key:"sweet", label:"Dry or sweet?",
+    opts:[["dry","Dry"],["offdry","A touch sweet"],["sweet","Sweet"]] },
+  { key:"body", label:"Light or full?", hint:"How heavy the wine feels in your mouth.",
+    opts:[["light","Light"],["medium","Medium"],["full","Full"]] },
+  { key:"acid", label:"Crisp or smooth?", hint:"Crisp wines taste bright and a little tart. Smooth ones feel round and soft.",
+    opts:[["crisp","Crisp"],["smooth","Smooth"],["either","Either"]] },
+  { key:"tannin", label:"For reds: soft or firm?", hint:"A firm red leaves your mouth feeling dry, like strong tea.",
+    opts:[["soft","Soft"],["firm","Firm"],["either","Either"]] },
+  { key:"oak", label:"Oaky wines (vanilla, toast, buttery)?",
+    opts:[["love","Love them"],["fine","Fine"],["avoid","Not for me"]] },
+  { key:"glass", label:"What you usually spend on a glass",
+    opts:[["15","Up to $15"],["25","$15 to $25"],["more","Over $25"],["any","It depends"]] },
+  { key:"bottle", label:"And on a bottle",
+    opts:[["60","Up to $60"],["120","$60 to $120"],["more","Over $120"],["any","It depends"]] },
+  { key:"adventure", label:"Stick to what you know, or try something new?",
+    opts:[["known","What I know"],["mix","A bit of both"],["new","Surprise me"]] },
+];
+const WINE_GRAPES = ["Cabernet Sauvignon","Pinot Noir","Merlot","Malbec","Syrah / Shiraz","Zinfandel",
+  "Sangiovese","Tempranillo","Chardonnay","Sauvignon Blanc","Pinot Grigio","Riesling","Champagne","Prosecco"];
+const WINE_COLORS = [["red","Red"],["white","White"],["rose","Rosé"],["sparkling","Sparkling"],["dessert","Dessert"]];
+
+function wineOptLabel(key, val){
+  const q = WINE_Q.find(x => x.key === key);
+  const o = q && q.opts.find(x => x[0] === val);
+  return o ? o[1] : "";
+}
+function wineHasProfile(book){ return !!(book && book.profile && book.profile.done_at); }
+function wineTasted(book){
+  return ((book && book.wines) || []).filter(w => w && w.status === "tasted")
+    .sort((a, b) => (b.date || "").localeCompare(a.date || "") || ((b.updated_at || 0) - (a.updated_at || 0)));
+}
+// Wines picked or logged that are still waiting for a verdict.
+function wineToRate(book){
+  return ((book && book.wines) || []).filter(w => w && w.status === "pending")
+    .sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+}
+
+// Short chips for the profile summary.
+function wineProfileChips(p){
+  if (!p) return [];
+  const out = [];
+  (p.colors || []).forEach(c => { const l = wineOptLabel("colors", c); if (l) out.push(l); });
+  if (p.sweet) out.push(wineOptLabel("sweet", p.sweet));
+  if (p.body) out.push(wineOptLabel("body", p.body) + " body");
+  if (p.acid && p.acid !== "either") out.push(wineOptLabel("acid", p.acid));
+  if (p.tannin && p.tannin !== "either") out.push(wineOptLabel("tannin", p.tannin) + " reds");
+  if (p.oak === "love") out.push("Loves oak");
+  if (p.oak === "avoid") out.push("No oak");
+  if (p.glass && p.glass !== "any") out.push(wineOptLabel("glass", p.glass) + " a glass");
+  if (p.bottle && p.bottle !== "any") out.push(wineOptLabel("bottle", p.bottle) + " a bottle");
+  if (p.adventure) out.push(wineOptLabel("adventure", p.adventure));
+  (p.likes || []).forEach(g => out.push(g));
+  return out.filter(Boolean);
+}
+
+// The person's taste, as the AI reads it. Empty when there is nothing yet.
+function wineProfileText(book){
+  const p = (book && book.profile) || {};
+  const out = [];
+  if ((p.colors || []).length) out.push("Usually drinks: " + p.colors.map(c => wineOptLabel("colors", c)).filter(Boolean).join(", "));
+  [["sweet","Dry or sweet"],["body","Body"],["acid","Crisp or smooth"],["tannin","Reds, soft or firm tannin"],
+   ["oak","Oaky wines"],["glass","Usual spend on a glass"],["bottle","Usual spend on a bottle"],
+   ["adventure","Stick to what they know, or try new"]].forEach(([k, name]) => {
+    if (p[k]) out.push(name + ": " + wineOptLabel(k, p[k]));
+  });
+  if ((p.likes || []).length) out.push("Grapes and styles they like: " + p.likes.join(", "));
+  if (p.likesMore) out.push("Also likes: " + String(p.likesMore).slice(0, 200));
+  if (p.dislikes) out.push("Does not like: " + String(p.dislikes).slice(0, 200));
+  const tasted = wineTasted(book).filter(w => w.verdict);
+  const line = w => [w.name, w.producer, w.vintage, w.grape, w.region].filter(Boolean).join(", ") +
+                    (w.note ? " (their note: " + String(w.note).slice(0, 90) + ")" : "");
+  const pick = v => tasted.filter(w => w.verdict === v).slice(0, 8).map(line);
+  const loved = pick("loved"), again = pick("again"), skip = pick("skip");
+  if (loved.length) out.push("Wines they LOVED: " + loved.join("; "));
+  if (again.length) out.push("Wines they would order again: " + again.join("; "));
+  if (skip.length) out.push("Wines that were NOT for them: " + skip.join("; "));
+  return out.join("\n");
+}
+
+/* Which menu sections are wine. By the section's name, like sectionIsDrink,
+   plus one rule for a menu named like a wine list, whose sections are often
+   named by country or style ("France", "Light & Bright"). "Red" or "White" on
+   its own counts only as the WHOLE section name, so "Red Curries" and "White
+   Pizzas" stay food. Beer, cocktails, spirits and the rest never count. */
+const WINE_SECTION_RE = /(wine|vino|vinho|\bvins?\b|champagne|sparkling|bubbles|prosecco|\bcava\b|cremant|by the glass|by the bottle|half bottles?|large format|magnum|coravin|sommelier|cellar|\bbtg\b|\bbtl\b|cabernet|pinot|chardonnay|sauvignon|merlot|malbec|syrah|shiraz|zinfandel|riesling|bordeaux|burgundy|bourgogne|rioja|barolo|chianti|sancerre)/;
+const WINE_PLAIN_RE = /^(reds?|whites?|roses?|orange|sparkling|dessert|sweet)( wines?)?( by the (glass|bottle))?$/;
+const NOT_WINE_RE = /(cocktail|beer|cerveza|spirit|whisk|bourbon|tequila|mezcal|vodka|\bgin\b|\brum\b|sake|cider|coffee|espresso|\btea\b|soda|juice|water|zero proof|mocktail|non.?alcoholic|sangria|bubble tea|boba)/;
+function sectionIsWine(name, menuLabel){
+  const n = foldText(String(name || "")).trim();
+  if (!n) return false;
+  if (NOT_WINE_RE.test(n) && !/wine/.test(n)) return false;
+  if (WINE_SECTION_RE.test(n) || WINE_PLAIN_RE.test(n)) return true;
+  return /\b(wines?|vino|vins|cellar)\b/.test(foldText(menuLabel || "")) && !/dessert|kids|food|plates|bites/.test(n);
+}
+// Every wine on a place's menus, by-the-glass sections first (the quickest
+// pick at a table), each once.
+function wineListFromMenus(menus){
+  const out = [], seen = new Set();
+  (menus || []).forEach(mn => ((mn && mn.sections) || []).forEach(sec => {
+    if (!sectionIsWine(sec && sec.name, mn.label)) return;
+    ((sec && sec.items) || []).forEach(it => {
+      const name = String((it && it.name) || "").trim();
+      if (!name) return;
+      const k = foldText(name) + "|" + foldText(sec.name || "");
+      if (seen.has(k)) return;
+      seen.add(k);
+      out.push({ name: name, section: String(sec.name || ""), price: it.price ? String(it.price) : "",
+                 description: it.description ? String(it.description) : "" });
+    });
+  }));
+  const glass = w => /glass|btg|coravin/.test(foldText(w.section)) ? 0 : 1;
+  return out.map((w, i) => ({ w, i })).sort((a, b) => glass(a.w) - glass(b.w) || a.i - b.i).map(x => x.w);
+}
+// Is this logged dish a wine? Found on the place's menus first (so a wine
+// list's "France" section counts), else by the section recorded at logging.
+function dishIsWine(dish, menusForRest){
+  if (!dish || !dish.name) return false;
+  const want = foldText(String(dish.name).trim());
+  let hit = null;
+  (menusForRest || []).forEach(mn => ((mn && mn.sections) || []).forEach(sec => {
+    if (hit !== null) return;
+    if (((sec && sec.items) || []).some(it => foldText(String((it && it.name) || "").trim()) === want))
+      hit = sectionIsWine(sec.name, mn.label);
+  }));
+  if (hit !== null) return hit;
+  return !!(dish.sec && sectionIsWine(dish.sec, ""));
+}
+
+// Which waiting wine Home should ask about now, if any.
+function wineDue(w, now){
+  if (!w || (w.snoozes || 0) >= WINE_MAX_SNOOZES) return false;
+  if (w.snoozed_at && w.snoozed_at >= APP_OPENED_AT) return false;   // "Not now", this open
+  if (w.status === "offer") return true;
+  if (w.status !== "pending") return false;
+  const at = w.created_at || 0;
+  return at < APP_OPENED_AT || (now || Date.now()) - at >= WINE_ASK_AFTER_MS;
+}
+function wineDueList(book, now){
+  return ((book && book.wines) || []).filter(w => wineDue(w, now))
+    .sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+}
+
+// The wines on a just-saved visit, as offers. A wine already picked with I'm
+// having this at that place, within a day, is the same glass: it is tied to
+// the visit (and takes the visit's verdict and note when there is one)
+// instead of being offered twice. Pure: returns the next book, or null when
+// nothing changes.
+function wineBookWithVisit(book, visit, menusForRest, restaurant){
+  if (!visit || !visit.id) return null;
+  const wines = ((book && book.wines) || []).slice();
+  const dayGap = (a, b) => Math.abs((Date.parse(a || "") || 0) - (Date.parse(b || "") || 0)) / 86400000;
+  let changed = false;
+  (visit.dishes || []).filter(d => dishIsWine(d, menusForRest)).forEach(d => {
+    const k = foldText(String(d.name).trim());
+    if (wines.some(w => w.visit_id === visit.id && foldText(w.name) === k)) return;
+    const i = wines.findIndex(w => !w.visit_id && w.restaurant_id === visit.restaurant_id &&
+                                   foldText(w.name) === k && dayGap(w.date, visit.date) <= 1);
+    const now = Date.now();
+    if (i !== -1){
+      const w = Object.assign({}, wines[i], { visit_id: visit.id, updated_at: now });
+      if (d.verdict && !w.verdict){ w.verdict = d.verdict; w.status = "tasted"; w.rated_at = now; }
+      if (d.note && !w.note) w.note = String(d.note);
+      wines[i] = w; changed = true;
+      return;
+    }
+    wines.unshift({ id: uid("wine"), name: String(d.name).trim(), producer:"", vintage:"", grape:"", region:"",
+      color:"", label:"", verdict: d.verdict || "", note: d.note ? String(d.note) : "",
+      restaurant_id: visit.restaurant_id || "", place: (restaurant && restaurant.name) || "",
+      price: d.price ? String(d.price) : "", serve:"", date: visit.date || todayISO(),
+      source:"visit", status:"offer", visit_id: visit.id, created_at: now, updated_at: now });
+    changed = true;
+  });
+  return changed ? Object.assign({}, book || {}, { wines: wines }) : null;
+}
+
+// A shared error reader for the two wine AI calls, like explainMenu's.
+async function wineRelayError(res, what){
+  const txt = await res.text().catch(()=> "");
+  logMsg("ERROR", what + " -> " + res.status + " " + txt.slice(0, 180));
+  let detail = ""; try { detail = (JSON.parse(txt) || {}).detail || ""; } catch(e){}
+  if (res.status === 401) return new Error("Server rejected the request (401). Check your sign-in.");
+  if (res.status === 402) return new Error(limit402Message(detail, "ai"));
+  if (res.status === 503) return new Error(detail || "AI is temporarily unavailable. Please try again in a bit.");
+  if (res.status === 429) return new Error(detail || "The AI service is busy. Wait a moment and try again.");
+  return new Error(detail || ("AI request failed (" + res.status + ")"));
+}
+
+/* Wine for me: 2 or 3 wines from THIS place's list for this person. The
+   model judges; the app checks every pick is on the list (by name) and shows
+   the list's own section and price, so nothing on screen is invented.
+   ctx: {place:{name,cuisine,city,priceLevel}, list:[{name,section,price,
+   description}], book, eating}. Returns {picks:[{name,section,price,
+   description,serve,grape,region,why}], note}. */
+async function wineForMe(cfg, ctx){
+  const c = ctx || {};
+  const list = (c.list || []).slice(0, WINE_LIST_CAP);
+  if (list.length < 2) throw new Error("This place has no wine list on file yet.");
+  const p = c.place || {};
+  const placeBits = [];
+  if (p.name) placeBits.push("Restaurant: " + p.name);
+  if (p.cuisine) placeBits.push("Cuisine: " + p.cuisine);
+  if (p.priceLevel) placeBits.push("Price level: " + p.priceLevel);
+  if (p.city) placeBits.push("Location: " + p.city);
+  const taste = wineProfileText(c.book);
+  const eating = String(c.eating || "").trim().slice(0, 300);
+  let bySec = "", lastSec = null;
+  list.forEach(w => {
+    if (w.section !== lastSec){ bySec += "## " + (w.section || "Wine") + "\n"; lastSec = w.section; }
+    bySec += "- " + w.name + (w.price ? " (" + w.price + ")" : "") + (w.description ? ": " + w.description.slice(0, 160) : "") + "\n";
+  });
+  const prompt =
+    "You are a friendly sommelier at the table, helping one diner choose a wine from THIS restaurant's "+
+    "list. Recommend 2 or 3 wines from THE WINE LIST BELOW for this person.\n\n"+
+    (placeBits.length ? placeBits.join("\n") + "\n\n" : "") +
+    "THEIR TASTE:\n" + (taste || "They have not said yet.") + "\n\n"+
+    "WHAT THEY ARE EATING: " + (eating || "not said") + "\n\n"+
+    "Rules:\n"+
+    "- Only recommend wines that appear on the list. Copy each wine's name exactly as the list writes it. "+
+    "Never invent a wine, a vintage or a price.\n"+
+    "- Weigh what they are eating first (when they said), then their taste and the wines they rated, then "+
+    "their usual spend. Use ordinary pairing sense: match the wine's weight to the food's richness; a crisp, "+
+    "high-acid wine keeps rich or fatty food from tasting heavy.\n"+
+    "- If they stick to what they know, lean on grapes and styles they like. If they said surprise me, make "+
+    "at least one pick something new to them that still fits their taste, and say it is a stretch.\n"+
+    "- Say whether each pick is by the glass or by the bottle, going by how the list shows it.\n"+
+    "- Keep to their usual spend when the list shows prices, unless one wine is clearly worth more; then say so.\n"+
+    "- Avoid anything like the wines they said were not for them.\n"+
+    "- Plain words a casual diner knows. Each reason under 160 characters.\n\n"+
+    "Return ONLY valid JSON, no other text:\n"+
+    '{ "picks": [ { "name": string, "serve": "glass" | "bottle" | "either", "grape": string, "region": string, '+
+    '"why": string } ], "note": string | null }\n'+
+    "- grape and region: only when the list or the wine's name makes them clear, otherwise \"\".\n"+
+    "- note: one short heads-up (for example, the list shows no prices), or null.\n\n"+
+    "THE WINE LIST:\n" + bySec;
+
+  logMsg("WINE", "Wine for me: " + list.length + " wines, taste=" + (taste ? "yes" : "none") +
+                 ", eating=" + (eating ? "yes" : "none"));
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body:JSON.stringify({
+        task:"wine_for_me",
+        model:ASK_MODEL,       // advisory; the server routes by task
+        max_tokens:4000,       // thinking + a few picks
+        messages:[{ role:"user", content:[{ type:"text", text:prompt }] }],
+      }),
+    });
+  } catch(err){
+    logMsg("ERROR", "Wine for me network failure: " + err.message);
+    throw new Error("Could not reach the AI service. If you are on a weak signal, try again.");
+  }
+  if (!res.ok) throw await wineRelayError(res, "Wine for me");
+  const json = await res.json();
+  let parsed;
+  try { parsed = parseJsonLoose(aiAnswerText(json)); }
+  catch(err){
+    logMsg("ERROR", "Wine for me JSON unreadable: " + err.message);
+    throw new Error("The picks came back garbled. Try again.");
+  }
+  // Every pick must be a wine on the list. Exact first (case and accents
+  // aside), then one name holding the other when that is the only match.
+  const byKey = new Map(list.map(w => [foldText(w.name).trim(), w]));
+  const findOnList = (name) => {
+    const k = foldText(String(name || "")).trim();
+    if (!k) return null;
+    if (byKey.has(k)) return byKey.get(k);
+    if (k.length < 6) return null;
+    const hits = list.filter(w => { const n = foldText(w.name); return n.indexOf(k) !== -1 || k.indexOf(n) !== -1; });
+    return hits.length === 1 ? hits[0] : null;
+  };
+  const seen = new Set();
+  const picks = [];
+  (Array.isArray(parsed.picks) ? parsed.picks : []).forEach(pk => {
+    const w = findOnList(pk && pk.name);
+    if (!w || seen.has(w.name) || picks.length >= 3){
+      if (!w) logMsg("WARN", "Wine for me pick not on the list, dropped: " + String((pk && pk.name) || "").slice(0, 60));
+      return;
+    }
+    seen.add(w.name);
+    const serve = pk.serve === "glass" || pk.serve === "bottle" ? pk.serve : "";
+    picks.push({ name: w.name, section: w.section, price: w.price, description: w.description, serve: serve,
+                 grape: String(pk.grape || "").trim().slice(0, 60), region: String(pk.region || "").trim().slice(0, 60),
+                 why: String(pk.why || "").trim().slice(0, 220) });
+  });
+  if (!picks.length) throw new Error("The picks didn't match this wine list. Try again.");
+  const note = parsed.note ? String(parsed.note).trim().slice(0, 200) : "";
+  logMsg("WINE", "Picked " + picks.map(x => x.name).join(" / "));
+  return { picks: picks, note: note };
+}
+
+/* Read a label photo into fields. Only what the label shows; nothing guessed
+   into a field that the label does not support. Returns {name, producer,
+   vintage, grape, region, color, readable}. */
+async function readWineLabel(cfg, dataUrl){
+  const prompt =
+    "This is a photo of a wine bottle's label. Read it and return ONLY valid JSON, no other text:\n"+
+    '{ "readable": boolean, "name": string, "producer": string, "vintage": string, "grape": string, '+
+    '"region": string, "color": "red" | "white" | "rose" | "sparkling" | "dessert" | "" }\n'+
+    "- name: the wine as you would write it on a wine list, the producer plus the wine's own name if it has "+
+    "one (for example \"Caymus Cabernet Sauvignon\").\n"+
+    "- vintage: the four-digit year on the label, \"NV\" if it says non-vintage, otherwise \"\".\n"+
+    "- grape: the grape or blend named on the label. If the label names only a place whose grape is fixed by "+
+    "law and you are certain (Chablis is Chardonnay), give it; otherwise \"\".\n"+
+    "- region: the place named on the label (for example \"Napa Valley\", \"Sancerre\").\n"+
+    "- color: only when the label or the wine's type makes it certain, otherwise \"\".\n"+
+    "- Never guess. Leave a field \"\" when the label does not show it. If this is not a wine label or "+
+    "cannot be read, set readable to false.";
+  logMsg("WINE", "Reading a label");
+  let res;
+  try {
+    res = await fetch(apiBase(cfg) + "/api/ai/relay", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+      body:JSON.stringify({
+        task:"read_wine_label",
+        model:VISION_MODEL,
+        max_tokens:1200,       // a few short fields; the server skips up-front thinking
+        messages:[{ role:"user", content:[
+          { type:"image", source:{ type:"base64", media_type:"image/jpeg", data:String(dataUrl).split(",")[1] } },
+          { type:"text", text:prompt },
+        ]}],
+      }),
+    });
+  } catch(err){
+    logMsg("ERROR", "Label read network failure: " + err.message);
+    throw new Error("Could not reach the AI service. If you are on a weak signal, try again.");
+  }
+  if (!res.ok) throw await wineRelayError(res, "Label read");
+  const json = await res.json();
+  let parsed;
+  try { parsed = parseJsonLoose(aiAnswerText(json)); }
+  catch(err){
+    logMsg("ERROR", "Label JSON unreadable: " + err.message);
+    throw new Error("Couldn't read that label. Try a closer, sharper photo.");
+  }
+  const s = (v, n) => String(v == null ? "" : v).trim().slice(0, n);
+  const vint = s(parsed.vintage, 4).toUpperCase();
+  const out = {
+    readable: parsed.readable !== false,
+    name: s(parsed.name, 120), producer: s(parsed.producer, 80),
+    vintage: (/^(19|20)\d\d$/.test(vint) || vint === "NV") ? vint : "",
+    grape: s(parsed.grape, 60), region: s(parsed.region, 80),
+    color: WINE_COLORS.some(c => c[0] === parsed.color) ? parsed.color : "",
+  };
+  if (!out.readable || !(out.name || out.producer)){
+    throw new Error("Couldn't read that label. Try a closer, sharper photo, or type the details.");
+  }
+  logMsg("WINE", "Label read: " + [out.name, out.vintage].filter(Boolean).join(" "));
+  return out;
+}
+
+/* ---------- screens ---------- */
+
+// A wine's one-line details: producer, vintage, grape, region.
+function wineDetailLine(w){
+  return [w.producer && foldText(w.name).indexOf(foldText(w.producer)) === -1 ? w.producer : "",
+          w.vintage, w.grape && foldText(w.name).indexOf(foldText(w.grape)) === -1 ? w.grape : "",
+          w.region].filter(Boolean).join(" · ");
+}
+function wineVerdictLabel(v){ return v === "loved" ? "♥ Loved" : v === "again" ? "Again" : v === "skip" ? "Skip" : ""; }
+
+function WineVerdictRow({ value, onPick }){
+  return (
+    <div className="dish-verdict" style={{gap:6}}>
+      {[["loved","♥ Loved"],["again","Again"],["skip","Skip"]].map(([k, lbl]) => (
+        <button key={k} type="button" className={"verdict-btn " + k + (value === k ? " on" : "")}
+          aria-pressed={value === k} style={{fontSize:12.5, padding:"7px 13px"}}
+          onClick={()=> onPick(k)}>{lbl}</button>
+      ))}
+    </div>
+  );
+}
+
+// The setup: one page of taps. Used on the Wine profile page and inside
+// Wine for me, so a first-timer at a table never leaves the menu.
+function WineSetup({ initial, onSave, onCancel, saveLabel }){
+  const [p, setP] = useState(()=> Object.assign({ colors:[], likes:[] }, initial || {}));
+  const set = (k, v) => setP(o => Object.assign({}, o, { [k]: o[k] === v ? "" : v }));
+  const toggle = (k, v) => setP(o => {
+    const arr = (o[k] || []).slice(); const i = arr.indexOf(v);
+    if (i === -1) arr.push(v); else arr.splice(i, 1);
+    return Object.assign({}, o, { [k]: arr });
+  });
+  return (
+    <div>
+      {WINE_Q.map(q => (
+        <div key={q.key} className="fld" style={{marginBottom:16}}>
+          <span className="lbl">{q.label}</span>
+          {q.hint ? <div className="tiny faint" style={{margin:"-2px 0 7px", lineHeight:1.4}}>{q.hint}</div> : null}
+          <div className="row" style={{gap:7, flexWrap:"wrap"}}>
+            {q.opts.map(([v, lbl]) => {
+              const on = q.multi ? (p[q.key] || []).indexOf(v) !== -1 : p[q.key] === v;
+              return (
+                <button key={v} type="button" className={"chip pick" + (on ? " on" : "")} aria-pressed={on}
+                  style={{fontSize:13.5, padding:"7px 13px"}}
+                  onClick={()=> q.multi ? toggle(q.key, v) : set(q.key, v)}>{lbl}</button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <div className="fld" style={{marginBottom:16}}>
+        <span className="lbl">Grapes you already like</span>
+        <div className="row" style={{gap:7, flexWrap:"wrap"}}>
+          {WINE_GRAPES.map(g => {
+            const on = (p.likes || []).indexOf(g) !== -1;
+            return (
+              <button key={g} type="button" className={"chip pick" + (on ? " on" : "")} aria-pressed={on}
+                style={{fontSize:13.5, padding:"7px 13px"}} onClick={()=> toggle("likes", g)}>{g}</button>
+            );
+          })}
+        </div>
+      </div>
+      <label className="fld">
+        <span className="lbl">Anything else you like</span>
+        <input className="input" value={p.likesMore || ""} maxLength={200}
+          placeholder="e.g. Oregon Pinot, Rioja, Sancerre"
+          onChange={e=> setP(o => Object.assign({}, o, { likesMore: e.target.value }))} />
+      </label>
+      <label className="fld">
+        <span className="lbl">Anything you don&rsquo;t like</span>
+        <input className="input" value={p.dislikes || ""} maxLength={200}
+          placeholder="e.g. very sweet wines, big buttery Chardonnay"
+          onChange={e=> setP(o => Object.assign({}, o, { dislikes: e.target.value }))} />
+      </label>
+      <button className="btn primary" style={{width:"100%", marginTop:4}}
+        onClick={()=> onSave(Object.assign({}, p, {
+          likesMore: String(p.likesMore || "").trim(), dislikes: String(p.dislikes || "").trim(),
+          done_at: (initial && initial.done_at) || Date.now(), updated_at: Date.now() }))}>
+        {saveLabel || "Save my profile"}</button>
+      {onCancel ? (
+        <button className="btn ghost" style={{width:"100%", marginTop:8}} onClick={onCancel}>Cancel</button>
+      ) : null}
+      <div className="tiny faint" style={{textAlign:"center", marginTop:10}}>Skip anything you&rsquo;re not sure about. You can change it any time.</div>
+    </div>
+  );
+}
+
+// You > Wine profile.
+function WineProfileView({ book, cfg, onSaveProfile, onOpenWine, onNewWine, onBack, onHome }){
+  const [editing, setEditing] = useState(false);
+  const [q, setQ] = useState("");
+  const has = wineHasProfile(book);
+  const tasted = wineTasted(book);
+  const toRate = wineToRate(book);
+  const fq = foldText(q.trim());
+  const shown = fq ? tasted.filter(w => foldText([w.name, w.producer, w.grape, w.region, w.place, w.note].join(" ")).indexOf(fq) !== -1)
+                   : tasted;
+  const row = (w, sub) => (
+    <div key={w.id} className="yif-entry tap" onClick={()=> onOpenWine(w)}>
+      <span style={{width:46, height:58, borderRadius:8, overflow:"hidden", flex:"none", display:"flex",
+                    alignItems:"center", justifyContent:"center", background:"var(--surface-2, rgba(255,255,255,0.05))"}}>
+        {w.label ? <PhotoImg cfg={cfg} path={w.label} /> : <Icon name="wine" size={20} color="var(--text-faint)" />}
+      </span>
+      <span className="yif-entry-tx">
+        <span className="yif-entry-t">{w.name}</span>
+        {wineDetailLine(w) ? <span className="yif-entry-s">{wineDetailLine(w)}</span> : null}
+        <span className="yif-entry-s">{sub}</span>
+      </span>
+      {w.verdict ? <span className={"chip dish" + dishChipClass(w.verdict)} style={{flex:"none", marginRight:6}}>{wineVerdictLabel(w.verdict)}</span> : null}
+    </div>
+  );
+  const whereWhen = w => [w.place, w.date ? fmtDayShort(w.date) : ""].filter(Boolean).join(" · ");
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={editing && has ? ()=> setEditing(false) : onBack}>Back</button>
+        <h2>Wine profile</h2><HomeBtn onHome={onHome} />
+      </div>
+      <div className="ovbody">
+        {(!has || editing) ? (
+          <>
+            <div className="small muted" style={{margin:"2px 2px 16px", lineHeight:1.55}}>
+              {has ? "Change anything, then save." :
+                "A few taps on what you like. Then Wine for me, on any menu with a wine list, picks wines that fit you, and the app keeps notes on every wine you try."}
+            </div>
+            <WineSetup initial={book && book.profile}
+              onCancel={has ? ()=> setEditing(false) : null}
+              onSave={(prof)=>{ onSaveProfile(prof); setEditing(false); }} />
+          </>
+        ) : (
+          <>
+            <div className="card" style={{padding:"12px 12px 10px", marginBottom:14}}>
+              <div className="between" style={{alignItems:"baseline", marginBottom:8}}>
+                <span style={{fontWeight:600}}>Your taste</span>
+                <button type="button" className="tiny" onClick={()=> setEditing(true)}
+                  style={{background:"none", border:"none", padding:"2px 4px", color:"var(--accent)", fontWeight:600, cursor:"pointer"}}>Edit</button>
+              </div>
+              <div className="row" style={{gap:6, flexWrap:"wrap"}}>
+                {wineProfileChips(book.profile).map((c, i) => <span key={i} className="chip">{c}</span>)}
+              </div>
+              {book.profile.dislikes ? <div className="tiny faint" style={{marginTop:8}}>Not for you: {book.profile.dislikes}</div> : null}
+            </div>
+            <button className="btn primary" style={{width:"100%", marginBottom:16}} onClick={onNewWine}>
+              <Icon name="camera" size={16} color="#1b1714" />Add a wine</button>
+            {toRate.length ? (
+              <>
+                <div className="section-subhead" style={{margin:"0 2px 8px"}}>To rate</div>
+                {toRate.map(w => row(w, whereWhen(w) || "Picked with Wine for me"))}
+              </>
+            ) : null}
+            <div className="between" style={{margin:"14px 2px 8px", alignItems:"center"}}>
+              <span className="section-subhead" style={{margin:0}}>Wines you&rsquo;ve tried</span>
+              {tasted.length ? <span className="tiny faint">{tasted.length}</span> : null}
+            </div>
+            {tasted.length > 6 ? (
+              <input className="input" style={{marginBottom:10}} value={q} placeholder="Search your wines"
+                onChange={e=> setQ(e.target.value)} />
+            ) : null}
+            {!tasted.length ? (
+              <div className="tiny faint" style={{margin:"0 2px 12px", lineHeight:1.5}}>
+                None yet. Snap a label with Add a wine, or tap I&rsquo;m having this on a Wine for me pick.
+              </div>
+            ) : null}
+            {shown.map(w => row(w, whereWhen(w) || "Added by you"))}
+            <div className="tiny faint" style={{margin:"16px 2px 4px", lineHeight:1.5}}>
+              On a menu with a wine list, tap <strong>Wine for me</strong> under Help me order. It reads this profile and the wines you&rsquo;ve rated.
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Add or edit one wine: a label photo (read by the AI), the details, how it was.
+function WineEditor({ cfg, wine, onSave, onDelete, onClose, onHome }){
+  const isNew = !wine;
+  const [w, setW] = useState(()=> Object.assign({ id: uid("wine"), name:"", producer:"", vintage:"", grape:"",
+    region:"", color:"", label:"", verdict:"", note:"", place:"", price:"", serve:"", date: todayISO(),
+    source:"manual", status:"tasted", created_at: Date.now() }, wine || {}));
+  const [blob, setBlob]       = useState(null);    // a new label photo, uploaded at save
+  const [preview, setPreview] = useState("");
+  const [reading, setReading] = useState(false);
+  const [readMsg, setReadMsg] = useState("");
+  const [readErr, setReadErr] = useState("");
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
+  const fileRef = useRef(null);
+  const f = (k, v) => setW(o => Object.assign({}, o, { [k]: v }));
+
+  async function pickPhoto(file){
+    if (!file) return;
+    setReadErr(""); setReadMsg(""); setErr("");
+    let b;
+    try { b = await resizeImageToBlob(file, 1400, 0.82); }
+    catch(e){ setReadErr("Couldn't open that photo. Try another."); return; }
+    setBlob(b);
+    try { setPreview(URL.createObjectURL(b)); } catch(e){}
+    if (!cfg) return;
+    setReading(true);
+    try {
+      const got = await readWineLabel(cfg, await blobToDataUrl(b));
+      // Fill only what is still empty: never overwrite what was typed.
+      setW(o => {
+        const n = Object.assign({}, o);
+        ["name","producer","vintage","grape","region","color"].forEach(k => { if (!String(n[k] || "").trim() && got[k]) n[k] = got[k]; });
+        return n;
+      });
+      setReadMsg("Filled in from the label. Check it over.");
+    } catch(e){
+      setReadErr(e.message || "Couldn't read that label.");
+    } finally { setReading(false); }
+  }
+
+  async function save(){
+    const name = String(w.name || "").trim();
+    if (!name){ setErr("Give the wine a name."); return; }
+    setSaving(true); setErr("");
+    try {
+      let label = w.label || "";
+      if (blob){
+        const path = "photos/wines/" + w.id + "/label-" + Date.now() + ".jpg";
+        await putPhotoWithRetry(cfg, { path: path, blob: blob }, null, ()=>{});
+        seedPhoto(path, blob);
+        label = path;
+      }
+      const now = Date.now();
+      const out = Object.assign({}, w, {
+        name: name, producer: String(w.producer || "").trim(), vintage: String(w.vintage || "").trim(),
+        grape: String(w.grape || "").trim(), region: String(w.region || "").trim(),
+        place: String(w.place || "").trim(), price: String(w.price || "").trim(),
+        note: String(w.note || "").trim(), label: label, status: "tasted", updated_at: now });
+      if (out.verdict && !(wine && wine.verdict === out.verdict)) out.rated_at = now;
+      onSave(out);
+    } catch(e){
+      setErr("The label photo didn't upload. " + (e.message || "") + " Everything you typed is still here. Tap Save to try again.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="overlay">
+      <div className="ovhead">
+        <button className="x" onClick={onClose}>Back</button>
+        <h2>{isNew ? "Add a wine" : (wine.status === "tasted" ? "Your wine" : "How was it?")}</h2><HomeBtn onHome={onHome || onClose} />
+      </div>
+      <div className="ovbody">
+        <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}}
+          onChange={e=>{ const file = e.target.files && e.target.files[0]; e.target.value = ""; pickPhoto(file); }} />
+        <div className="wine-label-tile" onClick={()=> fileRef.current && fileRef.current.click()}>
+          {preview ? <img src={preview} alt="Wine label" />
+            : w.label ? <PhotoImg cfg={cfg} path={w.label} alt="Wine label" />
+            : (
+              <div style={{textAlign:"center", padding:"0 16px"}}>
+                <Icon name="camera" size={26} color="var(--accent)" />
+                <div className="small" style={{fontWeight:600, marginTop:6}}>Add a label photo</div>
+                <div className="tiny faint" style={{marginTop:3}}>The app reads the label and fills in the details. Uses an AI request.</div>
+              </div>
+            )}
+        </div>
+        {(preview || w.label) ? (
+          <div className="tiny" style={{textAlign:"center", margin:"-4px 0 10px"}}>
+            <button type="button" className="tiny" onClick={()=> fileRef.current && fileRef.current.click()}
+              style={{background:"none", border:"none", color:"var(--accent)", fontWeight:600, cursor:"pointer"}}>Use a different photo</button>
+          </div>
+        ) : null}
+        {reading ? <div className="tiny faint" style={{textAlign:"center", marginBottom:10}}><span className="spin" /> Reading the label&hellip;</div> : null}
+        {readMsg ? <div className="tiny" style={{textAlign:"center", marginBottom:10, color:"var(--accent)"}}>{readMsg}</div> : null}
+        {readErr ? <div className="tiny" style={{textAlign:"center", marginBottom:10, color:"#d9604e"}}>{readErr}</div> : null}
+
+        <label className="fld">
+          <span className="lbl">Wine</span>
+          <input className="input" value={w.name} maxLength={120} placeholder="e.g. Caymus Cabernet Sauvignon"
+            onChange={e=> f("name", e.target.value)} />
+        </label>
+        <div className="row" style={{gap:10}}>
+          <label className="fld" style={{flex:2, minWidth:0}}>
+            <span className="lbl">Producer</span>
+            <input className="input" value={w.producer} maxLength={80} onChange={e=> f("producer", e.target.value)} />
+          </label>
+          <label className="fld" style={{flex:1, minWidth:0}}>
+            <span className="lbl">Vintage</span>
+            <input className="input" value={w.vintage} maxLength={4} inputMode="numeric" placeholder="2021"
+              onChange={e=> f("vintage", e.target.value)} />
+          </label>
+        </div>
+        <div className="row" style={{gap:10}}>
+          <label className="fld" style={{flex:1, minWidth:0}}>
+            <span className="lbl">Grape</span>
+            <input className="input" value={w.grape} maxLength={60} onChange={e=> f("grape", e.target.value)} />
+          </label>
+          <label className="fld" style={{flex:1, minWidth:0}}>
+            <span className="lbl">Region</span>
+            <input className="input" value={w.region} maxLength={80} onChange={e=> f("region", e.target.value)} />
+          </label>
+        </div>
+        <div className="fld" style={{marginBottom:14}}>
+          <span className="lbl">Type</span>
+          <div className="row" style={{gap:7, flexWrap:"wrap"}}>
+            {WINE_COLORS.map(([v, lbl]) => (
+              <button key={v} type="button" className={"chip pick" + (w.color === v ? " on" : "")} aria-pressed={w.color === v}
+                style={{fontSize:13.5, padding:"7px 13px"}} onClick={()=> f("color", w.color === v ? "" : v)}>{lbl}</button>
+            ))}
+          </div>
+        </div>
+        <div className="fld" style={{marginBottom:14}}>
+          <span className="lbl">How was it?</span>
+          <WineVerdictRow value={w.verdict} onPick={(v)=> f("verdict", w.verdict === v ? "" : v)} />
+        </div>
+        <label className="fld">
+          <span className="lbl">Your notes</span>
+          <textarea className="input" rows={3} value={w.note} maxLength={600}
+            placeholder="What you liked, what you ate with it, whether you'd order it again"
+            onChange={e=> f("note", e.target.value)} />
+        </label>
+        <div className="row" style={{gap:10}}>
+          <label className="fld" style={{flex:2, minWidth:0}}>
+            <span className="lbl">Where you had it</span>
+            <input className="input" value={w.place} maxLength={100} placeholder="Restaurant, or home"
+              onChange={e=> f("place", e.target.value)} />
+          </label>
+          <label className="fld" style={{flex:1, minWidth:0}}>
+            <span className="lbl">Price</span>
+            <input className="input" value={w.price} maxLength={20} placeholder="$18"
+              onChange={e=> f("price", e.target.value)} />
+          </label>
+        </div>
+        <div className="row" style={{gap:10, alignItems:"flex-end"}}>
+          <label className="fld" style={{flex:1, minWidth:0}}>
+            <span className="lbl">Date</span>
+            <input className="input" type="date" value={w.date || ""} onChange={e=> f("date", e.target.value)} />
+          </label>
+          <div className="fld" style={{flex:1, minWidth:0}}>
+            <span className="lbl">Glass or bottle</span>
+            <div className="row" style={{gap:7}}>
+              {[["glass","Glass"],["bottle","Bottle"]].map(([v, lbl]) => (
+                <button key={v} type="button" className={"chip pick" + (w.serve === v ? " on" : "")} aria-pressed={w.serve === v}
+                  style={{fontSize:13.5, padding:"7px 13px"}} onClick={()=> f("serve", w.serve === v ? "" : v)}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {err ? <div className="tiny" style={{color:"#d9604e", margin:"4px 0 10px"}}>{err}</div> : null}
+        <button className="btn primary" style={{width:"100%", marginTop:4}} disabled={saving || reading} onClick={save}>
+          {saving ? <span className="spin" /> : "Save"}</button>
+        {!isNew && onDelete ? (
+          confirmDel ? (
+            <div className="small" style={{padding:"10px 12px", marginTop:12, borderRadius:9,
+                 background:"rgba(217,96,78,0.1)", border:"1px solid rgba(217,96,78,0.4)"}}>
+              <div style={{marginBottom:9}}>Delete this wine and its notes? This cannot be undone.</div>
+              <div className="row" style={{gap:8}}>
+                <button className="btn ghost sm" onClick={()=> setConfirmDel(false)}>Cancel</button>
+                <button className="btn danger sm" onClick={()=> onDelete(wine)}>Delete</button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn ghost" style={{width:"100%", marginTop:8}} onClick={()=> setConfirmDel(true)}>Delete this wine</button>
+          )
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// Home: how was the wine? (or: add the wine from your visit?)
+function WineAskCard({ book, onVerdict, onOpen, onLater, onDrop }){
+  const due = wineDueList(book);
+  if (!due.length) return null;
+  const w = due[0];
+  const offer = w.status === "offer";
+  const where = [w.place, w.date ? fmtDayShort(w.date) : ""].filter(Boolean).join(" · ");
+  return (
+    <div className="card" style={{marginBottom:12, padding:"13px 13px 11px",
+         background:"rgba(150,52,72,0.10)", border:"1px solid rgba(214,73,97,0.32)"}}>
+      <div style={{display:"flex", gap:11, alignItems:"flex-start"}}>
+        <Icon name="wine" size={22} color="#e98aa0" />
+        <div style={{flex:1, minWidth:0}}>
+          <div className="small" style={{fontWeight:600, lineHeight:1.35}}>
+            {offer ? <>Add the {w.name} to your wines?</> : <>How was the {w.name}?</>}
+          </div>
+          <div className="tiny faint" style={{marginTop:2}}>
+            {offer
+              ? ("From your visit" + (w.place ? " to " + w.place : "") + (w.date ? ", " + fmtDayShort(w.date) : "") + ". " +
+                 (w.verdict ? "You marked it " + wineVerdictLabel(w.verdict).replace("♥ ", "") + "." : "How was it?"))
+              : (where || "Picked with Wine for me")}
+          </div>
+        </div>
+      </div>
+      <div style={{margin:"11px 0 2px 33px"}}>
+        <WineVerdictRow value={w.verdict} onPick={(v)=> onVerdict(w, v)} />
+      </div>
+      <div className="tiny" style={{margin:"10px 0 0 33px", display:"flex", gap:"6px 16px", flexWrap:"wrap"}}>
+        <button type="button" className="wine-ask-link" style={{color:"var(--accent)", fontWeight:600}} onClick={()=> onOpen(w)}>Add a note or photo</button>
+        <button type="button" className="wine-ask-link" onClick={()=> onLater(w)}>Not now</button>
+        <button type="button" className="wine-ask-link" onClick={()=> onDrop(w)}>{offer ? "Leave it out" : "I didn’t have it"}</button>
+      </div>
+      {due.length > 1 ? <div className="tiny faint" style={{margin:"8px 0 0 33px"}}>{(due.length - 1) + " more to rate after this one"}</div> : null}
+    </div>
+  );
+}
+
+// The menu page: Wine for me, from this place's whole wine list.
+function WineForMeSheet({ cfg, restaurant, list, book, onSaveProfile, onHaving, onClose }){
+  const [setup, setSetup]   = useState(!wineHasProfile(book) && !wineTasted(book).length ? "ask" : "");
+  const [eating, setEating] = useState("");
+  const [busy, setBusy]     = useState(false);
+  const [err, setErr]       = useState("");
+  const [res, setRes]       = useState(null);
+  const [had, setHad]       = useState({});
+  async function run(bookNow){
+    setBusy(true); setErr("");
+    try {
+      const r = restaurant || {};
+      setRes(await wineForMe(cfg, { list: list, book: bookNow || book, eating: eating,
+        place: { name: r.name, cuisine: r.cuisine, city: r.city || r.address,
+                 priceLevel: priceLevelToDollars(r.g_price_level) || "" } }));
+    } catch(e){ setErr(e.message || "Couldn't pick wines. Try again."); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={e=> e.stopPropagation()} style={{maxHeight:"88vh", overflowY:"auto"}}>
+        <div className="grip" />
+        <div className="between" style={{alignItems:"baseline", margin:"0 2px 10px"}}>
+          <span style={{fontFamily:"'Fraunces',serif", fontSize:19, fontWeight:600}}>Wine for me</span>
+          <button type="button" className="tiny" onClick={onClose}
+            style={{background:"none", border:"none", color:"var(--text-dim)", cursor:"pointer"}}>Close</button>
+        </div>
+        {setup === "ask" ? (
+          <div>
+            <div className="small muted" style={{lineHeight:1.55, marginBottom:14}}>
+              Tell the app what you like first and its picks will fit you. It takes about a minute, and it&rsquo;s saved for next time.
+            </div>
+            <button className="btn primary" style={{width:"100%"}} onClick={()=> setSetup("form")}>Set up my wine profile</button>
+            <button className="btn ghost" style={{width:"100%", marginTop:8}} onClick={()=> setSetup("")}>Skip for now</button>
+          </div>
+        ) : setup === "form" ? (
+          <WineSetup initial={book && book.profile} saveLabel="Save and pick wines"
+            onCancel={()=> setSetup("")}
+            onSave={(prof)=>{ onSaveProfile(prof); setSetup(""); run(Object.assign({}, book || {}, { profile: prof })); }} />
+        ) : (
+          <div>
+            {!res ? (
+              <>
+                <label className="fld">
+                  <span className="lbl">What are you eating? (optional)</span>
+                  <input className="input" value={eating} maxLength={300} placeholder="e.g. the ribeye, or seafood pasta"
+                    onChange={e=> setEating(e.target.value)} />
+                </label>
+                <button className="btn primary" style={{width:"100%"}} disabled={busy} onClick={()=> run()}>
+                  {busy ? <span className="spin" /> : "Pick wines for me"}</button>
+                <div className="tiny faint" style={{textAlign:"center", marginTop:6}}>
+                  {"From the " + list.length + " wines on this place’s list. Uses an AI request."}
+                </div>
+              </>
+            ) : (
+              <>
+                {res.note ? <div className="tiny" style={{marginBottom:10, color:"var(--amber)", lineHeight:1.4}}>{res.note}</div> : null}
+                {res.picks.map((pk, i) => (
+                  <div key={i} className="card" style={{padding:"12px 12px 10px", marginBottom:10}}>
+                    <div style={{fontWeight:600, lineHeight:1.35}}>{pk.name}</div>
+                    <div className="tiny faint" style={{marginTop:3}}>
+                      {[pk.serve === "glass" ? "By the glass" : pk.serve === "bottle" ? "By the bottle" : "",
+                        pk.price, pk.grape, pk.region].filter(Boolean).join(" · ") || pk.section}
+                    </div>
+                    {pk.why ? <div className="small" style={{marginTop:7, lineHeight:1.45, color:"var(--text-dim)"}}>{pk.why}</div> : null}
+                    <div style={{marginTop:9}}>
+                      {had[pk.name] ? (
+                        <span className="tiny" style={{color:"var(--accent)", fontWeight:600, display:"inline-flex", alignItems:"center", gap:5}}>
+                          <Icon name="check" size={14} color="var(--accent)" />Saved. The app will ask how it was.</span>
+                      ) : (
+                        <button className="btn ghost sm" onClick={()=>{ onHaving(pk); setHad(h => Object.assign({}, h, { [pk.name]: true })); }}>
+                          I&rsquo;m having this</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div className="tiny faint" style={{textAlign:"center", marginTop:4}}>
+                  <button type="button" className="tiny" disabled={busy} onClick={()=>{ setRes(null); setHad({}); }}
+                    style={{background:"none", border:"none", color:"var(--accent)", fontWeight:600, cursor:"pointer"}}>
+                    Ask again</button>
+                  {" · "}Picked from this place&rsquo;s list, for your taste.
+                </div>
+              </>
+            )}
+            {err ? <div className="tiny" style={{color:"#d9604e", marginTop:8, textAlign:"center"}}>{err}</div> : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /* Find real photos of a dish on the web (Pro). The backend runs the image
@@ -8734,6 +9692,7 @@ function Icon({name, size, color, fill}){
     compass: <g><circle cx="12" cy="12" r="9"/><path d="M15.4 8.6l-2.1 4.7-4.7 2.1 2.1-4.7z"/></g>,
     locate:  <g><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="2.3"/></g>,
     sliders: <g><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="15" cy="6" r="2.3"/><circle cx="9" cy="12" r="2.3"/><circle cx="16" cy="18" r="2.3"/></g>,
+    wine:    <g><path d="M7.5 3h9c0 4.6-2 7.6-4.5 7.6S7.5 7.6 7.5 3Z"/><path d="M8 6.2h8"/><path d="M12 10.6V20"/><path d="M8.5 20.5h7"/></g>,
   };
   return <svg {...p}>{paths[name] || null}</svg>;
 }
@@ -9890,7 +10849,8 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
    ============================================================ */
 function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, onChat, chatDot,
                     onScanMenu, onAtRestaurant, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs,
-                    newsTick, onReadIssue, onSendIssue }){
+                    newsTick, onReadIssue, onSendIssue,
+                    wineBook, onWineVerdict, onWineOpen, onWineLater, onWineDrop }){
   const [showAllVisits, setShowAllVisits] = useState(false);   // Recent visits: 3, then expand
   // Recently ADDED: newest saves to your collection (by added_date). Kept
   // deliberately distinct from Recent visits below - this is "new to my list",
@@ -9976,6 +10936,10 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
 
       {onSendIssue ? <IssueReadyCard cfg={cfg} tick={newsTick} onRead={onReadIssue} onSend={onSendIssue} /> : null}
       {onReadIssue ? <NewsIssueCard cfg={cfg} onRead={onReadIssue} /> : null}
+      {/* How was the wine? (1.584.0): one card at a time, once the meal is
+          likely over. */}
+      {onWineVerdict ? <WineAskCard book={wineBook} onVerdict={onWineVerdict} onOpen={onWineOpen}
+                         onLater={onWineLater} onDrop={onWineDrop} /> : null}
 
       {/* Two doors. "Already at the restaurant?" (the "I'm here now" moment)
           leads; "Looking for somewhere to eat?" opens FindPlaceView (by-name
@@ -10174,6 +11138,10 @@ function App({openShare}){
   const [collections, setCollections] = useState(()=> readCollectionsCache((loadConfig() || {}).userId));
   const collectionsRef = useRef(collections);
   useEffect(()=> { collectionsRef.current = collections; }, [collections]);
+  // Wine profile (1.584.0): saved like collections, with this phone's copy.
+  const [wineBook, setWineBook] = useState(()=> readWineCache((loadConfig() || {}).userId));
+  const wineRef = useRef(wineBook);
+  const wineSaveQ = useRef(Promise.resolve());
   const [meta, setMeta]               = useState({});      // small per-user state (app_shares)
   const [splits, setSplits]           = useState([]);      // saved standalone check splits
   const [auxLoaded, setAuxLoaded]     = useState(false);   // lists+meta fetched (gates badge eval)
@@ -10788,6 +11756,21 @@ function App({openShare}){
         }
       } catch(e){ logMsg("WARN","collections load failed: " + e.message); }
       try {
+        if (wineDirtyFor(cfg.userId)){
+          // Changes this phone saved that the server never got go up first.
+          const local = readWineCache(cfg.userId);
+          await ghPutFile(cfg, "data/wines.json", local, null);
+          clearWineDirty();
+          logMsg("WINES", "Sent the wine profile saved while offline");
+        } else {
+          const wr = await ghGetFile(cfg, "data/wines.json");
+          const wb = (wr.data && typeof wr.data === "object" && !Array.isArray(wr.data)) ? wr.data : {};
+          wineRef.current = wb;
+          setWineBook(wb);
+          writeWineCache(cfg.userId, wb);
+        }
+      } catch(e){ logMsg("WARN","wines load failed: " + e.message); }
+      try {
         const mr = await ghGetFile(cfg, "data/meta.json");
         const m = (mr.data && typeof mr.data === "object" && !Array.isArray(mr.data)) ? mr.data : {};
         setMeta(m);
@@ -11170,6 +12153,78 @@ function App({openShare}){
     function onOnline(){
       if (!configComplete(config) || !collectionsDirtyFor(config.userId)) return;
       saveCollections(collectionsRef.current || []);
+    }
+    window.addEventListener("online", onOnline);
+    return ()=> window.removeEventListener("online", onOnline);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config && config.userId]);
+  // Wine profile (1.584.0), saved like collections. Saves run one after
+  // another and each sends the newest book, so a quick second change can never
+  // be undone by the first one landing late.
+  function saveWineBook(next){
+    const b = Object.assign({}, next || {}, { updated_at: Date.now() });
+    wineRef.current = b;
+    setWineBook(b);
+    writeWineCache(config.userId, b);
+    const uidNow = config.userId;
+    wineSaveQ.current = wineSaveQ.current.then(async ()=>{
+      try {
+        await ghPutFile(config, "data/wines.json", wineRef.current, null);
+        clearWineDirty();
+        logMsg("WINES", "Saved " + ((wineRef.current.wines || []).length) + " wine(s)");
+      } catch(e){
+        setWineDirty(uidNow);
+        logMsg("WARN", "wines save failed, kept on this phone: " + e.message);
+        flash("Saved on this phone. It will sync when you're back online.");
+      }
+    });
+  }
+  function upsertWine(w){
+    if (!w || !w.id) return;
+    const b = wineRef.current || {};
+    const rest = (b.wines || []).filter(x => x.id !== w.id);
+    saveWineBook(Object.assign({}, b, { wines: [Object.assign({}, w, { updated_at: Date.now() })].concat(rest) }));
+  }
+  function patchWine(id, patch){
+    const b = wineRef.current || {};
+    saveWineBook(Object.assign({}, b, { wines: (b.wines || []).map(x =>
+      x.id === id ? Object.assign({}, x, patch, { updated_at: Date.now() }) : x) }));
+  }
+  function removeWine(w){
+    if (!w) return;
+    const b = wineRef.current || {};
+    saveWineBook(Object.assign({}, b, { wines: (b.wines || []).filter(x => x.id !== w.id) }));
+    // Its label photo goes too: a deleted note should not leave its picture behind.
+    if (w.label && configComplete(config)){
+      (async ()=>{
+        try { await fetch(apiBase(config) + "/api/photos?path=" + encodeURIComponent(w.label),
+                          { method:"DELETE", headers: await authHeaders(config) }); } catch(e){}
+      })();
+    }
+  }
+  function saveWineProfile(profile){
+    saveWineBook(Object.assign({}, wineRef.current || {}, { profile: profile }));
+    flash("Wine profile saved");
+  }
+  // I'm having this, from Wine for me: kept so Home can ask how it was.
+  function wineHaving(pick, rest){
+    const now = Date.now();
+    const year = (String(pick.name || "").match(/\b(19|20)\d\d\b/) || [""])[0];
+    upsertWine({ id: uid("wine"), name: pick.name, producer:"", vintage: year,
+      grape: pick.grape || "", region: pick.region || "", color:"", label:"", verdict:"", note:"",
+      restaurant_id: (rest && rest.id) || "", place: (rest && rest.name) || "", price: pick.price || "",
+      serve: pick.serve || "", date: todayISO(), source:"menu", status:"pending", created_at: now });
+  }
+  // The Home card's taps.
+  function wineRate(w, verdict){
+    patchWine(w.id, { verdict: verdict, status: "tasted", rated_at: Date.now() });
+    flashAction("Saved to your wines", "Add a note", ()=> setOverlay({ type:"wine", id: w.id }));
+  }
+  function wineLater(w){ patchWine(w.id, { snoozes: (w.snoozes || 0) + 1, snoozed_at: Date.now() }); }
+  useEffect(()=>{
+    function onOnline(){
+      if (!configComplete(config) || !wineDirtyFor(config.userId)) return;
+      saveWineBook(wineRef.current || {});
     }
     window.addEventListener("online", onOnline);
     return ()=> window.removeEventListener("online", onOnline);
@@ -11884,6 +12939,8 @@ function App({openShare}){
             onShareApp={shareApp}
             onBrowseAll={()=> setTab("restaurants")}
             newsTick={newsTick}
+            wineBook={wineBook} onWineVerdict={wineRate} onWineLater={wineLater} onWineDrop={removeWine}
+            onWineOpen={(w)=> setOverlay({ type:"wine", id:w.id })}
             onReadIssue={(issue)=> setOverlay({ type:"newsArchive", url: NEWS_SITE + "/news/" + issue + ".html" })}
             onSendIssue={isOwner(config) ? (()=> setOverlay({ type:"newsSend" })) : null} />
         )}
@@ -12045,6 +13102,8 @@ function App({openShare}){
             onOpenShares={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }} sharesCount={sharesCount + friendUnread}
             onOpenCollections={()=> setOverlay({ type:"collections" })} collectionsCount={(collections || []).length}
             onOpenNews={()=> setOverlay({ type:"newsArchive" })}
+            onOpenWines={()=> setOverlay({ type:"wines" })} wineReady={wineHasProfile(wineBook)}
+            wineCount={wineTasted(wineBook).length}
             onOpenConnections={()=>{ setReqSeen(pendingReqs); setOverlay({ type:"connections" }); }}
             pendingReqs={pendingReqs}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
@@ -12509,6 +13568,7 @@ function App({openShare}){
           allMenus={menus}
           cfg={config}
           onClose={()=> setOverlay({ type:"restaurant", id:overlay.restaurantId })}
+          wineBook={wineBook} onWineHaving={wineHaving} onWineSaveProfile={saveWineProfile}
           onReScan={()=> setOverlay({
             type:"scanMenu",
             restaurantId:overlay.restaurantId,
@@ -12899,6 +13959,13 @@ function App({openShare}){
             if (extras && extras.collectionPicks && Object.keys(extras.collectionPicks).length){
               applyCollectionPicks(rec, extras.collectionPicks);
             }
+            // Wines on the visit (1.584.0): offered on Home, or tied to a wine
+            // picked with I'm having this. Nothing joins your wines unasked.
+            try {
+              const wb = wineBookWithVisit(wineRef.current || {}, rec, (rec && menus[rec.restaurant_id]) || [],
+                                           restaurants.find(r => rec && r.id === rec.restaurant_id));
+              if (wb) saveWineBook(wb);
+            } catch(e){ logMsg("WARN", "wine offer check failed: " + e.message); }
             let next;
             if (overlay.type === "editVisit"){
               next = visits.map(v => v.id===rec.id ? rec : v);
@@ -13203,6 +14270,23 @@ function App({openShare}){
             onDelete={(dc)=>{ deleteCollection(dc); setOverlay(overlay.returnTo || null); }}
             onOpenVisit={(v)=> setOverlay({ type:"editVisit", visit:v, returnTo:{ type:"collection", id:c.id } })}
             onShowMap={(ids)=> setOverlay({ type:"map", only:ids, title:c.name, returnTo:{ type:"collection", id:c.id } })} />
+        );
+      })()}
+      {overlay && overlay.type === "wines" && (
+        <WineProfileView book={wineBook} cfg={config} onSaveProfile={saveWineProfile}
+          onOpenWine={(w)=> setOverlay({ type:"wine", id:w.id, returnTo:{ type:"wines" } })}
+          onNewWine={()=> setOverlay({ type:"wine", returnTo:{ type:"wines" } })}
+          onBack={()=> setOverlay(null)} onHome={()=> setOverlay(null)} />
+      )}
+      {overlay && overlay.type === "wine" && (()=>{
+        const w = overlay.id ? ((wineBook && wineBook.wines) || []).find(x => x.id === overlay.id) : null;
+        const back = ()=> setOverlay(overlay.returnTo || null);
+        if (overlay.id && !w) return null;
+        return (
+          <WineEditor key={overlay.id || "new"} cfg={config} wine={w}
+            onSave={(nw)=>{ upsertWine(nw); flash("Saved to your wines"); back(); }}
+            onDelete={(dw)=>{ removeWine(dw); flash("Wine deleted"); back(); }}
+            onClose={back} onHome={()=> setOverlay(null)} />
         );
       })()}
       {overlay && overlay.type === "map" && (
@@ -13525,6 +14609,7 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
                         onOpenYearInFood, onOpenPassport, onOpenLeaderboard, onOpenPeople,
                         onOpenShares, sharesCount, onOpenConnections, pendingReqs,
                         onOpenCollections, collectionsCount, onOpenNews,
+                        onOpenWines, wineCount, wineReady,
                         onScanMenu, onLogVisit, onAddPlace, onPublishList, onOpenMyLists,
                         savedListCount, onShareApp,
                         onOpenSplit, onNewSplit, onDeleteSplit }){
@@ -13617,6 +14702,20 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
       ) : null}
 
       <div className="set-group" style={{marginTop:6}}>Your journey</div>
+      {onOpenWines ? (
+        <div className="yif-entry tap" onClick={onOpenWines}>
+          <span className="yif-entry-ic"><Icon name="wine" size={16} color="var(--accent)" /></span>
+          <span className="yif-entry-tx">
+            <span className="yif-entry-t">Wine profile</span>
+            <span className="yif-entry-s">{!wineReady ? "Set up what you like, and keep notes on wines you try"
+              : wineCount ? (wineCount + (wineCount === 1 ? " wine" : " wines") + " tried, and what you like")
+              : "What you like, and every wine you try"}</span>
+          </span>
+          <span style={{display:"inline-flex",transform:"rotate(180deg)",flex:"none"}}>
+            <Icon name="back" size={15} color="var(--text-faint)" />
+          </span>
+        </div>
+      ) : null}
       <div className="yif-entry tap" onClick={onOpenYearInFood}>
         <span className="yif-entry-ic"><Icon name="sparkle" size={16} color="var(--accent)" /></span>
         <span className="yif-entry-tx">
@@ -17151,13 +18250,27 @@ function DishLookRow({ cfg, item, realPhotos, cuisine }){
   );
 }
 
-function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMenus, cfg, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onDeleteSection, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome, menuTabs, onSwitchMenu}){
+function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMenus, cfg, wineBook, onWineHaving, onWineSaveProfile, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onDeleteSection, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome, menuTabs, onSwitchMenu}){
   // ••• (1.563.0): the menu's tools, opened on demand. They are things done now
   // and then, not on every visit, and six buttons in a row sat between the
   // menu's name and the menu itself.
   const [toolsOpen, setToolsOpen] = useState(false);
   // Move into another menu (2026-10-07): the way back after a split.
   const [merging, setMerging]   = useState(false);
+  // Wine for me (1.584.0), from every wine list at this place: the wine list is
+  // often a menu of its own, so it shows on the food menu too.
+  const [wineOpen, setWineOpen] = useState(false);
+  const wineList = wineListFromMenus((allMenus && restaurant && allMenus[restaurant.id]) || [menu]);
+  const wineLine = (wineList.length >= 2 && onWineHaving) ? (
+    <div style={{borderTop:"1px solid var(--line-soft)", marginTop:12, paddingTop:11}}>
+      <button type="button" onClick={()=> setWineOpen(true)}
+        style={{background:"none", border:0, padding:0, cursor:"pointer", color:"var(--text-dim)",
+                font:"inherit", fontSize:13.5, display:"inline-flex", alignItems:"center", gap:7, textAlign:"left"}}>
+        <Icon name="wine" size={14} color="var(--accent)" />
+        <span>Choosing a wine? <span style={{color:"var(--accent)", fontWeight:600}}>Wine for me</span></span>
+      </button>
+    </div>
+  ) : null;
   const [mergeTo, setMergeTo]   = useState(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const [confirmRefresh, setConfirmRefresh] = useState(false);   // Refresh asks first
@@ -17314,7 +18427,9 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
       const recent = askThread.slice(-3);
       const elsewhere = placesMentioned([q].concat(recent.map(h => h.q || "")).join("\n"),
                                         allRestaurants, allMenus, allVisits, restaurant);
-      const a = await askMenu(cfg, restaurant, menu, visits, q, allVisits, recent, elsewhere);
+      // Their wine profile rides along where the place has a wine list (1.584.0).
+      const wineNote = wineList.length >= 2 ? wineProfileText(wineBook) : "";
+      const a = await askMenu(cfg, restaurant, menu, visits, q, allVisits, recent, elsewhere, wineNote);
       setAskThread(t => t.concat([{ q: q, a: a }]));
       setAskInput("");
       setActiveChip(null);
@@ -17670,6 +18785,11 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
           </div>
         )}
 
+        {wineOpen ? (
+          <WineForMeSheet cfg={cfg} restaurant={restaurant} list={wineList} book={wineBook}
+            onSaveProfile={onWineSaveProfile} onHaving={(pk)=> onWineHaving(pk, restaurant)}
+            onClose={()=> setWineOpen(false)} />
+        ) : null}
         {/* ---- help me order (AI) ---- */}
         {!showAsk ? (
           <div className="card ask ask-compact">
@@ -17682,6 +18802,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             {cfg && menu && menu.menu_id ? (
               <GroupOrderButton cfg={cfg} menu={menu} restaurantName={restaurant ? restaurant.name : ""} variant="line" />
             ) : null}
+            {wineLine}
           </div>
         ) : (
         <div className="card ask">
@@ -17758,6 +18879,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
           {cfg && menu && menu.menu_id ? (
             <GroupOrderButton cfg={cfg} menu={menu} restaurantName={restaurant ? restaurant.name : ""} variant="line" />
           ) : null}
+          {wineLine}
         </div>
         )}
 
@@ -21848,6 +22970,7 @@ function ActionSheet({onClose, onPick, pendingReqs, sharesCount}){
         <Item what="splitCheck" icon="receipt" t1="Split the check"      t2="Snap the receipt, split by who had what" />
         <Item what="groupStart" icon="nodes"   t1="Start a group order"  t2="Everyone adds what they want" />
         <Item what="collectionNew" icon="book" t1="Start a collection"   t2="Keep a trip, or any meals you love, together" />
+        <Item what="wine" icon="wine" t1="Add a wine" t2="Snap the label, say how it was" />
         {/* Connections also lives in Settings, but people look for friends
             here - and a pending request is worth surfacing on the + button. */}
         <Item what="shares" icon="share" t1="Sharing"
@@ -35906,7 +37029,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
             <button className="btn ghost sm" onClick={()=>{
               if (confirm("Sign out? You'll need to sign back in on this device.")){
                 try { localStorage.removeItem(CFG_KEY); localStorage.removeItem(DATA_KEY);
-                      localStorage.removeItem("dininglog_collections"); localStorage.removeItem("dininglog_collections_dirty"); } catch(e){}
+                      localStorage.removeItem("dininglog_collections"); localStorage.removeItem("dininglog_collections_dirty"); localStorage.removeItem("dininglog_wines"); localStorage.removeItem("dininglog_wines_dirty"); } catch(e){}
                 location.reload();
               }
             }}>Sign out</button>

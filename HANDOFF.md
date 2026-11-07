@@ -22,8 +22,8 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.583.0** | menucaptain.com (GitHub Pages), pushed 2026-11-02 |
-| Backend | **0.163.0** | Railway, `/health` reports `db connected` |
+| Web app | **1.584.0** | menucaptain.com (GitHub Pages), pushed 2026-11-07 |
+| Backend | **0.164.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.581.0** | built and pushed, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -413,6 +413,53 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### Wine profile (2026-11-07, app 1.584.0, server 0.164.0)
+
+Chris: "a wine profile feature that someone can add. Set up can ask basic questions and allow for
+future notes on wines tried and pics of labels. Then the menu can suggest menu scanned wines and even
+prompt for notes after that go into profile". By card (all four recommended): the app reads a label
+photo, asks for notes **both** after I'm having this and when a logged visit has a wine, **free for
+everyone** (the AI calls are metered like the others), and **its own table**.
+
+- **Model.** One object a person, `{profile, wines, updated_at}`, collection `wines` (table `wines`,
+  one row a person, FK cascade, RLS on with no policies, `sql/wines.sql`, applied 2026-11-07 with
+  Chris's yes and checked). A wine: `{id, name, producer, vintage, grape, region, color, label (photo
+  path under photos/wines/), verdict, note, restaurant_id, place, price, serve, date, source, status,
+  visit_id, snoozes, snoozed_at}`. Saved like collections, plus a phone copy (`dininglog_wines`,
+  dirty flag names the user); saves run one after another and each sends the newest book.
+- **Setup** (`WINE_Q`, `WineSetup`): one page of taps, every answer optional. Grounded on Wine
+  Folly's traits (sweetness, acidity, tannin, body; oak) and what sommeliers ask (budget, the food,
+  dislikes, adventure). Read 2026-11-07, sources named in the code comment.
+- **Wine for me** (`wineForMe`, task `wine_for_me`, Sonnet 5.5 with thinking): shows under Help me
+  order on any menu at a place whose menus have at least two wines (`sectionIsWine`: by section
+  name, "Red"/"White" only as a whole section name, and a menu labelled like a wine list counts its
+  country sections). Sends the place, the profile in words, rated wines with notes, what they are
+  eating, and up to 300 wines (by-the-glass first). **Every pick is checked against the list** (case
+  and accents aside, or a single partial match); an invented wine is dropped and logged, none left
+  says try again. The card shows the list's own section and price.
+- **Label reading** (`readWineLabel`, task `read_wine_label`, vision, joins AI_TRANSCRIBE_TASKS so no
+  up-front thinking): fills only empty fields; vintage must be a year or NV and colour one of five,
+  otherwise blank. Photo uploaded at Save through `putPhotoWithRetry` (the one upload path); a
+  deleted wine deletes its label photo.
+- **Asking for notes** (`WineAskCard` on Home): `pending` (I'm having this) is asked once the app was
+  opened after the pick or an hour on; `offer` (a wine on a saved visit, found by `dishIsWine` on the
+  place's menus) shows at once, carrying the dish's verdict and note. A wine picked at that place
+  within a day is tied to the visit instead of offered twice. Not now = next open; two of those and it
+  waits under To rate.
+- **Help me order** gets `wineProfileText` as a light hint at places with a wine list, food picks
+  untouched.
+- **Account deletion** lists `wines` (it also cascades); label photos go with the storage purge.
+- **Privacy policy**, wording approved by Chris by card 2026-11-07: "your wine profile and wine notes"
+  and "wine label photos" under Your content; what Wine for me, Help me order and label reading send
+  under AI features; effective November 7, 2026.
+- **Verified.** `wine_test.js` (sliced from index.html, stubbed relay): 37 checks (sections, list
+  order, dish detection, when Home asks, visit offers and de-duplication, profile text, per-user
+  cache, pick validation, prompt contents, label parsing). `wine_ui.py` at 375 px against a pretend
+  server: 25 checks (You row, setup saved, label read and saved with its path, Wine for me on the food
+  menu from the separate wine list, I'm having this, Help me order carries the profile, Home asks on
+  the next open, one-tap rating, visit offer and Leave it out, + menu). No page errors.
+  **Not checked:** a real label photo read by the live model, a real phone.
 
 ### Recommend a tip (2026-11-02, app 1.583.0, server 0.163.0)
 

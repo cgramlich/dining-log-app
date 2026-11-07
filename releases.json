@@ -439,5 +439,13 @@
     "email_notes": "updated: a feature line for the next issue",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: section, version rows (web, backend), BRIEFING"
+  },
+  "1.584.0": {
+    "what": "Wine profile: a one-page setup of taps (what you drink, dry or sweet, body, crisp or smooth, soft or firm reds, oak, spend, adventure, grapes, dislikes); wines you have tried with a label photo the app reads (read_wine_label), a verdict and a note; Wine for me on any menu at a place with a wine list (wine_for_me) picks 2 or 3 from that list and checks every pick is on it; I'm having this keeps it to rate; Home asks how it was on the next open, and offers wines from a logged visit; Help me order reads the profile at places with a wine list. Table wines (0.164.0).",
+    "guide": "updated: new section Wine profile; Your plan and the AI features",
+    "promo": "updated: a Menus line drafted for Chris's wording, as-of bumped",
+    "email_notes": "updated: a feature line for the next issue",
+    "welcome": "n/a: the promo page lists no drink features",
+    "handoff": "updated: section, version rows (web, backend), BRIEFING, Log"
   }
 }

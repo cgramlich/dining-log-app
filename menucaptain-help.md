@@ -1220,6 +1220,38 @@ spent. They can reply, just as with a shared visit.
 Collections are private until you share one, sync to every device you sign in
 on, and still open on this phone with a weak signal.
 
+## Wine profile
+
+**Set it up once.** Open **You**, then **Wine profile**, and answer a few one-tap
+questions: what you usually drink, dry or sweet, light or full, crisp or smooth,
+soft or firm reds, oaky wines, what you usually spend on a glass and a bottle,
+and whether you like to try something new. Skip anything you're not sure about,
+and change it any time with **Edit**.
+
+**Wine for me.** On a menu at any place with a wine list (even when the wine list
+is a menu of its own), tap **Wine for me** under **Help me order**. Say what you're
+eating if you like, and it picks two or three wines from that list for your
+taste, by the glass or the bottle, each with the reason. It only picks wines on
+the list, and shows the list's own price. It uses one AI request. **Help me
+order** reads your wine profile too when you ask it about wine.
+
+**How was it?** Tap **I'm having this** on a pick and the app keeps it for you.
+The next time you open the app (or an hour later if it stays open), Home asks how
+it was: **Loved**, **Again** or **Skip**, with **Add a note or photo** for more.
+Log a visit that includes a wine from the menu and Home offers to add it to your
+wines too, with the mark you gave it on the visit. **Not now** asks again next
+time, and after two of those the wine waits under **To rate** on the Wine profile
+page.
+
+**Add a wine yourself.** Tap the **+** button and choose **Add a wine**, or use
+**Add a wine** on the Wine profile page. Take a photo of the label and the app
+reads it and fills in the wine, producer, vintage, grape and region for you to
+check (one AI request). Then say how it was and add a note.
+
+Your wine profile is private, syncs to every device you sign in on, and still
+works on this phone with a weak signal. Every wine you rate makes the next picks
+fit you better.
+
 ## Publishing a list
 On the **You** tab under **Your lists**, tap **Publish a list**, give it a title,
 and tick the restaurants to include (your favorites and
@@ -1289,8 +1321,8 @@ description, and why you can always redo an estimate from a better source.
 
 ## Your plan and the AI features
 
-The AI features - menu scanning, "Help me order," and the calorie and macro
-estimates - are built in. There is nothing to configure and no key to manage.
+The AI features - menu scanning, "Help me order," Wine for me, reading a wine
+label, and the calorie and macro estimates - are built in. There is nothing to configure and no key to manage.
 
 Every account starts on the **free plan**, which includes a taste of the AI
 features so you can try everything. The Plan card in **Settings** shows how
@@ -1308,7 +1340,7 @@ card details. If you cancel, Pro keeps working until the end of the period you
 paid for - the card shows the exact date.
 
 Everything that is not AI - logging visits, rating dishes, places, the map,
-History, Year in Food, the passport, and sharing - is free and unlimited on
+History, Year in Food, the passport, your wine profile and notes, and sharing - is free and unlimited on
 every plan.
 
 -----
