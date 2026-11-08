@@ -3702,7 +3702,8 @@ Saturdays 6 PM Central, Mac paths, venv Python; the Nov 8 issue rebuilt word for
 copy is paused; backend **0.164.1** (`9da7271`) reads `GROUP_RETENTION_DAYS` through `_env_int`, so the
 portfolio audit (run from its Dropbox copy) is clean.
 **Proof release: 1.586.0** (Combine sections and Rename a section), built, tested at 375 px and shipped
-from the Mac: web, native bundle and Chris's iPhone. **Left:** Chris archives the PC session.
+from the Mac: web, native bundle and Chris's iPhone. **The move is complete (2026-11-08):** Chris archived
+the PC's MenuCaptain session, and combined Pizza Italia's Draft Beer with 1.586.0 on his iPhone.
 
 **The launch plan (agreed in outline 2026-11-08; Chris: design changes first).** One web app feeds the
 website, iOS and Android, so a design change lands on all three; building iOS on the Mac changes nothing
@@ -3733,7 +3734,8 @@ for Android, which keeps building on the Windows PC.
 - The Podfile now lists the five plugin pods, and `DEVELOPMENT_TEAM` is **`HS3XN3K98S`** (MilSpo Life LLC,
   a paid Company team, read in Xcode on the Mac 2026-11-08).
 - Open from that build: one "JS Eval error" from Capacitor just before React mounts; the app ran on.
-  Camera, Share and location on the phone not yet confirmed under the scene lifecycle.
+  Under the scene lifecycle on Chris's iPhone (1.586.0, 2026-11-08): **camera and location confirmed working**
+  by Chris; **Share not yet tried**.
 - **In sync and running (2026-11-08):** the Mac pulled `61e79b6`, dropped its local copies and rebuilt
   from the clean repo. 1.584.2 is installed and running on Chris's iPhone 17 Pro Max, signed by MilSpo Life
   (`HS3XN3K98S`). **Talking to the Mac:** Chris turned on Remote Control, so the Mac session answers
