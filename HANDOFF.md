@@ -24,7 +24,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 |---|---|---|
 | Web app | **1.585.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 |
 | Backend | **0.164.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.584.2** | bundle `674bfeb`, iOS fixes `c022055` (2026-11-08), **not yet submitted to any store** |
+| Native shell | **1.585.0** | bundle `e0937fd` (2026-11-08), iOS fixes since `c022055`, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -3647,6 +3647,20 @@ the same treatment.
 ---
 
 ## What is open
+
+**THE MAC IS NOW THE HOME OF MENUCAPTAIN (2026-11-08).** Chris chose it by card in the PC chat ("Yes,
+hand over") after 1.585.0 shipped. The **single writer is now the Mac session "MenuCaptain Mac
+11-8-26"**, working in `~/dining-log-app`, `~/dining-captain-backend`, `~/menucaptain-native-build`.
+**The PC session has stopped writing** to all three repos. Its last commits: `dining-log-app` (this
+HANDOFF update), `dining-captain-backend` `f9d4098` (0.164.0, untouched since), `menucaptain-native-build`
+`e0937fd` (1.585.0). Everything the Mac needs that lived only on the PC is in
+`Dropbox\My AI\CG Apps\MenuCaptain\MOVE-TO-MAC.md`; its first jobs: make the scripts' `C:/` paths
+portable, install the release docs gate hook, recreate the Saturday newsletter task (runs Saturday
+6 PM Central, next 2026-11-14; disable the PC copy after), fix the one blocking line the portfolio
+audit finds in the backend (`GROUP_RETENTION_DAYS`), then one full release as proof before Chris
+archives the PC session. The design list is `DESIGN-CHANGES.md` (items 1 and 2 built in 1.585.0;
+item 3, rename or combine sections inside a menu, is open; F1 short videos: Chris wants a PLAN
+proposed before any build).
 
 **The launch plan (agreed in outline 2026-11-08; Chris: design changes first).** One web app feeds the
 website, iOS and Android, so a design change lands on all three; building iOS on the Mac changes nothing
