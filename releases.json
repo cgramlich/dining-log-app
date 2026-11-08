@@ -471,5 +471,13 @@
       "email_notes": "updated: next-issue-notes.md (Refinements 1.585.0, for Also improved) and Log 2026-11-08c",
       "welcome": "n/a: nothing on the promo page changes",
       "handoff": "updated: version rows, BRIEFING, Log"
+  },
+  "1.586.0": {
+      "what": "Combine sections and Rename a section (Chris chose 'Build both' by card, 2026-11-08; design item 3, his words: 'every item on all those sections consolidated under draft beer'). Menu ••• > Combine sections puts every dish under one heading, named after the menu to start with. Each section's panel now opens with Rename; typing another section's name on the same menu joins them (sectionNameKey: case, quotes and capitals ignored, the scan review's rule). Dishes keep order, photos, stars and tags. Open sections reset when the section count changes. First full release from the Mac.",
+      "guide": "updated: new Combining and renaming sections (Menus)",
+      "promo": "n/a: a tidy-up tool for saved menus, as-of bumped",
+      "email_notes": "updated: next-issue-notes.md (Refinement 1.586.0, for Also improved) and Log 2026-11-08e",
+      "welcome": "n/a: nothing on the promo page changes",
+      "handoff": "updated: version rows, decision entry, BRIEFING, Log"
   }
 }

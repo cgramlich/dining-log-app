@@ -343,6 +343,13 @@ the small pencil beside it), or **•••** and **Rename**, and type a new one
 section headings printed in capitals show in ordinary case (BEER TAPS becomes
 Beer Taps); a menu name you type here shows exactly as you typed it.
 
+**Combining and renaming sections.** When a scan splits one list under headings that mean
+nothing (a bar's tap layout, say), open the menu, tap **•••** and **Combine sections**: every
+dish goes under one heading, named after the menu to start with (type another if you like).
+To fix just one heading, tap the small icon beside a section and type its new name under
+**Rename**. Give it the name of another section on the same menu and the two become one.
+Dishes keep their order, photos, stars and diet tags either way.
+
 **Re-scanning and deleting.** Open a menu and tap **Refresh** beside the date it was
 captured (it is under **•••** at the top too) to replace it with a fresh version - photograph it again or pull it from a
 link. It asks first, so a stray tap does nothing. **Delete this menu** is there too. Refreshing replaces the

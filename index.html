@@ -1322,7 +1322,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.585.0";
+const APP_VERSION   = "1.586.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2345,6 +2345,13 @@ the small pencil beside it), or **•••** and **Rename**, and type a new one
 **Wine list**. Do it any time, not just right after you add it. Menu names and
 section headings printed in capitals show in ordinary case (BEER TAPS becomes
 Beer Taps); a menu name you type here shows exactly as you typed it.
+
+**Combining and renaming sections.** When a scan splits one list under headings that mean
+nothing (a bar's tap layout, say), open the menu, tap **•••** and **Combine sections**: every
+dish goes under one heading, named after the menu to start with (type another if you like).
+To fix just one heading, tap the small icon beside a section and type its new name under
+**Rename**. Give it the name of another section on the same menu and the two become one.
+Dishes keep their order, photos, stars and diet tags either way.
 
 **Re-scanning and deleting.** Open a menu and tap **Refresh** beside the date it was
 captured (it is under **•••** at the top too) to replace it with a fresh version - photograph it again or pull it from a
@@ -9779,6 +9786,7 @@ function Icon({name, size, color, fill}){
     nodes:   <g><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5L15.4 6.5"/><path d="M8.6 13.5L15.4 17.5"/></g>,
     split:   <g><path d="M12 21v-8"/><path d="M12 13 6 6"/><path d="m12 13 6-7"/><path d="M10 6H6v4"/><path d="M14 6h4v4"/></g>,   /* a stem branching in two: Split. "nodes" reads as Share */
     merge:   <g><path d="M6 20l6-8 6 8"/><path d="M12 12V3"/><path d="M8 7l4-4 4 4"/></g>,   /* two branches joining one stem: Move into */
+    combine: <g><path d="M3 5h6c3 0 4 7 8 7h4"/><path d="M3 19h6c3 0 4-7 8-7"/><path d="M3 12h4"/><path d="M18 9l3 3-3 3"/></g>,   /* three lines becoming one: Combine sections */
     reply:   <path d="M4 5h16v11H9l-5 4Z"/>,
     chat:    <g><path d="M4 5h16v11H9l-5 4Z"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" strokeWidth="2.6"/></g>,   /* Chat with us (2026-10-16) */   /* a speech bubble: a friend's reply */
     // Two figures = friends / connections. Deliberately distinct from `nodes`,
@@ -13747,6 +13755,22 @@ function App({openShare}){
             if (!next) return;      // nothing safe to delete: say nothing, write nothing
             commit({ menus: Object.assign({}, menus, { [rid]:next }) }, ["menus"]);
             flash("Section deleted");
+          }}
+          onRenameSection={(idx, name)=>{
+            const rid = overlay.restaurantId, mid = overlay.menuId;
+            const list = menus[rid] || [];
+            const secsOf = l => ((l.find(m => m.menu_id === mid) || {}).sections || []).length;
+            const next = renameMenuSection(list, mid, idx, name);
+            if (!next) return;      // nothing changed: say nothing, write nothing
+            commit({ menus: Object.assign({}, menus, { [rid]:next }) }, ["menus"]);
+            flash(secsOf(next) < secsOf(list) ? "Sections joined" : "Section renamed");
+          }}
+          onCombineSections={(name)=>{
+            const rid = overlay.restaurantId;
+            const next = combineMenuSections(menus[rid] || [], overlay.menuId, name);
+            if (!next) return;
+            commit({ menus: Object.assign({}, menus, { [rid]:next }) }, ["menus"]);
+            flash("Every dish is under " + String(name).trim());
           }}
           onSaveItemNutrition={(si, ii, nutrition)=>{
             // cache the per-item estimate onto the menu item in the repo so it
@@ -18223,6 +18247,59 @@ function deleteMenuSection(list, menuId, idx){
     : x);
 }
 
+/* Rename ONE section, or fold it into another section of the SAME menu by
+   giving it that section's name (1.586.0, 2026-11-08). Returns the whole
+   replacement list for that restaurant, or null when nothing would change: no
+   such menu or section, an empty name, or the name it already has.
+
+   Chris, 2026-11-08, of three scanned beer headings that were only the bar's
+   tap layout: "It really should just be every item on all those sections
+   consolidated under draft beer." RULE: a name that matches another section
+   here (ignoring case, and the quotes and capitals the heading display tidies)
+   JOINS it, the same rule the scan review and Move use, so the app has one
+   meaning for "same name". The joined section keeps its place and gains the
+   dishes at its end, in order; photos, stars and tags live inside each dish
+   and travel with it. Visits are untouched (they hold dishes by name). */
+function sectionNameKey(name){
+  return sectionHeading(String(name == null ? "" : name)).trim().toLowerCase();
+}
+function renameMenuSection(list, menuId, idx, rawName){
+  const name = String(rawName || "").trim().slice(0, 60);
+  const src = (list || []).find(x => x && x.menu_id === menuId);
+  const secs = (src && src.sections) || [];
+  if (!src || !name || typeof idx !== "number" || idx < 0 || idx >= secs.length) return null;
+  const key = sectionNameKey(name);
+  const into = secs.findIndex((x, i) => i !== idx && sectionNameKey(x && x.name) === key);
+  let next;
+  if (into >= 0){
+    next = secs.map((x, i) => i === into
+        ? Object.assign({}, x, { items: (x.items || []).concat(secs[idx].items || []) })
+        : x)
+      .filter((_x, i) => i !== idx);
+  } else {
+    if (String(secs[idx].name || "").trim() === name) return null;
+    next = secs.map((x, i) => i === idx ? Object.assign({}, x, { name: name }) : x);
+  }
+  return list.map(x => x.menu_id === menuId
+    ? Object.assign({}, x, { sections: next, last_updated: todayISO() }) : x);
+}
+
+/* Put every dish of a menu under ONE heading (1.586.0): the menu's
+   Combine sections. Returns the replacement list, or null when the menu has
+   fewer than two sections or the name is empty. Dishes keep their order
+   (section by section); the first section's other fields are kept. Duplicates
+   are NOT removed: the same beer listed twice was listed twice. */
+function combineMenuSections(list, menuId, rawName){
+  const name = String(rawName || "").trim().slice(0, 60);
+  const src = (list || []).find(x => x && x.menu_id === menuId);
+  const secs = (src && src.sections) || [];
+  if (!src || !name || secs.length < 2) return null;
+  const items = secs.reduce((all, x) => all.concat((x && x.items) || []), []);
+  const one = Object.assign({}, secs[0], { name: name, items: items });
+  return list.map(x => x.menu_id === menuId
+    ? Object.assign({}, x, { sections: [one], last_updated: todayISO() }) : x);
+}
+
 /* Move chosen sections out of one menu into another, by name. Returns the
    whole replacement list for that restaurant, or null when the move is not a
    move: nothing chosen, no name, or every section leaving (that is a rename,
@@ -18347,7 +18424,7 @@ function DishLookRow({ cfg, item, realPhotos, cuisine }){
   );
 }
 
-function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMenus, cfg, wineBook, onWineHaving, onWineSaveProfile, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onDeleteSection, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome, menuTabs, onSwitchMenu}){
+function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMenus, cfg, wineBook, onWineHaving, onWineSaveProfile, onClose, onReScan, onDeleteMenu, onSaveItemNutrition, onSaveItemPhoto, onRenameMenu, onSplitMenu, onDeleteSection, onSaveItemTags, onSaveItemSig, onHadThis, onRenameItem, onSaveTranslation, otherMenus, onMergeInto, onHome, menuTabs, onSwitchMenu, onCombineSections, onRenameSection}){
   // ••• (1.563.0): the menu's tools, opened on demand. They are things done now
   // and then, not on every visit, and six buttons in a row sat between the
   // menu's name and the menu itself.
@@ -18377,6 +18454,9 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
   const [shareErr, setShareErr] = useState(null);     // small note under the row
   const [renaming, setRenaming] = useState(false);    // rename this menu's name
   const [renameText, setRenameText] = useState((menu && menu.label) || "");
+  // Combine sections (1.586.0): every dish under one heading, named here.
+  const [combining, setCombining] = useState(false);
+  const [combineText, setCombineText] = useState("");
   // Show English (2026-10-07). Remembered on the device, so a traveller who
   // turns it on once sees English on every translated menu.
   const [enOn, setEnOn]     = useState(()=>{ try { return localStorage.getItem("mc_menu_en") === "1"; } catch(e){ return false; } });
@@ -18660,7 +18740,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             </button>
             {onRenameMenu ? (
               <button type="button" className="menu-tool"
-                onClick={()=>{ setToolsOpen(false); setRenameText(menu.label_typed ? (menu.label || "") : tidyShoutedLabel(String(menu.label || "").trim())); setRenaming(true); setSplitting(false); }}>
+                onClick={()=>{ setToolsOpen(false); setRenameText(menu.label_typed ? (menu.label || "") : tidyShoutedLabel(String(menu.label || "").trim())); setRenaming(true); setSplitting(false); setCombining(false); }}>
                 <Icon name="edit" size={17} color="var(--accent)" />
                 <span>Rename<span className="tsub">Change what this menu is called</span></span>
               </button>
@@ -18668,15 +18748,24 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             {onSplitMenu && (menu.sections || []).length > 1 ? (
               <button type="button" className="menu-tool"
                 onClick={()=>{ setToolsOpen(false); setSplitPick({}); setSplitText(""); setSplitTried(false);
-                               setSplitting(true); setRenaming(false); }}>
+                               setSplitting(true); setRenaming(false); setCombining(false); }}>
                 <Icon name="split" size={17} color="var(--accent)" />
                 <span>Split<span className="tsub">Move sections into a menu of their own</span></span>
+              </button>
+            ) : null}
+            {onCombineSections && (menu.sections || []).length > 1 ? (
+              <button type="button" className="menu-tool"
+                onClick={()=>{ setToolsOpen(false);
+                               setCombineText(menu.label_typed ? (menu.label || "") : tidyShoutedLabel(String(menu.label || "").trim()));
+                               setCombining(true); setRenaming(false); setSplitting(false); setMerging(false); }}>
+                <Icon name="combine" size={17} color="var(--accent)" />
+                <span>Combine sections<span className="tsub">Put every dish under one heading</span></span>
               </button>
             ) : null}
             {onMergeInto && (otherMenus || []).length > 0 ? (
               <button type="button" className="menu-tool"
                 onClick={()=>{ setToolsOpen(false); setMergeTo((otherMenus.length === 1) ? otherMenus[0].id : null);
-                               setMerging(true); setSplitting(false); setRenaming(false); }}>
+                               setMerging(true); setSplitting(false); setRenaming(false); setCombining(false); }}>
                 <Icon name="merge" size={17} color="var(--accent)" />
                 <span>Move into another menu<span className="tsub">Join this menu to another of this place's menus</span></span>
               </button>
@@ -18846,6 +18935,29 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             </div>
           </div>
         )}
+
+        {/* Combine sections (1.586.0): the name starts as the menu's own,
+            since one heading on a menu called Draft Beer is usually "Draft Beer". */}
+        {combining && onCombineSections && (menu.sections || []).length > 1 && (()=>{
+          const secCount = (menu.sections || []).length;
+          const total = (menu.sections || []).reduce((n, x) => n + ((x && x.items) || []).length, 0);
+          const go = ()=>{ const v = (combineText || "").trim(); if (v){ onCombineSections(v); setCombining(false); } };
+          return (
+            <div className="card" style={{marginBottom:10}}>
+              <div className="small muted" style={{marginBottom:8}}>
+                Put all {total} {total === 1 ? "dish" : "dishes"} from {secCount} sections under one heading, called:</div>
+              <ClearInput value={combineText} autoFocus
+                placeholder="e.g. Draft Beer, Mains, Desserts"
+                onChange={e=> setCombineText(e.target.value)}
+                onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); go(); } }} />
+              <div className="tiny faint" style={{marginTop:7}}>Dishes keep their order, photos, stars and diet tags.</div>
+              <div className="row" style={{gap:8, marginTop:10}}>
+                <button className="btn ghost sm" onClick={()=> setCombining(false)}>Cancel</button>
+                <button className="btn primary sm" disabled={!(combineText||"").trim()} onClick={go}>Combine</button>
+              </div>
+            </div>
+          );
+        })()}
 
         {shareErr && (
           <div className="tiny faint" style={{marginBottom:10}}>{shareErr}</div>
@@ -19090,6 +19202,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             ? (si, name)=> onSplitMenu([si], name) : null}
           moveTargets={(otherMenus || []).map(o => o.label).filter(Boolean)}
           onDeleteSection={onDeleteSection && (menu.sections || []).length > 1 ? onDeleteSection : null}
+          onRenameSection={onRenameSection || null}
           onHadThis={onHadThis}
           hadToday={(function(){
             const t = todayISO(), out = {};
@@ -19139,7 +19252,7 @@ function moveTargetMatch(names, value){
   return cur ? ((names || []).find(nm => String(nm || "").trim().toLowerCase() === cur) || "") : "";
 }
 
-function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx, moveTargets, showDishesTick}){
+function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx, moveTargets, showDishesTick, onRenameSection}){
   // Show in $ (2026-10-15): "" when the switch is off or a price is unclear.
   const fxOf = p => (fx ? fxPriceText(p, fx) : "");
   // Per-section split (2026-10-07): {si, name} while that section's panel is open.
@@ -19238,9 +19351,11 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
     const idx = (menu.sections || []).map((s, i) => (s && (s.items || []).length) ? i : -1).filter(i => i >= 0);
     return idx.length === 1 ? idx[0] : -1;
   })();
+  // The section count is in the list too (1.586.0): joining two sections
+  // renumbers the rest, so an open section's number would point at another.
   useEffect(()=>{ fold.reset(); if (loneSec >= 0) fold.open(loneSec); },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [menu && menu.menu_id, loneSec]);
+  [menu && menu.menu_id, loneSec, ((menu && menu.sections) || []).length]);
   // "See the dishes" (MenuDetail) asks for this: open the first section when
   // none is open, then bring the dishes into view. On a short menu the list is
   // already on screen, so scrolling alone moved nothing and the tap looked broken.
@@ -19358,16 +19473,44 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
           </button>
           {onSplitSection ? (
             <button type="button" className="msec-split"
-              aria-label={"Move or delete " + (s.name || "this section")}
-              title="Move this section into its own menu, or delete it"
+              aria-label={"Rename, move or delete " + (sectionHeading(s.name) || "this section")}
+              title="Rename this section, move it into its own menu, or delete it"
               onClick={()=> setSecSplit(ss => (ss && ss.si === i) ? null
-                : { si:i, name:String(s.name || "").trim() })}>
+                : { si:i, name:String(s.name || "").trim(), rn:sectionHeading(s.name) })}>
               <Icon name="split" size={15} color="var(--text-dim)" />
             </button>
           ) : null}
           </div>
           {secSplit && secSplit.si === i ? (
             <div className="card" style={{margin:"4px 0 10px", padding:"11px 13px"}}>
+              {/* Rename (1.586.0) sits first: fixing a scanned heading is the
+                  common wish. Typing another section's name here joins them. */}
+              {onRenameSection ? (()=>{
+                const rn = String(secSplit.rn == null ? "" : secSplit.rn);
+                const key = sectionNameKey(rn);
+                const joinSec = key ? (menu.sections || []).find((x, j) => j !== i && sectionNameKey(x && x.name) === key) : null;
+                const unchanged = !joinSec && rn.trim() === sectionHeading(s.name);
+                const canSave = !!rn.trim() && !unchanged;
+                const save = ()=>{ if (canSave){ onRenameSection(i, rn.trim()); setSecSplit(null); } };
+                return (
+                  <div style={{marginBottom:12, paddingBottom:11, borderBottom:"1px solid var(--line-soft)"}}>
+                    <div className="small" style={{marginBottom:8}}>
+                      Rename <strong>{sectionHeading(s.name) || "this section"}</strong>:</div>
+                    <ClearInput value={rn} placeholder="Section name (e.g. Draft Beer)"
+                      onChange={e=> setSecSplit(Object.assign({}, secSplit, { rn: e.target.value }))}
+                      onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); save(); } }} />
+                    {joinSec ? (
+                      <div className="tiny faint" style={{marginTop:6}}>
+                        That's another section's name here, so these {(s.items || []).length}{" "}
+                        {(s.items || []).length === 1 ? "dish joins" : "dishes join"} it.</div>
+                    ) : null}
+                    <div className="row" style={{gap:8, marginTop:9}}>
+                      <button className="btn primary sm" disabled={!canSave} onClick={save}>
+                        {joinSec ? "Join " + sectionHeading(joinSec.name) : "Save name"}</button>
+                    </div>
+                  </div>
+                );
+              })() : null}
               {(moveTargets || []).length ? (
                 <>
                   <div className="small" style={{marginBottom:8}}>

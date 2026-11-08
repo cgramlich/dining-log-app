@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.585.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 |
+| Web app | **1.586.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
 | Backend | **0.164.1** | Railway, `/health` reports `db connected` (0.164.1 shipped from the Mac 2026-11-08: `GROUP_RETENTION_DAYS` read safely) |
-| Native shell | **1.585.0** | bundle `e0937fd` (2026-11-08), iOS fixes since `c022055`, **not yet submitted to any store** |
+| Native shell | **1.586.0** | rebuilt on the Mac from web 1.586.0 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -415,6 +415,33 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### Combine and rename sections (2026-11-08, app 1.586.0)
+
+Chris, at Pizza Italia: a scan saved one beer list under three headings that were only the bar's tap
+layout ("BEER TAPS FRONT SIDE", "BEER TAPS BAR SIDE (Cont.)", "BEER TAPS BAR SIDE"), and "It really should
+just be every item on all those sections consolidated under draft beer." Saved menus could move or delete
+a section but not rename one or fold two together. He chose "Build both" by card.
+
+- **Menu ••• > Combine sections** (2+ sections only): every dish under one heading, the name starting as
+  the menu's own (tidy case unless typed). `combineMenuSections`: order kept section by section, the first
+  section's other fields kept, duplicates NOT removed (a beer listed twice was listed twice).
+- **Rename** at the top of each section's panel (the split icon). `renameMenuSection`: a name matching
+  another section on the same menu JOINS it (the dishes go to the end of that section, which keeps its
+  place). Matching uses `sectionNameKey` = `sectionHeading` lowercased, so case, the display's quote
+  stripping and tidy capitals can't make "the same name" mean two things. Same rule as the scan review
+  and the menu Move.
+- `MenuView`'s fold reset now also runs when the section COUNT changes: a join renumbers sections, and an
+  open section's number would otherwise point at a different one.
+- Road not taken: drag-to-reorder or a multi-select merge. The two named actions cover the case Chris hit
+  in two taps, and match the Rename/Move cards already on the page (5 Mobbin rename sheets: one field,
+  one Save).
+- A lone section shows no panel icon (moving the only section out is a rename of the menu), so the
+  heading of a one-section menu is renamed by Combine sections only. Fine for now; revisit if asked.
+- Visits are untouched (dishes by name). Group-order picks key by "si:ii" while a session is open, so
+  combining during a live group order could shift picks; not handled, rare.
+- Tested on the Mac at 375 px against a pretend server: join 3 -> 2 sections (4 + 3 = 7, in order), then
+  Combine -> one "Draft Beer" section of 12, saved shape checked, no page errors.
 
 ### Wine profile (2026-11-07, app 1.584.0, server 0.164.0)
 
@@ -3674,8 +3701,8 @@ Setup for any new Mac: `Dropbox/My AI/CG Apps/MenuCaptain/Machine Setup/` (`NEW-
 Saturdays 6 PM Central, Mac paths, venv Python; the Nov 8 issue rebuilt word for word) and the PC's
 copy is paused; backend **0.164.1** (`9da7271`) reads `GROUP_RETENTION_DAYS` through `_env_int`, so the
 portfolio audit (run from its Dropbox copy) is clean.
-**Still to do for the move:** one full release from the Mac as proof (web, native and iPhone), then
-Chris archives the PC session.
+**Proof release: 1.586.0** (Combine sections and Rename a section), built, tested at 375 px and shipped
+from the Mac: web, native bundle and Chris's iPhone. **Left:** Chris archives the PC session.
 
 **The launch plan (agreed in outline 2026-11-08; Chris: design changes first).** One web app feeds the
 website, iOS and Android, so a design change lands on all three; building iOS on the Mac changes nothing
