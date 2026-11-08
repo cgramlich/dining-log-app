@@ -24,7 +24,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 |---|---|---|
 | Web app | **1.584.2** | menucaptain.com (GitHub Pages), pushed 2026-11-08 |
 | Backend | **0.164.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.584.2** | built and pushed 2026-11-08 (`674bfeb`), **not yet submitted to any store** |
+| Native shell | **1.584.2** | bundle `674bfeb`, iOS fixes `c022055` (2026-11-08), **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -3667,16 +3667,25 @@ for Android, which keeps building on the Windows PC.
 7. **Submit** to both stores.
 
 **Step 1b started 2026-11-08:** a BUILD-ONLY Mac session (macOS 27.2, Xcode 27.2 build 27B52, Node 24, CocoaPods 1.17,
-`gh` as cgramlich) is putting a private build on Chris's iPhone from native `674bfeb` (1.584.2). Its `cap sync ios`
-Podfile and Xcode team changes stay on the Mac; ask it for the diff when TestFlight starts.
+`gh` as cgramlich) put a private build on Chris's iPhone from native `674bfeb` (1.584.2). It sent its changes back as
+`MAC-IOS-CHANGES-2026-11-08.md` (MenuCaptain folder); applied here as **`c022055`**:
+- **Minimum iOS is now 15.0.** Xcode 27 refuses lower, and Capacitor 6's pods ask for 13.0, so the Podfile's
+  post_install raises every pod. iPhones on iOS 13 or 14 cannot install the app.
+- **Scene lifecycle** (`Info.plist` manifest + `SceneDelegate` in `AppDelegate.swift`, forwarding links to
+  Capacitor). Without it the app stops at launch on iOS 27 when built with the Xcode 27 SDK. Capacitor 8.5's
+  own guide makes the same change ("Xcode 27 requires it"); upgrading Capacitor instead is parked.
+- The Podfile now lists the five plugin pods, and `DEVELOPMENT_TEAM` is **`HS3XN3K98S`** (MilSpo Life LLC,
+  a paid Company team, read in Xcode on the Mac 2026-11-08).
+- Open from that build: one "JS Eval error" from Capacitor just before React mounts; the app ran on.
+  Camera, Share and location on the phone not yet confirmed under the scene lifecycle.
 
 **TestFlight on the Mac: proposed 2026-11-08, Chris said "Not yet".** Do not re-propose; he raises it.
 When he does: here, stamp iOS `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` from APP_VERSION in
 `build.js` (today every iOS build is 1.0 build 1, so a second upload would be refused), rebuild the
 bundle, write a Mac build guide into the native repo. On the Mac, Chris only signs in (Xcode, Apple
 developer account, Claude Code, GitHub, Mac password once); a Mac Claude session clones, `npm ci`,
-`npx cap sync ios` (the Podfile still lacks the five plugins: cap sync cannot run pod install on
-Windows), sets the team (`DEVELOPMENT_TEAM` is unset), builds, archives, uploads. That session is
+`npx cap sync ios` (CocoaPods needs `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8`), builds, archives,
+uploads. The Podfile and team gaps were closed in `c022055`; the version stamp is the one left. That session is
 BUILD-ONLY; code changes come back here. Apple's `xcode` plugin for Claude Code is real (Anthropic's
 official marketplace, added 2026-11-06, author Apple Inc., loads from Xcode via
 `xcrun agent plugin path --plugin-format claude`).
