@@ -1322,7 +1322,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.584.2";
+const APP_VERSION   = "1.585.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2267,7 +2267,10 @@ dessert. Expand all shows the whole menu, and you can still fold individual
 courses from there. Collapse all shuts everything and puts you back to one at a
 time. Whichever you pick is remembered on that device and used for every menu
 you open after it - your own menus, a group order, a shared visit, a shared
-menu. Searching a menu always shows every match, whatever option is set.
+menu. Searching a menu always shows every match, whatever option is set. A menu
+with only one course opens with it showing. When a place has several menus, the
+line under its menu tabs says what this one holds: tap **See the dishes** to open
+the first course and go straight to it.
 
 **Dietary filters.** Open a menu and tap the diet chips (vegetarian, vegan,
 gluten-free, and friends) to narrow the list to dishes that fit - tags come
@@ -2339,7 +2342,9 @@ it instead.
 
 **Renaming a menu.** Tap the menu's name at the top of its page (the one with
 the small pencil beside it), or **•••** and **Rename**, and type a new one - **Dinner**, **Brunch**,
-**Wine list**. Do it any time, not just right after you add it.
+**Wine list**. Do it any time, not just right after you add it. Menu names and
+section headings printed in capitals show in ordinary case (BEER TAPS becomes
+Beer Taps); a menu name you type here shows exactly as you typed it.
 
 **Re-scanning and deleting.** Open a menu and tap **Refresh** beside the date it was
 captured (it is under **•••** at the top too) to replace it with a fresh version - photograph it again or pull it from a
@@ -2351,6 +2356,12 @@ on the old items are not carried over.
 rather than Refresh and give it a name the place already uses, the review screen
 says so and asks which you meant: **Replace it** (the usual answer - a matching
 name almost always means a fresher copy of the same menu) or **Keep both**.
+
+**A page that carries on another.** When a page you scan is headed "(Cont.)" or
+"continued", the review screen offers to **Add it to** the menu it carries on (the
+one with that section, or the one you saved there last), so a long beer list stays
+one menu. Its dishes join the section of the same name, and a dish already there
+is not listed twice. Choose **Keep it separate** to save it as a menu of its own.
 
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, each
@@ -6370,6 +6381,67 @@ function mergeMenuPages(pages){
   return out;
 }
 
+/* A page that says it carries on another (Chris, 2026-11-08, Pizza Italia on
+   the iPhone): "BEER TAPS BAR SIDE (Cont.)" was saved as a menu of its own
+   beside "Beer". The review screen now offers to add such a page to the menu it
+   continues. RULE (Chris, by card): offer, never join silently; adding is the
+   default and Keep it separate is one tap. Only the END of a name counts
+   ("Beer (Cont.)", "Wines, continued", "Cocktails cont'd"), so "Discontinued
+   specials" is not a match. */
+const CONTINUED_TAIL = /\s*(?:[(\[]\s*(?:cont(?:inued|'?d)?\.?)\s*[)\]]|[-\u2013\u2014:,]?\s*\b(?:continued|cont'?d)\b\.?|[-\u2013\u2014:,]?\s*\bcont\.)\s*$/i;
+function isContinuedName(t){ return CONTINUED_TAIL.test(String(t || "").trim()); }
+function continuedBase(t){ return String(t || "").trim().replace(CONTINUED_TAIL, "").trim(); }
+// Which saved menu a continued page carries on: one with a section of that name,
+// else one with that name, else the menu saved here last (a continued page is
+// usually photographed right after the page before it).
+function continuedTarget(menusHere, name){
+  const list = menusHere || [];
+  const base = foldText(continuedBase(name));
+  if (base){
+    const bySec = list.find(m => (m.sections || []).some(s => foldText(String((s && s.name) || "").trim()) === base));
+    if (bySec) return bySec;
+    const byLabel = list.find(m => foldText(String((m && m.label) || "").trim()) === base);
+    if (byLabel) return byLabel;
+  }
+  let best = null, bestAt = "";
+  list.forEach(m => {
+    const at = String((m && (m.captured_date || m.last_updated)) || "");
+    if (!best || at >= bestAt){ best = m; bestAt = at; }
+  });
+  return best;
+}
+// Pure: a continued page's sections added to the menu it carries on. A
+// "(Cont.)" heading joins the section of the same name; a first section with no
+// heading carries on the menu's last section; a dish already there (same name
+// and price) is not added twice. Dishes already saved are kept as they are, so
+// their photos, tags and estimates stay.
+function joinContinuedSections(targetSecs, newSecs){
+  const out = JSON.parse(JSON.stringify(targetSecs || []));
+  const byName = {};
+  out.forEach(s => { const k = foldText(String((s && s.name) || "").trim()); if (k && !(k in byName)) byName[k] = s; });
+  (newSecs || []).forEach((sec, si) => {
+    const items = ((sec && sec.items) || []).filter(it => it && String(it.name || "").trim());
+    if (!items.length) return;
+    const nm = continuedBase(sec.name);
+    const k = foldText(nm);
+    let tgt = k ? byName[k] : (si === 0 && out.length ? out[out.length - 1] : null);
+    if (!tgt){
+      tgt = Object.assign({}, sec, { name: nm || String(sec.name || ""), items: [] });
+      out.push(tgt);
+      if (k) byName[k] = tgt;
+    }
+    const have = {};
+    (tgt.items || []).forEach(it => { have[menuPageItemKey(it)] = true; });
+    tgt.items = (tgt.items || []).concat(items.filter(it => {
+      const key = menuPageItemKey(it);
+      if (have[key]) return false;
+      have[key] = true;
+      return true;
+    }));
+  });
+  return out;
+}
+
 // Pages of one menu printed in different languages are almost always the SAME
 // dishes twice (Italian pages, then English pages). Read apart, every dish
 // would be listed in both. Only one request that sees all the pages can pair
@@ -7502,12 +7574,33 @@ const MENU_DEAD_END_WHY = {
 };
 
 /* What to call a menu on screen. "Main" alone reads as a course or a room, so
-   it becomes "Main menu"; every other label is left exactly as the user wrote
-   it, because a blanket suffix turns "Wine List" into "Wine List menu". */
-function menuDisplayLabel(label){
+   it becomes "Main menu"; no other label gets a suffix, because a blanket one
+   turns "Wine List" into "Wine List menu".
+   RULE (Chris, 2026-11-08, by card): a name in the menu's own capitals ("BEER
+   TAPS BAR SIDE") shows in tidy case ("Beer Taps Bar Side"), the way section
+   headings already read. Display only: the stored name stays as scanned. A name
+   typed in Rename (`typed`, the menu's label_typed) shows exactly as typed. */
+function menuDisplayLabel(label, typed){
   const t = String(label || "").trim();
   if (!t) return "Menu";
-  return /^main$/i.test(t) ? "Main menu" : t;
+  if (/^main$/i.test(t)) return "Main menu";
+  return typed ? t : tidyShoutedLabel(t);
+}
+// Menu words that are capitals on purpose and stay that way.
+const MENU_LABEL_CAPS = { BBQ:1, IPA:1, BLT:1, BYOB:1, AYCE:1, NY:1, NYC:1, USA:1, UK:1, DJ:1, TV:1 };
+// Pure: "BEER TAPS BAR SIDE (Cont.)" -> "Beer Taps Bar Side (Cont.)". Only a
+// name whose words outside brackets are ALL capitals changes; anything with a
+// lower-case letter out there was written that way and is left alone. Words in
+// brackets keep their casing. Not printedNameCase, which also capitalizes after
+// an apostrophe ("Chef'S").
+function tidyShoutedLabel(t){
+  const parts = String(t || "").split(/([(\[][^)\]]*[)\]])/);
+  const outside = parts.filter((p, i) => i % 2 === 0).join(" ");
+  if (outside === outside.toLowerCase() || outside !== outside.toUpperCase()) return t;
+  return parts.map((p, i) => i % 2 ? p : p.replace(/\S+/g, w =>
+    MENU_LABEL_CAPS[w.replace(/[^A-Za-z]/g, "")] ? w
+      : w.toLowerCase().replace(/(^[^A-Za-z0-9\u00C0-\u024F]*|[\-\/&])([a-z\u00E0-\u024F])/g,
+                                (m, a, b) => a + b.toUpperCase()))).join("");
 }
 
 /* The corrected address when an email's domain looks like a slip for a common
@@ -7650,14 +7743,17 @@ function searchDishes(query, pool, meta, exclude){
 // headings saved under the quoted names. A quote inside a heading
 // ('The "Big" One', '"A" and "B"') is part of the name and stays.
 const HEADING_QUOTES = { '"':'"', "\u201c":"\u201d", "\u201e":"\u201c", "\u00ab":"\u00bb", "'":"'", "\u2018":"\u2019" };
+// RULE (Chris, 2026-11-08, by card): a heading printed in capitals shows in
+// ordinary case ("BEER TAPS BAR SIDE" -> "Beer Taps Bar Side"), the same rule as
+// menu names (tidyShoutedLabel). Display only, like the quotes above.
 function sectionHeading(name){
   const t = String(name == null ? "" : name).trim();
-  if (t.length < 3) return t;
+  if (t.length < 3) return tidyShoutedLabel(t);
   const close = HEADING_QUOTES[t[0]];
-  if (!close || t[t.length - 1] !== close) return t;
+  if (!close || t[t.length - 1] !== close) return tidyShoutedLabel(t);
   const inner = t.slice(1, -1).trim();
-  if (!inner || inner.indexOf(t[0]) !== -1 || inner.indexOf(close) !== -1) return t;
-  return inner;
+  if (!inner || inner.indexOf(t[0]) !== -1 || inner.indexOf(close) !== -1) return tidyShoutedLabel(t);
+  return tidyShoutedLabel(inner);
 }
 // A section heading as words in a sentence: quotes dropped, and SHOUTED
 // headings ("FLAUTAS") in title case ("Flautas").
@@ -13607,14 +13703,14 @@ function App({openShare}){
             const lbl = (newLabel || "").trim().slice(0,40);
             if (!lbl) return;
             const restMenus = (menus[overlay.restaurantId] || []).map(m =>
-              m.menu_id === overlay.menuId ? Object.assign({}, m, { label:lbl, last_updated:todayISO() }) : m);
+              m.menu_id === overlay.menuId ? Object.assign({}, m, { label:lbl, label_typed:true, last_updated:todayISO() }) : m);
             commit({ menus: Object.assign({}, menus, { [overlay.restaurantId]:restMenus }) }, ["menus"]);
             flash("Menu renamed");
           }}
           otherMenus={(menus[overlay.restaurantId] || [])
             .filter(m => m.menu_id !== overlay.menuId)
-            .map(m => ({ id: m.menu_id, label: m.label }))}
-          menuTabs={(menus[overlay.restaurantId] || []).map(m => ({ id: m.menu_id, label: m.label }))}
+            .map(m => ({ id: m.menu_id, label: m.label, typed: !!m.label_typed }))}
+          menuTabs={(menus[overlay.restaurantId] || []).map(m => ({ id: m.menu_id, label: m.label, typed: !!m.label_typed }))}
           onSwitchMenu={(id)=> setOverlay({ type:"menuDetail", restaurantId:overlay.restaurantId, menuId:id })}
           onMergeInto={(targetId)=>{
             // The way back after a split: every section joins the target, a saved
@@ -13633,7 +13729,7 @@ function App({openShare}){
               .map(m => m.menu_id === targetId ? merged : m);
             commit({ menus: Object.assign({}, menus, { [rid]: restMenus }) }, ["menus"]);
             setOverlay({ type:"menuDetail", restaurantId: rid, menuId: targetId });
-            flash("Moved into " + menuDisplayLabel(dst.label || "Menu"));
+            flash("Moved into " + menuDisplayLabel(dst.label || "Menu", dst.label_typed));
           }}
           onSplitMenu={(idxs, newLabel)=>{
             const rid = overlay.restaurantId;
@@ -14151,7 +14247,7 @@ function App({openShare}){
             if (!(opts && opts.stayOpen)){
               setOverlay(overlay.returnTo
                 ? overlay.returnTo
-                : isReplace
+                : (isReplace || (opts && opts.joinedInto))
                   ? { type:"menuDetail", restaurantId:restId, menuId:menusToSave[0].menu_id }
                   : { type:"restaurant", id:restId });
             }
@@ -14159,6 +14255,7 @@ function App({openShare}){
             const extraCount = extra.reduce((a, part) => a + part.menus.length, 0);
             const baseMsg = extraCount ? (menusToSave.length + extraCount) + " menus saved to " + (1 + extra.length) + " places"
               : !menusToSave.length ? "Saved their story to In their words"
+              : (opts && opts.joinedInto) ? "Added to " + menuDisplayLabel(menusToSave[0].label || "Menu", menusToSave[0].label_typed)
               : isReplace ? "Menu replaced"
               : (menusToSave.length > 1 ? menusToSave.length + " menus saved" : "Menu saved");
             // Deliberately no share offer here. The restaurant page already
@@ -17776,7 +17873,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             <div className="menu-row" onClick={()=> onOpenMenu(m0.menu_id)}>
               <span className="menu-row-ic"><Icon name="book" size={17} color="var(--accent)" /></span>
               <div style={{flex:1, minWidth:0}}>
-                <div className="menu-row-label">{menuDisplayLabel(m0.label)}</div>
+                <div className="menu-row-label">{menuDisplayLabel(m0.label, m0.label_typed)}</div>
                 <div className="tiny faint" style={{marginTop:3}}>
                   {n0} item{n0 === 1 ? "" : "s"}
                   {m0.captured_date ? "  ·  Captured " + fmtDate(m0.captured_date) : ""}
@@ -17842,7 +17939,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                 )}
                 <span className="menu-row-ic"><Icon name="book" size={17} color="var(--accent)" /></span>
                 <div style={{flex:1, minWidth:0}}>
-                  <div className="menu-row-label">{menuDisplayLabel(m.label)}</div>
+                  <div className="menu-row-label">{menuDisplayLabel(m.label, m.label_typed)}</div>
                   <div className="tiny faint" style={{marginTop:3}}>
                     {itemCount} item{itemCount === 1 ? "" : "s"}
                     {"  \u00b7  Captured " + fmtDate(m.captured_date)}
@@ -18255,6 +18352,8 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
   // and then, not on every visit, and six buttons in a row sat between the
   // menu's name and the menu itself.
   const [toolsOpen, setToolsOpen] = useState(false);
+  // Each tap on "See the dishes" counts up; MenuView opens and shows the dishes.
+  const [showDishes, setShowDishes] = useState(0);
   // Move into another menu (2026-10-07): the way back after a split.
   const [merging, setMerging]   = useState(false);
   // Wine for me (1.584.0), from every wine list at this place: the wine list is
@@ -18502,11 +18601,11 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             {onRenameMenu ? (
               <button className="title-btn" aria-expanded={renaming}
                 aria-label={"Rename this menu, now called " + (menu.label || "Menu")}
-                onClick={()=>{ setRenameText(menu.label || ""); setRenaming(r => !r); setSplitting(false); setToolsOpen(false); }}>
-                <span className="t">{menuDisplayLabel(menu.label || "Menu")}</span>
+                onClick={()=>{ setRenameText(menu.label_typed ? (menu.label || "") : tidyShoutedLabel(String(menu.label || "").trim())); setRenaming(r => !r); setSplitting(false); setToolsOpen(false); }}>
+                <span className="t">{menuDisplayLabel(menu.label || "Menu", menu.label_typed)}</span>
                 <Icon name="edit" size={14} color={renaming ? "var(--accent)" : "var(--text-dim)"} />
               </button>
-            ) : menuDisplayLabel(menu.label || "Menu")}
+            ) : menuDisplayLabel(menu.label || "Menu", menu.label_typed)}
           </h2>
         </div>
       </div>
@@ -18522,7 +18621,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
                 <button key={t.id} type="button" role="tab" aria-selected={on}
                   className={"menu-tab" + (on ? " on" : "")}
                   onClick={()=>{ if (!on){ setToolsOpen(false); onSwitchMenu(t.id); } }}>
-                  {menuDisplayLabel(t.label || "Menu")}
+                  {menuDisplayLabel(t.label || "Menu", t.typed)}
                 </button>
               );
             })}
@@ -18530,7 +18629,8 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
         ) : null}
         {(menuTabs || []).length > 1 && onSwitchMenu ? (()=>{
           // What the menu on screen holds, so a tap on a tab visibly changes
-          // something, and a way down to its dishes (2026-10-20).
+          // something, and a way down to its dishes (2026-10-20). The tap opens
+          // the first section as well as scrolling (1.585.0).
           const secs = (menu.sections || []).filter(x => x && (x.items || []).length);
           const dishes = secs.reduce((n, x) => n + (x.items || []).length, 0);
           if (!dishes) return null;
@@ -18538,7 +18638,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
           const more = secs.length - names.length;
           return (
             <button type="button" className="menu-contents"
-              onClick={()=>{ const el = document.querySelector(".overlay .msec-headrow, .overlay .menu-fold"); if (el && el.scrollIntoView) el.scrollIntoView({ behavior:"smooth", block:"start" }); }}>
+              onClick={()=> setShowDishes(n => n + 1)}>
               <span className="menu-contents-text">
                 {dishes + (dishes === 1 ? " dish" : " dishes") + (names.length ? ": " + names.join(", ") + (more > 0 ? " and " + more + " more" : "") : "")}
               </span>
@@ -18560,7 +18660,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             </button>
             {onRenameMenu ? (
               <button type="button" className="menu-tool"
-                onClick={()=>{ setToolsOpen(false); setRenameText(menu.label || ""); setRenaming(true); setSplitting(false); }}>
+                onClick={()=>{ setToolsOpen(false); setRenameText(menu.label_typed ? (menu.label || "") : tidyShoutedLabel(String(menu.label || "").trim())); setRenaming(true); setSplitting(false); }}>
                 <Icon name="edit" size={17} color="var(--accent)" />
                 <span>Rename<span className="tsub">Change what this menu is called</span></span>
               </button>
@@ -18661,7 +18761,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             moved behind ••• in the heading (1.563.0). */}
         {merging && (otherMenus || []).length > 0 && (
           <div className="card" style={{marginBottom:10}}>
-            <div className="small" style={{fontWeight:600, marginBottom:4}}>Move {menuDisplayLabel(menu.label || "Menu")} into</div>
+            <div className="small" style={{fontWeight:600, marginBottom:4}}>Move {menuDisplayLabel(menu.label || "Menu", menu.label_typed)} into</div>
             <div className="tiny faint" style={{marginBottom:9}}>
               All {(menu.sections || []).length === 1 ? "of its section" : "its " + (menu.sections || []).length + " sections"} join the menu you pick, and this one is removed.
             </div>
@@ -18669,7 +18769,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
               {otherMenus.map(om => (
                 <button key={om.id} type="button" className={"chip pick" + (mergeTo === om.id ? " on" : "")}
                   aria-pressed={mergeTo === om.id} onClick={()=> setMergeTo(om.id)}>
-                  {menuDisplayLabel(om.label || "Menu")}
+                  {menuDisplayLabel(om.label || "Menu", om.typed)}
                 </button>
               ))}
             </div>
@@ -18975,7 +19075,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
           )}
         </div>
 
-        <MenuView menu={menu} cfg={cfg} noGroupOrder
+        <MenuView menu={menu} cfg={cfg} noGroupOrder showDishesTick={showDishes}
           restaurantName={restaurant ? restaurant.name : ""}
           cuisine={restaurant ? restaurant.cuisine : ""}
           dishPhotos={dishPhotos}
@@ -19039,7 +19139,7 @@ function moveTargetMatch(names, value){
   return cur ? ((names || []).find(nm => String(nm || "").trim().toLowerCase() === cur) || "") : "";
 }
 
-function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx, moveTargets}){
+function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx, moveTargets, showDishesTick}){
   // Show in $ (2026-10-15): "" when the switch is off or a price is unclear.
   const fxOf = p => (fx ? fxPriceText(p, fx) : "");
   // Per-section split (2026-10-07): {si, name} while that section's panel is open.
@@ -19129,6 +19229,28 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
     });
     return { s, i, items };
   }).filter(x => !q || x.items.length);
+
+  // RULE (Chris, 2026-11-08, by card, from his first use of the iPhone app):
+  // a menu with one section opens with it unfolded. With nothing to fold
+  // against there is no fold bar, so a folded lone section only hid the dishes
+  // behind another tap.
+  const loneSec = (function(){
+    const idx = (menu.sections || []).map((s, i) => (s && (s.items || []).length) ? i : -1).filter(i => i >= 0);
+    return idx.length === 1 ? idx[0] : -1;
+  })();
+  useEffect(()=>{ fold.reset(); if (loneSec >= 0) fold.open(loneSec); },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [menu && menu.menu_id, loneSec]);
+  // "See the dishes" (MenuDetail) asks for this: open the first section when
+  // none is open, then bring the dishes into view. On a short menu the list is
+  // already on screen, so scrolling alone moved nothing and the tap looked broken.
+  useEffect(()=>{
+    if (!showDishesTick) return;
+    if (sections.length && !sections.some(x => fold.isOpen(x.i))) fold.open(sections[0].i);
+    const el = document.querySelector(".overlay .msec-headrow, .overlay .menu-fold");
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior:"smooth", block:"start" });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDishesTick]);
 
   async function estimateOne(si, ii, it){
     const key = si + ":" + ii;
@@ -26784,6 +26906,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   const [addedUrls,setAddedUrls]   = useState([]);      // which of foundMenus are already saved this session (the add-another loop)
   // "replace" (a same-named menu here is the same menu, refreshed) or "both".
   const [dupMode,setDupMode]   = useState("replace");
+  // A continued page: true = add it to the menu it carries on (the default).
+  const [contJoin,setContJoin] = useState(true);
   // Photos from two restaurants, saved apart (1.566.0): null unless the photos
   // print two or more restaurant names, else { on, assign: group per photo,
   // groups: [{ title, label, dest }] } where dest is "main" (the place chosen
@@ -27222,7 +27346,17 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
     // ---- build the menus to save ----
     let menusToSave;
-    if (isReplace){
+    if (joining){
+      // A continued page joins the menu it carries on. Same id, so the save
+      // refreshes that menu in place instead of adding a second one.
+      const t = contInfo.target;
+      menusToSave = [Object.assign({}, t, {
+        sections:     joinContinuedSections(t.sections, sections),
+        translation:  mergeTranslation(t.translation, result.translation),
+        last_updated: todayISO(),
+      })];
+      logMsg("SCAN", "Adding a continued page to the menu '" + (t.label || "Menu") + "'");
+    } else if (isReplace){
       // re-scan: always single menu, replace existing by menu_id
       menusToSave = [{
         menu_id:       presetMenu.menu_id,
@@ -27314,14 +27448,15 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     // A story-only save is never a replace: there is no menu to swap in, and
     // replacing a menu with nothing would empty it.
     onSave(targetRestId, menusToSave, newRestaurant, isReplace && menusToSave.length > 0,
-           { stayOpen, houseStory: (result && result.house_story) || "" });
+           { stayOpen, houseStory: (result && result.house_story) || "",
+             joinedInto: (joining && menusToSave.length) ? contInfo.target.menu_id : "" });
     // Saved: the server drops its copy of what it read.
     if (jobId && jobLoaded.current){ collectScanJob(config, jobId); jobLoaded.current = false; setJobId(""); }
     if (stayOpen){
       setAddedUrls(prev => prev.concat([curUrl]));
       setRestId(targetRestId);           // later menus land in the same place
       setResult(null); setPreviews([]); setDataUrls([]); setErrMsg("");
-      setLabel(""); setUrlInput("");
+      setLabel(""); setUrlInput(""); setContJoin(true);
       setStep("menupick");
     }
   }
@@ -27361,6 +27496,18 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   // top-level toggle is only shown for multi-section new scans
   const showModeToggle = !presetMenu && sectionCount >= 2 && !splitOn;
   const inCustomMode   = showModeToggle && saveMode === "custom";
+  // A page headed "(Cont.)" or "continued": the saved menu here it carries on.
+  // Not for a re-scan, photos split between places, or a place with no menus.
+  const contInfo = (function(){
+    if (!result || presetMenu || !restId || splitOn) return null;
+    const here = (menus || {})[restId] || [];
+    if (!here.length) return null;
+    const hit = (result.sections || []).map(s => s && s.name).concat([label]).find(isContinuedName);
+    if (!hit) return null;
+    const target = continuedTarget(here, hit);
+    return target ? { target: target, name: hit } : null;
+  })();
+  const joining = !!contInfo && contJoin;
 
   // in custom mode every section needs a non-empty destination
   const allCustomLabeled = !inCustomMode || sectionExtracts.every(v =>
@@ -27396,9 +27543,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
   const canSave = splitOn ? splitReady : !!result &&
     (restId || newName.trim() || (result && result.restaurant_name)) &&
-    (inCustomMode
+    (joining || (inCustomMode
       ? allCustomLabeled && previewMenus.length > 0
-      : !!(label || "").trim() || !!presetMenu);
+      : !!(label || "").trim() || !!presetMenu));
 
   // "Other..." pill state for the single label input (one-menu / re-scan / 1-section)
   const trimmedLabel = label.trim();
@@ -27805,8 +27952,29 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               </div>
             ) : null}
 
+            {/* A continued page (1.585.0): offer to add it to the menu it carries
+                on. Adding is the default; Keep it separate is one tap away. */}
+            {contInfo ? (
+              <div className="card" style={{padding:"10px 12px", marginTop:4, marginBottom:10,
+                   border:"1px solid rgba(224,118,74,0.35)"}}>
+                <div className="small" style={{marginBottom:8}}>
+                  This page carries on another menu: <strong>{tidyShoutedLabel(sectionHeading(contInfo.name))}</strong>.
+                </div>
+                <label className="row" style={{gap:9, alignItems:"flex-start", marginBottom:6}}>
+                  <input type="radio" checked={contJoin}
+                    onChange={()=> setContJoin(true)} style={{marginTop:3}} />
+                  <span className="small"><strong>Add it to {menuDisplayLabel(contInfo.target.label || "Menu", contInfo.target.label_typed)}</strong>, so it stays one menu.</span>
+                </label>
+                <label className="row" style={{gap:9, alignItems:"flex-start"}}>
+                  <input type="radio" checked={!contJoin}
+                    onChange={()=> setContJoin(false)} style={{marginTop:3}} />
+                  <span className="small"><strong>Keep it separate</strong> as a menu of its own.</span>
+                </label>
+              </div>
+            ) : null}
+
             {/* ===== top-level toggle, only for multi-section new scans ===== */}
-            {showModeToggle && (
+            {showModeToggle && !joining && (
               <div className="card" style={{padding:"12px 14px",marginTop:4}}>
                 <div className="small" style={{fontWeight:600,marginBottom:8,
                   display:"flex",alignItems:"center",gap:6}}>
@@ -27841,7 +28009,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
             {/* ===== ONE-MENU PATH: single label input ===== */}
             {/* (covers: re-scan, 1-section new scan, and 2+ sections in "one" mode) */}
-            {!splitOn && (!showModeToggle || saveMode === "one") && (
+            {!splitOn && !joining && (!showModeToggle || saveMode === "one") && (
               <label className="fld">
                 <span className="lbl">
                   Menu name {presetMenu &&
@@ -27895,7 +28063,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             )}
 
             {/* ===== CUSTOMIZE PATH: per-section labels (no fold button) ===== */}
-            {inCustomMode && (
+            {inCustomMode && !joining && (
               <div>
                 {/* live preview at TOP so merges are visible as you make them */}
                 {previewMenus.length > 0 && (
@@ -29522,11 +29690,18 @@ function useMenuFold(){
     if (mode === "one") return only === si;
     return (si in over) ? over[si] : true;
   }
+  function open(si){
+    if (mode === "one"){ setOnly(si); return; }
+    setOver(o => Object.assign({}, o, { [si]: true }));
+  }
+  // Another menu on screen (a tab, 1.563.0, keeps this view mounted): nothing
+  // open from the last one carries over, since its numbers mean other sections.
+  function reset(){ setOnly(-1); setOver({}); }
   function toggle(si){
     if (mode === "one"){ setOnly(x => x === si ? -1 : si); return; }
     setOver(o => Object.assign({}, o, { [si]: !isOpen(si) }));
   }
-  return { mode, isOpen, toggle, expandAll, collapseAll, oneAtATime };
+  return { mode, isOpen, open, reset, toggle, expandAll, collapseAll, oneAtATime };
 }
 
 /* The three options, as one row. Shown only when there is more than one section

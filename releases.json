@@ -463,5 +463,13 @@
     "email_notes": "n/a: too small to mention",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: Home card note, version rows, BRIEFING, Log"
+  },
+  "1.585.0": {
+      "what": "Three design fixes from Chris's first use of the iPhone app (approved by card 2026-11-08): (1) See the dishes opens the first section as well as scrolling, and a menu with one section opens unfolded; (2) a scanned page headed (Cont.) or continued offers to join the menu it carries on (same-named section, else same-named menu, else the menu saved there last), adding by default, Keep it separate one tap; (3) menu names and section headings in all capitals show in tidy case (tidyShoutedLabel, display only; BBQ, IPA and a few others stay), a menu name typed in Rename stays as typed (label_typed). Also: switching menu tabs no longer carries an open section over to the next menu.",
+      "guide": "updated: How much of the menu you see, Renaming a menu (capitals), new A page that carries on another",
+      "promo": "n/a: refinements, as-of bumped",
+      "email_notes": "Log entry 2026-11-08c for the next issue (Wednesday draft reads the Log)",
+      "welcome": "n/a: nothing on the promo page changes",
+      "handoff": "updated: version rows, BRIEFING, Log"
   }
 }

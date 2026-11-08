@@ -264,7 +264,10 @@ dessert. Expand all shows the whole menu, and you can still fold individual
 courses from there. Collapse all shuts everything and puts you back to one at a
 time. Whichever you pick is remembered on that device and used for every menu
 you open after it - your own menus, a group order, a shared visit, a shared
-menu. Searching a menu always shows every match, whatever option is set.
+menu. Searching a menu always shows every match, whatever option is set. A menu
+with only one course opens with it showing. When a place has several menus, the
+line under its menu tabs says what this one holds: tap **See the dishes** to open
+the first course and go straight to it.
 
 **Dietary filters.** Open a menu and tap the diet chips (vegetarian, vegan,
 gluten-free, and friends) to narrow the list to dishes that fit - tags come
@@ -336,7 +339,9 @@ it instead.
 
 **Renaming a menu.** Tap the menu's name at the top of its page (the one with
 the small pencil beside it), or **•••** and **Rename**, and type a new one - **Dinner**, **Brunch**,
-**Wine list**. Do it any time, not just right after you add it.
+**Wine list**. Do it any time, not just right after you add it. Menu names and
+section headings printed in capitals show in ordinary case (BEER TAPS becomes
+Beer Taps); a menu name you type here shows exactly as you typed it.
 
 **Re-scanning and deleting.** Open a menu and tap **Refresh** beside the date it was
 captured (it is under **•••** at the top too) to replace it with a fresh version - photograph it again or pull it from a
@@ -348,6 +353,12 @@ on the old items are not carried over.
 rather than Refresh and give it a name the place already uses, the review screen
 says so and asks which you meant: **Replace it** (the usual answer - a matching
 name almost always means a fresher copy of the same menu) or **Keep both**.
+
+**A page that carries on another.** When a page you scan is headed "(Cont.)" or
+"continued", the review screen offers to **Add it to** the menu it carries on (the
+one with that section, or the one you saved there last), so a long beer list stays
+one menu. Its dishes join the section of the same name, and a dish already there
+is not listed twice. Choose **Keep it separate** to save it as a menu of its own.
 
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, each

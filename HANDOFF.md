@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.584.2** | menucaptain.com (GitHub Pages), pushed 2026-11-08 |
+| Web app | **1.585.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 |
 | Backend | **0.164.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.584.2** | bundle `674bfeb`, iOS fixes `c022055` (2026-11-08), **not yet submitted to any store** |
 
