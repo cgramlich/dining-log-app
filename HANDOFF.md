@@ -37,7 +37,8 @@ matching Stripe prices — merging early puts a price on screen that Stripe will
 
 ## The map
 
-Three repos, all under `C:\Users\cjgra\`, all pushed to GitHub under `cgramlich`.
+Three repos, all in the home folder (`~` on the Mac since 2026-11-08; `C:\Users\cjgra\` on the old
+PC), all pushed to GitHub under `cgramlich`. Dropbox is `~/Library/CloudStorage/Dropbox` on the Mac.
 
 | Repo | Owns |
 |---|---|
@@ -59,21 +60,21 @@ after **every** front-end edit — it is the only syntax check the web app has.
 Check the front end still compiles (do this after every edit):
 
 ```bash
-cd /c/Users/cjgra/menucaptain-native-build && node verify_compile.js
+cd ~/menucaptain-native-build && node verify_compile.js
 ```
 
 Then check no name is used that is never defined (a typo or a moved function compiles fine and
 throws on the phone). It compares the working file with the last commit, so run it BEFORE committing:
 
 ```bash
-cd /c/Users/cjgra/menucaptain-native-build && node verify_names.js
+cd ~/menucaptain-native-build && node verify_names.js
 ```
 
 Deploy the web app — bump `APP_VERSION` in `index.html` **and** `VERSION` in `sw.js` to the same
 new value first, then:
 
 ```bash
-git -C /c/Users/cjgra/dining-log-app push origin main
+git -C ~/dining-log-app push origin main
 ```
 
 Confirm it actually went out (GitHub Pages takes ~1 minute):
@@ -85,7 +86,7 @@ curl -s "https://menucaptain.com/?vcheck=$(date +%s)" | grep -ao 'APP_VERSION *=
 Deploy the backend — Railway redeploys on push:
 
 ```bash
-git -C /c/Users/cjgra/dining-captain-backend push origin main
+git -C ~/dining-captain-backend push origin main
 ```
 
 Confirm the backend is live on the version you pushed:
@@ -97,14 +98,14 @@ curl -s https://web-production-cbd3b.up.railway.app/health
 Rebuild the native bundle after a front-end change:
 
 ```bash
-cd /c/Users/cjgra/menucaptain-native-build && node build.js
+cd ~/menucaptain-native-build && node build.js
 ```
 
 Refresh the promo brief **after both deploys are confirmed live**. It records what is running,
 so running it earlier stamps the old version (the page would say the new one is "on its way"):
 
 ```bash
-cd "/c/Users/cjgra/Dropbox/My AI/CG Apps/MenuCaptain/MenuCaptain Promo" && python make_living_promo.py
+cd "$HOME/Library/CloudStorage/Dropbox/My AI/CG Apps/MenuCaptain/MenuCaptain Promo" && ~/.venvs/menucaptain/bin/python make_living_promo.py
 ```
 
 Then republish `menucaptain-promo-living.html` to the promo artifact
@@ -112,7 +113,8 @@ Then republish `menucaptain-promo-living.html` to the promo artifact
 inventory lines in `living-promo-template.html` for the changes that need one, show them to Chris
 (he corrects the wording), then bump `data-inventory-as-of`.
 
-Gradle needs an explicit JDK on this machine:
+Android builds still need Android Studio, which is only on the PC so far (install it on the Mac
+before launch step 4). On the PC, Gradle needs an explicit JDK:
 
 ```bash
 JAVA_HOME="C:\Program Files\Android\Android Studio\jbr" ./gradlew assembleDebug
@@ -3661,6 +3663,15 @@ audit finds in the backend (`GROUP_RETENTION_DAYS`), then one full release as pr
 archives the PC session. The design list is `DESIGN-CHANGES.md` (items 1 and 2 built in 1.585.0;
 item 3, rename or combine sections inside a menu, is open; F1 short videos: Chris wants a PLAN
 proposed before any build).
+
+**Done on the Mac, 2026-11-08 (Chris: "yes start"):** the scripts' paths are portable (native
+`ae60b00`; `tools/release_docs_gate.py` here); a Mac `node build.js` reproduced the PC's 1.585.0 bundle
+byte for byte; the release docs gate is installed as this repo's pre-push hook on the Mac; Python tools
+(Playwright, Pillow) live in `~/.venvs/menucaptain`; `make_update.py`'s publish path is portable (Dropbox).
+Setup for any new Mac: `Dropbox/My AI/CG Apps/MenuCaptain/Machine Setup/` (`NEW-MACHINE.md`,
+`setup-mac.sh`), and a Claude scheduled task saves nightly code snapshots into `MenuCaptain/Code Snapshots`.
+**Still to do for the move:** the Saturday newsletter task, the `GROUP_RETENTION_DAYS` backend fix, the
+proof release, then Chris archives the PC session.
 
 **The launch plan (agreed in outline 2026-11-08; Chris: design changes first).** One web app feeds the
 website, iOS and Android, so a design change lands on all three; building iOS on the Mac changes nothing

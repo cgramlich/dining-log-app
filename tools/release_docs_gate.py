@@ -23,7 +23,17 @@ Never bypass with --no-verify; fix the entry instead.
 import json, os, re, subprocess, sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROMO = r"C:\Users\cjgra\Dropbox\My AI\CG Apps\MenuCaptain\MenuCaptain Promo\living-promo-template.html"
+# Dropbox sits at ~/Dropbox on the PC and ~/Library/CloudStorage/Dropbox on the Mac (MenuCaptain
+# moved to the Mac 2026-11-08); DROPBOX_ROOT overrides both.
+def _dropbox_root():
+    if os.environ.get("DROPBOX_ROOT"):
+        return os.environ["DROPBOX_ROOT"]
+    mac = os.path.expanduser("~/Library/CloudStorage/Dropbox")
+    return mac if os.path.isdir(mac) else os.path.expanduser("~/Dropbox")
+
+
+PROMO = os.path.join(_dropbox_root(), "My AI", "CG Apps", "MenuCaptain", "MenuCaptain Promo",
+                     "living-promo-template.html")
 FIELDS = ("guide", "promo", "email_notes", "welcome", "handoff")
 
 

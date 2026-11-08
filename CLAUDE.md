@@ -6,7 +6,7 @@ Auto-read by Claude Code at session start. Keep it current.
 with the code in the SAME session you change code. Don't hardcode the version here
 (point to `APP_VERSION` + `/health`); update the doc body when the architecture changes;
 write a DATED entry in the app's Log folder for EVERY work session:
-`C:\Users\cjgra\Dropbox\My AI\CG Apps\MenuCaptain\MenuCaptain Log\`.
+`~/Library/CloudStorage/Dropbox/My AI/CG Apps/MenuCaptain/MenuCaptain Log/`.
 Rule: `CG Apps\Forever Apps\forever-apps-starter-spec.md` section 5.
 
 ## What this is
@@ -57,8 +57,8 @@ a patch bump does trigger the banner. Bump `sw.js` VERSION to match.
 - Production-ready, not demos.
 - Any commands you hand to Chris: ONE per code block, never grouped, wait
   for output. Copyable content always inside a code block.
-- Environment: Windows 11, Command Prompt. Keep any console/log output
-  ASCII-safe (no emoji) - CMD cannot render Unicode.
+- Environment: macOS, zsh (MenuCaptain moved from the Windows PC to the Mac on 2026-11-08;
+  repos in `~`). Keep console/log output ASCII-safe (no emoji); the PC's CMD could not render it.
 
 ## Verify before delivering
 - Single-file React via Babel standalone: run the JSX through Babel
@@ -94,9 +94,9 @@ Cowork-sandbox-only issue and does NOT apply to Claude Code.
 
 ## Reference docs (read for full context; keep in sync)
 - Architecture & ops playbook:
-  `C:\Users\cjgra\Dropbox\My AI\CG Apps\MenuCaptain\MenuCaptain Architecture & Design\app-architecture-playbook.md`
+  `~/Library/CloudStorage/Dropbox/My AI/CG Apps/MenuCaptain/MenuCaptain Architecture & Design/app-architecture-playbook.md`
 - Dev-loop handoff:
-  `C:\Users\cjgra\Dropbox\My AI\CG Apps\MenuCaptain\MenuCaptain Architecture & Design\cowork-dev-loop-handoff-2026-06-18.md`
+  `~/Library/CloudStorage/Dropbox/My AI/CG Apps/MenuCaptain/MenuCaptain Architecture & Design/cowork-dev-loop-handoff-2026-06-18.md`
 
 ## Code readability (part of "done", not polish)
 
@@ -128,7 +128,7 @@ This standard raises the bar on WHY, not on volume.
 ## Pre-push audit (read-only here, run it before a store build)
 
 ```
-python "C:\Users\cjgra\portfolio-audit\portfolio_audit.py" --repo "<this repo>"
+python3 -B "$HOME/Library/CloudStorage/Dropbox/My AI/CG Apps/Forever Apps/portfolio-audit/portfolio_audit.py" --repo "<this repo>"
 ```
 
 Changes nothing; takes about 0.2s. Notably B2 checks that every routed or
