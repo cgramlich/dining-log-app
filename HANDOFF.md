@@ -23,7 +23,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 | Piece | Version | Where |
 |---|---|---|
 | Web app | **1.585.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 |
-| Backend | **0.164.0** | Railway, `/health` reports `db connected` |
+| Backend | **0.164.1** | Railway, `/health` reports `db connected` (0.164.1 shipped from the Mac 2026-11-08: `GROUP_RETENTION_DAYS` read safely) |
 | Native shell | **1.585.0** | bundle `e0937fd` (2026-11-08), iOS fixes since `c022055`, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -3670,8 +3670,12 @@ byte for byte; the release docs gate is installed as this repo's pre-push hook o
 (Playwright, Pillow) live in `~/.venvs/menucaptain`; `make_update.py`'s publish path is portable (Dropbox).
 Setup for any new Mac: `Dropbox/My AI/CG Apps/MenuCaptain/Machine Setup/` (`NEW-MACHINE.md`,
 `setup-mac.sh`), and a Claude scheduled task saves nightly code snapshots into `MenuCaptain/Code Snapshots`.
-**Still to do for the move:** the Saturday newsletter task, the `GROUP_RETENTION_DAYS` backend fix, the
-proof release, then Chris archives the PC session.
+**Also done 2026-11-08:** the Saturday newsletter task runs on the Mac (`menucaptain-weekly-draft`,
+Saturdays 6 PM Central, Mac paths, venv Python; the Nov 8 issue rebuilt word for word) and the PC's
+copy is paused; backend **0.164.1** (`9da7271`) reads `GROUP_RETENTION_DAYS` through `_env_int`, so the
+portfolio audit (run from its Dropbox copy) is clean.
+**Still to do for the move:** one full release from the Mac as proof (web, native and iPhone), then
+Chris archives the PC session.
 
 **The launch plan (agreed in outline 2026-11-08; Chris: design changes first).** One web app feeds the
 website, iOS and Android, so a design change lands on all three; building iOS on the Mac changes nothing
