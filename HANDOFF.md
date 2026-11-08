@@ -3678,6 +3678,11 @@ for Android, which keeps building on the Windows PC.
   a paid Company team, read in Xcode on the Mac 2026-11-08).
 - Open from that build: one "JS Eval error" from Capacitor just before React mounts; the app ran on.
   Camera, Share and location on the phone not yet confirmed under the scene lifecycle.
+- **In sync and running (2026-11-08):** the Mac pulled `61e79b6`, dropped its local copies and rebuilt
+  from the clean repo. 1.584.2 is installed and running on Chris's iPhone 17 Pro Max, signed by MilSpo Life
+  (`HS3XN3K98S`). **Talking to the Mac:** Chris turned on Remote Control, so the Mac session answers
+  cross-session messages as **"MenuCaptain Mac 11-8-26"**. After every native bundle push, message it the
+  commit and version; Chris then asks it to rebuild the iPhone app. It stays BUILD-ONLY.
 
 **TestFlight on the Mac: proposed 2026-11-08, Chris said "Not yet".** Do not re-propose; he raises it.
 When he does: here, stamp iOS `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` from APP_VERSION in
