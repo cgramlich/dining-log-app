@@ -18,7 +18,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-09-28
+## Current state — 2026-11-08
 
 | Piece | Version | Where |
 |---|---|---|
@@ -3647,6 +3647,35 @@ the same treatment.
 ---
 
 ## What is open
+
+**The launch plan (agreed in outline 2026-11-08; Chris: design changes first).** One web app feeds the
+website, iOS and Android, so a design change lands on all three; building iOS on the Mac changes nothing
+for Android, which keeps building on the Windows PC.
+
+1. **Design changes** (next). Chris lists them; look at 3 to 5 Mobbin references first, then build.
+   1b. Alongside: a private iPhone build on the Mac (no testers, no Apple review), so the real iPhone
+   look (status bar, notch, keyboard) informs the design pass.
+2. **Money decisions, by card:** the price (live $2.99/mo and $19.99/yr; working idea $3.99 and $29.99 on
+   `hold/price-3.99`) and the free allowance (sized on Haiku; the Sonnet floor made it about 3x dearer).
+3. **TestFlight** with Kristin and a few others (internal testers, no Apple review).
+4. **Android closed test:** Play Console ($25, MilSpo Life LLC), release keystore into Dashlane. Check
+   whether Google's new-account tester rule applies to an organization account BEFORE registering.
+5. **In-app purchase** (Apple and Google require it for Pro bought in the app), through RevenueCat, built
+   during the test. Public release only with it (Chris, 2026-07-20).
+6. **Store listing** refresh (`MenuCaptain Store\`, drafted at 1.376.0): wine, tip and everything since;
+   Chris picks subtitle, Google title, age rating (likely 12+, alcohol). Screenshots after the design.
+7. **Submit** to both stores.
+
+**TestFlight on the Mac: proposed 2026-11-08, Chris said "Not yet".** Do not re-propose; he raises it.
+When he does: here, stamp iOS `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` from APP_VERSION in
+`build.js` (today every iOS build is 1.0 build 1, so a second upload would be refused), rebuild the
+bundle, write a Mac build guide into the native repo. On the Mac, Chris only signs in (Xcode, Apple
+developer account, Claude Code, GitHub, Mac password once); a Mac Claude session clones, `npm ci`,
+`npx cap sync ios` (the Podfile still lacks the five plugins: cap sync cannot run pod install on
+Windows), sets the team (`DEVELOPMENT_TEAM` is unset), builds, archives, uploads. That session is
+BUILD-ONLY; code changes come back here. Apple's `xcode` plugin for Claude Code is real (Anthropic's
+official marketplace, added 2026-11-06, author Apple Inc., loads from Xcode via
+`xcrun agent plugin path --plugin-format claude`).
 
 **Blocked on Chris — nobody else can do these:**
 - ~~iOS build machine~~ **resolved 2026-09-15: Chris bought a MacBook Pro.** Next: Xcode on it, then TestFlight
