@@ -447,5 +447,13 @@
     "email_notes": "updated: a feature line for the next issue",
     "welcome": "n/a: the promo page lists no drink features",
     "handoff": "updated: section, version rows (web, backend), BRIEFING, Log"
+  },
+  "1.584.1": {
+    "what": "Fix: Home's \"This week's issue is out\" card ran 8 days from the send, so the Nov 1 issue (sent Monday Nov 2) still showed as this week's on Sunday Nov 8. It now ends when the next Sunday begins (newsWeekEnds).",
+    "guide": "n/a: the guide already says each new issue shows on Home",
+    "promo": "n/a: no feature change, as-of bumped",
+    "email_notes": "n/a: too small to mention",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: Home card note, version rows, BRIEFING, Log"
   }
 }

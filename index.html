@@ -1322,7 +1322,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.584.0";
+const APP_VERSION   = "1.584.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -36806,10 +36806,24 @@ function UpdateEmailCard({ config }){
    saw the first issue: his work address accepted it and then held it, out of
    his sight. The weekly news should never depend on email alone, so the
    latest SENT issue (never one still waiting for Sunday) shows here until it
-   is read or dismissed, for 8 days. Read it opens the issue in the app. */
+   is read or dismissed, or until the next Sunday begins. Read it opens the
+   issue in the app.
+   RULE (1.584.1): "This week's" must stay true. Issues go out on Sundays, so
+   the card ends when the Sunday after the send begins (local time), the day
+   the next issue is due. Until 1.584.1 it ran 8 days from the send, so the
+   Nov 1 issue, sent on Monday Nov 2, still read "This week's issue is out"
+   on Sunday Nov 8 (Chris's screenshot). Road not taken: counting from the
+   issue's own date, which would have hidden the first issue (dated Oct 14,
+   sent Oct 19) after two days. */
 const NEWS_SEEN_KEY = "mc_news_seen";
 function newsSeen(){ try { return localStorage.getItem(NEWS_SEEN_KEY) || ""; } catch(e){ return ""; } }
 function markNewsSeen(issue){ try { localStorage.setItem(NEWS_SEEN_KEY, issue); } catch(e){} }
+// Local midnight at the start of the first Sunday after the day an issue was
+// sent: the moment it stops being "this week's" issue.
+function newsWeekEnds(sentMs){
+  const s = new Date(sentMs);
+  return new Date(s.getFullYear(), s.getMonth(), s.getDate() + 7 - s.getDay()).getTime();
+}
 function NewsIssueCard({ cfg, onRead }){
   const [issue, setIssue] = useState(null);
   useEffect(()=>{
@@ -36821,7 +36835,7 @@ function NewsIssueCard({ cfg, onRead }){
         const iss = d && d.issue;
         if (!alive || !iss || !/^\d{4}-\d{2}-\d{2}$/.test(iss) || newsSeen() === iss) return;
         const sent = Date.parse(d.sent_at || "") || 0;
-        if (!sent || Date.now() - sent > 8 * 86400000) return;
+        if (!sent || Date.now() >= newsWeekEnds(sent)) return;
         setIssue(iss);
       } catch(e){ /* quiet: the issue is still under You, What's new */ }
     })();

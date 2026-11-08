@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.584.0** | menucaptain.com (GitHub Pages), pushed 2026-11-07 |
+| Web app | **1.584.1** | menucaptain.com (GitHub Pages), pushed 2026-11-08 |
 | Backend | **0.164.0** | Railway, `/health` reports `db connected` |
 | Native shell | **1.581.0** | built and pushed, **not yet submitted to any store** |
 
@@ -639,7 +639,9 @@ company's filter, not even in Junk. Chris chose by card that the weekly news mus
 - **Home card** `NewsIssueCard` (everyone): "From the Captain's Table / This week's issue is out",
   **Read it** opens `/news/<issue>.html` in the archive view; ✕ dismisses. Shown for the latest SENT issue
   only (`GET /api/news/latest`: newest `news_sends` row with `finished_at`; a published issue waiting for
-  Sunday is never shown early), for 8 days, until read or dismissed (`mc_news_seen` in localStorage).
+  Sunday is never shown early), until read or dismissed (`mc_news_seen` in localStorage), and only until
+  the first Sunday after the send begins (`newsWeekEnds`, 1.584.1). It ran 8 days from the send before, so
+  the Nov 1 issue (sent Monday Nov 2) still said "This week's issue is out" on Sunday Nov 8.
   NOTE: on release day this showed the first issue (2026-10-14, sent 2026-10-19) to everyone until 2026-10-27.
 - **Notification:** after `admin_updates_send` finishes, `_safe_push` to the SAME recipients (opt-outs
   excluded, so the Settings switch covers it): title "From the Captain's Table", body the subject, tap
