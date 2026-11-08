@@ -24,7 +24,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 |---|---|---|
 | Web app | **1.584.2** | menucaptain.com (GitHub Pages), pushed 2026-11-08 |
 | Backend | **0.164.0** | Railway, `/health` reports `db connected` |
-| Native shell | **1.581.0** | built and pushed, **not yet submitted to any store** |
+| Native shell | **1.584.2** | built and pushed 2026-11-08 (`674bfeb`), **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -3665,6 +3665,10 @@ for Android, which keeps building on the Windows PC.
 6. **Store listing** refresh (`MenuCaptain Store\`, drafted at 1.376.0): wine, tip and everything since;
    Chris picks subtitle, Google title, age rating (likely 12+, alcohol). Screenshots after the design.
 7. **Submit** to both stores.
+
+**Step 1b started 2026-11-08:** a BUILD-ONLY Mac session (macOS 27.2, Xcode 27.2 build 27B52, Node 24, CocoaPods 1.17,
+`gh` as cgramlich) is putting a private build on Chris's iPhone from native `674bfeb` (1.584.2). Its `cap sync ios`
+Podfile and Xcode team changes stay on the Mac; ask it for the diff when TestFlight starts.
 
 **TestFlight on the Mac: proposed 2026-11-08, Chris said "Not yet".** Do not re-propose; he raises it.
 When he does: here, stamp iOS `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` from APP_VERSION in
