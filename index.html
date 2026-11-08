@@ -1322,7 +1322,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.584.1";
+const APP_VERSION   = "1.584.2";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2912,8 +2912,8 @@ opens MenuCaptain right there. On iPhone they work in
 MenuCaptain opened from your Home Screen (in Safari, tap Share, then **Add to Home
 Screen**). The emails still come too, and say where each thing is waiting. The weekly
 update email can be switched off, or back on, in Settings, **Email**. Emails about your
-account and from friends always arrive. Each new issue also shows on Home as **This week's
-issue is out**, and with notifications on you get one when it goes out; **Read it** opens it
+account and from friends always arrive. Each new issue also shows on Home as **The latest
+issue is out**, with its date, and with notifications on you get one when it goes out; **Read it** opens it
 in the app.
 
 **Who was with you?** When logging a visit, tag the people at the table. Those
@@ -10935,7 +10935,7 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
       </div>
 
       {onSendIssue ? <IssueReadyCard cfg={cfg} tick={newsTick} onRead={onReadIssue} onSend={onSendIssue} /> : null}
-      {onReadIssue ? <NewsIssueCard cfg={cfg} onRead={onReadIssue} /> : null}
+      {onReadIssue ? <NewsIssueCard cfg={cfg} tick={newsTick} onRead={onReadIssue} /> : null}
       {/* How was the wine? (1.584.0): one card at a time, once the meal is
           likely over. */}
       {onWineVerdict ? <WineAskCard book={wineBook} onVerdict={onWineVerdict} onOpen={onWineOpen}
@@ -11160,7 +11160,7 @@ function App({openShare}){
 
   // ui
   const [tab, setTab]         = useState(getDefaultTab);
-  const [newsTick, setNewsTick] = useState(0);   // the owner's "issue ready" card asks again after a send
+  const [newsTick, setNewsTick] = useState(0);   // both issue cards on Home ask again after a send
   const [a2hsDismissed, setA2hsDismissed] = useState(()=>{ try { return localStorage.getItem("mc_a2hs_dismissed") === "1"; } catch(e){ return false; } });
   const [overlay, setOverlay] = useState(null);            // {type, ...}
   // A share link this device can open in-app (see the router at the bottom).
@@ -36802,46 +36802,45 @@ function UpdateEmailCard({ config }){
    (0.152.0), so a deploy can't bring it back. Says nothing on any failure:
    Settings, Update email still works. The draft itself reaches Chris's Gmail
    from the Wednesday drafting task, not from here. */
-/* "This week's issue is out" on Home, for everyone (2026-10-20). Owen never
+/* "The latest issue is out" on Home, for everyone (2026-10-20). Owen never
    saw the first issue: his work address accepted it and then held it, out of
    his sight. The weekly news should never depend on email alone, so the
    latest SENT issue (never one still waiting for Sunday) shows here until it
-   is read or dismissed, or until the next Sunday begins. Read it opens the
-   issue in the app.
-   RULE (1.584.1): "This week's" must stay true. Issues go out on Sundays, so
-   the card ends when the Sunday after the send begins (local time), the day
-   the next issue is due. Until 1.584.1 it ran 8 days from the send, so the
-   Nov 1 issue, sent on Monday Nov 2, still read "This week's issue is out"
-   on Sunday Nov 8 (Chris's screenshot). Road not taken: counting from the
-   issue's own date, which would have hidden the first issue (dated Oct 14,
-   sent Oct 19) after two days. */
+   is read or dismissed, for 8 days from the send. Read it opens the issue.
+   RULE (Chris, 2026-11-08: "It really should be a lookup"): the card says
+   whatever the server's latest sent issue is, by its date, and asks again
+   every time the app comes back to the front and after the owner sends. It
+   used to ask once per app open and call it "This week's issue": on Nov 8
+   Chris sent that issue from Settings, went back to Home and still read
+   "This week's issue is out ... November 1" (the answer from before his
+   send). Road not taken (1.584.1, same morning): a calendar rule that hid an
+   issue when the next Sunday began. It kept "this week's" true but never
+   looked again, so it did not fix the stale answer. */
 const NEWS_SEEN_KEY = "mc_news_seen";
 function newsSeen(){ try { return localStorage.getItem(NEWS_SEEN_KEY) || ""; } catch(e){ return ""; } }
 function markNewsSeen(issue){ try { localStorage.setItem(NEWS_SEEN_KEY, issue); } catch(e){} }
-// Local midnight at the start of the first Sunday after the day an issue was
-// sent: the moment it stops being "this week's" issue.
-function newsWeekEnds(sentMs){
-  const s = new Date(sentMs);
-  return new Date(s.getFullYear(), s.getMonth(), s.getDate() + 7 - s.getDay()).getTime();
-}
-function NewsIssueCard({ cfg, onRead }){
+function NewsIssueCard({ cfg, tick, onRead }){
   const [issue, setIssue] = useState(null);
   useEffect(()=>{
     let alive = true;
-    (async ()=>{
+    async function lookUp(){
       try {
         const res = await fetch(apiBase(cfg) + "/api/news/latest", { headers: await authHeaders(cfg) });
-        const d = res.ok ? await res.json() : null;
+        if (!res.ok) return;   // keep what is showing; the next look will try again
+        const d = await res.json();
         const iss = d && d.issue;
-        if (!alive || !iss || !/^\d{4}-\d{2}-\d{2}$/.test(iss) || newsSeen() === iss) return;
-        const sent = Date.parse(d.sent_at || "") || 0;
-        if (!sent || Date.now() >= newsWeekEnds(sent)) return;
-        setIssue(iss);
+        const sent = Date.parse((d && d.sent_at) || "") || 0;
+        const show = !!iss && /^\d{4}-\d{2}-\d{2}$/.test(iss) && newsSeen() !== iss
+                     && !!sent && Date.now() - sent <= 8 * 86400000;
+        if (alive) setIssue(show ? iss : null);
       } catch(e){ /* quiet: the issue is still under You, What's new */ }
-    })();
-    return ()=>{ alive = false; };
+    }
+    lookUp();
+    const onVis = ()=>{ if (!document.hidden) lookUp(); };
+    document.addEventListener("visibilitychange", onVis);
+    return ()=>{ alive = false; document.removeEventListener("visibilitychange", onVis); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg && cfg.userId]);
+  }, [cfg && cfg.userId, tick]);
   if (!issue) return null;
   const when = new Date(issue + "T12:00:00").toLocaleDateString(undefined, { month:"long", day:"numeric" });
   return (
@@ -36851,7 +36850,7 @@ function NewsIssueCard({ cfg, onRead }){
         <Icon name="close" size={14} color="var(--text-faint)" />
       </button>
       <div className="issue-ready-over">From the Captain&rsquo;s Table</div>
-      <div className="issue-ready-title">This week&rsquo;s issue is out</div>
+      <div className="issue-ready-title">The latest issue is out</div>
       <div className="small muted" style={{marginTop:3}}>{"What’s new at MenuCaptain, " + when + "."}</div>
       <div className="row" style={{gap:8, marginTop:12}}>
         <button className="btn primary sm" onClick={()=>{ markNewsSeen(issue); setIssue(null); onRead(issue); }}>Read it</button>

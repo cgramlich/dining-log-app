@@ -455,5 +455,13 @@
     "email_notes": "n/a: too small to mention",
     "welcome": "n/a: nothing on the promo page changes",
     "handoff": "updated: Home card note, version rows, BRIEFING, Log"
+  },
+  "1.584.2": {
+    "what": "Home's issue card is a lookup (Chris): it asks the server for the latest sent issue every time the app comes to the front and after the owner sends, and reads \"The latest issue is out\" with that issue's date. It asked once per app open, so after Chris sent the Nov 8 issue it still showed Nov 1. Back to 8 days from the send; the 1.584.1 Sunday rule is gone.",
+    "guide": "updated: the Home card's name in Email and notifications",
+    "promo": "n/a: no feature change, as-of bumped",
+    "email_notes": "n/a: too small to mention",
+    "welcome": "n/a: nothing on the promo page changes",
+    "handoff": "updated: Home card note, version rows, BRIEFING, Log"
   }
 }
