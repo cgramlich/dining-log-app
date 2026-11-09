@@ -1322,7 +1322,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.587.1";
+const APP_VERSION   = "1.588.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2093,7 +2093,9 @@ The one you are on is highlighted.
 
 **Settings** (the gear on Home) holds your account and plan, the look of the app
 (five color themes under Appearance), the update check, this user guide, app
-info, and which screen the app opens to (Startup).
+info, and which screen the app opens to (Startup). The color theme follows your account:
+pick one on your phone and the iPhone app, the website and the Home Screen app all switch
+to it the next time you open them or come back to them.
 
 -----
 
@@ -11946,6 +11948,16 @@ function App({openShare}){
         try { hydrateVenmoHandles(m.venmo_handles || {}); } catch(_e){}
         // Your own names for connections sync the same way.
         try { hydrateConnNames(m.conn_names || {}); } catch(_e){}
+        // The colour scheme follows the account (1.588.0, see accountThemeKey).
+        try {
+          const acct = accountThemeKey(m);
+          if (acct){ if (acct !== currentTheme()) applyTheme(acct); }
+          else if (themeChosenHere()){
+            const seeded = Object.assign({}, m, { theme: { key: currentTheme(), at: Date.now() } });
+            setMeta(seeded);
+            ghPutFile(cfg, "data/meta.json", seeded, null).catch(()=>{});
+          }
+        } catch(_e){}
       } catch(e){ logMsg("WARN","meta load failed: " + e.message); }
       try {
         const sr = await ghGetFile(cfg, "data/splits.json");
@@ -12258,6 +12270,36 @@ function App({openShare}){
   // handle (from a split or the Connections screen) persists + syncs via meta.
   const metaRef = useRef(meta);
   useEffect(()=> { metaRef.current = meta; }, [meta]);
+  // A colour picked in Settings is saved to the account (1.588.0, see accountThemeKey).
+  useEffect(()=>{
+    const onChosen = (e)=>{
+      const key = e && e.detail;
+      if (!key || !configComplete(config)) return;
+      saveMeta(Object.assign({}, metaRef.current, { theme: { key: key, at: Date.now() } }));
+    };
+    window.addEventListener("mc-theme-chosen", onChosen);
+    return ()=> window.removeEventListener("mc-theme-chosen", onChosen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config]);
+  // Back in the app: another copy may have changed the colour since (1.588.0).
+  useEffect(()=>{
+    if (!configComplete(config)) return;
+    let busy = false;
+    const onVis = async ()=>{
+      if (document.visibilityState !== "visible" || busy) return;
+      busy = true;
+      try {
+        const mr = await ghGetFile(config, "data/meta.json");
+        const m = (mr.data && typeof mr.data === "object" && !Array.isArray(mr.data)) ? mr.data : null;
+        const acct = accountThemeKey(m);
+        if (acct && acct !== currentTheme()) applyTheme(acct);
+        if (m && acct) setMeta(cur => Object.assign({}, cur, { theme: m.theme }));
+      } catch(e){ /* offline: keep what is on screen */ }
+      finally { busy = false; }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return ()=> document.removeEventListener("visibilitychange", onVis);
+  }, [config]);
   useEffect(()=> {
     registerVenmoPersist((map)=> {
       saveMeta(Object.assign({}, metaRef.current, { venmo_handles: map }));
@@ -34136,6 +34178,22 @@ function accentHex(){
     return v || "#e0764a";
   } catch(e){ return "#e0764a"; }
 }
+/* The colour scheme follows the ACCOUNT (1.588.0). Chris, 2026-11-08: the iPhone app (Navy & Gold) and
+   his Home Screen web app (Warm Brown) looked like two different apps when a link opened the other one;
+   "it should follow the account; otherwise, it's confusing to the user. As long as if I change color
+   schemes and it follows the account after that too."
+   RULE: the account's choice lives in meta.theme = { key, at }, synced like the rest of meta. A choice in
+   Settings saves it (event "mc-theme-chosen" -> App saves meta); every load, and every return to the
+   app, applies the account's choice if this copy differs. First time, with nothing on the account yet,
+   only a copy where someone deliberately PICKED a colour (localStorage set) seeds it, so a copy still on
+   the default can't overwrite a real choice. localStorage stays as the fast first paint. */
+function accountThemeKey(m){
+  const k = m && m.theme && m.theme.key;
+  return (k && THEMES.some(t => t.key === k)) ? k : "";
+}
+function themeChosenHere(){
+  try { return localStorage.getItem("dininglog_theme") != null; } catch(e){ return false; }
+}
 function applyTheme(key, setTheme){
   const el = document.documentElement;
   // "brown" is the default :root palette - no attribute needed.
@@ -37702,7 +37760,8 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
         {THEMES.map(t => {
           const on = theme === t.key;
           return (
-            <div key={t.key} className="theme-row" onClick={()=> applyTheme(t.key, setTheme)}>
+            <div key={t.key} className="theme-row" onClick={()=>{ applyTheme(t.key, setTheme);
+                   try { window.dispatchEvent(new CustomEvent("mc-theme-chosen", { detail: t.key })); } catch(e){} }}>
               <div className="theme-dots">
                 {t.dots.map((c,i)=> <span key={i} className="theme-dot" style={{background:c}} />)}
               </div>

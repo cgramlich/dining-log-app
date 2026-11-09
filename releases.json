@@ -495,5 +495,13 @@
       "email_notes": "n/a: small layout fixes, covered by the 1.587.0 Refinements line",
       "welcome": "n/a: nothing on the promo page changes",
       "handoff": "updated: version rows, Log"
+  },
+  "1.588.0": {
+      "what": "The color theme follows the account (Chris, 2026-11-08: the iPhone app in Navy & Gold and his Home Screen web app in Warm Brown looked like two apps when a link opened the other; 'it should follow the account ... if I change color schemes and it follows the account after that too'). Stored as meta.theme {key, at} in the synced meta collection (no server change). A pick in Settings saves it; every load and every return to the app applies it. First time, only a copy where a colour was deliberately picked seeds the account, so a default copy can't overwrite a real choice.",
+      "guide": "updated: Settings (the color theme follows your account)",
+      "promo": "n/a: a settings refinement, as-of bumped",
+      "email_notes": "updated: next-issue-notes.md (Refinement 1.588.0) and Log 2026-11-08h",
+      "welcome": "n/a: nothing on the promo page changes",
+      "handoff": "updated: version rows, decision entry, BRIEFING, Log"
   }
 }

@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.587.1** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
+| Web app | **1.588.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
 | Backend | **0.164.1** | Railway, `/health` reports `db connected` (0.164.1 shipped from the Mac 2026-11-08: `GROUP_RETENTION_DAYS` read safely) |
-| Native shell | **1.587.1** | rebuilt on the Mac from web 1.587.1 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
+| Native shell | **1.588.0** | rebuilt on the Mac from web 1.588.0 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -415,6 +415,23 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### The color theme follows the account (2026-11-08, app 1.588.0)
+
+Chris: tapping Tell the group in the iPhone app (Navy & Gold) opened the link in his Home Screen web app
+(Warm Brown), and it looked like a different app. "It should follow the account; otherwise, it's
+confusing to the user. As long as if I change color schemes and it follows the account after that too."
+- Stored as `meta.theme = { key, at }` in the synced `meta` collection: no server change (meta already
+  carries Venmo handles and friends' names). `accountThemeKey(m)` validates against `THEMES`.
+- A pick in Settings fires `mc-theme-chosen`; App saves it with `saveMeta`. Load applies the account's
+  key if it differs from this copy; a `visibilitychange` listener re-reads meta on return to the app.
+- First time (no `meta.theme`): only a copy where someone deliberately picked a colour
+  (`localStorage dininglog_theme` set, `themeChosenHere`) seeds the account, so a copy still on the
+  default can't overwrite a real choice. localStorage remains the instant first paint (pre-render script).
+- Road not taken: a profile column (the profile needs a username, which not everyone sets) or a new
+  server endpoint. Other display preferences (menu folding, start tab) stay per device for now.
+- Tested at 375 px: account navy applied on a default copy; a copy with Forest picked seeded the account;
+  a default copy saved nothing; a Settings pick saved `plum` to meta. Return-to-app not driven in the test.
 
 ### Links for other people use menucaptain.com; group order "Who is this?" (2026-11-08, app 1.587.0)
 

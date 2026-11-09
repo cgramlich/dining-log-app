@@ -79,7 +79,9 @@ The one you are on is highlighted.
 
 **Settings** (the gear on Home) holds your account and plan, the look of the app
 (five color themes under Appearance), the update check, this user guide, app
-info, and which screen the app opens to (Startup).
+info, and which screen the app opens to (Startup). The color theme follows your account:
+pick one on your phone and the iPhone app, the website and the Home Screen app all switch
+to it the next time you open them or come back to them.
 
 -----
 
