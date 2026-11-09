@@ -1322,7 +1322,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.588.0";
+const APP_VERSION   = "1.588.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2238,11 +2238,11 @@ seconds), the menu is read on our server, so you can tap **Done for now**,
 switch apps or lock your phone. When it's ready, a bar at the top of the app
 says so: tap **Review** to check it and save it. If you haven't come back within
 2 minutes of it finishing, we email you a link to it. A finished scan waits for
-you for up to 7 days. Prefer not to photograph it? **Find
-the menu for me** looks on the restaurant's website and reads the menu in for
+you for up to 7 days. Prefer not to photograph it? **Nothing yet -
+find it for me** looks on the restaurant's website and reads the menu in for
 you - and if no website is on file, you can simply type it in. You can also
-paste a link straight to a menu page. A menu from a link or from **Find the menu
-for me** is read on our server too: once the page is open (a few seconds), tap
+paste a link straight to a menu page. A menu from a link or from **Nothing yet -
+find it for me** is read on our server too: once the page is open (a few seconds), tap
 **Done for now** and the same bar, or the same email, brings you back to it.
 
 **Seen the menu on Google, Facebook or Yelp?** Those sites don't let apps read
@@ -2286,11 +2286,10 @@ with only one course opens with it showing. When a place has several menus, the
 line under its menu tabs says what this one holds: tap **See the dishes** to open
 the first course and go straight to it.
 
-**Dietary filters.** Open a menu and tap the diet chips (vegetarian, vegan,
-gluten-free, and friends) to narrow the list to dishes that fit - tags come
-from the menu itself plus the scan's best read of each dish. On a place's page,
-the same chips gather matching dishes from **every** menu there, each section
-labelled with the menu it came from ("Drinks · Cocktails"). A dish nobody tagged
+**Dietary filters.** On a place's page, tap the diet chips (vegetarian, vegan,
+gluten-free, and friends) to gather the dishes that fit from **every** menu
+there, each section labelled with the menu it came from ("Drinks · Cocktails").
+Tags come from the menu itself plus the scan's best read of each dish. A dish nobody tagged
 won't show, so it is a guide, not a guarantee.
 
 **Menus in another language.** A menu is kept exactly as the restaurant
@@ -2403,8 +2402,8 @@ that way. When a real photo exists, it is the only one shown - no guesses on top
 
 **Pull a menu from a link.** You do not have to scan a paper menu. When adding a
 menu you can paste the address of the restaurant's online menu and the app reads
-it into a clean digital menu for you. If you are not sure of the link, tap **Find
-the menu for me** and the app looks on the restaurant's website for it. This
+it into a clean digital menu for you. If you are not sure of the link, tap **Nothing
+yet - find it for me** and the app looks on the restaurant's website for it. This
 works on regular web menus, on the big online-ordering pages (Toast, Square, and
 similar), and on **PDF menus** that have real text in them - including sites
 (common on Squarespace and Wix) whose menu page just links to a menu PDF: the app
@@ -2490,12 +2489,12 @@ It also keeps a light read on your broader taste - the kinds of dishes you have
 loved (and the ones you have skipped) across all your restaurants - and uses it
 as a gentle hint. That is most helpful at a place you have barely been to, where
 there is little history yet, so even a first visit gets a personal suggestion. It
-never overrides what you actually asked for. When you are done with an answer, tap
-the small x in its corner to close it and clear the space.
+never overrides what you actually asked for. When you are done, tap **Start over**
+under the answers to clear them and ask something new.
 
 You can also compare with another place you have saved. Ask "what's closest to the
-Rico salad at Mi Cocina?" and it looks up that dish on your Mi Cocina menu (and in
-your visits there), then points you to the nearest thing on the menu in front of
+Cobb salad at Juniper Table?" and it looks up that dish on your Juniper Table menu
+(and in your visits there), then points you to the nearest thing on the menu in front of
 you. Name the place as you saved it. It works with your own saved places; menus
 other diners shared are not included yet.
 
@@ -2535,8 +2534,9 @@ you have an opinion about. Each is in half-stars: tap the left side of a star
 for a half, the right side for a whole, and tap the rating you already have to
 clear it.
 
-Those three combine into the single score you see in the Places list, in
-"highest-rated place" and on a shared card. **Food counts for half of it,
+Those three combine into your single score for the place: it orders the Places
+list when you sort by **Highest rated**, picks your "highest-rated place" and shows
+on a shared card. (The star rating on each Places card is Google's.) **Food counts for half of it,
 service for 30%, atmosphere for 20%** - a meal is mostly the food. If you rate
 only some of them, the ones you skipped are not counted against the place: rate
 Food four stars and nothing else and the place scores four, not two.
@@ -3086,9 +3086,9 @@ it (no app, no account), sees the menu, taps what they want, sets a **quantity**
 and an optional **note** ("no onions"), enters their name, and taps **Send my
 order**. They can change their order and send again any time.
 
-**Not hungry? Anyone can pass.** Right under the order button there's a **"Not
-eating? Tap to pass"** option, so someone who isn't ordering can bow out in one
-tap instead of leaving you wondering. They add their name so you know who it is,
+**Not hungry? Anyone can pass.** Near the top of their page there's an **I'm not
+eating** button, so someone who isn't ordering can bow out in one tap instead of
+leaving you wondering. They add their name so you know who it is,
 and it's reversible - an **"Actually, I'm in"** button brings them back if they
 change their mind.
 
@@ -10870,7 +10870,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
         {/* Direct search leads the screen; the discovery cards (Near me / Still
             to try / Can't decide) sit under their own heading below. */}
         <div className="home-section" style={{margin:"0 2px 8px"}}>Find a place by name</div>
-        <SearchBar value={q} onChange={setQ} autoFocus placeholder="Search your saved places, or anywhere on Google" />
+        <SearchBar value={q} onChange={setQ} autoFocus placeholder="Search your places or Google" />
 
         {savedMatches.length > 0 ? (
           <div className="card" style={{marginTop:4, marginBottom:8, padding:"4px 0"}}>
@@ -23362,7 +23362,7 @@ function ActionSheet({onClose, onPick, pendingReqs, sharesCount}){
         <div style={{borderTop:"1px solid var(--line-soft)", margin:"2px 0 6px"}} />
         <Item what="scanMenu"   icon="camera"  t1="Scan or find a menu"  t2="Photo, their website, or a link" />
         <Item what="logVisit"   icon="plate"   t1="Log a visit"          t2="Record a meal and rate it" />
-        <Item what="splitCheck" icon="receipt" t1="Split the check"      t2="Snap the receipt, split by who had what" />
+        <Item what="splitCheck" icon="receipt" t1="Split a check"        t2="Snap the receipt, split by who had what" />
         <Item what="groupStart" icon="nodes"   t1="Start a group order"  t2="Everyone adds what they want" />
         <Item what="collectionNew" icon="book" t1="Start a collection"   t2="Keep a trip, or any meals you love, together" />
         <Item what="wine" icon="wine" t1="Add a wine" t2="Snap the label, say how it was" />
@@ -29150,7 +29150,7 @@ function PublishedVisit({data, onSaved, onLogVisit, replySlot, senderId}){
               <a href={home} style={{color:"var(--accent)"}}
                  onClick={()=> rememberAfterSignup(location.href)}>Sign in to save it</a>
               <span className="faint"> - this opened in your browser, which does not share
-                the sign-in inside the app. Once here and it remembers you.</span>
+                the sign-in inside the app. Sign in once here and it remembers you.</span>
             </div>
             </div>
           </div>
@@ -30169,7 +30169,7 @@ function QuickGroupStart({cfg, presetName, onClose}){
           they want in their own words and you watch the orders come in.
         </div>
         <label className="fld"><span className="lbl">Restaurant</span>
-          <ClearInput value={name} placeholder="e.g. Gloria's Latin Cuisine"
+          <ClearInput value={name} placeholder="e.g. Lucky Noodle House"
             onChange={e=> setName(e.target.value)} />
         </label>
         <label className="fld"><span className="lbl">Note to everyone (optional)</span>
@@ -31947,8 +31947,8 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
             : (data.voted + (data.voted === 1 ? " person has voted" : " people have voted") +
                ((data.voters || []).length
                  ? ": " + (data.voters || []).map(v => v.guest_name).filter(Boolean).join(", ")
-                 : ""))}
-          {!isShut ? "  Nobody sees the tally until it closes." : ""}
+                 : "") + ".")}
+          {!isShut ? " Nobody sees the tally until it closes." : ""}
         </div>
 
         {/* Host only - the backend sends guest_identity to nobody else. Sits
@@ -36307,6 +36307,11 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
     return (commList || []).some(cm =>
       (cm.label || "").trim().toLowerCase() === (m.label || "").trim().toLowerCase());
   }
+  // Your OWN shared copy under this name (cm.mine), as opposed to another diner's.
+  function isSharedByMe(m){
+    return (commList || []).some(cm => cm.mine &&
+      (cm.label || "").trim().toLowerCase() === (m.label || "").trim().toLowerCase());
+  }
   // Tri-state on purpose: undefined means "we have not been told", so fall back
   // to the sensible default rather than to checked.
   const isChecked = (m)=> {
@@ -36431,19 +36436,25 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
             </div>
             {(function(){
               if (commList === null) return null;
-              const already = myMenus.filter(isSharedLabel).map(m => m.label || "Menu");
+              const already = myMenus.filter(isSharedLabel);
               if (!already.length) return null;
               const fresh = myMenus.length - already.length;
+              // 1.588.1: say WHO shared it. The rows below already did ("shared by you" only for
+              // your own copy); this banner said "You" for everyone's.
+              const byMe = already.filter(isSharedByMe).map(m => m.label || "Menu");
+              const byOthers = already.filter(m => !isSharedByMe(m)).map(m => m.label || "Menu");
               return (
                 <div className="tiny" style={{marginBottom:11, padding:"9px 12px", borderRadius:10,
                      background:"rgba(127,170,107,0.10)", border:"1px solid rgba(127,170,107,0.30)"}}>
                   <span style={{fontWeight:600}}>
-                    You have already shared {already.join(" and ")} here.
+                    {byMe.length ? "You have already shared " + byMe.join(" and ") + " here." : ""}
+                    {byMe.length && byOthers.length ? " " : ""}
+                    {byOthers.length ? "Another diner has already shared " + byOthers.join(" and ") + " here." : ""}
                   </span>
                   {" "}
                   {fresh > 0
                     ? "Only what is ticked below gets sent."
-                    : "Tick one again only if you want yours to replace it."}
+                    : "Tick one only if you want yours to replace it."}
                 </div>
               );
             })()}

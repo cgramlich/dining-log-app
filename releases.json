@@ -503,5 +503,13 @@
       "email_notes": "updated: next-issue-notes.md (Refinement 1.588.0) and Log 2026-11-08h",
       "welcome": "n/a: nothing on the promo page changes",
       "handoff": "updated: version rows, decision entry, BRIEFING, Log"
+  },
+  "1.588.1": {
+      "what": "Fixes from the 75-screen design pass (design list items 17, 18, 21, 22). Bug: Add to the community said 'You have already shared Main menu here' when only another diner had; it now says who (you, or another diner). Wording: the vote count gets its full stop before 'Nobody sees the tally'; the shared-visit page's 'Sign in once here'; the Find a place box reads 'Search your places or Google' so it fits at iPhone width; the + sheet says 'Split a check' like the screen it opens. Invented names replace two real restaurants in examples. Star vs heart for a favourite waits for the redesign.",
+      "guide": "updated: diet chips (on the place page), Help me order (Start over), Nothing yet - find it for me (two places), I'm not eating, your score vs Google's rating on Places, an invented place in the compare example",
+      "promo": "n/a: fixes only, as-of bumped",
+      "email_notes": "updated: next-issue-notes.md (Fixes 1.588.1) and Log 2026-11-08i",
+      "welcome": "n/a: nothing on the promo page changes",
+      "handoff": "updated: version rows, decision entry, BRIEFING, Log"
   }
 }

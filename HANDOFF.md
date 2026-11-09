@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.588.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
+| Web app | **1.588.1** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
 | Backend | **0.164.1** | Railway, `/health` reports `db connected` (0.164.1 shipped from the Mac 2026-11-08: `GROUP_RETENTION_DAYS` read safely) |
-| Native shell | **1.588.0** | rebuilt on the Mac from web 1.588.0 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
+| Native shell | **1.588.1** | rebuilt on the Mac from web 1.588.1 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -415,6 +415,29 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### Fixes from the 75-screen design pass (2026-11-08, app 1.588.1)
+
+Chris chose "Fix now" for the small items in `DESIGN-CHANGES.md` (Dropbox), leaving layout to the redesign.
+- **Bug (item 21):** Add to the community said "You have already shared Main menu here" when only another
+  diner had. `isSharedLabel` ignored `cm.mine`. The banner now splits `isSharedByMe` (yours) from
+  another diner's. The default tick still treats ANY shared copy as already there, on purpose: it stops
+  accidental duplicates; ticking one replaces it, as the row says.
+- **Wording (item 22):** the vote count ends with a full stop before "Nobody sees the tally"; the shared-
+  visit page reads "Sign in once here and it remembers you"; Find a place's box reads "Search your places
+  or Google" (the old text was cut off at 375 px).
+- **Guide vs app (item 17):** each checked against the screen, then the one that was wrong changed. App:
+  the + sheet says "Split a check" (the screen it opens and the guide already did; "Split the check" stays
+  on a visit and on the group order host, where it is a specific check). Guide: diet chips are on the
+  place page only; Help me order clears with **Start over** (no x); the button is **Nothing yet - find it
+  for me**; a guest passes with **I'm not eating**, near the top of their page; the Places cards show
+  Google's rating, and your score orders **Highest rated**. Left for the redesign: favourite is a star on
+  Places and a heart on the place page.
+- **Real names (item 18):** the Quick group order placeholder is "Lucky Noodle House" and the Help me
+  order compare example is "the Cobb salad at Juniper Table" (were two real Dallas restaurants). Code
+  comments recording Chris's real Mi Cocina report stay: they are history, not shown to anyone.
+- Tested at 375 px with the pretend server, 7 checks: the banner for another diner's and for your own
+  shared menu, the vote line, the new placeholder shown and fitting its box.
 
 ### The color theme follows the account (2026-11-08, app 1.588.0)
 

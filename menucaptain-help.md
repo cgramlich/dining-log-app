@@ -224,11 +224,11 @@ seconds), the menu is read on our server, so you can tap **Done for now**,
 switch apps or lock your phone. When it's ready, a bar at the top of the app
 says so: tap **Review** to check it and save it. If you haven't come back within
 2 minutes of it finishing, we email you a link to it. A finished scan waits for
-you for up to 7 days. Prefer not to photograph it? **Find
-the menu for me** looks on the restaurant's website and reads the menu in for
+you for up to 7 days. Prefer not to photograph it? **Nothing yet -
+find it for me** looks on the restaurant's website and reads the menu in for
 you - and if no website is on file, you can simply type it in. You can also
-paste a link straight to a menu page. A menu from a link or from **Find the menu
-for me** is read on our server too: once the page is open (a few seconds), tap
+paste a link straight to a menu page. A menu from a link or from **Nothing yet -
+find it for me** is read on our server too: once the page is open (a few seconds), tap
 **Done for now** and the same bar, or the same email, brings you back to it.
 
 **Seen the menu on Google, Facebook or Yelp?** Those sites don't let apps read
@@ -272,11 +272,10 @@ with only one course opens with it showing. When a place has several menus, the
 line under its menu tabs says what this one holds: tap **See the dishes** to open
 the first course and go straight to it.
 
-**Dietary filters.** Open a menu and tap the diet chips (vegetarian, vegan,
-gluten-free, and friends) to narrow the list to dishes that fit - tags come
-from the menu itself plus the scan's best read of each dish. On a place's page,
-the same chips gather matching dishes from **every** menu there, each section
-labelled with the menu it came from ("Drinks · Cocktails"). A dish nobody tagged
+**Dietary filters.** On a place's page, tap the diet chips (vegetarian, vegan,
+gluten-free, and friends) to gather the dishes that fit from **every** menu
+there, each section labelled with the menu it came from ("Drinks · Cocktails").
+Tags come from the menu itself plus the scan's best read of each dish. A dish nobody tagged
 won't show, so it is a guide, not a guarantee.
 
 **Menus in another language.** A menu is kept exactly as the restaurant
@@ -389,8 +388,8 @@ that way. When a real photo exists, it is the only one shown - no guesses on top
 
 **Pull a menu from a link.** You do not have to scan a paper menu. When adding a
 menu you can paste the address of the restaurant's online menu and the app reads
-it into a clean digital menu for you. If you are not sure of the link, tap **Find
-the menu for me** and the app looks on the restaurant's website for it. This
+it into a clean digital menu for you. If you are not sure of the link, tap **Nothing
+yet - find it for me** and the app looks on the restaurant's website for it. This
 works on regular web menus, on the big online-ordering pages (Toast, Square, and
 similar), and on **PDF menus** that have real text in them - including sites
 (common on Squarespace and Wix) whose menu page just links to a menu PDF: the app
@@ -476,12 +475,12 @@ It also keeps a light read on your broader taste - the kinds of dishes you have
 loved (and the ones you have skipped) across all your restaurants - and uses it
 as a gentle hint. That is most helpful at a place you have barely been to, where
 there is little history yet, so even a first visit gets a personal suggestion. It
-never overrides what you actually asked for. When you are done with an answer, tap
-the small x in its corner to close it and clear the space.
+never overrides what you actually asked for. When you are done, tap **Start over**
+under the answers to clear them and ask something new.
 
 You can also compare with another place you have saved. Ask "what's closest to the
-Rico salad at Mi Cocina?" and it looks up that dish on your Mi Cocina menu (and in
-your visits there), then points you to the nearest thing on the menu in front of
+Cobb salad at Juniper Table?" and it looks up that dish on your Juniper Table menu
+(and in your visits there), then points you to the nearest thing on the menu in front of
 you. Name the place as you saved it. It works with your own saved places; menus
 other diners shared are not included yet.
 
@@ -521,8 +520,9 @@ you have an opinion about. Each is in half-stars: tap the left side of a star
 for a half, the right side for a whole, and tap the rating you already have to
 clear it.
 
-Those three combine into the single score you see in the Places list, in
-"highest-rated place" and on a shared card. **Food counts for half of it,
+Those three combine into your single score for the place: it orders the Places
+list when you sort by **Highest rated**, picks your "highest-rated place" and shows
+on a shared card. (The star rating on each Places card is Google's.) **Food counts for half of it,
 service for 30%, atmosphere for 20%** - a meal is mostly the food. If you rate
 only some of them, the ones you skipped are not counted against the place: rate
 Food four stars and nothing else and the place scores four, not two.
@@ -1072,9 +1072,9 @@ it (no app, no account), sees the menu, taps what they want, sets a **quantity**
 and an optional **note** ("no onions"), enters their name, and taps **Send my
 order**. They can change their order and send again any time.
 
-**Not hungry? Anyone can pass.** Right under the order button there's a **"Not
-eating? Tap to pass"** option, so someone who isn't ordering can bow out in one
-tap instead of leaving you wondering. They add their name so you know who it is,
+**Not hungry? Anyone can pass.** Near the top of their page there's an **I'm not
+eating** button, so someone who isn't ordering can bow out in one tap instead of
+leaving you wondering. They add their name so you know who it is,
 and it's reversible - an **"Actually, I'm in"** button brings them back if they
 change their mind.
 
