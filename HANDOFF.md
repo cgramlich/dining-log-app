@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.586.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
+| Web app | **1.587.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
 | Backend | **0.164.1** | Railway, `/health` reports `db connected` (0.164.1 shipped from the Mac 2026-11-08: `GROUP_RETENTION_DAYS` read safely) |
-| Native shell | **1.586.0** | rebuilt on the Mac from web 1.586.0 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
+| Native shell | **1.587.0** | rebuilt on the Mac from web 1.587.0 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -415,6 +415,32 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### Links for other people use menucaptain.com; group order "Who is this?" (2026-11-08, app 1.587.0)
+
+- **Store-app share links were broken.** Chris, in the iPhone app: a group order's link read
+  `capacitor://localhost/?g=7JCCAKW` and did nothing. Inside Capacitor the page's own address is
+  `capacitor://localhost`, and six places built links for OTHER people from `location.origin +
+  location.pathname` (group order `?g=`, vote `?v=`, shared visit `?visit=`, shared lists `?list=`
+  x3). RULE: they all go through `shareBase()`, which returns `PUBLIC_SITE`
+  (`https://menucaptain.com/`) when `IS_NATIVE`, else the page's own address (so preview copies
+  still link to themselves). Links that only move around inside the app keep using `location`.
+  Universal links (DESIGN-CHANGES item 9) are still needed so a tapped link opens the app.
+- **"Who is this?"** Chris listed Gracie; she ordered on her phone as "G", landing under Also ordered
+  while Gracie showed "opened it". `claimAs` relabels that pick to the host's roster name through
+  the existing `host-pick` endpoint (same items), then `guestIdentify` remembers the phone. Shown
+  only while someone on the roster is still waiting. `likelySamePerson` now also matches a lone
+  initial ("G", "G.") to a name starting with it, and `mergeRosterName` keeps the FULLER name
+  (initial: relabel the order; "Baker" vs "Baker Trent": rename the roster as before). Side effect:
+  host-pick stamps `host_edited_at`, so the guest may see "The host adjusted your order".
+- Also: honest store-app limit copy (the free allowance is lifetime on the server, so no "for now");
+  a typed website is saved to a place that had none (`typedSiteRef` -> `opts.website`, never
+  overwriting); "Open now" on the Google results of Find a place and AtRestaurantPicker (hides only
+  `open_now === false`); "friends" not "connections"; "Read the check" without "(1)"; group-order
+  share text "Let's order from X together." (Chris 08-03: the host may be at home).
+- Tested: Open now hid the closed result and kept unknown hours (375 px, pretend server);
+  `likelySamePerson` cases (G/g. vs Gracie true, S false, Baker cases unchanged); code checks. The
+  group-order link could not be driven in the test harness; confirm on the iPhone.
 
 ### Combine and rename sections (2026-11-08, app 1.586.0)
 

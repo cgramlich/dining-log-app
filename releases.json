@@ -479,5 +479,13 @@
       "email_notes": "updated: next-issue-notes.md (Refinement 1.586.0, for Also improved) and Log 2026-11-08e",
       "welcome": "n/a: nothing on the promo page changes",
       "handoff": "updated: version rows, decision entry, BRIEFING, Log"
+  },
+  "1.587.0": {
+      "what": "Fixes and Chris's past asks (chosen by card 2026-11-08). (1) In the iPhone app, links handed to other people (group order, group vote, shared visit, shared place lists) read capacitor://localhost and did nothing (Chris found it on a group order); they now always use https://menucaptain.com/ (shareBase). (2) Group order: 'Who is this?' on an Also ordered row relabels that order to a waiting name on your list and remembers the phone (Chris: Gracie ordered as 'G'); a lone initial now raises the same-person question, and a merge keeps the fuller name. (3) The free-limit message in the iPhone app says plainly what is used up and that everything else keeps working (no 'for now': the allowance is one-time). (4) A website typed for a place that had none is kept on the place. (5) 'Open now' on Find a place's and the at-restaurant finder's Google results. (6) Wording: 'friends' not 'connections', 'Read the check' without a bracketed count, group-order share text no longer assumes the host is at the place, the guide's sharing example uses the demo name.",
+      "guide": "updated: Find a place (Open now), group order (Who is this?), sharing example name",
+      "promo": "n/a: fixes and refinements, as-of bumped",
+      "email_notes": "updated: next-issue-notes.md (Refinements 1.587.0, for Also improved) and Log 2026-11-08f",
+      "welcome": "n/a: nothing on the promo page changes",
+      "handoff": "updated: version rows, decision entry, BRIEFING, Log"
   }
 }

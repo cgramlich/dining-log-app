@@ -67,7 +67,8 @@ The one you are on is highlighted.
 - **The plus (+) button** - quick actions, not a page. **Already at the
   restaurant** comes first - the same two-step as the card on Home. **Find places
   near me** discovers spots around you, and **Find a place** searches your places or anywhere on
-  Google. Below them are the things you do once you're there: scan or find a
+  Google. When some of the results are closed right now, an **Open now** switch above them hides
+  those (places with unknown hours stay). Below them are the things you do once you're there: scan or find a
   menu, log a visit, split the check, or start a group order. **Find friends**
   is here too, so your connections are always one tap away; if someone has
   asked to connect, a badge shows the count.
@@ -891,7 +892,7 @@ for both of you. The &#8942; beside any reply reports it to us.
 **They can connect back to you.** A link you share carries your name (and your
 @handle behind it), so somebody who reads it and makes an account is offered you
 as a friend in one tap. Set a display name under Settings &rarr; Your profile and
-the page reads "Chris Gramlich" instead of "@cjgramlich" - including the line
+the page reads "Alex Rivera" instead of "@alexrivera", including the line
 under your stars, which otherwise has to say "the sharer". If the visit is one you were both at, their request also books their place
 at it: the moment you accept, the visit appears in their diary with the date,
 the people, and your photos. Until you accept they see "Waiting on you" and
@@ -1115,7 +1116,11 @@ responded and drops off the waiting list (shown as **passed - not ordering**), s
 you are never left waiting on a person who was never going to order. Matching is
 by name, so it lines up when a person types the same name you listed; anyone who
 orders under a name not on your list still shows up under **Also ordered**, so no
-order is ever missed. The roster is yours alone - guests never see it. Leave it
+order is ever missed. If that order is really from someone you listed (you wrote
+**Gracie**, she typed **G**), tap **Who is this?** under it and pick her name: the
+order becomes hers, under the name you know her by, and her phone is remembered
+for next time. A first initial on its own also gets the "Is this the same
+person?" question. The roster is yours alone - guests never see it. Leave it
 empty and the order works exactly as before.
 
 **Getting back to a running order.** Any group order you start also appears under

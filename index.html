@@ -1322,21 +1322,32 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.586.0";
+const APP_VERSION   = "1.587.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+// RULE (1.587.0): a link handed to OTHER people always points at the public site. Inside the store
+// app the page's own address is capacitor://localhost, which exists only on that one phone: Chris
+// found a group-order link reading "capacitor://localhost/?g=..." that did nothing (2026-11-08).
+// On the web the page's own address is kept, so test and preview copies still link to themselves.
+// Links that only move around inside the app keep using location.
+const PUBLIC_SITE = "https://menucaptain.com/";
+function shareBase(){ return IS_NATIVE ? PUBLIC_SITE : (location.origin + location.pathname); }
 
 // One home for "you've hit a limit" copy. On the store build any purchase
 // language is forbidden (Apple/Google payment rules), so this sanitizes BOTH
 // our fallback strings and whatever detail string the backend sent - future
 // backend copy can never leak an upsell into the native app.
+// RULE (1.587.0, Chris 07-21: "I can't imagine a user in the App Store hitting a limit and not
+// understanding what they could do"): say plainly what is used up and what still works. The free
+// allowances are one-time (the server counts them over the account's lifetime), so never "for now".
+// Still no purchase words here until in-app purchase exists (launch step 5).
 function limit402Message(detail, kind){
   if (IS_NATIVE){
     return kind === "ai"
-      ? "You've reached your AI usage limit for now."
-      : "You've reached your discovery search limit for now.";
+      ? "You've used the AI help that comes with your account. Everything else keeps working: your places, menus, visits and photos."
+      : "You've used the place searches that come with your account. You can still add places by name and use everything else.";
   }
   return (detail || "") || (kind === "ai"
     ? "You have reached your AI usage limit. Upgrade to MenuCaptain Pro for unlimited access."
@@ -2070,7 +2081,8 @@ The one you are on is highlighted.
 - **The plus (+) button** - quick actions, not a page. **Already at the
   restaurant** comes first - the same two-step as the card on Home. **Find places
   near me** discovers spots around you, and **Find a place** searches your places or anywhere on
-  Google. Below them are the things you do once you're there: scan or find a
+  Google. When some of the results are closed right now, an **Open now** switch above them hides
+  those (places with unknown hours stay). Below them are the things you do once you're there: scan or find a
   menu, log a visit, split the check, or start a group order. **Find friends**
   is here too, so your connections are always one tap away; if someone has
   asked to connect, a badge shows the count.
@@ -2894,7 +2906,7 @@ for both of you. The &#8942; beside any reply reports it to us.
 **They can connect back to you.** A link you share carries your name (and your
 @handle behind it), so somebody who reads it and makes an account is offered you
 as a friend in one tap. Set a display name under Settings &rarr; Your profile and
-the page reads "Chris Gramlich" instead of "@cjgramlich" - including the line
+the page reads "Alex Rivera" instead of "@alexrivera", including the line
 under your stars, which otherwise has to say "the sharer". If the visit is one you were both at, their request also books their place
 at it: the moment you accept, the visit appears in their diary with the date,
 the people, and your photos. Until you accept they see "Waiting on you" and
@@ -3118,7 +3130,11 @@ responded and drops off the waiting list (shown as **passed - not ordering**), s
 you are never left waiting on a person who was never going to order. Matching is
 by name, so it lines up when a person types the same name you listed; anyone who
 orders under a name not on your list still shows up under **Also ordered**, so no
-order is ever missed. The roster is yours alone - guests never see it. Leave it
+order is ever missed. If that order is really from someone you listed (you wrote
+**Gracie**, she typed **G**), tap **Who is this?** under it and pick her name: the
+order becomes hers, under the name you know her by, and her phone is remembered
+for next time. A first initial on its own also gets the "Is this the same
+person?" question. The roster is yours alone - guests never see it. Leave it
 empty and the order works exactly as before.
 
 **Getting back to a running order.** Any group order you start also appears under
@@ -4479,7 +4495,7 @@ async function shareVisit(cfg, visit, restaurant, menuList, setBusy, setErr, not
       enc = encodeListPayload(payload);
       if (setErr) setErr("Menu was too large to include - sharing the visit without it.");
     }
-    const longUrl = location.origin + location.pathname + "?visit=" + enc;
+    const longUrl = shareBase() + "?visit=" + enc;
     // Prefer the backend-served /v/<slug> page: it's INSTANT (no GitHub Pages
     // build delay) and carries a real preview card (meal photo + place). Fall
     // back to the always-works long ?visit= link if the backend is unreachable.
@@ -10699,6 +10715,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
   const [gErr, setGErr]       = useState("");
   const [gResults, setGResults] = useState(null);   // null = not searched yet
   const [gPrices, setGPrices]   = useState({});     // place_id -> shared menus' prices (price discovery)
+  const [openOnly, setOpenOnly] = useState(false);  // "Open now" (1.587.0): same rule as the other finders
   useEffect(()=>{
     let alive = true;
     setGPrices({});
@@ -10848,10 +10865,26 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
               </div>
             ) : null}
             {gErr ? <div className="tiny faint" style={{marginTop:6}}>{gErr}</div> : null}
-            {Array.isArray(gResults) && gResults.length > 0 ? (
+            {Array.isArray(gResults) && gResults.length > 0 ? (()=>{
+              // "Open now" (1.587.0; Chris 08-08, 09-06): hides only places Google says are shut
+              // right now; unknown hours stay. Shown only when some result is known to be closed.
+              const hasClosed = gResults.some(c => c && c.open_now === false);
+              const shown = openOnly ? gResults.filter(c => c && c.open_now !== false) : gResults;
+              return (
               <div className="card" style={{marginTop:8, padding:"4px 0"}}>
-                <div className="small muted" style={{padding:"6px 14px"}}>From Google</div>
-                {gResults.map((c,i)=>{
+                <div className="row" style={{padding:"6px 14px", gap:8, alignItems:"center", justifyContent:"space-between"}}>
+                  <div className="small muted">From Google</div>
+                  {(hasClosed || openOnly) ? (
+                    <button type="button" className={"chip pick" + (openOnly ? " on" : "")} aria-pressed={openOnly}
+                      style={{flex:"none"}} onClick={()=> setOpenOnly(v => !v)}>Open now</button>
+                  ) : null}
+                </div>
+                {openOnly && shown.length === 0 ? (
+                  <div className="tiny faint" style={{padding:"4px 14px 10px"}}>
+                    None of these are open right now. <a href="#" onClick={(e)=>{ e.preventDefault(); setOpenOnly(false); }}>Show all</a>
+                  </div>
+                ) : null}
+                {shown.map((c,i)=>{
                   const saved = findPlaceByGoogleId(restaurants, c.place_id);
                   const cz = cuisineFromType(c.primary_type, c.types);
                   const isAdding = adding && adding === c.place_id;
@@ -10881,7 +10914,8 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
                   );
                 })}
               </div>
-            ) : null}
+              );
+            })() : null}
           </div>
         ) : null}
 
@@ -12394,7 +12428,7 @@ function App({openShare}){
     try {
       const payload  = buildListPayload(rec.title, selected, visits);
       const enc      = encodeListPayload(payload);
-      const longUrl  = location.origin + location.pathname + "?list=" + enc;
+      const longUrl  = shareBase() + "?list=" + enc;
       const short    = await publishListPage(config, payload, enc);
       const finalUrl = short || longUrl;
       const next = (lists || []).map(l => l.id === rec.id ? Object.assign({}, l, {
@@ -14220,6 +14254,13 @@ function App({openShare}){
             if (newRestaurant) nextR = [newRestaurant].concat(restaurants);
             // The menu printed a story about the place: keep the latest one.
             // A scan without one leaves an earlier story alone.
+            // A website typed while getting this menu, for a place that had none, stays on the
+            // place (1.587.0). Never overwrites a website the place already has.
+            const typedSite = (opts && opts.website) || "";
+            if (typedSite && opts.websiteFor === restId){
+              nextR = nextR.map(x => (x.id === restId && !String(x.website || "").trim())
+                ? Object.assign({}, x, { website: typedSite }) : x);
+            }
             const houseStory = (opts && opts.houseStory) || "";
             if (houseStory){
               nextR = nextR.map(x => x.id === restId
@@ -16520,7 +16561,7 @@ function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilt
       const title   = "My " + filter + " spots";
       const payload = buildListPayload(title, places, visits);
       const enc     = encodeListPayload(payload);
-      const longUrl = location.origin + location.pathname + "?list=" + enc;
+      const longUrl = shareBase() + "?list=" + enc;
       logMsg("PUBLISH","City share \"" + title + "\" (" + places.length + " places)");
       let url = longUrl;
       try { const s = await publishListPage(cfg, payload, enc); if (s) url = s; }
@@ -20047,6 +20088,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
   const [gErr, setGErr]     = useState("");
   const [gResults, setGResults] = useState(null);
   const [gMode, setGMode]   = useState("search");   // which action filled gResults: "search" | "nearby"
+  const [openOnly, setOpenOnly] = useState(false);   // "Open now" on Google results (1.587.0)
   const [sortBy, setSortBy] = useState("recent");   // "I'm back" list: recent | az | fav
   const [filterBy, setFilterBy] = useState(initialFilter || "all");  // all | visited | unvisited
   const [showCtl, setShowCtl]   = useState(!!initialFilter);  // open controls when arriving pre-filtered
@@ -20177,6 +20219,11 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
     : gResults;
   const gFilteredOut = Array.isArray(gResults) && gResults.length > 0
                        && Array.isArray(gShown) && gShown.length === 0;
+  // "Open now" (1.587.0; Chris, 08-08 and 09-06: "I should have a toggle of all or only open").
+  // Hides only places Google says are shut at this hour; unknown hours stay, the same rule as
+  // Near me. The switch shows only when at least one result is known to be closed.
+  const gHasClosed = Array.isArray(gShown) && gShown.some(c => c && c.open_now === false);
+  const gVisible = (openOnly && Array.isArray(gShown)) ? gShown.filter(c => c && c.open_now !== false) : gShown;
 
   const gList = gFilteredOut ? (
     <div className="card" style={{marginTop:8, padding:"12px 14px"}}>
@@ -20190,10 +20237,21 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
     </div>
   ) : Array.isArray(gShown) && gShown.length > 0 ? (
     <div className="card" style={{marginTop:8, padding:"4px 0"}}>
-      <div className="small muted" style={{padding:"6px 14px"}}>
-        {gMode==="nearby" ? (gQuery ? "Near you, matching “" + q.trim() + "”" : "Places near you") : "From Google"}
+      <div className="row" style={{padding:"6px 14px", gap:8, alignItems:"center", justifyContent:"space-between"}}>
+        <div className="small muted">
+          {gMode==="nearby" ? (gQuery ? "Near you, matching “" + q.trim() + "”" : "Places near you") : "From Google"}
+        </div>
+        {(gHasClosed || openOnly) ? (
+          <button type="button" className={"chip pick" + (openOnly ? " on" : "")} aria-pressed={openOnly}
+            style={{flex:"none"}} onClick={()=> setOpenOnly(v => !v)}>Open now</button>
+        ) : null}
       </div>
-      {gShown.map((c,i)=>{
+      {openOnly && gVisible.length === 0 ? (
+        <div className="tiny faint" style={{padding:"4px 14px 10px"}}>
+          None of these are open right now. <a href="#" onClick={(e)=>{ e.preventDefault(); setOpenOnly(false); }}>Show all</a>
+        </div>
+      ) : null}
+      {gVisible.map((c,i)=>{
         const savedHit = findPlaceByGoogleId(restaurants, c.place_id);
         return (
           <div key={i} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"flex-start", cursor:"pointer"}}
@@ -21678,7 +21736,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 </button>
                 {shots.length > 0 && (
                   <button className="btn primary" style={{marginTop:10}} onClick={readShots}>
-                    Read the check ({shots.length})
+                    {shots.length > 1 ? "Read the " + shots.length + " photos" : "Read the check"}
                   </button>
                 )}
                 <button className="btn ghost" style={{marginTop:10}} onClick={startManual}>
@@ -26958,6 +27016,9 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
   // The scan saved on this phone while its photos go up ("sending"), or wait
   // for signal ("waiting"). [sent, of] for the progress line.
   const savedScanId            = useRef("");
+  // A website typed because the place had none (1.587.0): kept so the save can store it on the
+  // place. Chris, 07-18: it was used once and had to be typed again on every refresh.
+  const typedSiteRef           = useRef({ site:"", forRest:"" });
   const [sendProgress, setSendProgress] = useState([0, 0]);
   // Set while a scan needs the app open; cleared when that ends, however it
   // ends, and when this screen closes. See SCAN_INFLIGHT_KEY.
@@ -27356,6 +27417,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     let site = typed || (rest && (rest.website || "").trim()) || "";
     if (!site){ setShowSite(true); return; }
     if (!/^https?:\/\//i.test(site)) site = "https://" + site;
+    typedSiteRef.current = (typed && rest && !(rest.website || "").trim())
+      ? { site: typed, forRest: rest.id } : { site:"", forRest:"" };
     // Plenty of small places list a Facebook page as their website. Crawling
     // it finds nothing, so say so at once and offer the screenshot route.
     const dead = menuDeadEnd(site);
@@ -27592,7 +27655,8 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     // replacing a menu with nothing would empty it.
     onSave(targetRestId, menusToSave, newRestaurant, isReplace && menusToSave.length > 0,
            { stayOpen, houseStory: (result && result.house_story) || "",
-             joinedInto: (joining && menusToSave.length) ? contInfo.target.menu_id : "" });
+             joinedInto: (joining && menusToSave.length) ? contInfo.target.menu_id : "",
+             website: typedSiteRef.current.site, websiteFor: typedSiteRef.current.forRest });
     // Saved: the server drops its copy of what it read.
     if (jobId && jobLoaded.current){ collectScanJob(config, jobId); jobLoaded.current = false; setJobId(""); }
     if (stayOpen){
@@ -29643,6 +29707,10 @@ function likelySamePerson(a, b){
   // "Baker" against "Baker Trent" - a lone first name matching the other's.
   if (xw.length === 1 && yw.length > 1 && yw[0] === x) return true;
   if (yw.length === 1 && xw.length > 1 && xw[0] === y) return true;
+  // "G" or "G." against "Gracie" - a lone initial (1.587.0: Chris's Gracie ordered as "G").
+  const initial = w => /^[a-z]\.?$/.test(w);
+  if (xw.length === 1 && initial(x) && yw[0].length > 1 && yw[0].charAt(0) === x.charAt(0)) return true;
+  if (yw.length === 1 && initial(y) && xw[0].length > 1 && xw[0].charAt(0) === y.charAt(0)) return true;
   // "Baker T" against "Baker Trent" - same first name, same next initial.
   if (xw.length > 1 && yw.length > 1 && xw[0] === yw[0]
       && xw[1].charAt(0) === yw[1].charAt(0)) return true;
@@ -30343,7 +30411,7 @@ function GroupInvitePicker({cfg, code}){
   return (
     <>
       <button className="btn ghost sm" style={{marginBottom:2}} onClick={openPicker}>
-        <Icon name="nodes" size={14} color="var(--accent)" />Invite connections
+        <Icon name="nodes" size={14} color="var(--accent)" />Invite friends
       </button>
       {open && (
         <div style={{position:"fixed", inset:0, zIndex:70, background:"rgba(0,0,0,0.55)",
@@ -30352,7 +30420,7 @@ function GroupInvitePicker({cfg, code}){
           <div className="card" style={{width:"100%", maxWidth:520, margin:0,
                borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:"85vh", overflowY:"auto"}}
                onClick={(e)=> e.stopPropagation()}>
-            <div style={{fontWeight:600, marginBottom:4}}>Invite connections</div>
+            <div style={{fontWeight:600, marginBottom:4}}>Invite friends</div>
             <div className="small muted" style={{marginBottom:10}}>
               They'll see this order in their app and can join as themselves.
             </div>
@@ -30362,7 +30430,7 @@ function GroupInvitePicker({cfg, code}){
             ) : conns.length === 0 ? (
               <div className="small faint" style={{padding:"4px 0 12px"}}>
                 {loadFail
-                  ? <>Couldn't load your connections. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
+                  ? <>Couldn't load your friends. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
                   : <>No friends yet. Add some in Settings &rarr; Friends.</>}
               </div>
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
@@ -30444,6 +30512,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
     finally { setMenuBusy(false); }
   }
   const [confirmRemove, setConfirmRemove] = useState(null);  // guest_token pending remove-confirm
+  const [whoFor, setWhoFor] = useState(null);                // "Who is this?" open for this guest_token (1.587.0)
   const [editTarget, setEditTarget] = useState(null);        // the pick being host-edited, or null
   const [editItems, setEditItems]   = useState([]);          // working copy of that pick's items
   const [editBusy, setEditBusy]     = useState(false);
@@ -30458,7 +30527,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
     return ()=> { alive = false; };
     // eslint-disable-next-line
   }, []);
-  const link = code ? (location.origin + location.pathname + "?g=" + code) : "";
+  const link = code ? (shareBase() + "?g=" + code) : "";
   const [rosterInput, setRosterInput] = useState("");
   const [rosterBusy, setRosterBusy]   = useState(false);
   const [rosterFocus, setRosterFocus] = useState(false);   // suggestions only while adding
@@ -30493,6 +30562,9 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
   async function mergeRosterName(oldName, sub){
     const full = (sub && sub.guest_name || "").trim();
     if (!full) return;
+    // Keep the fuller name (1.587.0): "Baker" -> "Baker Trent" renames the roster entry, but
+    // "Gracie" and an initial "G" keeps Gracie and relabels the order instead.
+    if (full.replace(/\.$/, "").length < String(oldName || "").trim().length){ await claimAs(sub, oldName); return; }
     await saveRoster((roster || []).map(n => groupNorm(n) === groupNorm(oldName) ? full : n));
     if (sub.guest_token && !String(sub.guest_token).startsWith("host:")){
       // Best effort. Failing to remember must not undo the merge the host can
@@ -30558,6 +30630,31 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
     } catch(e){ logMsg("GROUP","host edit failed: " + e.message); }
     finally { setEditBusy(false); }
   }
+  /* "Who is this?" (1.587.0). Chris, 2026-11-08: he listed "Gracie", she ordered as "G" on her own
+     phone, and he wanted G's order to be Gracie's rather than deleting one and retyping. The order is
+     relabelled to the host's name (host-pick keeps the same items under that name), so the existing
+     exact match does the rest: Gracie shows "ordered" and the G row goes. The roster keeps the
+     host's name, the one he knows her by. The phone is remembered as that person (explicit
+     confirmation only, like the merge above), so next time her order matches on its own. Note: the
+     server stamps host_edited_at, so she may see "The host adjusted your order". */
+  async function claimAs(sub, rosterName){
+    const nm = String(rosterName || "").trim();
+    const token = sub && sub.guest_token;
+    if (!code || !nm || !token) return;
+    const list = (sub.picks || []).map(it => ({ item: it.item, section: it.section || "", qty: it.qty || 1, note: (it.note || "").trim() }));
+    if (!list.length) return;
+    setWhoFor(null);
+    setData(d => d ? { ...d, picks: (d.picks || []).map(p => p.guest_token === token ? { ...p, guest_name: nm } : p) } : d);
+    try {
+      await groupHostPick(cfg, code, nm, token, list);
+      logMsg("GROUP","claimed pick token=" + token.slice(0,8) + " as roster name");
+    } catch(e){ logMsg("GROUP","claim failed: " + e.message); }
+    if (!String(token).startsWith("host:")){
+      try {
+        await guestIdentify(cfg, { guest_token: token, person_label: nm, seen_as: sub.guest_name || "", stable: true });
+      } catch(e){ logMsg("IDENTITY", "claim link failed: " + ((e && e.message) || "?")); }
+    }
+  }
   // Per-card host controls: Edit + Remove (Remove has a row-level confirm).
   const cardCtls = (g) => {
     const token = g && g.guest_token;
@@ -30618,15 +30715,15 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
     } finally { setStarting(false); }
   }
   async function shareLink(){
-    // Share copy matches the order type: with a menu snapshot the host is
-    // usually AT the place; a quick (menu-less) order is usually a pickup run,
-    // so "I'm at X" reads wrong. The note deliberately does NOT ride along
+    // Share copy matches the order type: an order with a menu is "let's order from X together"
+    // (1.587.0: it used to say "I'm at X", but the host is often at home; Chris 08-03), a quick
+    // (menu-less) order is usually a pickup run. The note deliberately does NOT ride along
     // here (it can be long); guests see it when they open the order page.
     const hasMenuSnap = !!(data && data.menu_snapshot && Array.isArray(data.menu_snapshot.sections) && data.menu_snapshot.sections.length && !data.menu_snapshot.quick_options);
     const nm = restaurantName || (data && data.restaurant_name) || "the restaurant";
     const text = (hasMenuSnap
-      ? "I'm at " + nm + " - what do you want?"
-      : "I'm getting food from " + nm + " - want anything?") +
+      ? "Let's order from " + nm + " together."
+      : "I'm getting food from " + nm + ". Want anything?") +
       " Add your order here: " + link;
     if (!(await nativeShare({ title:"Group order", text: text }))){
       try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(()=> setCopied(false), 1500); }
@@ -31186,6 +31283,22 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                           </div>
                           {cardCtls(g)}
                         </div>
+                        {/* "Who is this?" (1.587.0): only while someone on the list is still
+                            waiting, since those are the only names an unlisted order can be. */}
+                        {!closed && waiting.length && g.guest_token ? (whoFor === g.guest_token ? (
+                          <div style={{marginTop:6}}>
+                            <div className="tiny faint" style={{marginBottom:5}}>This order is from:</div>
+                            <div className="chips" style={{gap:6}}>
+                              {waiting.map(nm => (
+                                <button key={nm} type="button" className="chip pick" onClick={()=> claimAs(g, nm)}>{nm}</button>
+                              ))}
+                              <button type="button" className="chip" onClick={()=> setWhoFor(null)}>Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <a href="#" className="tiny" style={{color:"var(--accent)", display:"inline-block", marginTop:5}}
+                             onClick={(e)=>{ e.preventDefault(); setWhoFor(g.guest_token); }}>Who is this?</a>
+                        )) : null}
                       </div>
                     ))}
                   </>
@@ -31533,7 +31646,7 @@ function VoteStart({cfg, profile, restaurants, visits, onClose, onStarted}){
 /* The host's view once it is running: the share link on top, the ballot below
    (the host votes too), and the result when it closes. */
 function VoteHost({code, shareUrl, cfg, profile, restaurants, onClose, onOpenRestaurant, onAddPlace}){
-  const link = shareUrl || (location.origin + location.pathname + "?v=" + encodeURIComponent(code));
+  const link = shareUrl || (shareBase() + "?v=" + encodeURIComponent(code));
   const [copied,setCopied] = useState(false);
 
   async function share(){
@@ -33171,7 +33284,7 @@ function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose, 
         menusDropped = true;
       }
       // ?list= (query) survives shorteners; the viewer also still reads #list=
-      const longUrl = location.origin + location.pathname + "?list=" + enc;
+      const longUrl = shareBase() + "?list=" + enc;
       const short = await publishListPage(cfg, payload, enc);
       const dropNote = menusDropped ? "This list was large, so menus weren't included - it shares the places only. " : "";
       if (short){
@@ -35152,7 +35265,7 @@ function LeaderboardScreen({config, profile, onProfileChange, onClose, onHome}){
             <div className="between">
               <div style={{minWidth:0}}>
                 <div style={{fontWeight:600}}>Show me on leaderboards</div>
-                <div className="tiny faint" style={{marginTop:3}}>Let your connections see your stats.</div>
+                <div className="tiny faint" style={{marginTop:3}}>Let your friends see your stats.</div>
               </div>
               <button className={"btn sm " + (vis ? "primary" : "ghost")} disabled={visBusy} onClick={toggleVis}>
                 {visBusy ? <span className="spin" /> : (vis ? "On" : "Off")}
@@ -36401,7 +36514,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide, lovedDishes, 
             ) : conns.length === 0 ? (
               <div className="small faint" style={{padding:"4px 0 12px"}}>
                 {loadFail
-                  ? <>Couldn't load your connections. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
+                  ? <>Couldn't load your friends. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
                   : <>No friends yet. Add some in Settings &rarr; Friends.</>}
               </div>
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
@@ -36514,7 +36627,7 @@ function SendVisitToConnection({cfg, visit, restaurant, menuList, label, onLinkS
             ) : conns.length === 0 ? (
               <div className="small faint" style={{padding:"4px 0 12px"}}>
                 {loadFail
-                  ? <>Couldn't load your connections. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
+                  ? <>Couldn't load your friends. <a href="#" onClick={(e)=>{ e.preventDefault(); setConns(null); openPicker(); }}>Try again</a></>
                   : <>No friends yet. Add some in Settings &rarr; Friends.</>}
               </div>
             ) : conns.slice().sort((a,b)=> (favSet.has(b.user_id)?1:0) - (favSet.has(a.user_id)?1:0)).map(c => {
