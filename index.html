@@ -1322,7 +1322,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.588.1";
+const APP_VERSION   = "1.589.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2051,8 +2051,16 @@ The one you are on is highlighted.
   it finds *where you are* (tap **See places near me** and it uses your location to list the
   spots right around you, or search / pick a saved place), then it walks you into
   **getting the menu** for that place - so the menu always lands on a real,
-  Google-linked place instead of a name you typed. If a menu is already on file
-  there, it offers to open it instead of re-scanning. If you have none but other
+  Google-linked place instead of a name you typed. **Standing in one of your places?**
+  Once you have let MenuCaptain use your location, Home names it: **At Pizza Italia?
+  Open the menu** opens your saved menu in one tap, and **Somewhere else?** under it
+  takes you to the usual two-step. On that page your saved places within walking
+  distance come first, each saying how fresh its menu is ("Menu saved Oct 12"), and
+  tapping one opens its menu straight away (a place with several menus opens the
+  first, with the others as tabs along the top). Your location stays on your phone:
+  it is only compared with the places you have saved, and the app never asks for it
+  until you tap **See places near me**. If a place has no menu yet, it walks you into
+  getting one. If you have none but other
   diners have already added one, it offers theirs first - with how old each is -
   and **Get a fresh menu instead** right underneath if it looks out of date. That same step also lets you
   **log a visit** right away, to save the memory of the meal. The second door,
@@ -4263,6 +4271,30 @@ async function nativePosition(){
       ()=> resolve(null),
       { enableHighAccuracy:false, timeout:8000, maximumAge:300000 });
   });
+}
+
+/* Location WITHOUT asking (1.589.0, "Straight to the menu"). Reads where you are only when
+   location is already allowed, so opening Home or "Already at the restaurant?" never pops the
+   system prompt by itself; the prompt still comes from a tap on "See places near me".
+   null = not allowed yet, denied, or no fix in time, and callers then show what they showed
+   before. The position never leaves the phone: it is compared with coordinates already saved
+   with your places. A fix younger than a minute is reused, so Home and the picker share one. */
+let _hereCache = null;   // { loc, at }
+async function positionIfAllowed(){
+  if (_hereCache && (Date.now() - _hereCache.at) < 60000) return _hereCache.loc;
+  let loc = null;
+  try {
+    const G = capPlugins().Geolocation;
+    if (G){
+      const perm = await G.checkPermissions();
+      if (perm && (perm.location === "granted" || perm.coarseLocation === "granted")) loc = await nativePosition();
+    } else if (navigator.permissions && navigator.permissions.query && navigator.geolocation){
+      const st = await navigator.permissions.query({ name:"geolocation" });
+      if (st && st.state === "granted") loc = await nativePosition();
+    }
+  } catch(e){ loc = null; }
+  if (loc) _hereCache = { loc, at: Date.now() };
+  return loc;
 }
 
 /* Sharing. The native sheet is the same one the OS shows everywhere else, and
@@ -11018,10 +11050,26 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
    wizard - the finding/searching work lives one tap deeper in FindPlaceView.
    ============================================================ */
 function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, onChat, chatDot,
-                    onScanMenu, onAtRestaurant, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs,
+                    onScanMenu, onAtRestaurant, onAtPlace, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs,
                     newsTick, onReadIssue, onSendIssue,
                     wineBook, onWineVerdict, onWineOpen, onWineLater, onWineDrop }){
   const [showAllVisits, setShowAllVisits] = useState(false);   // Recent visits: 3, then expand
+  // Standing in one of your places? (1.589.0, see AT_PLACE_M.) The first card names it and opens
+  // its menu in one tap. Location is read only while Home is on screen and only if already
+  // allowed; it is compared on the phone with your places' saved coordinates, never sent anywhere.
+  const [hereLoc, setHereLoc] = useState(null);
+  useEffect(()=>{
+    if (!onAtPlace) return;
+    let alive = true;
+    const look = ()=>{ if (document.visibilityState === "visible")
+      positionIfAllowed().then(loc => { if (alive) setHereLoc(loc || null); }); };
+    look();
+    document.addEventListener("visibilitychange", look);
+    return ()=>{ alive = false; document.removeEventListener("visibilitychange", look); };
+  // eslint-disable-next-line
+  }, []);
+  const herePlace = hereLoc ? (savedPlacesNear(restaurants, hereLoc, AT_PLACE_M)[0] || null) : null;
+  const hereMenus = herePlace ? menusWithDishes(menus, herePlace.r.id) : [];
   // Recently ADDED: newest saves to your collection (by added_date). Kept
   // deliberately distinct from Recent visits below - this is "new to my list",
   // that is "meals I logged" - so the two Home sections don't say the same thing.
@@ -11116,7 +11164,26 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
           search + Near me / Still to try / Can't decide). Most sessions start
           on-location, so that card comes first; the search work lives one tap
           deeper so Home stays a calm launcher. */}
-      {(onAtRestaurant || onScanMenu) ? (
+      {herePlace && onAtPlace ? (
+        <div style={{marginBottom:12}}>
+          <div className="card tap" style={{marginBottom:6, cursor:"pointer", display:"flex", gap:12, alignItems:"center",
+               background:"rgba(224,118,74,0.08)", border:"1px solid rgba(224,118,74,0.30)"}}
+            onClick={()=> onAtPlace(herePlace.r.id)}>
+            <Icon name={hereMenus.length ? "book" : "pin"} size={22} color="var(--accent)" />
+            <div style={{flex:1, minWidth:0}}>
+              <div className="small" style={{fontWeight:600}}>At {herePlace.r.name}?</div>
+              <div className="tiny faint">{hereMenus.length ? menuFreshLabel(hereMenus) : "No menu here yet. Get it in a minute."}</div>
+            </div>
+            <span className="tiny" style={{color:"var(--accent)", fontWeight:600, flex:"none"}}>
+              {hereMenus.length ? "Open the menu ›" : "Get the menu ›"}</span>
+          </div>
+          {onAtRestaurant ? (
+            <div className="tiny" style={{textAlign:"right", padding:"0 4px"}}>
+              <a href="#" style={{color:"var(--accent)"}} onClick={(e)=>{ e.preventDefault(); onAtRestaurant(); }}>Somewhere else?</a>
+            </div>
+          ) : null}
+        </div>
+      ) : (onAtRestaurant || onScanMenu) ? (
         <div className="card tap" style={{marginBottom:12, cursor:"pointer", display:"flex", gap:12, alignItems:"center",
              background:"rgba(224,118,74,0.08)", border:"1px solid rgba(224,118,74,0.30)"}}
           onClick={onAtRestaurant || onScanMenu}>
@@ -12270,6 +12337,14 @@ function App({openShare}){
   // handle (from a split or the Connections screen) persists + syncs via meta.
   const metaRef = useRef(meta);
   useEffect(()=> { metaRef.current = meta; }, [meta]);
+  // At the table (1.589.0, see AT_PLACE_M): a place with a menu opens the menu itself, its other
+  // menus as tabs along the top. Only a new place, or one with no menu yet, goes through
+  // "You're all set" to get one. Back from the menu lands on the place page.
+  function openAtPlace(id){
+    const ms = menusWithDishes(menus, id);
+    setOverlay(ms.length ? { type:"menuDetail", restaurantId:id, menuId:ms[0].menu_id }
+                         : { type:"atRestaurantMenu", id });
+  }
   // A colour picked in Settings is saved to the account (1.588.0, see accountThemeKey).
   useEffect(()=>{
     const onChosen = (e)=>{
@@ -13144,6 +13219,7 @@ function App({openShare}){
             onOpenRestaurant={(id)=> setOverlay({ type:"restaurant", id:id })}
             onScanMenu={()=> setOverlay({ type:"scanMenu" })}
             onAtRestaurant={()=> setOverlay({ type:"atRestaurant" })}
+            onAtPlace={openAtPlace}
             onFindPlace={()=> setOverlay({ type:"findPlace" })}
             onOpenSettings={()=> setTab("settings")}
             onShareApp={shareApp}
@@ -13551,10 +13627,10 @@ function App({openShare}){
           saved), then route to step 2 (grab the menu) instead of the place page. */}
       {overlay && overlay.type === "atRestaurant" && (
         <AtRestaurantPicker
-          cfg={config} restaurants={restaurants} visits={visits} mode="new"
+          cfg={config} restaurants={restaurants} visits={visits} menus={menus} mode="new" atTable
           title="First, where are you?"
           intro="Pull up the spot you're at - we'll save it to your places (if it's not already) and grab its menu."
-          onOpenRestaurant={(id)=> setOverlay({ type:"atRestaurantMenu", id })}
+          onOpenRestaurant={openAtPlace}
           onCreateRestaurant={(rec)=>{
             commit({ restaurants: [rec].concat(restaurants) }, ["restaurants"]);
             setOverlay({ type:"atRestaurantMenu", id: rec.id });
@@ -20033,6 +20109,56 @@ function orderedMenus(list){
   return (list || []).slice().sort((a,b)=> isMain(a) - isMain(b));
 }
 
+/* "Straight to the menu" (1.589.0). Chris, 2026-11-08: "I always start with home page 'Already at
+   the restaurant.' That is the easiest way for me to pick a place, as opposed to looking it up, even
+   though I know it's already there in the app." And: "Even though I have the menu scanned, I still
+   ask for the menu at the restaurant." His reasons, by card: quicker to just ask, not sure the saved
+   one is current, habit. Reaching a saved menu took four taps and a "You already have this place"
+   toast. Now a saved place near you is offered first, says how fresh its menu is, and opens it.
+   RULE: "here" is a saved place within AT_PLACE_M of you, measured from the coordinates saved with
+   the place. No Google call, so it spends none of a free account's place searches. Indoors GPS
+   drifts 30 to 80 m and big venues sprawl, hence 150 m rather than a tight circle.
+   Road not taken: running Google's nearby search as the screen opens (Chris approved "look for
+   nearby places as soon as the screen opens"): each run costs a free user one of 15 lifetime place
+   searches, so new places still wait for a tap. Saved places, the case Chris described, need none. */
+const AT_PLACE_M   = 150;   // you are AT this place
+const NEAR_SAVED_M = 800;   // walking distance: "Your places nearby" on the picker
+function metersTo(loc, r){
+  const mi = distanceMiles(loc && loc.lat, loc && loc.lng, r && r.lat, r && r.lng);
+  return mi == null ? null : mi * 1609.34;
+}
+function savedPlacesNear(restaurants, loc, maxM){
+  if (!loc) return [];
+  return (restaurants || []).map(r => ({ r, m: metersTo(loc, r) }))
+    .filter(x => x.m != null && x.m <= maxM && !x.r.try_dismissed)
+    .sort((a,b)=> a.m - b.m);
+}
+function menusWithDishes(menus, rid){
+  return orderedMenus(menus && menus[rid]).filter(m => m && (m.sections || []).length);
+}
+// How fresh the saved menu is, said where you pick the place: "is it current?" answered up front.
+// The date is the FIRST menu's, the one that opens (list comes from menusWithDishes); a newer
+// drinks list must not make an old main menu look fresh.
+function menuFreshLabel(list){
+  if (!list || !list.length) return "";
+  const first = String((list[0] && (list[0].captured_date || list[0].last_updated)) || "").slice(0, 10);
+  let when = "";
+  if (first){
+    const d = new Date(first + "T12:00:00");
+    if (!isNaN(d.getTime())){
+      when = d.toLocaleDateString(undefined, d.getFullYear() === new Date().getFullYear()
+        ? { month:"short", day:"numeric" } : { month:"short", day:"numeric", year:"numeric" });
+    }
+  }
+  return "Menu saved" + (when ? " " + when : "") + (list.length > 1 ? "  ·  " + list.length + " menus" : "");
+}
+function hereLabel(m){
+  if (m == null) return "";
+  if (m <= AT_PLACE_M) return "Here";
+  const mi = m / 1609.34;
+  return (mi < 0.1 ? "0.1" : mi.toFixed(1)) + " mi";
+}
+
 /* A Google place's trading status. THREE different things wear the word
    "closed" and they mean opposite things for planning:
      - open_now false          -> shut at this hour, back tomorrow. Quiet.
@@ -20061,9 +20187,10 @@ function AtPlaceMenuStep({ cfg, restaurant, menus, onScan, onImportCommunityMenu
   // means one thing here and another there, which is how you end up opening a
   // drinks list when you asked for the menu.
   const withItems = orderedMenus(menus && menus[r.id]).filter(m => m && (m.sections || []).length);
-  // Only open a menu directly when there is no doubt about which one. With
-  // several, the honest destination is the list of them.
-  const bestMenu = withItems.length === 1 ? withItems[0] : null;
+  // 1.589.0: the first menu opens even when there are several. The menu page shows every menu
+  // here as a tab along its top, so the others are one tap away; the old rule (several = go to
+  // the place page) added a step at the table, which is what Chris was working around.
+  const bestMenu = withItems.length ? withItems[0] : null;
   const hasMenu = withItems.length > 0;
 
   /* Menus other diners already left here. This screen used to go straight to
@@ -20153,8 +20280,18 @@ function AtPlaceMenuStep({ cfg, restaurant, menus, onScan, onImportCommunityMenu
   );
 }
 
-function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onSetPlaceFlag, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose, title, intro }){
+function AtRestaurantPicker({ cfg, restaurants, visits, menus, mode, atTable, initialFilter, onSetPlaceFlag, onOpenRestaurant, onCreateRestaurant, onAddManual, onClose, title, intro }){
   const isNew = mode === "new";   // "Somewhere new" (find / near me) vs "I'm back" (saved)
+  // At the table (1.589.0, see AT_PLACE_M): where you are, read only if location is already
+  // allowed, so your saved places nearby can lead the page before you tap anything.
+  const [here, setHere] = useState(null);
+  useEffect(()=>{
+    if (!atTable) return;
+    let alive = true;
+    positionIfAllowed().then(loc => { if (alive && loc) setHere(loc); });
+    return ()=> { alive = false; };
+  // eslint-disable-next-line
+  }, []);
   const [q, setQ]           = useState("");
   const [gBusy, setGBusy]   = useState(false);
   const [gErr, setGErr]     = useState("");
@@ -20193,7 +20330,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
   async function runNearMe(){
     setGBusy(true); setGErr(""); setGMode("nearby");
     try {
-      const loc = await getGeoOnce();
+      const loc = here || await getGeoOnce();
       if (!loc){ setGErr("Location unavailable. Type the name to search instead."); setGBusy(false); return; }
       const data = await placesNearby(cfg, { lat:loc.lat, lng:loc.lng, radius_m:1500, open_now:false,
         included_types:["restaurant","cafe","bar","bakery","meal_takeaway"], max_results:15, rank:"DISTANCE" });
@@ -20205,7 +20342,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
   }
   function pickGoogle(c){
     const m = findExistingPlace(restaurants, c);
-    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ if (m.hard) toast("You already have this place"); onOpenRestaurant(m.place.id); return; }
+    if (m && (m.hard || !confirmAddAnyway(m.place.name))){ if (m.hard && !atTable) toast("You already have this place"); onOpenRestaurant(m.place.id); return; }
     const newRest = Object.assign({
       id: uid("rest"),
       name: (c.name || q.trim() || "New place"),
@@ -20241,6 +20378,10 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
   const other     = base.filter(r => !(vCount[r.id]||0) && !r.wishlist && !r.try_dismissed).sort(cmp);
   const dismissed = base.filter(r => !(vCount[r.id]||0) && r.try_dismissed).sort(cmp);
   const dedupMatches = ql ? base.slice().sort(cmp).slice(0, 8) : [];   // new-mode "you already have this" hint
+  // At the table: your saved places within walking distance, nearest first (1.589.0).
+  const nearSaved = (atTable && here) ? savedPlacesNear(restaurants, here, NEAR_SAVED_M).filter(x => matchQ(x.r)).slice(0, 5) : [];
+  const nearSavedIds = {};
+  nearSaved.forEach(x => { nearSavedIds[x.r.id] = true; });
 
   const flagBtn = (label, fn, dim)=> (
     <button onClick={(e)=>{ e.stopPropagation(); fn(); }}
@@ -20295,7 +20436,14 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
   // Hides only places Google says are shut at this hour; unknown hours stay, the same rule as
   // Near me. The switch shows only when at least one result is known to be closed.
   const gHasClosed = Array.isArray(gShown) && gShown.some(c => c && c.open_now === false);
-  const gVisible = (openOnly && Array.isArray(gShown)) ? gShown.filter(c => c && c.open_now !== false) : gShown;
+  const gVisible0 = (openOnly && Array.isArray(gShown)) ? gShown.filter(c => c && c.open_now !== false) : gShown;
+  // At the table (1.589.0): your saved places lead the nearby list, and one already shown under
+  // "Your places nearby" is not listed again. The sort is stable, so Google's distance order holds.
+  const gVisible = (atTable && Array.isArray(gVisible0))
+    ? gVisible0.map(c => ({ c, hit: findPlaceByGoogleId(restaurants, c.place_id) }))
+        .filter(x => !(x.hit && nearSavedIds[x.hit.id]))
+        .sort((a,b)=> Number(!!b.hit) - Number(!!a.hit)).map(x => x.c)
+    : gVisible0;
 
   const gList = gFilteredOut ? (
     <div className="card" style={{marginTop:8, padding:"12px 14px"}}>
@@ -20327,7 +20475,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
         const savedHit = findPlaceByGoogleId(restaurants, c.place_id);
         return (
           <div key={i} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"flex-start", cursor:"pointer"}}
-            onClick={()=> { if (savedHit){ toast("You already have this place"); onOpenRestaurant(savedHit.id); } else pickGoogle(c); }}>
+            onClick={()=> { if (savedHit){ if (!atTable) toast("You already have this place"); onOpenRestaurant(savedHit.id); } else pickGoogle(c); }}>
             <div style={{flex:1, minWidth:0}}>
               <div className="small" style={{fontWeight:600}}>{c.name}</div>
               {c.address ? <div className="tiny faint" style={{marginTop:2}}>{c.address}</div> : null}
@@ -20335,7 +20483,8 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
               <div style={{marginTop:2}}><PlaceStatus place={c} size={11.5} /></div>
             </div>
             <span className="tiny" style={{flex:"none", fontWeight:600, whiteSpace:"nowrap",
-              color: savedHit ? "var(--text-faint)" : "var(--accent)"}}>{savedHit ? "Saved · Open" : "+ Add"}</span>
+              color: (savedHit && !(atTable && menusWithDishes(menus, savedHit.id).length)) ? "var(--text-faint)" : "var(--accent)"}}>
+              {!savedHit ? "+ Add" : (atTable && menusWithDishes(menus, savedHit.id).length) ? "Menu saved ›" : "Saved · Open"}</span>
           </div>
         );
       })}
@@ -20354,6 +20503,30 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
           {intro || (isNew ? "Find a new place - one you haven't saved yet."
                  : "Pull up a place you've been, or one you've saved.")}
         </div>
+        {nearSaved.length ? (
+          <div className="card" style={{margin:"0 0 10px", padding:"4px 0"}}>
+            <div className="small muted" style={{padding:"6px 14px"}}>
+              {nearSaved[0].m <= AT_PLACE_M ? "You're at one of your places" : "Your places nearby"}
+            </div>
+            {nearSaved.map(({ r, m }) => {
+              const ms = menusWithDishes(menus, r.id);
+              return (
+                <div key={r.id} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:10, alignItems:"center", cursor:"pointer"}}
+                  onClick={()=> onOpenRestaurant(r.id)}>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div className="small" style={{fontWeight:600}}>{r.name}</div>
+                    <div className="tiny faint">
+                      {[ms.length ? menuFreshLabel(ms) : "No menu yet", hereLabel(m)].filter(Boolean).join("  ·  ")}
+                    </div>
+                  </div>
+                  <span className="tiny" style={{flex:"none", fontWeight:600, color:"var(--accent)", whiteSpace:"nowrap"}}>
+                    {ms.length ? "Open the menu ›" : "Get the menu ›"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
         <SearchBar value={q} onChange={setQ}
           placeholder={isNew ? "What's the place called?" : "Search your places"} />
 
@@ -20362,7 +20535,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
             <button className="btn ghost" style={{width:"100%", marginTop:8}} disabled={gBusy} onClick={runNearMe}>
               {gBusy && gMode==="nearby" ? <span className="spin" />
                 : <span className="row" style={{gap:6, justifyContent:"center"}}>
-                    <Icon name="pin" size={15} color="var(--accent)" />See places near me</span>}
+                    <Icon name="pin" size={15} color="var(--accent)" />{nearSaved.length ? "See other places near me" : "See places near me"}</span>}
             </button>
             {ql ? (
               <button className="btn ghost" style={{width:"100%", marginTop:8}} disabled={gBusy} onClick={runGoogleSearch}>
@@ -20381,7 +20554,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, mode, initialFilter, onS
             ) : null}
             {!ql && !gResults ? (
               <div className="tiny faint" style={{textAlign:"center", margin:"16px 8px", lineHeight:1.5}}>
-                Tap &ldquo;See places near me,&rdquo; or type a name to find it on Google.
+                Tap &ldquo;{nearSaved.length ? "See other places near me" : "See places near me"},&rdquo; or type a name to find it on Google.
               </div>
             ) : null}
           </>

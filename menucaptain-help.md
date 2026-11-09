@@ -37,8 +37,16 @@ The one you are on is highlighted.
   it finds *where you are* (tap **See places near me** and it uses your location to list the
   spots right around you, or search / pick a saved place), then it walks you into
   **getting the menu** for that place - so the menu always lands on a real,
-  Google-linked place instead of a name you typed. If a menu is already on file
-  there, it offers to open it instead of re-scanning. If you have none but other
+  Google-linked place instead of a name you typed. **Standing in one of your places?**
+  Once you have let MenuCaptain use your location, Home names it: **At Pizza Italia?
+  Open the menu** opens your saved menu in one tap, and **Somewhere else?** under it
+  takes you to the usual two-step. On that page your saved places within walking
+  distance come first, each saying how fresh its menu is ("Menu saved Oct 12"), and
+  tapping one opens its menu straight away (a place with several menus opens the
+  first, with the others as tabs along the top). Your location stays on your phone:
+  it is only compared with the places you have saved, and the app never asks for it
+  until you tap **See places near me**. If a place has no menu yet, it walks you into
+  getting one. If you have none but other
   diners have already added one, it offers theirs first - with how old each is -
   and **Get a fresh menu instead** right underneath if it looks out of date. That same step also lets you
   **log a visit** right away, to save the memory of the meal. The second door,

@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.588.1** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
+| Web app | **1.589.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
 | Backend | **0.164.1** | Railway, `/health` reports `db connected` (0.164.1 shipped from the Mac 2026-11-08: `GROUP_RETENTION_DAYS` read safely) |
-| Native shell | **1.588.1** | rebuilt on the Mac from web 1.588.1 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
+| Native shell | **1.589.0** | rebuilt on the Mac from web 1.589.0 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -415,6 +415,33 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### Straight to the menu (2026-11-08, app 1.589.0)
+
+Chris: "I always start with home page 'Already at the restaurant.' That is the easiest way for me to pick
+a place, as opposed to looking it up, even though I know it's already there in the app." And: "Even though
+I have the menu scanned, I still ask for the menu at the restaurant." By card: quicker to ask, not sure the
+saved one is current, habit. A saved menu was four taps away (card, See places near me, the place with a
+"You already have this place" toast, You're all set, See the menu). Approved by card: "Yes, all of it".
+- `positionIfAllowed()` reads location only if already granted (Capacitor `checkPermissions`, else
+  `navigator.permissions`), never prompts, caches a fix for 60 s. The position stays on the phone.
+- `savedPlacesNear(restaurants, loc, m)` uses the coordinates saved with places. `AT_PLACE_M` 150 m is
+  "you are here" (indoor GPS drifts 30 to 80 m); `NEAR_SAVED_M` 800 m lists "Your places nearby".
+- Home: within 150 m of a saved place, the first card is "At {name}? Open the menu" with
+  `menuFreshLabel` (the date of the menu that OPENS, plus "2 menus"); "Somewhere else?" opens the picker.
+  Re-checked when the app comes back to the screen.
+- Picker (`atTable`): your saved places nearby lead; Google's nearby list floats saved places first,
+  never lists one twice, says "Menu saved ›", and drops the toast at the table.
+- App `openAtPlace(id)`: a place with a menu opens its FIRST menu (`orderedMenus` order, the user's drag
+  order) with the others as tabs; no menu goes to "You're all set". `AtPlaceMenuStep`'s See the menu
+  follows the same rule (it used to send several menus to the place page).
+- Road not taken: running Google nearby as the page opens (part of what Chris approved). Each run spends a
+  free account's place search (15 lifetime), so new places still wait for a tap; saved places need none.
+  Also not done: pinning "Main menu" first (it would override the order people drag menus into).
+- Tested at 375 px with the pretend server and location granted / not granted, 20 checks: nothing reads
+  location when it is not allowed; Home card at 0 m and not at 390 m; picker order, freshness, distance;
+  Google list order, labels and no duplicate; taps open the menu or "You're all set" for a place with none.
+  Not tested on the iPhone yet: the native permission check and real GPS indoors.
 
 ### Fixes from the 75-screen design pass (2026-11-08, app 1.588.1)
 

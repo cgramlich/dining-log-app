@@ -511,5 +511,13 @@
       "email_notes": "updated: next-issue-notes.md (Fixes 1.588.1) and Log 2026-11-08i",
       "welcome": "n/a: nothing on the promo page changes",
       "handoff": "updated: version rows, decision entry, BRIEFING, Log"
+  },
+  "1.589.0": {
+      "what": "Straight to the menu (Chris, 2026-11-08: he always picks a place with 'Already at the restaurant', even a saved one, and still asks for the paper menu: quicker to ask, not sure the saved one is current, habit). Standing in a saved place (within 150 m), Home's first card says 'At Pizza Italia? Open the menu' with the menu's date, one tap. The at-the-restaurant page leads with your saved places within walking distance, each saying how fresh its menu is, and picking one opens its first menu (other menus as tabs) instead of 'You're all set'. Google's nearby list puts saved places first and drops the 'You already have this place' toast. Location is read only if already allowed and stays on the phone; Google nearby still waits for a tap (it spends a free account's place searches).",
+      "guide": "updated: Home (Standing in one of your places?)",
+      "promo": "updated: Already at the restaurant (Hero) card",
+      "email_notes": "updated: next-issue-notes.md (FEATURE 1.589.0) and Log 2026-11-08j",
+      "welcome": "n/a: the promo page's at-the-restaurant card still holds",
+      "handoff": "updated: version rows, decision entry, BRIEFING, Log"
   }
 }
