@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.587.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
+| Web app | **1.587.1** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
 | Backend | **0.164.1** | Railway, `/health` reports `db connected` (0.164.1 shipped from the Mac 2026-11-08: `GROUP_RETENTION_DAYS` read safely) |
-| Native shell | **1.587.0** | rebuilt on the Mac from web 1.587.0 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
+| Native shell | **1.587.1** | rebuilt on the Mac from web 1.587.1 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -438,6 +438,9 @@ Railway is back: reconnect, then deploy main (connect-service-source on service 
   overwriting); "Open now" on the Google results of Find a place and AtRestaurantPicker (hides only
   `open_now === false`); "friends" not "connections"; "Read the check" without "(1)"; group-order
   share text "Let's order from X together." (Chris 08-03: the host may be at home).
+- **1.587.1:** order notes use `ClearArea` (wraps and grows, same X as ClearInput) on the host's edit sheet
+  and the guest form; the group order's See the menu page passes `noGroupOrder` and pins its Back bar
+  (content had slid under the iPhone status bar, which iOS blurs). Guest note checked at 375 px.
 - Tested: Open now hid the closed result and kept unknown hours (375 px, pretend server);
   `likelySamePerson` cases (G/g. vs Gracie true, S false, Baker cases unchanged); code checks. The
   group-order link could not be driven in the test harness; confirm on the iPhone.

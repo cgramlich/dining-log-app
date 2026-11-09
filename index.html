@@ -1322,7 +1322,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.587.0";
+const APP_VERSION   = "1.587.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -9842,6 +9842,36 @@ function Loader({size, label}){
 // controlled AND uncontrolled: clearing goes through the native value setter +
 // an input event, so React's onChange fires exactly as if the user typed.
 // Pass a ref via inputRef (plain ref stays on the wrapper's input internally).
+/* A note box that wraps and grows as you type, with the same small X as ClearInput (Chris,
+   07-18: "every text box needs to have a little X"). For notes that are often a sentence: a
+   one-line box showed a long note through a slot (Chris, 2026-11-08, editing Sophia's order).
+   Controlled only; the X sends onChange an empty value, like a typed delete. 1.587.1. */
+function ClearArea({value, onChange, placeholder, maxLength, style, className, minRows, perRow}){
+  const v = String(value == null ? "" : value);
+  const rows = Math.min(6, Math.max(minRows || 2, Math.ceil(v.length / (perRow || 34))));
+  const st = style || {};
+  const wrapSt = { position:"relative", display:"block" }, inSt = {};
+  for (const k in st){
+    if (k === "flex" || k === "width" || k === "minWidth" || k === "maxWidth" || k.indexOf("margin") === 0) wrapSt[k] = st[k];
+    else inSt[k] = st[k];
+  }
+  return (
+    <span style={wrapSt}>
+      <textarea className={"input" + (className ? " " + className : "")} placeholder={placeholder}
+        maxLength={maxLength} rows={rows} value={v} onChange={onChange}
+        style={Object.assign({ width:"100%", resize:"none", lineHeight:1.4, paddingRight:38, display:"block" }, inSt)} />
+      {v ? (
+        <button type="button" aria-label="Clear" tabIndex={-1}
+          onMouseDown={(e)=> e.preventDefault()} onClick={()=> onChange({ target:{ value:"" } })}
+          style={{position:"absolute", right:9, top:10, width:22, height:22, borderRadius:"50%",
+                  border:"none", cursor:"pointer", background:"var(--line)", color:"var(--text-dim)",
+                  fontSize:12, padding:0, display:"flex", alignItems:"center", justifyContent:"center"}}>
+          &#10005;
+        </button>
+      ) : null}
+    </span>
+  );
+}
 function ClearInput(props){
   const inRef = useRef(null);
   const [hasUnc, setHasUnc] = useState(!!props.defaultValue);
@@ -30882,8 +30912,12 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
             ) : null}
             {menuPeek ? (
               <div style={{position:"fixed", inset:0, zIndex:72, background:"var(--bg)", overflowY:"auto"}}>
-                <div style={{maxWidth:600, margin:"0 auto", padding:"calc(14px + env(safe-area-inset-top)) 16px 14px"}}>
-                  <div className="row between" style={{alignItems:"center", marginBottom:12}}>
+                <div style={{maxWidth:600, margin:"0 auto", padding:"0 16px 14px"}}>
+                  {/* Pinned (1.587.1): the Back bar used to scroll away, and the menu then slid
+                      under the iPhone status bar, where iOS blurs it (Chris saw a "faded" button). */}
+                  <div className="row between" style={{alignItems:"center", position:"sticky", top:0, zIndex:2,
+                       background:"var(--bg)", margin:"0 -16px 12px", padding:"calc(14px + env(safe-area-inset-top)) 16px 12px",
+                       borderBottom:"1px solid var(--line-soft)"}}>
                     <button className="x" onClick={()=> setMenuPeek(false)}>Back</button>
                     <div style={{fontFamily:"'Fraunces',serif", fontSize:19, fontWeight:600}}>
                       {restaurantName || (data && data.restaurant_name) || "Menu"}
@@ -30894,7 +30928,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                       read-only when the editing callbacks are absent, so this
                       is reuse rather than a second menu renderer to keep in
                       step. */}
-                  <MenuView menu={data.menu_snapshot} cfg={cfg}
+                  <MenuView menu={data.menu_snapshot} cfg={cfg} noGroupOrder
                     restaurantName={restaurantName || (data && data.restaurant_name) || ""} />
                   {!closed ? (
                     <button className="btn primary" style={{width:"100%", margin:"14px 0 24px"}}
@@ -30933,19 +30967,23 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                       No items left - remove this person instead, or cancel.
                     </div>
                   ) : editItems.map((it, idx)=>(
-                    <div key={idx} className="go-guest" style={{display:"flex", alignItems:"center", gap:8}}>
-                      <div style={{flex:1, minWidth:0}}>
-                        <div className="go-guest-name">{pickLabel(it)}</div>
-                        <ClearInput style={{marginTop:6}} placeholder="Note (optional)"
-                          value={it.note}
-                          onChange={e=> setEditItems(arr => arr.map((x,j)=> j===idx ? {...x, note:e.target.value} : x))} />
-                      </div>
+                    /* Name and quantity on one line, the note across the full width below as a
+                       box that wraps and grows (1.587.1; Chris: a long note was "hard to edit in
+                       the same little narrow width of a window"). */
+                    <div key={idx} className="go-guest">
+                      <div style={{display:"flex", alignItems:"center", gap:8}}>
+                      <div className="go-guest-name" style={{flex:1, minWidth:0}}>{pickLabel(it)}</div>
                       <div style={{display:"inline-flex", alignItems:"center", gap:6, flex:"none"}}>
                         <button className="btn ghost sm" onClick={()=> setEditItems(arr => arr.map((x,j)=> j===idx ? {...x, qty:Math.max(1,(x.qty||1)-1)} : x))}>-</button>
                         <span style={{minWidth:18, textAlign:"center"}}>{it.qty||1}</span>
                         <button className="btn ghost sm" onClick={()=> setEditItems(arr => arr.map((x,j)=> j===idx ? {...x, qty:Math.min(99,(x.qty||1)+1)} : x))}>+</button>
-                        <button className="btn ghost sm" onClick={()=> setEditItems(arr => arr.filter((x,j)=> j!==idx))}>&times;</button>
+                        <button className="btn ghost sm" aria-label={"Remove " + pickLabel(it)}
+                          onClick={()=> setEditItems(arr => arr.filter((x,j)=> j!==idx))}>&times;</button>
                       </div>
+                      </div>
+                      <ClearArea placeholder="Note (optional)" maxLength={300} style={{marginTop:7}}
+                        value={it.note || ""}
+                        onChange={e=> setEditItems(arr => arr.map((x,j)=> j===idx ? {...x, note:e.target.value} : x))} />
                     </div>
                   ))}
                   <div className="row" style={{gap:9, marginTop:14}}>
@@ -32380,14 +32418,16 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken, noNotify
                       </div>
                     </div>
                     {on ? (
-                      <div className="go-gitem-ctl">
+                      <div className="go-gitem-ctl" style={{flexWrap:"wrap"}}>
                         <div className="go-stepper">
                           <button className="go-step" onClick={()=> bump(key, -1)}>&minus;</button>
                           <span className="go-stepn">{picks[key].qty}</span>
                           <button className="go-step" onClick={()=> bump(key, +1)}>+</button>
                         </div>
-                        <ClearInput className="input go-note" placeholder="Add a note (no onions...)"
-                          style={{flex:1}}
+                        {/* Full width under the stepper and wrapping (1.587.1): guests write
+                            whole sentences here ("no meatballs, pasta as close to angel hair..."). */}
+                        <ClearArea className="go-note" placeholder="Add a note (no onions...)" maxLength={300}
+                          style={{flex:"1 1 100%", minWidth:0}} minRows={1}
                           value={picks[key].note} onChange={e=> setNote(key, e.target.value)} />
                       </div>
                     ) : null}
