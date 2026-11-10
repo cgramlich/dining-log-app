@@ -379,20 +379,35 @@ is not listed twice. Choose **Keep it separate** to save it as a menu of its own
 
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, each
-item offers a few ways to estimate, best first: **Add your photo** (snap the
-real plate right from the menu), **EST nutrition from MENU PIC** (the
-restaurant's own picture, when the menu came in from the web), and **EST
-nutrition from DESCR** (from the dish's written description). You can redo an estimate from a better source any time. Whichever
+dish's card (tap the dish) offers a few ways to estimate, best first: **Add your
+photo** (snap the real plate right from the menu), **Estimate from the
+restaurant's photo** (their own picture, when the menu came in from the web), and
+**Estimate from the description** (from the dish's written description). You can redo an estimate from a better source any time. Whichever
 you use, it is only an estimate, always shown with a "~" and marked EST, so a
 printed calorie count stays the most reliable number.
 
-**See what a dish looks like.** Under each menu item, the photo button says what
-you will get. **See your photo** shows the picture you took of that dish here.
-**See the restaurant's photo** shows the one that came with their online menu.
-When there is neither, it reads **See similar on the web**: that searches
-the web for photos of a dish with that name, so you can get an idea before you
-order. Those are look-alikes, not this restaurant's version, and they are labeled
-that way. When a real photo exists, it is the only one shown - no guesses on top.
+**A picture beside each dish.** A dish you have photographed here shows your photo
+beside its name, marked "Your photo". When the menu came in from the restaurant's
+website with pictures, theirs shows instead, marked "Restaurant's photo". Your own
+photo always comes first.
+
+**Tap a dish for its card.** Tapping any dish opens its card: the picture (tap it
+to see it full size), the whole description, and your history with the dish
+("You had it Sep 29", **Have again** or **Not again**, and your last note). The
+card has **I had this**, and **Ask about it**, which answers a question about that
+one dish (**Is it spicy?**, **What comes with it?**, **Is it vegetarian?**, or your
+own) right in the card. The question also joins the Ask box above the menu.
+**Add your photo** is there too. When a dish has no picture at all, **See similar
+on the web** finds photos of a dish with that name, so you can get an idea before
+you order. Those are look-alikes, not this restaurant's version, and they say so.
+When a real photo exists they are not offered. While you are editing dishes, a tap
+does not open the card.
+
+**Original.** A menu you scan with your camera keeps the photos you took. On its
+page, **Original** shows them, with the date you took them (tap a page to zoom in,
+tap again to zoom out), and **Easy read** brings the dishes back. The photos stay
+yours: sharing a menu or starting a group order sends the dishes only. Menus
+scanned before this version, and menus pulled from a link, have no Original.
 
 **Pull a menu from a link.** You do not have to scan a paper menu. When adding a
 menu you can paste the address of the restaurant's online menu and the app reads
@@ -497,7 +512,7 @@ other diners shared are not included yet.
 ## Marking a dish from the menu
 
 You do not have to open the visit form to record what you ordered. On any menu,
-under each dish, there is **I had this**.
+tap a dish and its card has **I had this**.
 
 Tap it and you get an optional comment box and three buttons: **I ordered this**,
 **Have again**, and **Not again**. No photo is needed, and none is asked for -
@@ -508,8 +523,8 @@ The dish goes onto today's visit at that restaurant. If you have not logged
 anything there today, one is started for you with just that dish on it - your
 rating and notes stay empty, so the record says only what is actually known. Tap
 it again later and it edits what is there rather than listing the dish twice;
-the row shows **Had it today** with your comment so you can see what you have
-already marked without leaving the menu.
+the dish shows **Had it today** on the menu, and its card shows your comment, so
+you can see what you have already marked without leaving the menu.
 
 **Have again** and **Not again** are worth the extra tap. That verdict is what
 "Help me order" and "You usually get" are both built from, so recording it at
@@ -960,7 +975,7 @@ to their handle.
 **Explain the menu.** On any digitized menu, tap **Explain the menu** and pick
 the dishes you want decoded - the AI explains unfamiliar dishes and terms in
 plain language, using what is actually on the menu. Under the explanation, each
-dish you picked has the same photo button as the menu: **See your photo** if
+dish you picked has a photo button: **See your photo** if
 you have one, **See the restaurant's photo** if their online menu had one, and
 otherwise **See similar on the web**, look-alikes of a dish with that name
 (not this restaurant's own), each opening its source when tapped.

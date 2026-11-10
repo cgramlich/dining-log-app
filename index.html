@@ -632,6 +632,58 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       background:var(--accent); box-shadow:0 0 0 2px var(--bg);}
     .mitem .ien-u-k{font-style:normal; font-weight:600; color:var(--text-faint); margin-right:2px;}
     .mitem .idesc-en{font-style:italic;}
+    /* Original: the photos you took when you scanned this menu (1.590.0). A tap
+       zooms a page to more than twice the width, to pan around small print. */
+    .orig-pages{display:grid; gap:12px; margin:0 0 12px;}
+    .orig-page{display:block; width:100%; border:1px solid var(--line-soft); border-radius:10px; overflow:hidden;
+      background:var(--surface-2); cursor:zoom-in; -webkit-tap-highlight-color:transparent;}
+    .orig-page:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+    .orig-page .photo-img, .orig-page .photo-shell{width:100%; height:auto; min-height:220px; display:block; object-fit:contain;}
+    .orig-page.zoom{overflow:auto; max-height:78vh; cursor:zoom-out; -webkit-overflow-scrolling:touch;}
+    .orig-page.zoom .photo-img{width:220%; max-width:none;}
+    /* A picture beside each dish, and the dish card (1.590.0). */
+    .mitem-tap{cursor:pointer; border-radius:8px; -webkit-tap-highlight-color:transparent;}
+    .mitem-tap:active{background:var(--bg-2);}
+    .mitem-tap:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+    .mitem-grid{display:grid; grid-template-columns:minmax(0,1fr) 78px; gap:12px; align-items:start;}
+    .mitem-pic{display:flex; flex-direction:column; align-items:center; gap:4px; padding-top:2px;}
+    .mitem-sq{width:78px; height:78px; border-radius:12px; overflow:hidden; border:1px solid var(--line-soft); background:var(--surface-2);}
+    .mitem-src{font-size:10.5px; line-height:1.25; color:var(--text-faint); text-align:center; max-width:84px; letter-spacing:0.01em;}
+    .mitem .idesc.clamp3{display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;}
+    .dish-card-bg{position:fixed; inset:0; z-index:140; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center;}
+    .dish-card{width:100%; max-width:540px; max-height:90vh; max-height:90dvh; overflow-y:auto; overscroll-behavior:contain;
+      background:var(--bg-2); border-radius:20px 20px 0 0; border-top:1px solid var(--line);
+      padding-bottom:calc(22px + env(safe-area-inset-bottom)); animation:slideup 0.2s ease;}
+    .dc-hero{position:relative; aspect-ratio:4/3; max-width:100%; background:var(--surface-2); border-radius:20px 20px 0 0; overflow:hidden;}
+    .dc-hero-tap{display:block; width:100%; height:100%; padding:0; border:0; background:none; cursor:zoom-in;}
+    .dc-top{position:relative; height:46px;}
+    .dc-top .grip{width:38px; height:4px; background:var(--line); border-radius:2px; margin:0 auto; position:relative; top:10px;}
+    .dc-x{position:absolute; top:12px; left:12px; width:36px; height:36px; border-radius:50%; background:rgba(27,23,20,0.82);
+      border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer;}
+    .dc-x:focus-visible, .dc-thumbs button:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+    .dc-src{position:absolute; left:12px; right:12px; bottom:12px; display:flex; pointer-events:none;}
+    .dc-src span{font-size:12px; padding:5px 10px; border-radius:999px; background:rgba(27,23,20,0.82); border:1px solid var(--line); color:var(--text); line-height:1.3;}
+    .dc-thumbs{display:flex; gap:8px; padding:10px 16px 0; overflow-x:auto;}
+    .dc-thumbs button{flex:none; width:52px; height:52px; padding:0; border-radius:10px; overflow:hidden; border:2px solid transparent; background:var(--surface-2); cursor:pointer;}
+    .dc-thumbs button.on{border-color:var(--accent);}
+    /* minmax(0,1fr) and min-width:0: a wide row inside (the web look-alikes)
+       scrolls in its own box instead of widening the whole card past the screen. */
+    .dc-body{padding:14px 16px 0; display:grid; grid-template-columns:minmax(0,1fr); gap:12px;}
+    .dc-body > *{min-width:0;}
+    .dc-head{display:flex; justify-content:space-between; gap:12px; align-items:baseline;}
+    .dc-name{font-family:'Fraunces',serif; font-weight:500; font-size:23px; line-height:1.15; margin:0; text-wrap:balance; min-width:0;}
+    .dc-pr{color:var(--amber); font-size:16px; white-space:nowrap; font-variant-numeric:tabular-nums; flex:none;}
+    .dc-desc{font-size:14.5px; color:var(--text-dim); line-height:1.5; margin-top:5px;}
+    .dc-en{font-style:italic; color:var(--text); opacity:0.88;}
+    .dc-box{background:var(--surface); border:1px solid var(--line-soft); border-radius:14px; padding:12px 14px;}
+    .dc-lbl{font-size:11.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint); font-weight:600;}
+    .dc-line{margin-top:6px; font-size:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
+    .dc-note{margin-top:6px; font-size:13.5px; color:var(--text-dim); font-style:italic;}
+    .dc-acts{display:flex; flex-wrap:wrap; gap:8px; margin-top:9px;}
+    .dc-answer{margin-top:10px; font-size:14px; line-height:1.5;}
+    .dc-web{display:flex; gap:8px; overflow-x:auto; padding:10px 0 4px;}
+    .dc-web a{flex:none; width:92px; height:92px; border-radius:10px; overflow:hidden; border:1px solid var(--line-soft); background:var(--surface-2);}
+    .dc-web img{width:100%; height:100%; object-fit:cover; display:block;}
     /* Show English flags: place's country on the original, US on the English. */
     .flag{margin-right:6px; font-style:normal; display:inline-block;}
     .msec-head .nm-en{display:block; font-family:inherit; font-size:12.5px; font-weight:500;
@@ -1322,7 +1374,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.589.0";
+const APP_VERSION   = "1.590.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2393,20 +2445,35 @@ is not listed twice. Choose **Keep it separate** to save it as a menu of its own
 
 **Calories on a menu.** If the menu itself prints calories, the app captures
 those and shows them as a real number labeled "per menu." If it does not, each
-item offers a few ways to estimate, best first: **Add your photo** (snap the
-real plate right from the menu), **EST nutrition from MENU PIC** (the
-restaurant's own picture, when the menu came in from the web), and **EST
-nutrition from DESCR** (from the dish's written description). You can redo an estimate from a better source any time. Whichever
+dish's card (tap the dish) offers a few ways to estimate, best first: **Add your
+photo** (snap the real plate right from the menu), **Estimate from the
+restaurant's photo** (their own picture, when the menu came in from the web), and
+**Estimate from the description** (from the dish's written description). You can redo an estimate from a better source any time. Whichever
 you use, it is only an estimate, always shown with a "~" and marked EST, so a
 printed calorie count stays the most reliable number.
 
-**See what a dish looks like.** Under each menu item, the photo button says what
-you will get. **See your photo** shows the picture you took of that dish here.
-**See the restaurant's photo** shows the one that came with their online menu.
-When there is neither, it reads **See similar on the web**: that searches
-the web for photos of a dish with that name, so you can get an idea before you
-order. Those are look-alikes, not this restaurant's version, and they are labeled
-that way. When a real photo exists, it is the only one shown - no guesses on top.
+**A picture beside each dish.** A dish you have photographed here shows your photo
+beside its name, marked "Your photo". When the menu came in from the restaurant's
+website with pictures, theirs shows instead, marked "Restaurant's photo". Your own
+photo always comes first.
+
+**Tap a dish for its card.** Tapping any dish opens its card: the picture (tap it
+to see it full size), the whole description, and your history with the dish
+("You had it Sep 29", **Have again** or **Not again**, and your last note). The
+card has **I had this**, and **Ask about it**, which answers a question about that
+one dish (**Is it spicy?**, **What comes with it?**, **Is it vegetarian?**, or your
+own) right in the card. The question also joins the Ask box above the menu.
+**Add your photo** is there too. When a dish has no picture at all, **See similar
+on the web** finds photos of a dish with that name, so you can get an idea before
+you order. Those are look-alikes, not this restaurant's version, and they say so.
+When a real photo exists they are not offered. While you are editing dishes, a tap
+does not open the card.
+
+**Original.** A menu you scan with your camera keeps the photos you took. On its
+page, **Original** shows them, with the date you took them (tap a page to zoom in,
+tap again to zoom out), and **Easy read** brings the dishes back. The photos stay
+yours: sharing a menu or starting a group order sends the dishes only. Menus
+scanned before this version, and menus pulled from a link, have no Original.
 
 **Pull a menu from a link.** You do not have to scan a paper menu. When adding a
 menu you can paste the address of the restaurant's online menu and the app reads
@@ -2511,7 +2578,7 @@ other diners shared are not included yet.
 ## Marking a dish from the menu
 
 You do not have to open the visit form to record what you ordered. On any menu,
-under each dish, there is **I had this**.
+tap a dish and its card has **I had this**.
 
 Tap it and you get an optional comment box and three buttons: **I ordered this**,
 **Have again**, and **Not again**. No photo is needed, and none is asked for -
@@ -2522,8 +2589,8 @@ The dish goes onto today's visit at that restaurant. If you have not logged
 anything there today, one is started for you with just that dish on it - your
 rating and notes stay empty, so the record says only what is actually known. Tap
 it again later and it edits what is there rather than listing the dish twice;
-the row shows **Had it today** with your comment so you can see what you have
-already marked without leaving the menu.
+the dish shows **Had it today** on the menu, and its card shows your comment, so
+you can see what you have already marked without leaving the menu.
 
 **Have again** and **Not again** are worth the extra tap. That verdict is what
 "Help me order" and "You usually get" are both built from, so recording it at
@@ -2974,7 +3041,7 @@ to their handle.
 **Explain the menu.** On any digitized menu, tap **Explain the menu** and pick
 the dishes you want decoded - the AI explains unfamiliar dishes and terms in
 plain language, using what is actually on the menu. Under the explanation, each
-dish you picked has the same photo button as the menu: **See your photo** if
+dish you picked has a photo button: **See your photo** if
 you have one, **See the restaurant's photo** if their online menu had one, and
 otherwise **See similar on the web**, look-alikes of a dish with that name
 (not this restaurant's own), each opening its source when tapped.
@@ -5508,6 +5575,30 @@ function visitPhotoPath(vid, idx){
 function menuItemPhotoPath(menuId, photoId){
   return "photos/menu-items/" + menuId + "_" + photoId + ".jpg";
 }
+// The photos a camera scan read, kept with its menu as scan_photos (1.590.0).
+function menuScanPhotoPath(menuId, photoId){
+  return "photos/menu-scans/" + menuId + "_" + photoId + ".jpg";
+}
+async function dataUrlToBlob(u){ const r = await fetch(u); return await r.blob(); }
+/* A scan read on the server can finish while the app is closed, and the
+   phone's saved copy of its photos is dropped once the server has them. So
+   the photos are also kept on the phone under the scan's job id until its
+   menu is saved or let go (collectScanJob clears them), and a scan opened
+   later from the bar or the email still keeps its photos with the menu. */
+async function scanPagesPut(jobId, dataUrls){
+  if (!jobId || !dataUrls || !dataUrls.length) return;
+  try { await idbPutBlob("scan-pages:" + jobId, new Blob([JSON.stringify(dataUrls)], { type:"application/json" })); }
+  catch(e){ /* only the Original is lost */ }
+}
+async function scanPagesGet(jobId){
+  if (!jobId) return null;
+  try {
+    const b = await idbGetBlob("scan-pages:" + jobId);
+    if (!b) return null;
+    const a = JSON.parse(await b.text());
+    return Array.isArray(a) ? a : null;
+  } catch(e){ return null; }
+}
 
 
 /* ============================================================
@@ -6912,6 +7003,7 @@ function sendPendingScan(cfg, id, onProgress){
       await pendingScanDrop(cfg, id, { deleteStaged:true });
       throw e;
     }
+    if (job && job.id) await scanPagesPut(job.id, rec.dataUrls);
     await pendingScanDrop(cfg, id, { deleteStaged: !job });
     return { job: job };
   })().finally(()=> { delete _scanSending[id]; });
@@ -7038,6 +7130,7 @@ function scanJobAlreadyTaken(job){
 function collectScanJob(cfg, id){
   if (!id) return;
   _collectedScanIds.add(String(id));
+  idbDeleteKey("scan-pages:" + id);
   try { window.dispatchEvent(new CustomEvent("mc-scan-collected", { detail:{ id:String(id) } })); } catch(e){}
   (async ()=>{
     try {
@@ -12818,6 +12911,38 @@ function App({openShare}){
     return uploads;
   }
 
+  /* The photos a camera scan read, kept with its menu (1.590.0): Original on
+     the menu page. Runs after the menu is saved. A refreshed menu starts with
+     none (the old photos no longer match it); a continued page adds to the
+     menu's own. If the upload fails the menu stays as saved, without an
+     Original, and the log says so. They are yours only: sharing a menu and a
+     group order both send the dishes alone. */
+  async function keepScanPhotos(jobs){
+    const today = todayISO();
+    for (const j of jobs){
+      try {
+        const uploads = [];
+        for (let k = 0; k < j.pages.length; k++){
+          const blob = await dataUrlToBlob(j.pages[k]);
+          const id = Date.now().toString(36) + k + Math.random().toString(36).slice(2, 6);
+          uploads.push({ path: menuScanPhotoPath(j.menuId, id), blob: blob });
+        }
+        await uploadPhotoBatch(uploads);
+        uploads.forEach(u => seedPhoto(u.path, u.blob));
+        const base = liveRef.current.menus || {};
+        const list = base[j.restId] || [];
+        if (!list.some(m => m && m.menu_id === j.menuId)) continue;   // deleted meanwhile
+        const entries = uploads.map(u => ({ path: u.path, taken: today }));
+        const nextList = list.map(m => (!m || m.menu_id !== j.menuId) ? m
+          : Object.assign({}, m, { scan_photos: (m.scan_photos || []).concat(entries).slice(-20) }));
+        commit({ menus: Object.assign({}, base, { [j.restId]: nextList }) }, ["menus"]);
+        logMsg("SCAN", "Kept " + entries.length + " scan photo(s) with menu " + j.menuId);
+      } catch(err){
+        logMsg("ERROR", "Scan photos not kept for menu " + j.menuId + ": " + ((err && err.message) || err));
+      }
+    }
+  }
+
   // Quick "Add photo" straight from a visit card / detail - no full editor.
   // Resizes, uploads, appends the new paths to the visit's photos, commits.
   async function addPhotosToVisit(visit, fileList){
@@ -14398,6 +14523,21 @@ function App({openShare}){
           onOpenPlace={(rid)=> setOverlay({ type:"restaurant", id:rid })}
           onClose={()=> setOverlay(overlay.returnTo || null)}
           onSave={(restId, menusToSave, newRestaurant, isReplace, opts)=>{
+            // A camera scan's photos ride in on each menu as _scan_pages
+            // (1.590.0). They never go into the saved menu: keepScanPhotos
+            // uploads them after this save and attaches them as scan_photos,
+            // so a slow connection never holds up the menu itself.
+            const scanJobs = [];
+            const stripPages = (m, rid) => {
+              if (!m || !m._scan_pages) return m;
+              const out = Object.assign({}, m);
+              if (out._scan_pages.length) scanJobs.push({ restId: rid, menuId: out.menu_id, pages: out._scan_pages });
+              delete out._scan_pages;
+              return out;
+            };
+            menusToSave = (menusToSave || []).map(m => stripPages(m, restId));
+            const extraIn = ((opts && opts.extra) || []).map(part =>
+              Object.assign({}, part, { menus: (part.menus || []).map(m => stripPages(m, part.restId)) }));
             let nextR = restaurants;
             if (newRestaurant) nextR = [newRestaurant].concat(restaurants);
             // The menu printed a story about the place: keep the latest one.
@@ -14435,7 +14575,7 @@ function App({openShare}){
             // Photos from more than one menu, saved apart (1.566.0): the other
             // places' menus go in this SAME write. A second onSave would start
             // from the menus it was handed and undo this one.
-            const extra = (opts && opts.extra) || [];
+            const extra = extraIn;
             let extraPlaces = false;
             extra.forEach(part => {
               if (part.newRestaurant){ nextR = [part.newRestaurant].concat(nextR); extraPlaces = true; }
@@ -14477,6 +14617,7 @@ function App({openShare}){
             // something - it cannot say what gets shared, and it is gone
             // before you have finished reading it.
             flash(baseMsg);
+            if (scanJobs.length) keepScanPhotos(scanJobs);
           }} />
       )}
 
@@ -18620,6 +18761,11 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
   const [toolsOpen, setToolsOpen] = useState(false);
   // Each tap on "See the dishes" counts up; MenuView opens and shows the dishes.
   const [showDishes, setShowDishes] = useState(0);
+  // Easy read or Original (1.590.0): Original shows the photos you took when
+  // you scanned this menu. Another menu opens in Easy read.
+  const [showOrig, setShowOrig] = useState(false);
+  const [origZoom, setOrigZoom] = useState(null);   // the page zoomed in, or null
+  useEffect(()=>{ setShowOrig(false); setOrigZoom(null); }, [menu && menu.menu_id]);
   // Move into another menu (2026-10-07): the way back after a split.
   const [merging, setMerging]   = useState(false);
   // Wine for me (1.584.0), from every wine list at this place: the wine list is
@@ -18807,6 +18953,31 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
       setAsking(false);
     }
   }
+
+  // The dish card's Ask (1.590.0): the same Ask as the box above, about one
+  // dish, answered in the card. It joins the conversation above as well, so a
+  // follow-up typed there still knows what was asked.
+  async function askDish(q){
+    if (!hasKey) throw new Error("Set up your account in Settings first.");
+    const recent = askThread.slice(-3);
+    const elsewhere = placesMentioned(q, allRestaurants, allMenus, allVisits, restaurant);
+    const wineNote = wineList.length >= 2 ? wineProfileText(wineBook) : "";
+    const a = await askMenu(cfg, restaurant, menu, visits, q, allVisits, recent, elsewhere, wineNote);
+    setAskThread(t => t.concat([{ q: q, a: a }]));
+    return a;
+  }
+  // Your history with each dish here, for the menu rows and the dish card: the
+  // newest verdict, date and count (dishHistory) plus the newest note.
+  const dishHist = (function(){
+    const out = {};
+    dishHistory(visits).detail.forEach(d => { out[String(d.name || "").trim().toLowerCase()] = Object.assign({}, d); });
+    (visits || []).slice().sort((x, y)=> (y.date || "").localeCompare(x.date || ""))
+      .forEach(v => (v.dishes || []).forEach(d => {
+        const k = d && d.name ? d.name.trim().toLowerCase() : "";
+        if (k && out[k] && out[k].note == null && d.note && String(d.note).trim()) out[k].note = String(d.note).trim();
+      }));
+    return out;
+  })();
 
   // All dish names on this menu (for the pick-dishes-to-explain chips).
   // null-safe: the missing-menu guard below renders AFTER hooks run, so this
@@ -19376,6 +19547,40 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
           )}
         </div>
 
+        {(function(){
+          const pages = ((menu && menu.scan_photos) || []).filter(p => p && p.path);
+          if (!pages.length) return null;
+          const days = Array.from(new Set(pages.map(p => p.taken).filter(Boolean))).map(shortDateLabel).filter(Boolean);
+          const when = days.length === 1 ? days[0] : days.length === 2 ? days[0] + " and " + days[1] : "";
+          return (
+            <>
+              <div className="auth-switch" role="group" aria-label="How to show this menu" style={{margin:"6px 0 12px"}}>
+                <button type="button" className={"auth-switch-btn" + (!showOrig ? " on" : "")} aria-pressed={!showOrig}
+                  onClick={()=> setShowOrig(false)}>Easy read</button>
+                <button type="button" className={"auth-switch-btn" + (showOrig ? " on" : "")} aria-pressed={showOrig}
+                  onClick={()=>{ setShowOrig(true); setOrigZoom(null); }}>Original</button>
+              </div>
+              {showOrig ? (
+                <div className="orig-pages">
+                  {pages.map((p, k)=>(
+                    <div key={p.path} role="button" tabIndex={0}
+                      className={"orig-page" + (origZoom === k ? " zoom" : "")}
+                      aria-label={(origZoom === k ? "Zoom out of page " : "Zoom in on page ") + (k + 1)}
+                      onClick={()=> setOrigZoom(z => z === k ? null : k)}
+                      onKeyDown={e=>{ if (e.key === "Enter" || e.key === " "){ e.preventDefault(); setOrigZoom(z => z === k ? null : k); } }}>
+                      <PhotoImg cfg={cfg} path={p.path} alt={"Your photo of this menu, page " + (k + 1)} />
+                    </div>
+                  ))}
+                  <div className="tiny faint">
+                    {(pages.length > 1 ? "Your photos of this menu" : "Your photo of this menu")
+                      + (when ? ", taken " + when : "") + ". Tap a page to zoom in. Easy read has the pictures, and a tap on a dish opens everything about it."}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          );
+        })()}
+        <div hidden={!!(showOrig && ((menu && menu.scan_photos) || []).some(p => p && p.path))}>
         <MenuView menu={menu} cfg={cfg} noGroupOrder showDishesTick={showDishes}
           restaurantName={restaurant ? restaurant.name : ""}
           cuisine={restaurant ? restaurant.cuisine : ""}
@@ -19393,6 +19598,8 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
           onDeleteSection={onDeleteSection && (menu.sections || []).length > 1 ? onDeleteSection : null}
           onRenameSection={onRenameSection || null}
           onHadThis={onHadThis}
+          dishHist={dishHist}
+          onAskDish={askDish}
           hadToday={(function(){
             const t = todayISO(), out = {};
             (visits || []).forEach(v => {
@@ -19404,8 +19611,295 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             return out;
           })()}
           onRenameItem={onRenameItem} />
+        </div>
         <div style={{height:20}} />
       </div>
+    </div>
+  );
+}
+
+/* ---- A dish's picture, and its card (1.590.0) ----
+   Chris, 2026-11-09, by card after trying a mockup: a picture beside each
+   dish, and a tap on a dish opens one card with everything about it.
+   RULE (the decided picture order): your photo, then a diner's shared photo,
+   then the restaurant's own, then a labelled illustration. This release has
+   the two kinds the app already holds, yours and the restaurant's; shared
+   photos (opt-in) and illustrations (priced first) come later.
+   Web look-alikes stay INSIDE the card, and only for a dish with no real
+   picture: they are other people's photos of a dish with this NAME, so they
+   are never shown as this dish's picture.
+   Road not taken: "Add to group order" from the card (it was in the mockup).
+   A group order lives on its own shared page, and the menu page does not know
+   which order you are in, so the button had nothing to add to. */
+function shortDateLabel(iso){
+  const s = String(iso || "").slice(0, 10);
+  if (!s) return "";
+  const d = new Date(s + "T12:00:00");
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, d.getFullYear() === new Date().getFullYear()
+    ? { month:"short", day:"numeric" } : { month:"short", day:"numeric", year:"numeric" });
+}
+function dishPicsFor(it, realPhotos){
+  const out = (realPhotos || []).map(p => ({ kind:"yours", path:p }));
+  if (it && it.web_image) out.push({ kind:"rest", url:it.web_image });
+  return out;
+}
+function dishPicShort(p){ return p && p.kind === "rest" ? "Restaurant's photo" : "Your photo"; }
+function dishPicLong(p, restaurantName){
+  if (!p) return "";
+  if (p.kind === "rest") return "From " + (restaurantName ? restaurantName + "'s" : "the restaurant's") + " website";
+  return "Your photo";
+}
+function verdictWords(v){ return v === "loved" ? "Loved" : v === "again" ? "Have again" : v === "skip" ? "Not again" : ""; }
+function DishPic({cfg, pic, alt}){
+  const fill = { width:"100%", height:"100%", objectFit:"cover", display:"block" };
+  if (!pic) return null;
+  if (pic.path) return cfg ? <PhotoImg cfg={cfg} path={pic.path} alt={alt || ""} style={fill} /> : null;
+  return <img src={pic.url} alt={alt || ""} loading="lazy" style={fill} />;
+}
+function DishCard({cfg, it, pics, restaurantName, en, flags, fxOf, had, hist, onClose,
+                   onHadThis, canAddPhoto, onAddPhoto, busy, err, canEstimate, onEstimate,
+                   onEstimatePhoto, web, onFindWeb, onAskDish}){
+  const [ix, setIx]           = useState(0);
+  const [hadOpen, setHadOpen] = useState(false);
+  const [hadNote, setHadNote] = useState("");
+  const [askQ, setAskQ]       = useState("");
+  const [asking, setAsking]   = useState(false);
+  const [answer, setAnswer]   = useState(null);   // {q, a}
+  const [askErr, setAskErr]   = useState("");
+  const [lb, setLb]           = useState(null);   // index shown full size, or null
+  const closeRef = useRef(null);
+  useEffect(()=>{ if (closeRef.current) closeRef.current.focus(); }, []);
+  useEffect(()=>{
+    // Escape closes the card, but not while a photo is open full size on top.
+    const onKey = e => { if (e.key === "Escape" && lb == null) onClose(); };
+    document.addEventListener("keydown", onKey);
+    return ()=> document.removeEventListener("keydown", onKey);
+  }, [lb, onClose]);
+  const name = String(it.name || "").trim() || "this dish";
+  const pic = pics.length ? pics[Math.min(ix, pics.length - 1)] : null;
+  const same = (x, y)=> String(x || "").trim().toLowerCase() === String(y || "").trim().toLowerCase();
+  const enName = en && en[0] && !same(en[0], it.name) ? en[0] : "";
+  const enDesc = en && en[1] && it.description && !same(en[1], it.description) ? en[1] : "";
+  const usually = en && en[2] && !it.description && !enName ? en[2] : "";
+  // The newest verdict wins, today's included (dishHistory reads every visit).
+  const verdict = (hist && hist.verdict) || (had && had.verdict) || null;
+  const note = (had && String(had.note || "").trim()) || (hist && hist.note) || "";
+  async function ask(q){
+    const question = String(q || "").trim();
+    if (!question || asking || !onAskDish) return;
+    setAsking(true); setAskErr(""); setAnswer(null);
+    try {
+      const a = await onAskDish(question);
+      setAnswer({ q: question, a: a });
+      setAskQ("");
+    } catch(e){
+      setAskErr((e && e.message) || "Something went wrong. Try again.");
+    } finally { setAsking(false); }
+  }
+  // A typed question that does not name the dish gets the dish added, so the
+  // answer is about this dish and not the whole menu.
+  const typed = ()=> {
+    const q = askQ.trim();
+    if (!q) return "";
+    return q.toLowerCase().indexOf(name.toLowerCase()) !== -1 ? q : "About the " + name + ": " + q;
+  };
+  return (
+    <div className="dish-card-bg" onClick={onClose}>
+      <div className="dish-card" role="dialog" aria-modal="true" aria-labelledby="dc-name"
+           onClick={e=> e.stopPropagation()}>
+        {pic ? (
+          <div className="dc-hero">
+            <button type="button" className="dc-hero-tap" aria-label={"See the picture of " + name + " full size"}
+              onClick={()=> setLb(Math.min(ix, pics.length - 1))}>
+              <DishPic cfg={cfg} pic={pic} alt={name} />
+            </button>
+            <button ref={closeRef} type="button" className="dc-x" aria-label="Close" onClick={onClose}>
+              <Icon name="close" size={16} color="var(--text)" /></button>
+            <div className="dc-src"><span>{dishPicLong(pic, restaurantName)}</span></div>
+          </div>
+        ) : (
+          <div className="dc-top">
+            <div className="grip" />
+            <button ref={closeRef} type="button" className="dc-x" aria-label="Close" onClick={onClose}>
+              <Icon name="close" size={16} color="var(--text)" /></button>
+          </div>
+        )}
+        {pics.length > 1 ? (
+          <div className="dc-thumbs" role="group" aria-label={"Pictures of " + name}>
+            {pics.map((p, k)=>(
+              <button key={k} type="button" className={k === ix ? "on" : ""} aria-pressed={k === ix}
+                aria-label={dishPicLong(p, restaurantName)} onClick={()=> setIx(k)}>
+                <DishPic cfg={cfg} pic={p} />
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="dc-body">
+          <div>
+            <div className="dc-head">
+              <h2 id="dc-name" className="dc-name">{it.name}</h2>
+              {it.price && !isWidePrice(it.price) ? (
+                <span className="dc-pr">{it.price}
+                  {fxOf && fxOf(it.price) ? <span className="ipr-fx">{"\u2248 " + fxOf(it.price)}</span> : null}</span>
+              ) : null}
+            </div>
+            {it.sig ? (
+              <div className="isig">
+                <Icon name="star" size={12} color="var(--accent)" />
+                <span>{typeof it.sig === "string" && it.sig.trim() ? it.sig.trim() : "What they are known for"}</span>
+              </div>
+            ) : null}
+            {enName ? (
+              <div className="dc-desc dc-en">
+                {flags && flags.to ? <span className="flag" aria-hidden="true">{flags.to}</span> : null}{enName}</div>
+            ) : null}
+            {it.price && isWidePrice(it.price) ? <div className="dc-desc" style={{color:"var(--amber)"}}>{it.price}</div> : null}
+            {it.description ? <div className="dc-desc">{it.description}</div> : null}
+            {enDesc ? (
+              <div className="dc-desc dc-en">
+                {flags && flags.to ? <span className="flag" aria-hidden="true">{flags.to}</span> : null}{enDesc}</div>
+            ) : null}
+            {usually ? <div className="dc-desc"><strong style={{color:"var(--text-faint)"}}>Usually:</strong> {usually}</div> : null}
+            {it.tags && it.tags.length ? (
+              <div className="chips" style={{marginTop:8}}>
+                {it.tags.map((t, k)=> <span key={k} className="chip tag">{t}</span>)}
+              </div>
+            ) : null}
+          </div>
+
+          {(had || hist || onHadThis) ? (
+            <div className="dc-box">
+              <div className="dc-lbl">You and this dish</div>
+              <div className="dc-line">
+                {had ? <span>{"\u2713 Had it today"}</span>
+                  : (hist && hist.lastDate)
+                    ? <span>{hist.count > 1
+                        ? "Had it " + hist.count + " times, last on " + shortDateLabel(hist.lastDate)
+                        : "You had it " + shortDateLabel(hist.lastDate)}</span>
+                    : <span className="faint">You haven't had this here yet.</span>}
+                {verdict ? (
+                  <span className={"chip dish" + (verdictPositive(verdict) ? dishChipClass(verdict) : "")}>
+                    {verdictWords(verdict)}</span>
+                ) : null}
+              </div>
+              {note ? <div className="dc-note">{"\u201C" + note + "\u201D"}</div> : null}
+            </div>
+          ) : null}
+
+          {onHadThis ? (hadOpen ? (
+            <div style={{display:"grid", gap:8}}>
+              <textarea className="input" value={hadNote} onChange={e=> setHadNote(e.target.value)}
+                style={{minHeight:56, lineHeight:1.45}} aria-label="How was it? (optional)"
+                placeholder="How was it? (optional)" />
+              <div className="row" style={{gap:7, flexWrap:"wrap"}}>
+                {/* The verdict is what Help me order and "You usually get" are
+                    built from, so it is one tap here, as it was on the row. */}
+                <button className="btn primary sm" onClick={()=>{ onHadThis(it.name, hadNote, undefined); setHadOpen(false); }}>
+                  {had ? "Save" : "I ordered this"}</button>
+                <button className="btn ghost sm" onClick={()=>{ onHadThis(it.name, hadNote, "again"); setHadOpen(false); }}>Have again</button>
+                <button className="btn ghost sm" onClick={()=>{ onHadThis(it.name, hadNote, "skip"); setHadOpen(false); }}>Not again</button>
+                <button className="btn ghost sm" onClick={()=> setHadOpen(false)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn primary" onClick={()=>{ setHadNote((had && had.note) || ""); setHadOpen(true); }}>
+              {had ? "Change what you thought" : "I had this"}</button>
+          )) : null}
+
+          {onAskDish ? (
+            <div className="dc-box">
+              <div className="dc-lbl">Ask about it</div>
+              <div className="chips" style={{marginTop:8}}>
+                {[["Is it spicy?", "Is the " + name + " spicy?"],
+                  ["What comes with it?", "What comes with the " + name + "?"],
+                  ["Is it vegetarian?", "Is the " + name + " vegetarian?"]].map(([lbl, q])=>(
+                  <button key={lbl} type="button" className="chip pick" disabled={asking} onClick={()=> ask(q)}>{lbl}</button>
+                ))}
+              </div>
+              <div className="row" style={{gap:8, marginTop:9, alignItems:"center"}}>
+                <ClearInput value={askQ} placeholder="Or ask your own question"
+                  aria-label={"Ask about the " + name}
+                  onChange={e=> setAskQ(e.target.value)}
+                  onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); ask(typed()); } }}
+                  style={{flex:1, minWidth:0}} />
+                <button className="btn primary sm" style={{flex:"none"}} disabled={asking || !askQ.trim()}
+                  onClick={()=> ask(typed())}>Ask</button>
+              </div>
+              {asking ? <div className="tiny faint" style={{marginTop:9}}><span className="spin" /> Reading the menu&hellip;</div> : null}
+              {askErr ? <div className="iest-err" style={{marginTop:8}}>{askErr}</div> : null}
+              {answer ? (
+                <div className="dc-answer">
+                  <div className="tiny faint" style={{marginBottom:4}}>{answer.q}</div>
+                  <AiText text={answer.a} />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {(canAddPhoto || (cfg && !pics.length)) ? (
+            <div className="dc-box">
+              <div className="dc-lbl">{pics.length ? "Pictures" : "No picture of this dish yet"}</div>
+              <div className="dc-acts">
+                {canAddPhoto ? (
+                  <button type="button" className="iest-btn" disabled={busy} onClick={onAddPhoto}>
+                    {busy ? <span className="spin" /> : <Icon name="camera" size={12} color="var(--accent)" />}
+                    {busy ? "Working..." : (it.photo ? "Replace your photo" : "Add your photo")}</button>
+                ) : null}
+                {cfg && !pics.length && !Array.isArray(web.res) ? (
+                  <button type="button" className="iest-btn" disabled={web.busy} onClick={onFindWeb}>
+                    {web.busy ? <span className="spin" /> : <Icon name="search" size={12} color="var(--accent)" />}
+                    {web.busy ? "Searching..." : "See similar on the web"}</button>
+                ) : null}
+              </div>
+              {canAddPhoto ? (
+                <div className="tiny faint" style={{marginTop:6}}>Your photo also estimates the calories from what is on the plate.</div>
+              ) : null}
+              {web.err ? <div className="iest-err" style={{marginTop:6}}>{web.err}</div> : null}
+              {Array.isArray(web.res) ? (
+                <div>
+                  <div className="dc-web">
+                    {web.res.map((im, k)=>(
+                      <a key={k} href={im.source} target="_blank" rel="noopener noreferrer" title={im.title || name}>
+                        <img src={im.thumb} alt={im.title || name} loading="lazy" />
+                      </a>
+                    ))}
+                  </div>
+                  <div className="tiny faint">Similar from the web, not this exact dish. Tap one to open where it came from.</div>
+                </div>
+              ) : null}
+              {web.res === "none" ? <div className="tiny faint" style={{marginTop:6}}>No web photos found for this dish.</div> : null}
+            </div>
+          ) : null}
+
+          {(it.nutrition || canEstimate) ? (
+            <div className="dc-box">
+              <div className="dc-lbl">Calories</div>
+              {it.nutrition ? <div style={{marginTop:6}}><NutriLine n={it.nutrition} /></div> : null}
+              {canEstimate ? (
+                <div className="dc-acts">
+                  <button type="button" className="iest-btn" disabled={busy} onClick={onEstimate}>
+                    {busy ? <span className="spin" /> : <Icon name="sparkle" size={12} color="var(--accent)" />}
+                    {busy ? "Working..." : "Estimate from the description"}</button>
+                  {it.web_image ? (
+                    <button type="button" className="iest-btn" disabled={busy} onClick={onEstimatePhoto}>
+                      {busy ? <span className="spin" /> : <Icon name="image" size={12} color="var(--accent)" />}
+                      {busy ? "Working..." : "Estimate from the restaurant's photo"}</button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {err ? <div className="iest-err">{err}</div> : null}
+        </div>
+      </div>
+      {lb != null ? (
+        <div onClick={e=> e.stopPropagation()}>
+          <PhotoLightbox cfg={cfg} paths={pics.map(p => p.path || p.url)} index={lb}
+            captions={pics.map(p => ({ text: dishPicLong(p, restaurantName) }))}
+            onClose={()=> setLb(null)} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -19441,7 +19935,7 @@ function moveTargetMatch(names, value){
   return cur ? ((names || []).find(nm => String(nm || "").trim().toLowerCase() === cur) || "") : "";
 }
 
-function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx, moveTargets, showDishesTick, onRenameSection}){
+function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, dishHist, onAskDish, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx, moveTargets, showDishesTick, onRenameSection}){
   // Show in $ (2026-10-15): "" when the switch is off or a price is unclear.
   const fxOf = p => (fx ? fxPriceText(p, fx) : "");
   // Per-section split (2026-10-07): {si, name} while that section's panel is open.
@@ -19453,9 +19947,9 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
   const showEn = !!(showEnglish && tr);
   const enFor = (it)=> (tr && tr.item && tr.item[trKey(it.name, it.description)]) || null;
   const sameText = (x, y)=> String(x || "").trim().toLowerCase() === String(y || "").trim().toLowerCase();
-  // Which item's "I had this" panel is open, and what is typed in it.
-  const [hadOpen, setHadOpen] = useState(null);   // "si:ii" | null
-  const [hadNote, setHadNote] = useState("");
+  // The dish whose card is open ("si:ii"), 1.590.0. I had this, your photo,
+  // the estimates and web look-alikes all live in the card now.
+  const [cardKey, setCardKey] = useState(null);
   const fold = useMenuFold();
   const [filter, setFilter] = useState("");
   const [itemBusy, setItemBusy] = useState({});   // "si:ii" -> bool
@@ -19464,12 +19958,31 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
   const [imgBusy, setImgBusy]   = useState({});    // "si:ii" -> bool (photo search)
   const [imgErr,  setImgErr]    = useState({});    // "si:ii" -> message
   const [imgRes,  setImgRes]    = useState({});    // "si:ii" -> [{thumb,full,source,title}] | "none"
-  const [photoOpen, setPhotoOpen] = useState({});  // "si:ii" -> bool (photo area open)
   const itemPhotoRef = useRef(null);               // hidden file input for "your photo"
   const pendingPhotoItem = useRef(null);           // {si,ii} awaiting a picked photo
   const q = filter.trim().toLowerCase();
   const canEstimate = !!(cfg && onSaveItemNutrition);
   const canAddPhoto = !!(cfg && onSaveItemPhoto);
+  // Menu-first photos: a real shot of THIS dish (the item's own photo, plus any
+  // you snapped in a visit here) ranks ahead of the restaurant's.
+  function realPhotosOf(it){
+    const out = [], seen = new Set();
+    const add = p => { if (p && !seen.has(p)){ seen.add(p); out.push(p); } };
+    add(it && it.photo);
+    ((dishPhotos || {})[((it && it.name) || "").trim().toLowerCase()] || []).forEach(add);
+    return out;
+  }
+  // Another menu, or editing, closes an open card.
+  useEffect(()=>{ setCardKey(null); }, [menu && menu.menu_id, editTags]);
+  function closeCard(){
+    const k = cardKey;
+    setCardKey(null);
+    // Back to the dish you opened, for keyboards and screen readers.
+    setTimeout(()=>{
+      const el = k && document.querySelector('[data-dish="' + k + '"]');
+      if (el && el.focus) el.focus();
+    }, 0);
+  }
 
   // Add the user's OWN photo of a dish straight from the menu: snap/pick a
   // picture, estimate calories from it (tier 2 - beats the restaurant's photo
@@ -19751,17 +20264,28 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
           ) : null}
           {secOpen && items.map(({it,oj})=>{
             const key = i + ":" + oj;
-            // Menu-first photos: a real shot of THIS dish (the item's own photo,
-            // plus any you snapped in a visit here) ranks ahead of web images.
-            const realPhotos = (function(){
-              const out = [], seen = new Set();
-              const add = p => { if (p && !seen.has(p)){ seen.add(p); out.push(p); } };
-              add(it.photo);
-              ((dishPhotos || {})[(it.name || "").trim().toLowerCase()] || []).forEach(add);
-              return out;
-            })();
+            // Pictures beside each dish (1.590.0): yours first, then the
+            // restaurant's. A saved photo needs an account to load, so a
+            // preview without one shows only the restaurant's.
+            const pics = dishPicsFor(it, cfg ? realPhotosOf(it) : []);
+            const pic = pics[0] || null;
+            const nk = (it.name || "").trim().toLowerCase();
+            const had = (hadToday || {})[nk];
+            const hist = (dishHist || {})[nk];
+            const verdict = (hist && hist.verdict) || (had && had.verdict) || null;
+            // The whole row opens the card, except while editing (inputs live
+            // in the row then) and in a preview with no account.
+            const canOpen = !!cfg && !editTags;
+            const open = ()=> setCardKey(key);
             return (
-              <div key={oj} className="mitem">
+              <div key={oj} data-dish={key} className={"mitem" + (canOpen ? " mitem-tap" : "")}
+                role={canOpen ? "button" : undefined}
+                tabIndex={canOpen ? 0 : undefined}
+                aria-label={canOpen ? ((it.name || "Dish") + (it.price && !isWidePrice(it.price) ? ", " + it.price : "") + ". Open the dish") : undefined}
+                onClick={canOpen ? open : undefined}
+                onKeyDown={canOpen ? (e=>{ if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); open(); } }) : undefined}>
+                <div className={pic ? "mitem-grid" : undefined}>
+                <div style={{minWidth:0}}>
                 <div className="ihead">
                   {editTags && onRenameItem ? (
                     <ClearInput defaultValue={it.name} aria-label="Dish name"
@@ -19782,56 +20306,6 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
                         ? <span className="ipr paid">paid {fmtPrice(it.paid.amount)}</span>
                         : null)}
                 </div>
-                {/* Ordering something and having an opinion about it is the
-                    commonest thing that happens at a table, and until now the
-                    only route to recording it was the visit form. Every other
-                    control on this row is about photos or calorie estimates,
-                    which is why it read as impossible without a picture. */}
-                {onHadThis ? (function(){
-                  const hk  = i + ":" + oj;
-                  const had = (hadToday || {})[(it.name || "").trim().toLowerCase()];
-                  const isOpen = hadOpen === hk;
-                  return (
-                    <div style={{marginTop:4}}>
-                      <div className="row" style={{gap:12, alignItems:"center"}}>
-                        <button className="dish-redo"
-                          onClick={()=>{
-                            if (isOpen){ setHadOpen(null); return; }
-                            setHadNote((had && had.note) || "");
-                            setHadOpen(hk);
-                          }}>
-                          {had
-                            ? ("✓ Had it today" + (had.note ? " - " + had.note : ""))
-                            : "I had this"}
-                        </button>
-                      </div>
-                      {isOpen ? (
-                        <div style={{marginTop:7, display:"grid", gap:7}}>
-                          <textarea className="input" value={hadNote}
-                            onChange={e=>setHadNote(e.target.value)}
-                            style={{minHeight:56, lineHeight:1.45}}
-                            placeholder="How was it? (optional)" />
-                          <div className="row" style={{gap:7, flexWrap:"wrap"}}>
-                            <button className="btn primary sm"
-                              onClick={()=>{ onHadThis(it.name, hadNote, undefined);
-                                             setHadOpen(null); }}>
-                              {had ? "Save" : "I ordered this"}
-                            </button>
-                            {/* The verdict is the thing "Help me order" and
-                                "You usually get" are built from, so it is worth
-                                one tap here rather than a trip to the visit. */}
-                            <button className="btn ghost sm"
-                              onClick={()=>{ onHadThis(it.name, hadNote, "again");
-                                             setHadOpen(null); }}>Have again</button>
-                            <button className="btn ghost sm"
-                              onClick={()=>{ onHadThis(it.name, hadNote, "skip");
-                                             setHadOpen(null); }}>Not again</button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })() : null}
                 {/* Sits directly under the name, before the description, because
                     it changes how you read everything below it. */}
                 {it.sig ? (
@@ -19861,23 +20335,31 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
                   const nameMarked = !!(en && en[0] && !sameText(en[0], it.name));
                   const descPair = !!(en && en[1] && it.description && !sameText(en[1], it.description));
                   const flagDesc = descPair && !nameMarked && flags;
+                  // In the row a long description stops at three lines; the
+                  // card shows all of it.
+                  const cl = canOpen ? " clamp3" : "";
                   return (
                     <>
-                      {it.description && <div className="idesc">
+                      {it.description && <div className={"idesc" + cl}>
                         {flagDesc && flags.from ? <span className="flag" aria-hidden="true">{flags.from}</span> : null}
                         {it.description}</div>}
                       {en && en[1] && !sameText(en[1], it.description)
-                        ? <div className="idesc idesc-en">
+                        ? <div className={"idesc idesc-en" + cl}>
                             {flagDesc && flags.to ? <span className="flag" aria-hidden="true">{flags.to}</span> : null}
                             {en[1]}</div> : null}
                     </>
                   );
                 })()}
-                {!editTags && it.tags && it.tags.length > 0 && (
+                {!editTags && ((it.tags && it.tags.length) || had || verdict) ? (
                   <div className="chips" style={{marginTop:6}}>
-                    {it.tags.map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
+                    {(it.tags || []).map((t,k)=> <span key={k} className="chip tag">{t}</span>)}
+                    {had ? <span className="chip dish">{"\u2713 Had it today"}</span> : null}
+                    {verdict ? (
+                      <span className={"chip dish" + (verdictPositive(verdict) ? dishChipClass(verdict) : "")}>
+                        {verdictWords(verdict)}</span>
+                    ) : null}
                   </div>
-                )}
+                ) : null}
                 {editTags && onSaveItemSig ? (
                   <div className="chips" style={{marginTop:6, gap:6}}>
                     <span className={"chip pick" + (it.sig ? " on" : "")}
@@ -19902,192 +20384,43 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
                     })}
                   </div>
                 )}
-                {it.nutrition
-                  ? <div>
-                      <div className="mitem-nut">
-                        {it.photo && cfg && (
-                          <div className="mitem-thumb"><PhotoImg cfg={cfg} path={it.photo} /></div>
-                        )}
-                        <NutriLine n={it.nutrition} />
-                      </div>
-                      {(canEstimate || canAddPhoto) && (
-                        <div className="iest" style={{marginTop:4, gap:14}}>
-                          {/* Once an estimate exists this row used to read
-                              "New estimate from your photo", which named the
-                              side effect instead of the act. Somebody who has
-                              just estimated from the description and wants to
-                              add the picture they actually took sees three
-                              controls about ESTIMATES and concludes the photo
-                              option is gone. It never went anywhere - it is
-                              this button. Say what it does. */}
-                          {canAddPhoto && (
-                            <button className="dish-redo" disabled={itemBusy[key]}
-                              onClick={()=> addItemPhoto(i, oj)}
-                              title="Add your own photo of this dish - it also re-estimates from what is actually on the plate">
-                              {itemBusy[key] ? "Working..." : (
-                                <span className="row" style={{gap:5, display:"inline-flex",
-                                      alignItems:"center", verticalAlign:"middle"}}>
-                                  <Icon name="camera" size={12} color="var(--accent)" />
-                                  {it.photo ? "Replace your photo" : "Add your photo"}
-                                </span>
-                              )}</button>
-                          )}
-                          {canEstimate && it.web_image && (
-                            <button className="dish-redo" disabled={itemBusy[key]}
-                              title="Estimate nutrition from the menu's photo of this dish"
-                              aria-label="Estimate nutrition from the menu's photo of this dish"
-                              onClick={()=> estimateFromPhoto(i, oj, it)}>
-                              {itemBusy[key] ? "Working..." : "EST nutrition from MENU PIC"}</button>
-                          )}
-                          {/* Both estimate buttons are short on purpose, to fit the row on a
-                              phone, and phrased alike so they read as one choice with two
-                              sources rather than two unrelated features. "EST" matches the
-                              badge on estimated numbers; the full wording lives in title
-                              and aria-label for screen readers and long-press. */}
-                          {canEstimate && (
-                            <button className="dish-redo" disabled={itemBusy[key]}
-                              title="Estimate nutrition from the dish description" aria-label="Estimate nutrition from the dish description"
-                              onClick={()=> estimateOne(i, oj, it)}>
-                              {itemBusy[key] ? "Working..." : "EST nutrition from DESCR"}</button>
-                          )}
-                          {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
-                        </div>
-                      )}
-                    </div>
-                  : (canEstimate || canAddPhoto) && (
-                      <div className="iest">
-                        {canAddPhoto && (
-                          <button className="iest-btn" disabled={itemBusy[key]}
-                            onClick={()=> addItemPhoto(i, oj)}
-                            title="Add your own photo of this dish and estimate calories from it">
-                            {itemBusy[key]
-                              ? <span className="spin" />
-                              : <Icon name="camera" size={12} color="var(--accent)" />}
-                            {itemBusy[key] ? "Working..." : "Add your photo"}
-                          </button>
-                        )}
-                        {canEstimate && it.web_image && (
-                          <button className="iest-btn" disabled={itemBusy[key]}
-                            onClick={()=> estimateFromPhoto(i, oj, it)}
-                            title="Estimate nutrition from the menu's photo of this dish"
-                            aria-label="Estimate nutrition from the menu's photo of this dish">
-                            {itemBusy[key]
-                              ? <span className="spin" />
-                              : <Icon name="image" size={12} color="var(--accent)" />}
-                            {itemBusy[key] ? "Working..." : "EST nutrition from MENU PIC"}
-                          </button>
-                        )}
-                        {canEstimate && (
-                          <button className="iest-btn" disabled={itemBusy[key]}
-                            title="Estimate nutrition from the dish description" aria-label="Estimate nutrition from the dish description"
-                            onClick={()=> estimateOne(i, oj, it)}>
-                            {itemBusy[key]
-                              ? <span className="spin" />
-                              : <Icon name="sparkle" size={12} color="var(--accent)" />}
-                            {itemBusy[key] ? "Working..." : "EST nutrition from DESCR"}
-                          </button>
-                        )}
-                        {itemErr[key] && <span className="iest-err">{itemErr[key]}</span>}
-                      </div>
-                    )}
-
-                {/* Menu-first photos: your real shot of THIS dish shows first;
-                    web look-alikes are an explicit, clearly-labeled fallback. */}
-                {cfg && !photoOpen[key] && (
-                  <div className="iest" style={{marginTop:6}}>
-                    <button className="iest-btn" disabled={imgBusy[key]}
-                      onClick={()=>{
-                        setPhotoOpen(o=> Object.assign({}, o, { [key]:true }));
-                        if (!realPhotos.length && !it.web_image) findPhotos(i, oj, it);   // no real photo -> straight to web
-                      }}>
-                      {/* One button, three different things behind it, and the old
-                          label "See photos" named none of them - feedback was that
-                          it did not say what it does. Name what you will actually
-                          see. The web case matters most: those are look-alikes of a
-                          dish with this NAME, not this restaurant's food, so the
-                          label says both "similar" and where they come from. */}
-                      <Icon name={(!realPhotos.length && !it.web_image) ? "search" : "image"}
-                        size={12} color="var(--accent)" />
-                      {realPhotos.length
-                        ? (realPhotos.length > 1 ? "See your photos" : "See your photo")
-                        : it.web_image
-                          ? "See the restaurant's photo"
-                          : "See similar on the web"}
-                    </button>
-                    {imgErr[key] && <span className="iest-err">{imgErr[key]}</span>}
+                {it.nutrition && !editTags ? <div className="mitem-nut" style={{marginTop:6}}><NutriLine n={it.nutrition} /></div> : null}
+                </div>
+                {pic ? (
+                  <div className="mitem-pic" aria-hidden="true">
+                    <div className="mitem-sq"><DishPic cfg={cfg} pic={pic} /></div>
+                    <span className="mitem-src">{dishPicShort(pic)}</span>
                   </div>
-                )}
-                {cfg && photoOpen[key] && (
-                  <div style={{marginTop:8}}>
-                    {realPhotos.length > 0 && (
-                      <div style={{marginBottom: Array.isArray(imgRes[key]) ? 10 : 6}}>
-                        <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
-                          {realPhotos.map((p,k)=>(
-                            <div key={k} style={{flex:"none", width:110, height:110, borderRadius:10,
-                                 overflow:"hidden", border:"1px solid var(--line-soft)", background:"var(--surface-2)"}}>
-                              <PhotoImg cfg={cfg} path={p}
-                                style={{width:"100%", height:"100%", objectFit:"cover"}} />
-                            </div>
-                          ))}
-                        </div>
-                        <span className="tiny faint">
-                          Your photo{realPhotos.length > 1 ? "s" : ""} of this dish
-                        </span>
-                      </div>
-                    )}
-                    {it.web_image && (
-                      <div style={{marginBottom: Array.isArray(imgRes[key]) ? 10 : 6}}>
-                        <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
-                          <div style={{flex:"none", width:110, height:110, borderRadius:10,
-                               overflow:"hidden", border:"1px solid var(--line-soft)", background:"var(--surface-2)"}}>
-                            <img src={it.web_image} alt={it.name} loading="lazy"
-                                 style={{width:"100%", height:"100%", objectFit:"cover"}} />
-                          </div>
-                        </div>
-                        <span className="tiny faint">From the restaurant</span>
-                      </div>
-                    )}
-                    {imgBusy[key] && (
-                      <div className="tiny faint"><span className="spin" /> Searching the web for this dish&hellip;</div>
-                    )}
-                    {imgErr[key] && <span className="iest-err">{imgErr[key]}</span>}
-                    {Array.isArray(imgRes[key]) && (
-                      <div>
-                        <div style={{display:"flex", gap:8, overflowX:"auto", paddingBottom:4}}>
-                          {imgRes[key].map((im,k)=>(
-                            <a key={k} href={im.source} target="_blank" rel="noopener noreferrer"
-                               title={im.title || it.name}
-                               style={{flex:"none", width:96, height:96, borderRadius:10, overflow:"hidden",
-                                       border:"1px solid var(--line-soft)", background:"var(--surface-2)"}}>
-                              <img src={im.thumb} alt={im.title || it.name} loading="lazy"
-                                   style={{width:"100%", height:"100%", objectFit:"cover"}} />
-                            </a>
-                          ))}
-                        </div>
-                        <span className="tiny faint">
-                          Similar from the web &middot; not this exact dish, tap to open the source
-                        </span>
-                      </div>
-                    )}
-                    {imgRes[key] === "none" && (
-                      <div className="tiny faint" style={{marginTop:2}}>No web photos found for this dish.</div>
-                    )}
-                    <div className="row" style={{gap:10, marginTop:8, alignItems:"center"}}>
-                      {/* A real photo of the dish is the ONLY one we show - no web
-                          look-alikes offered when we already have the real thing. */}
-                      <button className="btn ghost sm" style={{flex:"none"}}
-                        onClick={()=>{
-                          setPhotoOpen(o=>{ const n=Object.assign({},o); delete n[key]; return n; });
-                          setImgRes(r=>{ const n=Object.assign({},r); delete n[key]; return n; });
-                        }}>Hide</button>
-                    </div>
-                  </div>
-                )}
+                ) : null}
+                </div>
               </div>
             );
           })}
         </div>
       );})}
+      {(function(){
+        if (!cardKey) return null;
+        const parts = cardKey.split(":");
+        const si = Number(parts[0]), ii = Number(parts[1]);
+        const sec = (menu.sections || [])[si];
+        const it = sec && (sec.items || [])[ii];
+        if (!it) return null;
+        const nk = (it.name || "").trim().toLowerCase();
+        return (
+          <DishCard cfg={cfg} it={it} pics={dishPicsFor(it, realPhotosOf(it))}
+            restaurantName={restaurantName} en={showEn ? enFor(it) : null} flags={flags} fxOf={fxOf}
+            had={(hadToday || {})[nk] || null} hist={(dishHist || {})[nk] || null}
+            onClose={closeCard}
+            onHadThis={onHadThis || null}
+            canAddPhoto={canAddPhoto} onAddPhoto={()=> addItemPhoto(si, ii)}
+            busy={!!itemBusy[cardKey]} err={itemErr[cardKey] || ""}
+            canEstimate={canEstimate} onEstimate={()=> estimateOne(si, ii, it)}
+            onEstimatePhoto={()=> estimateFromPhoto(si, ii, it)}
+            web={{ busy: !!imgBusy[cardKey], err: imgErr[cardKey] || "", res: imgRes[cardKey] }}
+            onFindWeb={()=> findPhotos(si, ii, it)}
+            onAskDish={onAskDish || null} />
+        );
+      })()}
     </div>
   );
 }
@@ -27313,6 +27646,10 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         }
         jobLoaded.current = true;
         logMsg("SCAN","Scan " + jobId.slice(0,8) + " read on the server");
+        // Opened later from the bar or the email, this screen has no photos
+        // of its own: take the copy kept on the phone (scanPagesPut).
+        const kept = await scanPagesGet(jobId);
+        if (kept && kept.length) setDataUrls(d => d.length ? d : kept);
         acceptScan(parsed);
       } finally { busy = false; }
     }
@@ -27745,6 +28082,12 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
       parts.set(id, part);
       return part;
     }
+    // Each group's own photos go with its menu (1.590.0). The pages line up
+    // with the photos when the counts match; otherwise each menu keeps all.
+    const pagesFor = idxs => (result.source !== "web" && dataUrls.length)
+      ? ((result._pages && result._pages.length === dataUrls.length)
+          ? idxs.map(k => dataUrls[k]).filter(Boolean) : dataUrls.slice(0, 20))
+      : [];
     splitMenus.forEach(sm => {
       const g = split.groups[sm.gi];
       const lbl = (g.label || "").trim();
@@ -27757,6 +28100,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
         source: result.source || "photo_ocr", taken: result.source === "web" ? "web" : "photo",
         sections: sm.menu.sections, raw_text: "",
         translation: sm.menu.translation || undefined,
+        _scan_pages: pagesFor(sm.idxs || []),
       });
       // A printed story belongs to the place whose photos printed it.
       if (sm.menu.house_story && !part.houseStory) part.houseStory = sm.menu.house_story;
@@ -27881,6 +28225,10 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     // A page with no dishes (a restaurant's story page, say) saves only its
     // story. Without this it saved an EMPTY menu beside it (2026-10-07).
     if (!sections.length) menusToSave = [];
+    // The photos you took ride along so the app can keep them with the menu
+    // as its Original (1.590.0). Only a camera scan has them.
+    const keptPages = (result.source !== "web" && dataUrls.length) ? dataUrls.slice(0, 20) : [];
+    if (keptPages.length) menusToSave = menusToSave.map(m => Object.assign({}, m, { _scan_pages: keptPages }));
 
     logMsg("SCAN", (isReplace ? "Replacing menu (re-scan)" :
                    menusToSave.length > 1 ? "Adding " + menusToSave.length + " menus" :

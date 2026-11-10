@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.589.0** | menucaptain.com (GitHub Pages), pushed 2026-11-08 from the Mac |
+| Web app | **1.590.0** | menucaptain.com (GitHub Pages), pushed 2026-11-09 from the Mac |
 | Backend | **0.164.1** | Railway, `/health` reports `db connected` (0.164.1 shipped from the Mac 2026-11-08: `GROUP_RETENTION_DAYS` read safely) |
-| Native shell | **1.589.0** | rebuilt on the Mac from web 1.589.0 (2026-11-08), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
+| Native shell | **1.590.0** | rebuilt on the Mac from web 1.590.0 (2026-11-09), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -415,6 +415,45 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### Menu with pictures (2026-11-09, app 1.590.0)
+
+Chris, 2026-11-08: "What if we created a menu that looks like the menu that was scanned and has pictures
+of what dishes might look like?" Talked through and decided by cards on 11-09 (Dropbox `DESIGN-CHANGES.md`
+F2), tried as a clickable mockup (Dropbox `Mockups/menu-with-pictures.html`), then "Build it".
+- **Rows:** a picture beside each dish (`dishPicsFor`): your photos first (`item.photo`, then visit dish
+  photos), then the restaurant's `web_image`, labelled "Your photo" / "Restaurant's photo". The row is a
+  button that opens `DishCard` (not while editing dishes, not without an account, e.g. the scan preview).
+  A description stops at three lines in the row. Row chips: diet tags, "Had it today", the newest verdict.
+- **`DishCard`** (bottom sheet, z-index 140 so it sits over the group order page too): the picture (tap ->
+  `PhotoLightbox`), thumbnails, full text, "You and this dish" (`dishHist` in MenuDetail: `dishHistory`
+  plus the newest note), I had this (the same `onHadThis`), Ask about it (`askDish` in MenuDetail: the
+  same `askMenu`, and it joins `askThread`), Add your photo, See similar on the web (only with no picture;
+  the existing Pro-only `/api/dish/images`), Calories (the existing estimates). The buttons that sat under
+  every dish (I had this, EST..., the photo buttons) are gone from the rows.
+- **Original:** camera scans keep their photos as `menu.scan_photos: [{path, taken}]` at
+  `photos/menu-scans/<menu>_<id>.jpg` in the person's own storage (the existing `/api/photos`, no server
+  change). `ScanMenuFlow` puts `_scan_pages` (data URLs) on the menus it saves; App `onSave` strips them
+  before the commit and `keepScanPhotos` uploads after it, then attaches (a refresh starts fresh, a
+  continued page appends, at most 20). A scan opened later from the ready bar or the email: `sendPendingScan`
+  keeps its photos on the phone under `scan-pages:<jobId>` (`scanPagesPut`), the scan screen loads them
+  (`scanPagesGet`), `collectScanJob` deletes them. MenuDetail shows Easy read / Original (`.auth-switch`),
+  pages full width, a tap zooms a page to 220% to pan small print.
+- **Never shared:** `sanitizeMenuForShare` and the group order snapshot send sections only.
+- **Roads not taken:** Add to group order in the card (it was in the mockup, but the menu page does not
+  know which group order you are in); web look-alikes as the row picture (other people's photos read as
+  this restaurant's food); a lightbox for Original (it fits a page to the screen, smaller than full width);
+  keeping the server's staged scan photos instead of uploading again (needs a server deploy; the app sends
+  each page again, about 250 KB).
+- **Not yet (F2, later steps):** labelled AI illustrations (draw 20 first, priced, Chris's yes), diners'
+  shared photos (opt-in), menus styled like the paper one (with the redesign).
+- **Known limits:** an upload that fails at save (offline) leaves the menu without an Original (log: "Scan
+  photos not kept"). Photos of a deleted menu stay in storage, as dish photos always have. A phone copy of
+  a scan that is never opened stays until the app's storage is cleared.
+- Tested at 375 px with the pretend server, 38 checks: rows, the card, Ask, web look-alikes, I had this,
+  Original, editing, a menu without Original, a camera scan keeping its photo and clearing the phone copy,
+  a scan opened later from the ready bar keeping its photo, nothing wider than the card. The 1.589.0 suite
+  still passes (20). Not tested on the iPhone yet.
 
 ### Straight to the menu (2026-11-08, app 1.589.0)
 

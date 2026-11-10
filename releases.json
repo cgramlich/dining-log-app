@@ -519,5 +519,13 @@
       "email_notes": "updated: next-issue-notes.md (FEATURE 1.589.0) and Log 2026-11-08j",
       "welcome": "n/a: the promo page's at-the-restaurant card still holds",
       "handoff": "updated: version rows, decision entry, BRIEFING, Log"
+  },
+  "1.590.0": {
+      "what": "Menu with pictures (Chris, 2026-11-08: 'What if we created a menu that looks like the menu that was scanned and has pictures of what dishes might look like?'; decided by card 2026-11-09 after a clickable mockup, then 'Build it'). A picture beside each dish: your photo first (a menu-item photo or one from a visit), then the restaurant's own, each labelled. Tap a dish for its card: the picture (tap for full size), the whole description, your history with it (when you last had it, Have again or Not again, your last note), I had this, Ask about it (answered in the card and added to the Ask box), Add your photo, calorie estimates, and See similar on the web only for a dish with no picture. The buttons that sat under every dish moved into the card. Camera scans now keep their photos with the menu: an Easy read / Original switch shows them, with the date, tap to zoom. The photos are yours only: shared menus and group orders send dishes alone.",
+      "guide": "updated: Calories on a menu, A picture beside each dish, Tap a dish for its card, Original, Marking a dish from the menu, Explain the menu",
+      "promo": "updated: Scan a menu, new Pictures and a card for every dish, Mark it from the menu",
+      "email_notes": "updated: next-issue-notes.md (FEATURE 1.590.0) and Log 2026-11-09a",
+      "welcome": "n/a: the welcome screens do not show the menu page",
+      "handoff": "updated: version rows, decision entry, BRIEFING, Log"
   }
 }
