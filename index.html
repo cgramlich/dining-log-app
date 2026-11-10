@@ -649,6 +649,20 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .mitem-pic{display:flex; flex-direction:column; align-items:center; gap:4px; padding-top:2px;}
     .mitem-sq{width:78px; height:78px; border-radius:12px; overflow:hidden; border:1px solid var(--line-soft); background:var(--surface-2);}
     .mitem-src{font-size:10.5px; line-height:1.25; color:var(--text-faint); text-align:center; max-width:84px; letter-spacing:0.01em;}
+    .mitem-src.ill{font-style:italic; color:var(--text-dim);}
+    .dc-report{background:none; border:0; padding:0; font:inherit; font-size:12.5px; color:var(--text-faint); text-decoration:underline; cursor:pointer; margin-top:8px;}
+    /* The owner's food drawing library (1.591.0). */
+    .illus-lib{position:fixed; inset:0; z-index:150; background:var(--bg); overflow-y:auto; max-width:540px; margin:0 auto;
+      padding:calc(14px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));}
+    .illus-tabs{display:flex; gap:6px; flex-wrap:wrap; margin:12px 0;}
+    .illus-grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px;}
+    .illus-item{background:var(--surface); border:1px solid var(--line-soft); border-radius:12px; padding:8px; min-width:0;}
+    .illus-item .pic{aspect-ratio:1/1; max-width:100%; border-radius:9px; overflow:hidden; background:var(--surface-2);}
+    .illus-item .pic img{width:100%; height:100%; object-fit:cover; display:block;}
+    .illus-item .nm{font-weight:600; font-size:13.5px; margin-top:6px;}
+    .illus-item .ds{font-size:11.5px; color:var(--text-faint); line-height:1.35; margin-top:2px;}
+    .illus-item .acts{display:flex; gap:6px; flex-wrap:wrap; margin-top:7px;}
+    .illus-item .acts button{font-size:12px; padding:5px 9px;}
     .mitem .idesc.clamp3{display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;}
     .dish-card-bg{position:fixed; inset:0; z-index:140; background:rgba(0,0,0,0.6); display:flex; align-items:flex-end; justify-content:center;}
     .dish-card{width:100%; max-width:540px; max-height:90vh; max-height:90dvh; overflow-y:auto; overscroll-behavior:contain;
@@ -1374,7 +1388,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.590.0";
+const APP_VERSION   = "1.591.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -2456,6 +2470,14 @@ printed calorie count stays the most reliable number.
 beside its name, marked "Your photo". When the menu came in from the restaurant's
 website with pictures, theirs shows instead, marked "Restaurant's photo". Your own
 photo always comes first.
+
+**Drawings for dishes with no photo.** When a dish has no photo at all, MenuCaptain
+shows a painted drawing of that kind of dish, marked "Illustration". It is drawn
+from a menu's description, so it shows what the dish usually looks like, not this
+restaurant's plate. A dish new to MenuCaptain is drawn as soon as its menu is read,
+usually within a minute, and every menu with that dish shares the drawing. Drinks
+lists don't get drawings. If one looks wrong, tap **Drawing doesn't look like
+this?** on the dish's card and it goes on the list to be redrawn.
 
 **Tap a dish for its card.** Tapping any dish opens its card: the picture (tap it
 to see it full size), the whole description, and your history with the dish
@@ -9586,6 +9608,94 @@ function WineForMeSheet({ cfg, restaurant, list, book, onSaveProfile, onHaving, 
    search (Google Programmable Search) and returns thumbnail + source links;
    we never get or store the raw image bytes. Returns [{thumb, full, source,
    title}]. Throws with a friendly message on 402 (Pro) / 503 (not set up). */
+/* ---- The food drawing library (1.591.0, server 0.165.0) ----
+   Chris, 2026-11-10: "we maintain a database of food illustrations". The
+   server keeps one painted drawing per kind of dish (Google Nano Banana 2.1),
+   shared by every menu and every person; this app shows one beside a dish
+   that has no photo of its own, marked "Illustration". Decided by cards:
+   new dishes are drawn the moment their menu is read, and drawing stops for
+   the month at $20 (the server enforces that, not the app).
+   The app asks ONLY about dishes with no photo (yours or the restaurant's),
+   and never about drinks lists. Ready drawings are remembered on the phone for
+   a week, so a menu you open often shows its drawings at once. */
+async function illusLookup(cfg, dishes, draw){
+  const res = await fetch(apiBase(cfg) + "/api/dish/illustrations", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body:JSON.stringify({ dishes: dishes || [], draw: draw !== false }),
+  });
+  if (!res.ok) throw new Error("drawings " + res.status);
+  return await res.json();
+}
+async function illusReport(cfg, key, note){
+  const res = await fetch(apiBase(cfg) + "/api/dish/illustration/report", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body:JSON.stringify({ key: key || "", note: note || "" }),
+  });
+  if (!res.ok) throw new Error("report " + res.status);
+  return await res.json();
+}
+async function illusAdmin(cfg, view){
+  const res = await fetch(apiBase(cfg) + "/api/admin/illustrations?view=" + encodeURIComponent(view || "review"),
+                          { headers: await authHeaders(cfg) });
+  if (!res.ok) throw new Error("Couldn't load the drawings (" + res.status + ").");
+  return await res.json();
+}
+async function illusAdminAction(cfg, keys, action){
+  const res = await fetch(apiBase(cfg) + "/api/admin/illustrations/action", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) },
+    body:JSON.stringify({ keys: keys || [], action: action }),
+  });
+  if (!res.ok) throw new Error("That didn't work (" + res.status + ").");
+  return await res.json();
+}
+async function illusAdminSeed(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/admin/illustrations/seed", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) }, body:"{}",
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(data.detail || ("That didn't work (" + res.status + ")."));
+  return data;
+}
+// The server sends addresses like /api/dish/illustration/x.jpg; put it in front.
+function illusAbs(cfg, url){ return url && url.charAt(0) === "/" ? apiBase(cfg) + url : (url || ""); }
+const ILLUS_CACHE_KEY = "mc_illus_v1";
+const ILLUS_CACHE_MS  = 7 * 24 * 3600 * 1000;
+function illusCacheRead(){
+  try { return JSON.parse(localStorage.getItem(ILLUS_CACHE_KEY) || "{}") || {}; } catch(e){ return {}; }
+}
+function illusCachePut(entries){
+  try {
+    const all = Object.assign(illusCacheRead(), entries || {});
+    const keys = Object.keys(all);
+    // At most 2,500 dishes remembered; the oldest go first.
+    if (keys.length > 2500){
+      keys.sort((a, b)=> (all[a].at || 0) - (all[b].at || 0)).slice(0, keys.length - 2500).forEach(k => { delete all[k]; });
+    }
+    localStorage.setItem(ILLUS_CACHE_KEY, JSON.stringify(all));
+  } catch(e){ /* the phone is full: drawings still show, just not instantly next time */ }
+}
+// The dishes on a menu that could use a drawing: food (not a drinks list or
+// section) with no photo of its own. One entry per name.
+function illusDishesOf(menu, dishPhotos){
+  if (!menu || sectionIsDrink(menu.label)) return [];
+  const out = [], seen = new Set();
+  (menu.sections || []).forEach(sec => {
+    if (!sec || sectionIsDrink(sec.name)) return;
+    (sec.items || []).forEach(it => {
+      const nm = String((it && it.name) || "").trim();
+      const k = nm.toLowerCase();
+      if (!nm || seen.has(k)) return;
+      if (it.photo || it.web_image || ((dishPhotos || {})[k] || []).length) return;
+      seen.add(k);
+      out.push({ name: nm, description: String(it.description || "").slice(0, 300) });
+    });
+  });
+  return out;
+}
+
 async function dishImages(cfg, name, cuisine){
   let res;
   try {
@@ -18925,6 +19035,50 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
     return m;
   })();
 
+  // Food drawings for this menu's dishes with no photo (1.591.0). Drawings the
+  // phone remembers show at once; the rest are asked for, and the server
+  // starts drawing any dish it has never seen.
+  // RULE (no needless polling): ask again only while THIS menu is open and
+  // something is still being drawn: every 8 seconds, at most 15 times (two
+  // minutes). Closing the menu stops it.
+  const [illus, setIllus] = useState({});   // lowercased dish name -> {url, key}
+  useEffect(()=>{
+    if (!menu || !configComplete(cfg)){ setIllus({}); return; }
+    let alive = true, timer = null, rounds = 0;
+    const cuisine = (restaurant && restaurant.cuisine) || "";
+    const want = illusDishesOf(menu, dishPhotos).map(d => Object.assign({}, d, { cuisine: cuisine }));
+    const cache = illusCacheRead(), now = Date.now(), start = {};
+    want.forEach(d => {
+      const c = cache[d.name.toLowerCase()];
+      if (c && c.url && now - (c.at || 0) < ILLUS_CACHE_MS) start[d.name.toLowerCase()] = c;
+    });
+    setIllus(start);
+    let ask = want.filter(d => !start[d.name.toLowerCase()]).slice(0, 150);
+    async function round(){
+      if (!alive || !ask.length) return;
+      try {
+        const r = await illusLookup(cfg, ask, true);
+        if (!alive) return;
+        const got = {}, still = [];
+        (r.items || []).forEach((item, i) => {
+          const d = ask[i];
+          if (!d) return;
+          if (item.status === "ready" && item.url)
+            got[d.name.toLowerCase()] = { url: illusAbs(cfg, item.url), key: item.key || "", at: Date.now() };
+          else if (item.status === "pending") still.push(d);
+        });
+        if (Object.keys(got).length){ setIllus(m => Object.assign({}, m, got)); illusCachePut(got); }
+        ask = still;
+        if (still.length && ++rounds < 15) timer = setTimeout(round, 8000);
+      } catch(e){
+        logMsg("ILLUS", "Drawings lookup failed: " + e.message);
+      }
+    }
+    round();
+    return ()=>{ alive = false; if (timer) clearTimeout(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu && menu.menu_id, cfg && cfg.userId]);
+
   async function runAsk(override){
     if (asking) return;   // a second tap while thinking must not fire again
     const q = ((override != null ? override : askInput) || "").trim();
@@ -19585,6 +19739,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
           restaurantName={restaurant ? restaurant.name : ""}
           cuisine={restaurant ? restaurant.cuisine : ""}
           dishPhotos={dishPhotos}
+          illus={illus}
           onSaveItemNutrition={onSaveItemNutrition}
           onSaveItemPhoto={onSaveItemPhoto}
           onSaveItemTags={onSaveItemTags}
@@ -19639,15 +19794,21 @@ function shortDateLabel(iso){
   return d.toLocaleDateString(undefined, d.getFullYear() === new Date().getFullYear()
     ? { month:"short", day:"numeric" } : { month:"short", day:"numeric", year:"numeric" });
 }
-function dishPicsFor(it, realPhotos){
+function dishPicsFor(it, realPhotos, ill){
   const out = (realPhotos || []).map(p => ({ kind:"yours", path:p }));
   if (it && it.web_image) out.push({ kind:"rest", url:it.web_image });
+  // A drawing only when there is no photo at all (1.591.0): a real photo
+  // always comes first.
+  if (!out.length && ill && ill.url) out.push({ kind:"ill", url:ill.url, key:ill.key || "" });
   return out;
 }
-function dishPicShort(p){ return p && p.kind === "rest" ? "Restaurant's photo" : "Your photo"; }
+function dishPicShort(p){
+  return !p ? "" : p.kind === "rest" ? "Restaurant's photo" : p.kind === "ill" ? "\u270E Illustration" : "Your photo";
+}
 function dishPicLong(p, restaurantName){
   if (!p) return "";
   if (p.kind === "rest") return "From " + (restaurantName ? restaurantName + "'s" : "the restaurant's") + " website";
+  if (p.kind === "ill") return "Illustration, not the real dish";
   return "Your photo";
 }
 function verdictWords(v){ return v === "loved" ? "Loved" : v === "again" ? "Have again" : v === "skip" ? "Not again" : ""; }
@@ -19660,6 +19821,8 @@ function DishPic({cfg, pic, alt}){
 function DishCard({cfg, it, pics, restaurantName, en, flags, fxOf, had, hist, onClose,
                    onHadThis, canAddPhoto, onAddPhoto, busy, err, canEstimate, onEstimate,
                    onEstimatePhoto, web, onFindWeb, onAskDish}){
+  // "Doesn't look like this?" on a drawing: "" | "busy" | "sent" | an error.
+  const [reported, setReported] = useState("");
   const [ix, setIx]           = useState(0);
   const [hadOpen, setHadOpen] = useState(false);
   const [hadNote, setHadNote] = useState("");
@@ -19678,6 +19841,15 @@ function DishCard({cfg, it, pics, restaurantName, en, flags, fxOf, had, hist, on
   }, [lb, onClose]);
   const name = String(it.name || "").trim() || "this dish";
   const pic = pics.length ? pics[Math.min(ix, pics.length - 1)] : null;
+  // A drawing is not a photo: web look-alikes are still offered beside one.
+  const realPics = pics.filter(p => p.kind !== "ill");
+  const drawing = pics.find(p => p.kind === "ill") || null;
+  async function reportDrawing(){
+    if (!drawing || !drawing.key || reported) return;
+    setReported("busy");
+    try { await illusReport(cfg, drawing.key, ""); setReported("sent"); }
+    catch(e){ setReported("Couldn't send that. Try again later."); }
+  }
   const same = (x, y)=> String(x || "").trim().toLowerCase() === String(y || "").trim().toLowerCase();
   const enName = en && en[0] && !same(en[0], it.name) ? en[0] : "";
   const enDesc = en && en[1] && it.description && !same(en[1], it.description) ? en[1] : "";
@@ -19837,16 +20009,16 @@ function DishCard({cfg, it, pics, restaurantName, en, flags, fxOf, had, hist, on
             </div>
           ) : null}
 
-          {(canAddPhoto || (cfg && !pics.length)) ? (
+          {(canAddPhoto || (cfg && !realPics.length)) ? (
             <div className="dc-box">
-              <div className="dc-lbl">{pics.length ? "Pictures" : "No picture of this dish yet"}</div>
+              <div className="dc-lbl">{realPics.length ? "Pictures" : drawing ? "Only a drawing so far" : "No picture of this dish yet"}</div>
               <div className="dc-acts">
                 {canAddPhoto ? (
                   <button type="button" className="iest-btn" disabled={busy} onClick={onAddPhoto}>
                     {busy ? <span className="spin" /> : <Icon name="camera" size={12} color="var(--accent)" />}
                     {busy ? "Working..." : (it.photo ? "Replace your photo" : "Add your photo")}</button>
                 ) : null}
-                {cfg && !pics.length && !Array.isArray(web.res) ? (
+                {cfg && !realPics.length && !Array.isArray(web.res) ? (
                   <button type="button" className="iest-btn" disabled={web.busy} onClick={onFindWeb}>
                     {web.busy ? <span className="spin" /> : <Icon name="search" size={12} color="var(--accent)" />}
                     {web.busy ? "Searching..." : "See similar on the web"}</button>
@@ -19869,6 +20041,15 @@ function DishCard({cfg, it, pics, restaurantName, en, flags, fxOf, had, hist, on
                 </div>
               ) : null}
               {web.res === "none" ? <div className="tiny faint" style={{marginTop:6}}>No web photos found for this dish.</div> : null}
+              {drawing && drawing.key ? (
+                reported === "sent"
+                  ? <div className="tiny faint" style={{marginTop:8}}>Thanks. It goes on the list to be redrawn.</div>
+                  : <div>
+                      <button type="button" className="dc-report" disabled={reported === "busy"} onClick={reportDrawing}>
+                        Drawing doesn't look like this?</button>
+                      {reported && reported !== "busy" ? <div className="iest-err" style={{marginTop:4}}>{reported}</div> : null}
+                    </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -19904,6 +20085,132 @@ function DishCard({cfg, it, pics, restaurantName, en, flags, fxOf, had, hist, on
   );
 }
 
+/* ---- The owner's food drawing library (1.591.0) ----
+   Only Chris sees this (the server refuses everyone else). The starting 300
+   wait here until he approves them; reported drawings ("Drawing doesn't look
+   like this?") wait here for him to redraw or reject. Redrawing and drawing
+   the starting set spend money, so each asks first and says roughly what. */
+function IllustrationLibraryCard({ config }){
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="card" style={{marginTop:12}}>
+      <button type="button" className="between" onClick={()=> setOpen(true)}
+        style={{width:"100%", background:"none", border:0, padding:0, cursor:"pointer", color:"inherit", font:"inherit", textAlign:"left"}}>
+        <div style={{fontWeight:600}}>Food drawings</div>
+        <Chevron open={false} size={17} color="#80715f" />
+      </button>
+      <div className="tiny faint" style={{marginTop:4}}>Approve, redraw or reject the library's drawings, and see what drawing has cost.</div>
+      {open ? <IllustrationLibrary config={config} onClose={()=> setOpen(false)} /> : null}
+    </div>
+  );
+}
+function IllustrationLibrary({ config, onClose }){
+  const [view, setView] = useState("review");
+  const [data, setData] = useState(null);
+  const [err, setErr]   = useState("");
+  const [busy, setBusy] = useState("");
+  const [ask, setAsk]   = useState(null);   // {keys, action, words} waiting for a yes
+  async function load(v){
+    setErr("");
+    try { setData(await illusAdmin(config, v || view)); } catch(e){ setErr(e.message); }
+  }
+  useEffect(()=>{ load(view); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [view]);
+  useEffect(()=>{
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return ()=> document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  async function act(keys, action){
+    setBusy(action); setErr("");
+    try { await illusAdminAction(config, keys, action); await load(view); }
+    catch(e){ setErr(e.message); }
+    finally { setBusy(""); setAsk(null); }
+  }
+  async function seed(){
+    setBusy("seed"); setErr("");
+    try { const r = await illusAdminSeed(config); setAsk(null); await load(view);
+          setErr(r.queued ? ("Drawing " + r.queued + " dishes. They appear under Review as they finish.") : "Every starting dish is already in the library."); }
+    catch(e){ setErr(e.message); }
+    finally { setBusy(""); }
+  }
+  const money = v => (v == null ? "unknown" : "$" + Number(v).toFixed(2));
+  const counts = (data && data.counts) || {};
+  const items = (data && data.items) || [];
+  const tabs = [["review", "Review"], ["reported", "Reported"], ["ready", "Showing"], ["failed", "Failed"]];
+  return (
+    <div className="illus-lib" role="dialog" aria-modal="true" aria-label="Food drawings">
+      <div className="between" style={{alignItems:"center"}}>
+        <div style={{fontFamily:"'Fraunces',serif", fontSize:24}}>Food drawings</div>
+        <button type="button" className="btn ghost sm" onClick={onClose}>Done</button>
+      </div>
+      {data ? (
+        <div className="tiny faint" style={{marginTop:6, lineHeight:1.5}}>
+          This month: {money(data.month.spent_usd)} of {money(data.month.budget_usd)}, {data.month.drawings == null ? "?" : data.month.drawings} drawn.
+          Starting set: {money(data.seed.spent_usd)} of {money(data.seed.budget_usd)}.
+          {data.drawing_on ? "" : " Drawing is off: the server has no Google key yet."}
+        </div>
+      ) : null}
+      {data && data.drawing_on && !(data.seed.drawings > 0) ? (
+        <div className="card" style={{marginTop:10}}>
+          <div style={{fontWeight:600}}>Draw the {data.seed.dishes || 300} starting dishes</div>
+          <div className="tiny faint" style={{marginTop:3}}>About $10 to $12, once. They wait here under Review until you approve them.</div>
+          {ask && ask.action === "seed" ? (
+            <div className="row" style={{gap:8, marginTop:9}}>
+              <button className="btn primary sm" disabled={busy === "seed"} onClick={seed}>{busy === "seed" ? "Starting..." : "Yes, draw them"}</button>
+              <button className="btn ghost sm" onClick={()=> setAsk(null)}>Not now</button>
+            </div>
+          ) : (
+            <button className="btn ghost sm" style={{marginTop:9}} onClick={()=> setAsk({ action:"seed" })}>Draw them</button>
+          )}
+        </div>
+      ) : null}
+      <div className="illus-tabs" role="group" aria-label="Which drawings">
+        {tabs.map(([v, label]) => (
+          <button key={v} type="button" className={"fold-pill" + (view === v ? " on" : "")} aria-pressed={view === v}
+            onClick={()=> setView(v)}>{label}{v === "reported" ? "" : (counts[v === "ready" ? "ready" : v] ? " " + counts[v === "ready" ? "ready" : v] : "")}</button>
+        ))}
+      </div>
+      {err ? <div className="tiny" style={{margin:"0 0 10px", color:"var(--text-dim)"}}>{err}</div> : null}
+      {view === "review" && items.length ? (
+        ask && ask.action === "approve-all" ? (
+          <div className="row" style={{gap:8, marginBottom:10}}>
+            <button className="btn primary sm" disabled={!!busy} onClick={()=> act(items.filter(i => i.url).map(i => i.key), "approve")}>Yes, show all {items.filter(i => i.url).length}</button>
+            <button className="btn ghost sm" onClick={()=> setAsk(null)}>Not now</button>
+          </div>
+        ) : (
+          <button className="btn ghost sm" style={{marginBottom:10}} onClick={()=> setAsk({ action:"approve-all" })}>Approve all on this page</button>
+        )
+      ) : null}
+      {!data && !err ? <div className="tiny faint">Loading...</div> : null}
+      {data && !items.length ? <div className="tiny faint">Nothing here.</div> : null}
+      <div className="illus-grid">
+        {items.map(it => (
+          <div key={it.key} className="illus-item">
+            <div className="pic">{it.url ? <img src={illusAbs(config, it.url)} alt={it.name} loading="lazy" /> : null}</div>
+            <div className="nm">{it.name}</div>
+            <div className="ds">{[it.cuisine, it.description].filter(Boolean).join(" \u00B7 ")}</div>
+            {it.reports ? <div className="ds" style={{color:"var(--text-dim)"}}>Reported {it.reports}x{it.report_note ? ": " + it.report_note : ""}</div> : null}
+            {it.last_error && view === "failed" ? <div className="ds">{it.last_error}</div> : null}
+            {ask && ask.key === it.key ? (
+              <div className="acts">
+                <button className="btn primary sm" disabled={!!busy} onClick={()=> act([it.key], "redraw")}>Redraw, about 4c</button>
+                <button className="btn ghost sm" onClick={()=> setAsk(null)}>Keep</button>
+              </div>
+            ) : (
+              <div className="acts">
+                {it.status === "review" && it.url ? <button className="btn primary sm" disabled={!!busy} onClick={()=> act([it.key], "approve")}>Approve</button> : null}
+                <button className="btn ghost sm" disabled={!!busy} onClick={()=> setAsk({ key: it.key })}>Redraw</button>
+                {it.status !== "rejected" ? <button className="btn ghost sm" disabled={!!busy} onClick={()=> act([it.key], "reject")}>Reject</button> : null}
+                {view === "reported" ? <button className="btn ghost sm" disabled={!!busy} onClick={()=> act([it.key], "clear")}>It's fine</button> : null}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================
    MENU VIEW - collapsible sections + text filter
    ============================================================ */
@@ -19935,7 +20242,7 @@ function moveTargetMatch(names, value){
   return cur ? ((names || []).find(nm => String(nm || "").trim().toLowerCase() === cur) || "") : "";
 }
 
-function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, dishHist, onAskDish, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx, moveTargets, showDishesTick, onRenameSection}){
+function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos, illus, onSaveItemNutrition, onSaveItemPhoto, onSaveItemTags, onSaveItemSig, onHadThis, hadToday, dishHist, onAskDish, onRenameItem, showEnglish, onSplitSection, onDeleteSection, flags, fx, moveTargets, showDishesTick, onRenameSection}){
   // Show in $ (2026-10-15): "" when the switch is off or a price is unclear.
   const fxOf = p => (fx ? fxPriceText(p, fx) : "");
   // Per-section split (2026-10-07): {si, name} while that section's panel is open.
@@ -20267,9 +20574,9 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
             // Pictures beside each dish (1.590.0): yours first, then the
             // restaurant's. A saved photo needs an account to load, so a
             // preview without one shows only the restaurant's.
-            const pics = dishPicsFor(it, cfg ? realPhotosOf(it) : []);
-            const pic = pics[0] || null;
             const nk = (it.name || "").trim().toLowerCase();
+            const pics = dishPicsFor(it, cfg ? realPhotosOf(it) : [], (illus || {})[nk]);
+            const pic = pics[0] || null;
             const had = (hadToday || {})[nk];
             const hist = (dishHist || {})[nk];
             const verdict = (hist && hist.verdict) || (had && had.verdict) || null;
@@ -20389,7 +20696,7 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
                 {pic ? (
                   <div className="mitem-pic" aria-hidden="true">
                     <div className="mitem-sq"><DishPic cfg={cfg} pic={pic} /></div>
-                    <span className="mitem-src">{dishPicShort(pic)}</span>
+                    <span className={"mitem-src" + (pic.kind === "ill" ? " ill" : "")}>{dishPicShort(pic)}</span>
                   </div>
                 ) : null}
                 </div>
@@ -20407,7 +20714,7 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
         if (!it) return null;
         const nk = (it.name || "").trim().toLowerCase();
         return (
-          <DishCard cfg={cfg} it={it} pics={dishPicsFor(it, realPhotosOf(it))}
+          <DishCard cfg={cfg} it={it} pics={dishPicsFor(it, realPhotosOf(it), (illus || {})[nk])}
             restaurantName={restaurantName} en={showEn ? enFor(it) : null} flags={flags} fxOf={fxOf}
             had={(hadToday || {})[nk] || null} hist={(dishHist || {})[nk] || null}
             onClose={closeCard}
@@ -27827,6 +28134,20 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
     parsed.last_updated  = todayISO();
     parsed.source        = parsed.source || "photo_ocr";   // a link scan says "web"
     setResult(parsed);
+    // Start drawing this menu's dishes the moment it is read (1.591.0, Chris:
+    // "I was hoping for something more instantaneous"), so the drawings are
+    // ready by the time the menu is saved. Dishes already in the library cost
+    // nothing; the server keeps the monthly limit.
+    if (configComplete(config)){
+      const here = restaurants.find(r => r.id === (restId || presetRestaurantId));
+      const dishes = illusDishesOf({ label: "", sections: parsed.sections || [] }, {})
+        .map(d => Object.assign({}, d, { cuisine: (here && here.cuisine) || "" })).slice(0, 150);
+      if (dishes.length){
+        illusLookup(config, dishes, true)
+          .then(r => logMsg("ILLUS", "Scan: " + dishes.length + " dish(es) sent for drawings, drawing " + (r && r.drawing ? "on" : "off")))
+          .catch(e => logMsg("ILLUS", "Scan drawings request failed: " + e.message));
+      }
+    }
     // Pre-fill the destination if the menu showed a restaurant name.
     // If we already have a restaurant whose name matches (case-insensitive,
     // trimmed), default the "Save menu to" picker to THAT existing place so a
@@ -38417,6 +38738,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       </div>
 
       {isOwner(config) ? <UpdateEmailCard config={config} /> : null}
+      {isOwner(config) ? <IllustrationLibraryCard config={config} /> : null}
 
       {isOwner(config) && (
         <div className="card" style={{marginTop:12}}>

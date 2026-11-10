@@ -22,9 +22,9 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.590.0** | menucaptain.com (GitHub Pages), pushed 2026-11-09 from the Mac |
+| Web app | **1.591.0** | menucaptain.com (GitHub Pages), pushed 2026-11-10 from the Mac |
 | Backend | **0.164.1** | Railway, `/health` reports `db connected` (0.164.1 shipped from the Mac 2026-11-08: `GROUP_RETENTION_DAYS` read safely) |
-| Native shell | **1.590.0** | rebuilt on the Mac from web 1.590.0 (2026-11-09), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
+| Native shell | **1.591.0** | rebuilt on the Mac from web 1.591.0 (2026-11-10), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -415,6 +415,41 @@ builds from 2026-10-20 17:03 UTC (then a dashboard/API outage on 10-21), its pus
 deploy, and a manual trigger answered "Deploys have been paused temporarily". The Railway connector also
 reported "connection invalidated" on 10-21 (Chris must reconnect it in claude.ai connector settings). Once
 Railway is back: reconnect, then deploy main (connect-service-source on service web, same repo/branch).
+
+### Food drawings (2026-11-10, app 1.591.0, server 0.165.0)
+
+Chris: "we maintain a database of food illustrations". Decided by cards 2026-11-10 after a paid
+side-by-side test (39.5 Higgsfield credits; page https://claude.ai/artifact/Nre84nZ83b2jh6V8zFNW4p):
+Google Nano Banana 2.1 in one gouache style, new dishes drawn the moment a menu is read ("I was
+hoping for something more instantaneous"), $20 a month limit, the 300 most common dishes first,
+everyone gets them. Details and the road not taken: Dropbox `DESIGN-CHANGES.md` F2, and FOOD DRAWING
+LIBRARY in the backend's main.py.
+- **Server 0.165.0** (commit 7441f0c): tables `dish_illustrations` + `illustration_meter` (applied
+  2026-11-10 with Chris's yes; RLS on, no policies, service_role only). `POST /api/dish/illustrations`
+  returns ready / pending / none per dish and draws new ones; `GET /api/dish/illustration/<slug>.jpg`
+  redirects to a signed link; `POST .../report`; owner tools under `/api/admin/illustrations`.
+  Loose key `dish_key()` (sorted words, singular, no units/accents/filler). Inert until
+  `GEMINI_API_KEY` is set in Railway. Meter fails closed; cost from Google's usage numbers.
+- **App:** `illusLookup` from `MenuDetail` for dishes with no photo (`illusDishesOf`: never drinks
+  sections or drinks menus, never a dish with your photo or the restaurant's); asks again every 8 s,
+  at most 15 times, only while that menu is open and something is pending. Ready drawings are cached
+  on the phone for 7 days (`mc_illus_v1`). `dishPicsFor(it, real, ill)`: a drawing only when there is
+  no photo. Row label "Illustration" (italic); card "Illustration, not the real dish" and "Drawing
+  doesn't look like this?" (`illusReport`; never spends). `acceptScan` sends a scanned menu's dishes
+  at once. Owner: Settings, Food drawings (`IllustrationLibrary`): spend, Review / Reported / Showing /
+  Failed, approve, redraw (asks, "about 4c"), reject, "Draw the 300 starting dishes" (asks, "about $10
+  to $12, once").
+- **Starting list:** `data/illustration_seed.json` in the backend (300 dishes, 17 groups, keys made by
+  the same rule; builder `Test harness/seed_build.py` in Dropbox). Page for Chris:
+  https://claude.ai/artifact/GMFirxY9VmtEfSoXcNvwNo
+- **Roads not taken:** Google's half-price batch (slow, and documented only for another model and the
+  older API); OpenAI GPT Image 2 (closer to photo-like at menu size); storing who asked for a drawing.
+- **Still to do:** Chris adds the Google key in Railway; Chris taps "Draw the 300 starting dishes"
+  (his yes to about $10-12); he approves them; then the newsletter note can go.
+- Tested: server 41 checks against a stand-in database and Google; app 20 checks on the pretend server
+  (drawings beside dishes, photos win, drinks never sent, check-again rhythm, report, scan, owner page,
+  not-owner); 1.590.0 (38) and 1.589.0 (20) suites still pass. Not tested against Google's real API
+  yet: the first real drawing is the test of its response shape and cost (logged as [ILLUS]).
 
 ### Menu with pictures (2026-11-09, app 1.590.0)
 

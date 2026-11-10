@@ -391,6 +391,14 @@ beside its name, marked "Your photo". When the menu came in from the restaurant'
 website with pictures, theirs shows instead, marked "Restaurant's photo". Your own
 photo always comes first.
 
+**Drawings for dishes with no photo.** When a dish has no photo at all, MenuCaptain
+shows a painted drawing of that kind of dish, marked "Illustration". It is drawn
+from a menu's description, so it shows what the dish usually looks like, not this
+restaurant's plate. A dish new to MenuCaptain is drawn as soon as its menu is read,
+usually within a minute, and every menu with that dish shares the drawing. Drinks
+lists don't get drawings. If one looks wrong, tap **Drawing doesn't look like
+this?** on the dish's card and it goes on the list to be redrawn.
+
 **Tap a dish for its card.** Tapping any dish opens its card: the picture (tap it
 to see it full size), the whole description, and your history with the dish
 ("You had it Sep 29", **Have again** or **Not again**, and your last note). The

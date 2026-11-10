@@ -527,5 +527,13 @@
       "email_notes": "updated: next-issue-notes.md (FEATURE 1.590.0) and Log 2026-11-09a",
       "welcome": "n/a: the welcome screens do not show the menu page",
       "handoff": "updated: version rows, decision entry, BRIEFING, Log"
+  },
+  "1.591.0": {
+      "what": "Food drawings (Chris, 2026-11-10: 'we maintain a database of food illustrations'; decided by cards: Google Nano Banana 2.1, drawn the moment a menu is read, $20 a month limit, the 300 most common dishes first). A dish with no photo at all shows a painted drawing of that kind of dish beside it, marked 'Illustration'; the dish card says 'Illustration, not the real dish' and has 'Drawing doesn't look like this?', which puts it on the owner's list to redraw. Web look-alikes are still offered beside a drawing. Scanning a menu starts its drawings at once. Drinks lists are never sent. Drawings the phone has seen show instantly for a week. Owner only: Settings, Food drawings (spend, review, approve, redraw, reject, draw the starting dishes). Needs server 0.165.0 and its Google key; until the key is in, nothing shows.",
+      "guide": "updated: Drawings for dishes with no photo",
+      "promo": "updated: Pictures and a card for every dish (drawings)",
+      "email_notes": "updated: next-issue-notes.md (FEATURE 1.591.0, held until drawings are on) and Log 2026-11-10a",
+      "welcome": "n/a: the welcome screens do not show the menu page",
+      "handoff": "updated: version rows, decision entry, BRIEFING, Log, backend CLAUDE.md, architecture playbook"
   }
 }
