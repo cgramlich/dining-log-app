@@ -18,13 +18,13 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-11-08
+## Current state — 2026-11-11
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.591.0** | menucaptain.com (GitHub Pages), pushed 2026-11-10 from the Mac |
-| Backend | **0.164.1** | Railway, `/health` reports `db connected` (0.164.1 shipped from the Mac 2026-11-08: `GROUP_RETENTION_DAYS` read safely) |
-| Native shell | **1.591.0** | rebuilt on the Mac from web 1.591.0 (2026-11-10), iOS fixes since `c022055`, on Chris's iPhone, **not yet submitted to any store** |
+| Web app | **1.591.1** | menucaptain.com (GitHub Pages), pushed 2026-11-11 from the Mac |
+| Backend | **0.165.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.165.1 shipped 2026-11-10: an empty Google credit waits; named plates matched by description) |
+| Native shell | **1.591.1** | rebuilt on the Mac from web 1.591.1 (2026-11-11), iOS fixes since `c022055`, on Chris's iPhone from 1.591.0, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -444,12 +444,30 @@ LIBRARY in the backend's main.py.
   https://claude.ai/artifact/GMFirxY9VmtEfSoXcNvwNo
 - **Roads not taken:** Google's half-price batch (slow, and documented only for another model and the
   older API); OpenAI GPT Image 2 (closer to photo-like at menu size); storing who asked for a drawing.
-- **Still to do:** Chris adds the Google key in Railway; Chris taps "Draw the 300 starting dishes"
-  (his yes to about $10-12); he approves them; then the newsletter note can go.
+- **Still to do:** Chris taps "Draw the 300 starting dishes" (his yes to about $10-12); he approves
+  them; then the newsletter note can go.
 - Tested: server 41 checks against a stand-in database and Google; app 20 checks on the pretend server
   (drawings beside dishes, photos win, drinks never sent, check-again rhythm, report, scan, owner page,
-  not-owner); 1.590.0 (38) and 1.589.0 (20) suites still pass. Not tested against Google's real API
-  yet: the first real drawing is the test of its response shape and cost (logged as [ILLUS]).
+  not-owner); 1.590.0 (38) and 1.589.0 (20) suites still pass.
+- **Turned on 2026-11-10:** Chris put `GEMINI_API_KEY` in Railway and set up Google billing (prepaid
+  credit with auto-reload; project spend cap $35 a month in AI Studio). The first 56 dishes were
+  refused (HTTP 402, credit empty) before the credit landed, then drawn on the first try: $0.0337
+  each (83 prompt + 1,120 image tokens, no thinking), about 10 s each, 768 px JPEGs of 40-90 KB.
+- **Server 0.165.1** (2026-11-10, `ebea8c5`): HTTP 402 uses no try and pauses drawing 10 minutes at a
+  time; NAMED PLATES (a name with no food word, like "Guadalupe") are keyed by name plus food words
+  from the description, and not drawn without one. The 14 already drawn were renamed first
+  (`sql/dish_illustrations_named_plates.sql`, old keys kept as other names). Tests 56.
+
+### Fold bar flush under the header (2026-11-11, app 1.591.1)
+
+Seen in the design-review screenshots (Dropbox `Design screens 1.591/`): scrolled with Expand all, 18 px
+of rows showed between the header and the sticky One at a time / Expand all / Collapse all bar. Cause:
+a sticky bar parks below its scroll box's PADDING, not its edge (the CSS rule; Chrome and Safari both),
+and `.ovbody` has 18px. Fix: `.fold-bar` top is minus `--scroll-pad-top`, which `.ovbody` sets to 18px
+and `.go-overlay` / `.print-overlay` (no padding) set to 0. Measured flush (header ends 116, bar starts
+116), resting position unchanged; probe `Test harness/probe_fold_strip.py`; 1.590 (38) and 1.591 (20)
+suites pass. Road not taken: moving `.ovbody`'s padding into a spacer for all 55 overlays (two of them
+set their own padding, and only this bar needed it).
 
 ### Menu with pictures (2026-11-09, app 1.590.0)
 

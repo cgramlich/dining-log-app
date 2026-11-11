@@ -539,7 +539,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .nav-badge{position:absolute; top:0; right:-4px; min-width:15px; height:15px; padding:0 4px; border-radius:8px;
       background:var(--danger); color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center;
       justify-content:center; line-height:1;}
-    .ovbody{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:18px;}
+    /* --scroll-pad-top tells a sticky bar inside how much top padding its scroll
+       box has (see .fold-bar). Keep it equal to the padding-top here. */
+    .ovbody{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:18px; --scroll-pad-top:18px;}
 
     /* ---- action sheet ---- */
     .sheet-bg{position:fixed; inset:0; z-index:70; background:rgba(0,0,0,0.55); display:flex; align-items:flex-end;}
@@ -572,7 +574,14 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
        are in without a label saying "mode". */
     .fold-bar{
       display:flex; gap:6px; flex-wrap:wrap;
-      position:sticky; top:0; z-index:4;
+      /* WHY the negative top (1.591.1): a sticky bar stops BELOW its scroll
+         box's padding, not at its edge (the CSS rule; Chrome and Safari both
+         follow it). In .ovbody (18px padding) top:0 left an 18px strip of rows
+         showing between the header and this bar as the menu scrolled, seen in
+         the design-review screenshots 2026-11-10. Pulling it up by the scroll
+         box's own padding parks it flush under the header. The group-order and
+         print overlays have no padding, so they set the variable to 0. */
+      position:sticky; top:calc(-1 * var(--scroll-pad-top, 0px)); z-index:4;
       /* Full-bleed over the 18px gutter its container supplies, so rows scroll
          BEHIND the bar and never appear beside it. */
       margin:0 -18px 10px; padding:9px 18px;
@@ -1043,7 +1052,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     /* ---- history export: buttons + printable overlay ---- */
     .exp-acts{ display:flex; gap:8px; flex-wrap:wrap; }
     .exp-acts .btn{ width:auto; flex:0 0 auto; }
-    .print-overlay{ position:fixed; inset:0; z-index:120; background:var(--bg); overflow:auto;
+    .print-overlay{ position:fixed; inset:0; z-index:120; background:var(--bg); overflow:auto; --scroll-pad-top:0px;
       -webkit-overflow-scrolling:touch; }
     .print-bar{ position:sticky; top:0; z-index:1; display:flex; align-items:center;
       justify-content:space-between; gap:10px;
@@ -1159,7 +1168,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .ab-foot{ color:var(--text-faint); font-size:13px; margin-top:13px; line-height:1.6; }
     /* ---- group order (host overlay + guest screen) ---- */
     .go-overlay{ position:fixed; inset:0; z-index:130; background:var(--bg); overflow:auto;
-      -webkit-overflow-scrolling:touch; }
+      -webkit-overflow-scrolling:touch; --scroll-pad-top:0px; }
     .go-bar{ position:sticky; top:0; z-index:1; display:flex; align-items:center;
       justify-content:space-between; gap:10px;
       padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
@@ -1388,7 +1397,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.591.0";
+const APP_VERSION   = "1.591.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.

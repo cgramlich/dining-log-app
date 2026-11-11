@@ -535,5 +535,13 @@
       "email_notes": "updated: next-issue-notes.md (FEATURE 1.591.0, held until drawings are on) and Log 2026-11-10a",
       "welcome": "n/a: the welcome screens do not show the menu page",
       "handoff": "updated: version rows, decision entry, BRIEFING, Log, backend CLAUDE.md, architecture playbook"
+  },
+  "1.591.1": {
+      "what": "Menu page fix: scrolling down a menu, the One at a time / Expand all / Collapse all bar now sits flush under the header. It used to stop 18 px short, so a thin band of dishes showed between the two as the menu scrolled (found in the design-review screenshots 2026-11-10; a sticky bar parks below its scroll box's padding). Nothing else moves.",
+      "guide": "n/a: a fix, nothing new to learn",
+      "promo": "n/a: a fix",
+      "email_notes": "updated: next-issue-notes.md (a fix line, listed last)",
+      "welcome": "n/a: the welcome screens do not show the menu page",
+      "handoff": "updated: version rows (and backend 0.165.1), HANDOFF note under Food drawings, BRIEFING, Log 2026-11-11a"
   }
 }
