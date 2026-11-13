@@ -543,5 +543,13 @@
       "email_notes": "updated: next-issue-notes.md (a fix line, listed last)",
       "welcome": "n/a: the welcome screens do not show the menu page",
       "handoff": "updated: version rows (and backend 0.165.1), HANDOFF note under Food drawings, BRIEFING, Log 2026-11-11a"
+  },
+  "1.591.2": {
+      "what": "Scan fix: photos of ONE restaurant are no longer offered as several restaurants. At Mia's (2026-11-12) a 4-photo scan saved three menus all called Main, one empty, because the restaurant's name was printed differently on different pages and each spelling counted as a restaurant. Names now match once case, accents, apostrophes and words like Restaurant, Tex-Mex, Lunch or Menu are set aside, so the split is offered only for truly different names (Japon and Jaya still split). Only a photo with dishes can start a restaurant; a cover joins the one it names. The top Save now follows the same check as the bottom one (it only turned grey), and a restaurant whose photos hold no dishes cannot be saved as an empty menu.",
+      "guide": "n/a: the guide's Two restaurants in one scan paragraph is still true",
+      "promo": "n/a: a fix",
+      "email_notes": "updated: next-issue-notes.md (a fix line, listed last)",
+      "welcome": "n/a: the welcome screens do not show the scan review",
+      "handoff": "updated: version rows, decision entry (one restaurant printed several ways), BRIEFING, Log 2026-11-13a"
   }
 }

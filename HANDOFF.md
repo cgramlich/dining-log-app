@@ -18,13 +18,13 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-11-11
+## Current state — 2026-11-13
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.591.1** | menucaptain.com (GitHub Pages), pushed 2026-11-11 from the Mac |
+| Web app | **1.591.2** | menucaptain.com (GitHub Pages), pushed 2026-11-13 from the Mac |
 | Backend | **0.165.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.165.1 shipped 2026-11-10: an empty Google credit waits; named plates matched by description) |
-| Native shell | **1.591.1** | rebuilt on the Mac from web 1.591.1 (2026-11-11), iOS fixes since `c022055`, on Chris's iPhone from 1.591.0, **not yet submitted to any store** |
+| Native shell | **1.591.2** | rebuilt on the Mac from web 1.591.2 (2026-11-13), iOS fixes since `c022055`, on Chris's iPhone from 1.591.0, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -457,6 +457,45 @@ LIBRARY in the backend's main.py.
   time; NAMED PLATES (a name with no food word, like "Guadalupe") are keyed by name plus food words
   from the description, and not drawn without one. The 14 already drawn were renamed first
   (`sql/dish_illustrations_named_plates.sql`, old keys kept as other names). Tests 56.
+
+### One restaurant printed several ways is one restaurant (2026-11-13, app 1.591.2)
+
+At Mia's Tex-Mex (2026-11-12, 6:51 PM) Chris scanned 4 photos of ONE restaurant (dinner pages and a
+lunch/brunch page) and found three menus at the place, all called Main: 0, 93 and 77 dishes (one scan
+job, saved together at 00:53 UTC). Three faults together:
+1. `suggestPageGroups` compared printed names exactly, so the place's name printed differently on
+   different pages counted as different restaurants and the split was offered (the exact spellings are
+   not recoverable: the job's result is cleared once saved).
+2. A photo with no dishes (most likely the cover) started a group of its own: the empty menu.
+3. The HEADER Save in the scan review only turned grey when `canSave` was false; it still called
+   `save()` -> `saveSplit()`. The split's guard (a different place for each restaurant,
+   `splitPlacesDistinct`, from 1.567.0) only disabled the BOTTOM Save, so all three went to Mia's.
+
+**Fix.** (1) Names match on words (`printedNameWords`): case, accents, apostrophes and a plural or
+possessive "s" set aside, and `PRINTED_NAME_FILLER` words dropped (kinds of place, cuisines, kinds of
+menu: Restaurant, Tex-Mex, Cantina, Lunch, Menu...). Two names are one restaurant when one's words are
+all among the other's; shortest names first, so a page printing BOTH restaurants matches two and counts
+as unnamed. A name of filler words only ("Brunch Menu") is no name. (2) Only a photo with dishes starts
+a restaurant; any other photo joins the restaurant its name points to, else the photo before (photos
+before any go with the first that has one). (3) `save()` returns at once when `canSave` is false and the
+header Save is `disabled` like the bottom one. (4) `splitEmpty`: a restaurant whose photos hold no
+dishes keeps Save off with "No dishes were read for X. Put a photo with dishes with it, or keep them as
+one menu." The review logs the groups it offers ("Photos name N restaurants: ...").
+Chris tidies his three menus himself in the app (rename two, delete the empty one): a database edit
+would be undone by the app's next save of the menus collection.
+
+**Roads not taken:** typo-tolerant name matching (unpredictable, as with dish search); merging groups
+whose names both match the place chosen above (the three changes already cover Mia's, and it could
+glue two restaurants of one hotel). Erring toward one restaurant can only fail to OFFER a split, which
+was always one tap ("Keep as one menu" the other way); erring the other way saved one place as several.
+
+Tests: `Test harness/test_15912_groups.js` (22: Mia's spellings, cover, curly apostrophe, filler-only
+name, Japon and Jaya still split, a page printing both, a cover naming the second restaurant, another
+script) and `test_15912_split.py` (28 on the pretend server, through the Home "ready" bar: Mia's saves
+ONE menu of all 7 dishes; Japon and Jaya at one place turn both Saves off and a forced header tap saves
+nothing, then save two menus to two places; an empty restaurant turns Save off). The screen test fails
+on 1.591.1 (`--app=` an older index.html). The 1.567.0 rule stands: the split is only for two
+restaurants, and two menus of one place are "Customize each section".
 
 ### Fold bar flush under the header (2026-11-11, app 1.591.1)
 
