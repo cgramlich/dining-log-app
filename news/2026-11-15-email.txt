@@ -1,0 +1,70 @@
+From the Captain’s Table · What’s new · November 15, 2026
+
+Dear friends,
+
+This week your menus learned to show you the food, and Home learned to hand you the right menu the moment you sit down. Here is what’s new. It’s already in your app. If you see Update available, tap Refresh.
+
+A MENU WITH PICTURES
+
+A menu tells you what a dish is called. Now it can show you as well.
+
+Every dish you’ve photographed, on the menu or during a visit, now shows its picture right beside its name. Where the restaurant has its own photos, those show too, each one labelled so you always know whose picture it is.
+
+Tap any dish and its card opens: the picture (tap it to see it full size), the whole description, when you last had it and what you thought. I had this records it in a tap. Ask about it answers a question about that one dish, such as Is it spicy? or What comes with it?, right there in the card.
+
+Scan a menu with your camera and the photos you took now stay with it. Tap Original to see the menu exactly as it was printed, with the date you took it, and Easy read to come back to the dishes. Your photos stay yours: sharing a menu or starting a group order sends the dishes only.
+
+STRAIGHT TO THE MENU
+
+Sit down at a place you’ve saved and Home already knows. Its first card names the restaurant and offers Open the menu, one tap, with the date that menu was saved so you know it’s current. Dining somewhere new? Somewhere else? sits right beneath it.
+
+Already at the restaurant is quicker too. Your saved places within walking distance come first, each showing how fresh its menu is, and picking one opens its menu straight away.
+
+Your location stays on your phone, and MenuCaptain only uses it if you’ve already allowed it.
+
+FEATURED IN DALLAS
+
+Two Dallas tables whose menus were shared by our community this week. When you’re there, tap Already at the restaurant and the menu is waiting, ready for Help me order.
+
+    Mia’s Tex-Mex (https://www.miastexmex.com/) · Lemmon Avenue, Dallas
+    A Dallas institution since 1981, still cooking from its original family recipes. Start with Butch’s original brisket tacos, then the chimichangas or the homemade rellenos.
+
+    Claremont (https://www.claremontdallas.com/) · Preston Hollow, Dallas
+    An American neighborhood grill where classic fare meets Texas tradition: steaks, fish from the Gulf and brisket sliders, with margaritas and palomas on a patio shaded by mature oak trees.
+
+CAPTAIN’S TIP
+
+    Did a scan split one list under headings that mean little, like a bar’s tap layout? Open the menu, tap •••, then Combine sections, and every dish goes under one heading you can name. To fix a single heading, tap the small icon beside the section and type its new name under Rename. Give it the name of another section and the two become one. Dishes keep their order, photos, stars and diet tags.
+
+ADD THE FOUNDER AS A FRIEND
+
+Chris built MenuCaptain and would love to see where you’re eating. Tap here to add him as a friend (https://menucaptain.com/?inv=cjgramlich&nm=Chris), or in the app open You, then Friends, and add @cjgramlich.
+
+YOUR IDEAS SHAPE MENUCAPTAIN
+
+Spotted something that isn’t quite right, or wish MenuCaptain did something it doesn’t yet? We read every note. Tap the chat bubble to write to us, or open Settings and tap Share feedback. Or simply reply to this email.
+
+Bon appétit,
+The MenuCaptain team
+
+ALSO IMPROVED
+
+- Your color theme now follows your account: pick one in Settings and MenuCaptain looks the same everywhere you sign in.
+- A scanned page headed “continued” now offers to join the menu it carries on, so a long list stays one menu. Keep it separate is one tap away.
+- Menu names and section headings printed in capitals now read in ordinary case.
+- See the dishes under a place’s menu tabs now opens the first section and takes you to it.
+- In a group order, Who is this? under an order from a name you didn’t list hands it to the right person, and long order notes wrap so every word shows.
+- Open now on Find a place results hides the places that are closed right now.
+- A website you type for a place is remembered.
+- Scanning several photos of one restaurant no longer saves them as several menus when its name is printed a little differently from page to page.
+- Scrolling down a menu, the One at a time, Expand all and Collapse all bar now sits snugly under the top of the screen.
+- Sharing a menu to the community now says whether you or another diner already shared it.
+
+See everything MenuCaptain does: https://menucaptain.com/welcome.html
+Read every issue of From the Captain’s Table: https://menucaptain.com/news/
+
+—
+You’re receiving this because you have a MenuCaptain account.
+Read past issues: https://menucaptain.com/news/
+Unsubscribe from these updates: %%UNSUBSCRIBE_URL%%
+%%POSTAL_ADDRESS%%
