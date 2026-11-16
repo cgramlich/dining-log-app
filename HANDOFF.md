@@ -18,12 +18,12 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 ---
 
-## Current state — 2026-11-13
+## Current state — 2026-11-15
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.591.2** | menucaptain.com (GitHub Pages), pushed 2026-11-13 from the Mac |
-| Backend | **0.165.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.165.1 shipped 2026-11-10: an empty Google credit waits; named plates matched by description) |
+| Web app | **1.592.0** | menucaptain.com (GitHub Pages), released 2026-11-15 from the Mac (owner-only drawing trial, the redesign's Stage 0) |
+| Backend | **0.166.0** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.0, 2026-11-15: the clear-background drawing style, on owner trial only; members still get version 1) |
 | Native shell | **1.591.2** | rebuilt on the Mac from web 1.591.2 (2026-11-13), iOS fixes since `c022055`, on Chris's iPhone from 1.591.0, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -457,6 +457,33 @@ LIBRARY in the backend's main.py.
   time; NAMED PLATES (a name with no food word, like "Guadalupe") are keyed by name plus food words
   from the description, and not drawn without one. The 14 already drawn were renamed first
   (`sql/dish_illustrations_named_plates.sql`, old keys kept as other names). Tests 56.
+
+### Food drawings on a clear background: the trial (2026-11-15, app 1.592.0, server 0.166.0)
+
+The redesign (`CG Apps/MenuCaptain/REDESIGN-BUILD-PLAN-2026-11-15.md`, Stage 0; Chris by card
+2026-11-15, "Yes, test 10") puts food drawings on a CLEAR background: they sit on white by day and on
+black at night. Version 1 was painted "on a soft warm cream background" and saved as JPEG, the only
+warm surface left in the new look.
+- **Version 2** asks Google for the same gouache painting on a plain flat pure white ground with a
+  clearly painted plate rim, as PNG. `_illus_cutout` (Pillow only) finds the ground from the picture's
+  edges, builds a WALL from every non-ground pixel thickened by 2 px, floods from the edges outside the
+  wall, gives the 2 px back, and stores a WebP with a see-through ground. Without the wall, the cut
+  slipped through thin spots in a pale plate's rim and hollowed 4 of 13 test plates (tested on the
+  2026-11-10 drawings); with it, none. About 0.3 s a drawing at half size.
+- **Trusted** only when the cut is 8 to 88% of the picture AND what's kept is one piece (97% joined to
+  the middle). Otherwise the drawing keeps its white ground: plain, never broken. Road not taken: an AI
+  background remover (rembg and similar), a big model download and a new dependency.
+- **RULE:** `ILLUS_PROMPT_VERSION` (1) is what members get; `ILLUS_NEXT_PROMPT_VERSION` (2) is drawn
+  ONLY by the owner's trial, `POST /api/admin/illustrations/trial` (10 hard cases from
+  `ILLUS_TRIAL_DISHES`, about 34 cents, on the monthly meter, one at a time), stored under
+  `_illustrations/_trial/` with a `latest.json` list, outside the library. The app's owner panel
+  (Settings, Food drawings, "New look: drawings on a clear background") asks first, then shows them
+  On white and On black. Promoting the style is a one-line server release plus a redraw of the 56.
+- **The starting 300 wait** while the two versions differ: hidden in the app AND refused by the server
+  (409), because an older app copy still shows the button. They are drawn once, in the new style.
+- `.webp` picture addresses are served as well as `.jpg` (the extension follows the stored file).
+- Tests: `Test harness/test_be_illus.py`, 82 checks (26 new), run with `~/.venvs/mc-backend`
+  (created 2026-11-15 on Python 3.12 from `requirements.txt`). Audit clean.
 
 ### One restaurant printed several ways is one restaurant (2026-11-13, app 1.591.2)
 

@@ -551,5 +551,13 @@
       "email_notes": "updated: next-issue-notes.md (a fix line, listed last)",
       "welcome": "n/a: the welcome screens do not show the scan review",
       "handoff": "updated: version rows, decision entry (one restaurant printed several ways), BRIEFING, Log 2026-11-13a"
+  },
+  "1.592.0": {
+    "what": "Owner only (server 0.166.0): Settings, Food drawings shows \"New look: drawings on a clear background\", a trial of the redesign's drawing style on 10 test dishes (about 34 cents, asked first) seen On white and On black, outside the library so members see no change. \"Draw the starting dishes\" waits while a new style is on trial, so the 300 are never paid for twice (the server refuses it too). First step of REDESIGN-BUILD-PLAN-2026-11-15.md (Stage 0), Chris by card 2026-11-15.",
+    "guide": "n/a: an owner-only tool, not in the guide",
+    "promo": "n/a: an owner-only tool",
+    "email_notes": "n/a: members see nothing new; the clear drawings go in the issue when they go live",
+    "welcome": "n/a: an owner-only tool",
+    "handoff": "updated: version rows, decision entry (food drawings on a clear background: the trial), BRIEFING, Log 2026-11-15a"
   }
 }

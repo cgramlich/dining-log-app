@@ -1397,7 +1397,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.591.2";
+const APP_VERSION   = "1.592.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -9735,6 +9735,26 @@ async function illusAdminAction(cfg, keys, action){
 }
 async function illusAdminSeed(cfg){
   const res = await fetch(apiBase(cfg) + "/api/admin/illustrations/seed", {
+    method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) }, body:"{}",
+  });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(data.detail || ("That didn't work (" + res.status + ")."));
+  return data;
+}
+/* The owner's trial of the next drawing style (1.592.0, server 0.166.0). Chris,
+   2026-11-15, by card: "Yes, test 10". The redesign puts drawings on a clear
+   background; ten hard cases are drawn in the new style OUTSIDE the library, so
+   nothing a member sees changes, and Chris looks at them on white and on black
+   before anything is redrawn. The POST spends (about 3.4 cents a dish), so the
+   panel asks first; the GET only shows the last trial again. */
+async function illusTrialGet(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/admin/illustrations/trial", { headers: await authHeaders(cfg) });
+  const data = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(data.detail || ("Couldn't load the trial (" + res.status + ")."));
+  return data;
+}
+async function illusTrialRun(cfg){
+  const res = await fetch(apiBase(cfg) + "/api/admin/illustrations/trial", {
     method:"POST", headers:{ "Content-Type":"application/json", ...(await authHeaders(cfg)) }, body:"{}",
   });
   const data = await res.json().catch(()=> ({}));
@@ -20186,6 +20206,79 @@ function IllustrationLibraryCard({ config }){
     </div>
   );
 }
+function IllusStyleTrial({ config }){
+  const [state, setState] = useState(null);     // the server's {trial, running, dishes}
+  const [err, setErr]     = useState("");
+  const [busy, setBusy]   = useState(false);
+  const [ask, setAsk]     = useState(false);
+  const [ground, setGround] = useState("white"); // which background to judge them on
+  useEffect(()=>{
+    let live = true;
+    illusTrialGet(config).then(s => { if (live) setState(s); }).catch(e => { if (live) setErr(e.message); });
+    return ()=>{ live = false; };
+    // Once, when the panel opens: the GET only shows the last trial again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  async function run(){
+    setBusy(true); setErr(""); setAsk(false);
+    try { const r = await illusTrialRun(config); setState(s => Object.assign({}, s || {}, r)); }
+    catch(e){ setErr(e.message); }
+    finally { setBusy(false); }
+  }
+  const trial = state && state.trial;
+  const items = (trial && trial.items) || [];
+  const n = (state && state.dishes) || 10;
+  const cents = Math.round(n * 3.4);
+  const bg = ground === "black" ? "#0b0b0c" : "#ffffff";
+  const drawnOn = trial && trial.drawn_at ? new Date(trial.drawn_at).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }) : "";
+  return (
+    <div className="card" style={{marginTop:10}}>
+      <div style={{fontWeight:600}}>New look: drawings on a clear background</div>
+      <div className="tiny faint" style={{marginTop:3, lineHeight:1.5}}>
+        Try the new style on {n} test dishes before any drawing changes. Members don't see these.
+        The starting dishes wait until you're happy with it.
+      </div>
+      {busy ? (
+        <div className="tiny" style={{marginTop:9, color:"var(--text-dim)"}}><span className="spin" /> Drawing {n} dishes. It takes about a minute.</div>
+      ) : ask ? (
+        <div className="row" style={{gap:8, marginTop:9}}>
+          <button className="btn primary sm" onClick={run}>Yes, draw {n}, about {cents}c</button>
+          <button className="btn ghost sm" onClick={()=> setAsk(false)}>Not now</button>
+        </div>
+      ) : (
+        <button className="btn ghost sm" style={{marginTop:9}} onClick={()=> setAsk(true)}>
+          {trial ? "Try again" : "Try it on " + n + " dishes"}</button>
+      )}
+      {err ? <div className="tiny" style={{marginTop:8, color:"var(--text-dim)"}}>{err}</div> : null}
+      {items.length ? (
+        <div style={{marginTop:12}}>
+          <div className="illus-tabs" role="group" aria-label="See them on">
+            {[["white", "On white"], ["black", "On black"]].map(([v, label]) => (
+              <button key={v} type="button" className={"fold-pill" + (ground === v ? " on" : "")} aria-pressed={ground === v}
+                onClick={()=> setGround(v)}>{label}</button>
+            ))}
+          </div>
+          <div className="illus-grid">
+            {items.map((it, i) => (
+              <div key={i} className="illus-item">
+                <div className="pic" style={{background:bg}}>
+                  {it.url ? <img src={it.url} alt={it.name} loading="lazy" style={{objectFit:"contain"}} /> : null}
+                </div>
+                <div className="nm">{it.name}</div>
+                {it.error ? <div className="ds">{it.error}</div>
+                  : it.trusted === false ? <div className="ds">Kept on white: the background couldn't be cut cleanly.</div>
+                  : null}
+              </div>
+            ))}
+          </div>
+          <div className="tiny faint" style={{marginTop:8}}>
+            Drawn {drawnOn}{trial.cost_usd != null ? ", $" + Number(trial.cost_usd).toFixed(2) : ""}. Tell Claude what you think.
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 function IllustrationLibrary({ config, onClose }){
   const [view, setView] = useState("review");
   const [data, setData] = useState(null);
@@ -20232,7 +20325,13 @@ function IllustrationLibrary({ config, onClose }){
           {data.drawing_on ? "" : " Drawing is off: the server has no Google key yet."}
         </div>
       ) : null}
-      {data && data.drawing_on && !(data.seed.drawings > 0) ? (
+      {/* 1.592.0 RULE: while a newer drawing style is on trial, the trial shows
+          here and "Draw the starting dishes" waits, so the 300 are never paid for
+          in a style about to be replaced (the server refuses it too). */}
+      {data && data.drawing_on && data.style && data.style.next > data.style.live ? (
+        <IllusStyleTrial config={config} />
+      ) : null}
+      {data && data.drawing_on && !(data.seed.drawings > 0) && !(data.style && data.style.next > data.style.live) ? (
         <div className="card" style={{marginTop:10}}>
           <div style={{fontWeight:600}}>Draw the {data.seed.dishes || 300} starting dishes</div>
           <div className="tiny faint" style={{marginTop:3}}>About $10 to $12, once. They wait here under Review until you approve them.</div>
