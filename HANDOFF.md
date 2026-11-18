@@ -23,7 +23,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 | Piece | Version | Where |
 |---|---|---|
 | Web app | **1.592.0** | menucaptain.com (GitHub Pages), released 2026-11-15 from the Mac (owner-only drawing trial, the redesign's Stage 0) |
-| Backend | **0.166.0** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.0, 2026-11-15: the clear-background drawing style, on owner trial only; members still get version 1) |
+| Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.592.0** | rebuilt on the Mac from web 1.592.0 (2026-11-16 UTC, `ab0647f`), iOS fixes since `c022055`, on Chris's iPhone from 1.591.0, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
@@ -458,21 +458,38 @@ LIBRARY in the backend's main.py.
   from the description, and not drawn without one. The 14 already drawn were renamed first
   (`sql/dish_illustrations_named_plates.sql`, old keys kept as other names). Tests 56.
 
-### Food drawings on a clear background: the trial (2026-11-15, app 1.592.0, server 0.166.0)
+### Food drawings on a clear background: the trial (2026-11-15, app 1.592.0, server 0.166.0; redone in 0.166.1, 2026-11-17)
 
 The redesign (`CG Apps/MenuCaptain/REDESIGN-BUILD-PLAN-2026-11-15.md`, Stage 0; Chris by card
 2026-11-15, "Yes, test 10") puts food drawings on a CLEAR background: they sit on white by day and on
 black at night. Version 1 was painted "on a soft warm cream background" and saved as JPEG, the only
 warm surface left in the new look.
-- **Version 2** asks Google for the same gouache painting on a plain flat pure white ground with a
-  clearly painted plate rim, as PNG. `_illus_cutout` (Pillow only) finds the ground from the picture's
-  edges, builds a WALL from every non-ground pixel thickened by 2 px, floods from the edges outside the
-  wall, gives the 2 px back, and stores a WebP with a see-through ground. Without the wall, the cut
-  slipped through thin spots in a pale plate's rim and hollowed 4 of 13 test plates (tested on the
-  2026-11-10 drawings); with it, none. About 0.3 s a drawing at half size.
-- **Trusted** only when the cut is 8 to 88% of the picture AND what's kept is one piece (97% joined to
-  the middle). Otherwise the drawing keeps its white ground: plain, never broken. Road not taken: an AI
-  background remover (rembg and similar), a big model download and a new dependency.
+- **0.166.1 (2026-11-17), the current version 2.** The Media session found a beige wash painted
+  behind the plates on its boards. 0.166.0's cut worked by colour, and run on a real drawing it kept
+  part of that wash as a ragged cream edge on black while still calling itself trusted. Its 2026-11-15
+  test only looked for hollowed plates; the wash was visible in that test's own sheet and was missed.
+  Fixed before the trial ever ran (Chris: "Yes, fix it first", then "Looks good"):
+  - **Prompt version 2, rewritten.** A white plate (or bowl) with a thin painted grey rim, seen from
+    directly above so it's a true circle, filling almost the whole picture, with nothing painted
+    around it (no wash, no strokes, no shadow), as PNG.
+  - **The cut is by SHAPE.** `_illus_cutout` (Pillow only) finds the plate's outline with 360 rays
+    and fits a circle to it (an upright ellipse, refitted to its inliers four times). It keeps only
+    what's inside, squared up, with a smooth edge just inside the rim, as a WebP. A lemon beside the
+    plate is cut away.
+  - **Refused, so the drawing keeps a plain white square:**
+    - paint reaches the picture's edge;
+    - the plate isn't round within 2.5%, spans under 55% of the picture, or runs off it;
+    - under 70% of the edge lies on the circle;
+    - paint runs on past the circle along over 12% of the edge;
+    - the outer ring of what would be kept is over half beige. Clean cuts measured at most 44%,
+      a wash or shadow 59 to 80%.
+  - **Don't go back to a colour cut.** Road not taken: no server cut, just a round crop in the app
+    (Media's first suggestion), which shows a white ring on black whenever the plate doesn't fill the
+    square exactly. Also not taken: an AI background remover, which would keep a wash faithfully too.
+  - **Known limit:** a smooth, perfectly round wash that isn't beige would pass. The prompt rules it
+    out, and Chris sees every trial drawing on white and on black.
+- **0.166.0 (superseded):** a flood from the picture's edges through near-white pixels, behind a 2 px
+  "wall" so a pale rim wasn't hollowed. Trusted when 8 to 88% was cut and the kept part was one piece.
 - **RULE:** `ILLUS_PROMPT_VERSION` (1) is what members get; `ILLUS_NEXT_PROMPT_VERSION` (2) is drawn
   ONLY by the owner's trial, `POST /api/admin/illustrations/trial` (10 hard cases from
   `ILLUS_TRIAL_DISHES`, about 34 cents, on the monthly meter, one at a time), stored under
@@ -482,8 +499,11 @@ warm surface left in the new look.
 - **The starting 300 wait** while the two versions differ: hidden in the app AND refused by the server
   (409), because an older app copy still shows the button. They are drawn once, in the new style.
 - `.webp` picture addresses are served as well as `.jpg` (the extension follows the stored file).
-- Tests: `Test harness/test_be_illus.py`, 82 checks (26 new), run with `~/.venvs/mc-backend`
-  (created 2026-11-15 on Python 3.12 from `requirements.txt`). Audit clean.
+- Tests: `Test harness/test_be_illus.py`, 91 checks since 0.166.1, run with `~/.venvs/mc-backend`
+  (created 2026-11-15 on Python 3.12 from `requirements.txt`). They include the cut run on 33 real
+  cream-style drawings (none may be cut) and on Media's plates set on white (both must be). The audit
+  is `CG Apps/Forever Apps/portfolio-audit/portfolio_audit.py --repo .` (the Mac has no pre-push hook
+  for the backend). Clean.
 
 ### One restaurant printed several ways is one restaurant (2026-11-13, app 1.591.2)
 
