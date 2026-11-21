@@ -559,5 +559,13 @@
     "email_notes": "n/a: members see nothing new; the clear drawings go in the issue when they go live",
     "welcome": "n/a: an owner-only tool",
     "handoff": "updated: version rows, decision entry (food drawings on a clear background: the trial), BRIEFING, Log 2026-11-15a"
+  },
+  "1.593.0": {
+    "what": "Preview only, for Chris and Kristin (PREVIEW_LOOK_USER_IDS): Settings, Appearance has \"Try the new look\", the redesign's Stage 1 foundation. It brings the four new colourways (Brass, Navy & Gold, Capri blue, Slate), each in Light, Dark or Match my phone; Instrument Serif for names and headings; buttons in solid ink; and the tab bar and notices as drawn. It is per device and doesn't touch the account's colour scheme. Members see no change: the colours that were typed in are now named, with today's values as their defaults. REDESIGN-BUILD-PLAN-2026-11-15.md, Chris by card 2026-11-15.",
+    "guide": "n/a: preview only (Chris and Kristin); the guide changes when the new look is switched on for everyone",
+    "promo": "n/a: preview only, members see nothing new",
+    "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
+    "welcome": "n/a: preview only",
+    "handoff": "updated: version rows, decision entry (the new look's preview), BRIEFING, Log 2026-11-21a"
   }
 }

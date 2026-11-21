@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.592.0** | menucaptain.com (GitHub Pages), released 2026-11-15 from the Mac (owner-only drawing trial, the redesign's Stage 0) |
+| Web app | **1.593.0** | menucaptain.com (GitHub Pages), released 2026-11-21 from the Mac (the new look's preview for Chris and Kristin, the redesign's Stage 1, release 1; members unchanged) |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.592.0** | rebuilt on the Mac from web 1.592.0 (2026-11-16 UTC, `ab0647f`), iOS fixes since `c022055`, on Chris's iPhone from 1.591.0, **not yet submitted to any store** |
 
@@ -457,6 +457,54 @@ LIBRARY in the backend's main.py.
   time; NAMED PLATES (a name with no food word, like "Guadalupe") are keyed by name plus food words
   from the description, and not drawn without one. The 14 already drawn were renamed first
   (`sql/dish_illustrations_named_plates.sql`, old keys kept as other names). Tests 56.
+
+### The new look's preview: Stage 1, release 1 (2026-11-21, app 1.593.0)
+
+The redesign (`CG Apps/MenuCaptain/REDESIGN-BUILD-PLAN-2026-11-15.md`; Chris by card 2026-11-15) is
+built inside the real app behind **"Try the new look"** (Settings, Appearance). Only
+`PREVIEW_LOOK_USER_IDS` see it: Chris, and Kristin (`dffcef30-...`, read from `profiles` by her username
+2026-11-20). Members keep today's look until one release switches it on for everyone (Stage 4). Every value
+comes from the Media session's `Design review 2026-11/moments/round2/shared.css` and
+`REDESIGN-BUILD-BRIEF-from-Media-2026-11-15.md`.
+- **How it works:** `<html data-look="new" data-cw="brass|navy|capri|slate" data-mode="light|dark">`.
+  - CSS (search "THE NEW LOOK") holds a light set (`--nl-*`) and a dark set (`--nd-*`) for each
+    colourway. The mode copies one set into `--n-*`, and today's names (`--bg`, `--text`, `--accent`
+    and the rest) point at `--n-*`, so every screen repaints at once.
+  - The n- prefix stops the drawings' names colliding with today's `--accent` and `--bg`.
+  - "Match my phone" is resolved in `applyLook` and follows the phone live.
+  - The head script applies it before the first paint, as it does the theme.
+- **Per device, not per account** (localStorage `mc_look`, `mc_look_cw`, `mc_look_mode`). Trying it on
+  the iPhone doesn't change another device, and `meta.theme` is never touched, so switching it off is
+  today's app exactly. A device left on the preview goes back to today's look once anyone else signs in.
+  Road not taken: a server flag per account, which would need a backend release to add a tester.
+- **The colourways carry over** (Chris 2026-11-15): Navy & Gold and Slate keep their names, and Warm
+  Brown, Forest and Plum start on Brass. The two readability changes to Brass are kept (Chris by card
+  2026-11-20): `--dim` #646b78 and `--faint` #8b929e, plus square tick boxes.
+- **Typed-in colours, named.** Defaults are today's values, so members see no pixel change. In the new
+  look they repaint:
+  - `--serif` (59 places; one SVG attribute keeps Fraunces, because var() doesn't resolve there);
+  - `--on-accent` (was #1b1714, 51 places) and `--icon-dim` (was #80715f, 28 places);
+  - `--accent-rgb` and `--danger-rgb`, Warm Brown's tints, used as `rgba(var(--accent-rgb),0.12)` in
+    69 places. They stay orange under every old scheme, as they always were.
+  - Left fixed on purpose: canvas drawing (share cards, Year in Food), the crash screen, the THEMES dots.
+- **Instrument Serif** (SIL OFL 1.1): self-hosted in `fonts/`, latin and latin-ext, regular and italic,
+  about 47 KB, downloaded with Chris's yes 2026-11-20. Its `@font-face` claims `font-weight: 400 700`
+  because the face has one weight: a heading at 500 or 600 then uses the real face, not a fake bold.
+  Not precached in `sw.js` (members never load it); add it at switch-on.
+- **Drawn already:**
+  - buttons and chosen chips in solid ink;
+  - the tab bar on the page's own ground, sentence-case labels, an accent dot under the current tab,
+    an outlined square +;
+  - notices as hairline rows with the icon in a thin accent ring (`--on-accent` is redefined inside
+    them so their icons are ink).
+- **Next (release 2):**
+  - the remaining typed-in colours (white overlays meant for dark grounds, about 20, and the rest);
+  - square corners, hairline rows instead of boxes inside boxes, underline fields, sheets.
+  - Release 3: `@capacitor/status-bar` (MIT) so the iPhone's clock turns dark on white, the Home Screen
+    app's top bar, then an iPhone install.
+- Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
+  list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
+  paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
 
 ### Food drawings on a clear background: the trial (2026-11-15, app 1.592.0, server 0.166.0; redone in 0.166.1, 2026-11-17)
 

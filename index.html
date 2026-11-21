@@ -62,6 +62,17 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       --accent:#e0764a; --accent-dim:#b85f3a;
       --amber:#e7b24c; --sage:#9aa877; --danger:#d9604e; --ok:#7faa6b;
       --shadow:0 8px 28px rgba(0,0,0,0.45);
+      /* 1.593.0: three names for things that were typed in as fixed values, so the new look can
+         repaint them. The defaults ARE the old values: today's look doesn't change by a pixel.
+         --serif: names and headings. --on-accent: text and icons on an accent fill (was #1b1714
+         in 57 places). --icon-dim: quiet icons (was #80715f in 29 places). */
+      --serif:'Fraunces',Georgia,serif;
+      --on-accent:#1b1714;
+      --icon-dim:#80715f;
+      /* The accent's and danger's tints (53 places) as rgb triplets, used as rgba(var(--accent-rgb),0.12).
+         Today's values: the tints stay Warm Brown's orange under every scheme, as they always were. */
+      --accent-rgb:224,118,74;
+      --danger-rgb:217,96,78;
     }
     /* Theme palettes. Each overrides only the core surface/text/accent vars;
        semantic colors (amber/sage/danger/ok) stay constant. Warm Brown is the
@@ -70,6 +81,87 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     :root[data-theme="forest"]{ --bg:#121814; --bg-2:#171f19; --surface:#1c261f; --surface-2:#26332a; --line:#344538; --line-soft:#2c3a30; --text:#eef1e9; --text-dim:#a8b6a4; --text-faint:#82917d; --accent:#86b06a; --accent-dim:#6a934f; }
     :root[data-theme="plum"]{ --bg:#181219; --bg-2:#1f1721; --surface:#251c28; --surface-2:#2f2433; --line:#3f3144; --line-soft:#372a3b; --text:#f2eaf2; --text-dim:#bba7bd; --text-faint:#98839c; --accent:#cf7aa6; --accent-dim:#ad5f87; }
     :root[data-theme="slate"]{ --bg:#15181c; --bg-2:#1a1e24; --surface:#20252c; --surface-2:#2a313a; --line:#39414c; --line-soft:#313842; --text:#eef1f4; --text-dim:#aab2bd; --text-faint:#828b98; --accent:#6f9fc9; --accent-dim:#577fa6; }
+    /* ===== THE NEW LOOK (the redesign, Stage 1, 1.593.0): PREVIEW ONLY =====
+       Chris, 2026-11-15, by card: the new look is built inside the real app behind "Try the new
+       look", which only Chris and Kristin see (PREVIEW_LOOK_USER_IDS). Members keep today's look
+       until one release switches it on for everyone (REDESIGN-BUILD-PLAN-2026-11-15.md).
+       Source of truth for every value: the Media session's round 2 drawings,
+       Design review 2026-11/moments/round2/shared.css (REDESIGN-BUILD-BRIEF-from-Media-2026-11-15.md).
+       HOW: <html data-look="new" data-cw="brass|navy|capri|slate" data-mode="light|dark">.
+       Each colourway has a light set (--nl-*) and a dark set (--nd-*); the mode copies one into
+       --n-*; then today's colour names (--bg, --text, --accent and the rest) are pointed at --n-*,
+       so every screen repaints at once without touching it. The n- prefix keeps the drawings'
+       names (bg, ink, dim, faint, line, soft, solid, onsolid, danger, accent) from colliding with
+       today's --bg and --accent, which mean different things.
+       Two Brass values carry the readability nudges Chris kept on 2026-11-20 (--dim #646b78,
+       --faint #8b929e). --nl-onaccent / --nd-onaccent: what's readable on that colourway's accent. */
+    :root[data-look="new"]{
+      --n-brass-metal:linear-gradient(135deg,#4a3109 0%,#b8821f 16%,#f0c04a 30%,#ffe9a0 40%,#c58f26 52%,#5a3b0a 68%,#d29a2c 84%,#7a5210 100%);
+      --n-steel:linear-gradient(135deg,#22384f 0%,#4f7fab 16%,#8fb6db 30%,#cfe1f2 40%,#5f8db8 52%,#2a4560 68%,#6f9fc9 84%,#38587a 100%);
+      /* Brass (the default): neutral white and near-black, brass details */
+      --nl-bg:#fff; --nl-ink:#000; --nl-dim:#646b78; --nl-faint:#8b929e; --nl-line:#e2e4e8; --nl-soft:#f3f4f6; --nl-solid:#000; --nl-onsolid:#fff; --nl-danger:#b42318; --nl-accent:var(--n-brass-metal); --nl-accent-flat:#a8741a; --nl-onaccent:#000; --nl-accent-rgb:168,116,26; --nl-danger-rgb:180,35,24;
+      --nd-bg:#0b0b0c; --nd-ink:#f4f4f5; --nd-dim:#a1a1aa; --nd-faint:#71717a; --nd-line:#27272a; --nd-soft:#161618; --nd-solid:#f4f4f5; --nd-onsolid:#0b0b0c; --nd-danger:#f97066; --nd-accent:var(--n-brass-metal); --nd-accent-flat:#d29a2c; --nd-onaccent:#0b0b0c; --nd-edge:#3a3a3f; --nd-accent-rgb:210,154,44; --nd-danger-rgb:249,112,102;
+    }
+    /* Navy & Gold: today's navy ground at night, navy ink by day, gold (brass) details */
+    :root[data-look="new"][data-cw="navy"]{
+      --nl-ink:#131b2e; --nl-dim:#56627a; --nl-faint:#8794a8; --nl-line:#e0e5ee; --nl-soft:#f0f3f8; --nl-solid:#131b2e;
+      --nd-bg:#121621; --nd-ink:#eef2f8; --nd-dim:#aab6c8; --nd-faint:#8291a6; --nd-line:#2b3647; --nd-soft:#1c2433; --nd-solid:#eef2f8; --nd-onsolid:#121621; --nd-edge:#334053; --nd-accent-flat:#e7b24c; --nd-onaccent:#121621; --nd-accent-rgb:231,178,76;
+    }
+    /* Capri blue (Kristin's Upscale): neutral grounds, flat Capri details; deep Capri by day,
+       Capri sky at night (sky is a fill with dark text, never text itself) */
+    :root[data-look="new"][data-cw="capri"]{
+      --nl-accent:#0a6fb4; --nl-accent-flat:#0a6fb4; --nl-onaccent:#fff; --nl-accent-rgb:10,111,180; --nd-accent:#55bcf7; --nd-accent-flat:#55bcf7; --nd-onaccent:#0b0b0c; --nd-accent-rgb:85,188,247;
+    }
+    /* Slate: today's slate ground at night, slate ink by day, steel details */
+    :root[data-look="new"][data-cw="slate"]{
+      --nl-ink:#1c2229; --nl-dim:#5b6673; --nl-faint:#89939f; --nl-line:#e0e4e9; --nl-soft:#f1f3f5; --nl-solid:#1c2229; --nl-accent:var(--n-steel); --nl-accent-flat:#3f6f9c; --nl-onaccent:#fff; --nl-accent-rgb:63,111,156;
+      --nd-bg:#15181c; --nd-ink:#eef1f4; --nd-dim:#aab2bd; --nd-faint:#828b98; --nd-line:#2c323b; --nd-soft:#20252c; --nd-solid:#eef1f4; --nd-onsolid:#15181c; --nd-edge:#39414c; --nd-accent:var(--n-steel); --nd-accent-flat:#6f9fc9; --nd-onaccent:#15181c; --nd-accent-rgb:111,159,201;
+    }
+    /* The mode picks a set (light unless data-mode="dark"; "Match my phone" is resolved in
+       applyLook, which sets data-mode from the phone's setting and follows it as it changes). */
+    :root[data-look="new"]{
+      --n-bg:var(--nl-bg); --n-ink:var(--nl-ink); --n-dim:var(--nl-dim); --n-faint:var(--nl-faint); --n-line:var(--nl-line); --n-soft:var(--nl-soft); --n-solid:var(--nl-solid); --n-onsolid:var(--nl-onsolid); --n-danger:var(--nl-danger); --n-accent:var(--nl-accent); --n-accent-flat:var(--nl-accent-flat); --n-onaccent:var(--nl-onaccent); --n-accent-rgb:var(--nl-accent-rgb); --n-danger-rgb:var(--nl-danger-rgb); --n-sheet:var(--nl-bg); --n-sheet-edge:var(--nl-line);
+      color-scheme:light;
+    }
+    :root[data-look="new"][data-mode="dark"]{
+      --n-bg:var(--nd-bg); --n-ink:var(--nd-ink); --n-dim:var(--nd-dim); --n-faint:var(--nd-faint); --n-line:var(--nd-line); --n-soft:var(--nd-soft); --n-solid:var(--nd-solid); --n-onsolid:var(--nd-onsolid); --n-danger:var(--nd-danger); --n-accent:var(--nd-accent); --n-accent-flat:var(--nd-accent-flat); --n-onaccent:var(--nd-onaccent); --n-accent-rgb:var(--nd-accent-rgb); --n-danger-rgb:var(--nd-danger-rgb); --n-sheet:var(--nd-soft); --n-sheet-edge:var(--nd-edge);
+      color-scheme:dark;
+    }
+    /* Today's names, pointed at the new values. --surface-2 (chips, fields, the second tier of a
+       box) has no drawing of its own yet: a whisker darker than --soft, from the ink. The flat
+       accent stands in for --accent because today's --accent is used as a colour (text, borders),
+       where a gradient can't go. RULE: this block must come AFTER the data-theme palettes above:
+       both are two-attribute rules on :root, so the later one wins when an account's old scheme
+       (data-theme) is still set underneath the preview. */
+    :root[data-look="new"]{
+      --bg:var(--n-bg); --bg-2:var(--n-bg); --surface:var(--n-soft); --surface-2:color-mix(in srgb, var(--n-ink) 7%, var(--n-bg));
+      --line:var(--n-line); --line-soft:var(--n-line);
+      --text:var(--n-ink); --text-dim:var(--n-dim); --text-faint:var(--n-faint);
+      --accent:var(--n-accent-flat); --accent-dim:var(--n-accent-flat);
+      --danger:var(--n-danger); --on-accent:var(--n-onaccent); --icon-dim:var(--n-dim);
+      --accent-rgb:var(--n-accent-rgb); --danger-rgb:var(--n-danger-rgb);
+      --serif:'Instrument Serif',Georgia,serif;
+      --shadow:0 6px 24px rgba(0,0,0,0.10);
+    }
+    :root[data-look="new"][data-mode="dark"]{ --shadow:0 8px 28px rgba(0,0,0,0.55); }
+    /* Buttons and chosen chips are solid ink in the new look; the accent is for small details only. */
+    :root[data-look="new"] .btn.primary,
+    :root[data-look="new"] .chip.on{ background:var(--n-solid); border-color:var(--n-solid); color:var(--n-onsolid); }
+    /* The tab bar and the notices as drawn (round 2, board t01). --on-accent is redefined INSIDE
+       them because their icons are given color="var(--on-accent)": on the page's own ground the
+       icon is ink, not the dark-on-accent of today's filled button. */
+    :root[data-look="new"] .nav{ background:var(--n-bg); -webkit-backdrop-filter:none; backdrop-filter:none; border-top:1px solid var(--n-line); }
+    :root[data-look="new"] .nav button{ text-transform:none; letter-spacing:0; font-size:11px; color:var(--n-dim); }
+    :root[data-look="new"] .nav button.on{ color:var(--n-ink); font-weight:500; }
+    :root[data-look="new"] .nav button.on::before{ top:auto; bottom:0; width:4px; height:4px; border-radius:50%; background:var(--n-accent); }
+    :root[data-look="new"] .nav .add{ --on-accent:var(--n-ink); background:transparent; border:1px solid var(--n-ink); border-radius:0;
+      box-shadow:none; margin-top:0; width:44px; height:44px; }
+    :root[data-look="new"] .req-banner{ --on-accent:var(--n-ink); color:var(--n-ink); background:transparent; box-shadow:none;
+      border-radius:0; border-top:1px solid var(--n-line); border-bottom:1px solid var(--n-line); padding:10px 2px; margin:0; }
+    :root[data-look="new"] .req-banner + .req-banner{ border-top:0; }
+    :root[data-look="new"] .req-banner-ic{ border:1.5px solid transparent;
+      background:linear-gradient(var(--n-bg),var(--n-bg)) padding-box, var(--n-accent) border-box; }
+    :root[data-look="new"] .req-banner-x{ background:transparent; }
     *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
     html,body{margin:0; padding:0; background:var(--bg); color:var(--text);}
     body{
@@ -80,7 +172,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     input,textarea,select,button{font-family:inherit; font-size:16px;}
     button{cursor:pointer; border:none; background:none; color:inherit;}
-    h1,h2,h3{font-family:'Fraunces',Georgia,serif; font-weight:500; margin:0; line-height:1.15;}
+    h1,h2,h3{font-family:var(--serif); font-weight:500; margin:0; line-height:1.15;}
 
     /* ---- shell ---- */
     #app-shell{
@@ -112,9 +204,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       border:1px solid var(--line);
     }
     .syncbar.busy{background:var(--bg-2); color:var(--text-dim);}
-    .syncbar.err{background:rgba(217,96,78,0.12); color:#eab0a6; border-color:rgba(217,96,78,0.4);}
+    .syncbar.err{background:rgba(var(--danger-rgb),0.12); color:#eab0a6; border-color:rgba(var(--danger-rgb),0.4);}
     .syncbar.warn{background:rgba(231,178,76,0.1); color:#e7cf9a; border-color:rgba(231,178,76,0.35);}
-    .syncbar.update{background:rgba(224,118,74,0.14); color:#f0bfa3; border-color:rgba(224,118,74,0.45);}
+    .syncbar.update{background:rgba(var(--accent-rgb),0.14); color:#f0bfa3; border-color:rgba(var(--accent-rgb),0.45);}
     .updrow{display:flex; align-items:center; gap:10px; justify-content:center; padding:14px 0 2px; flex-wrap:wrap;}
     .syncbar button{margin-left:auto; font-size:12px; color:var(--accent); font-weight:600;}
     .dot{width:7px; height:7px; border-radius:50%; flex:none;}
@@ -147,7 +239,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
             padding:2px 0; display:flex; flex-direction:column; gap:5px; }
     .badge.locked{ opacity:0.5; }
     .badge-ic{ width:34px; height:34px; border-radius:9px; display:flex; align-items:center;
-               justify-content:center; background:rgba(224,118,74,0.12); }
+               justify-content:center; background:rgba(var(--accent-rgb),0.12); }
     .badge.locked .badge-ic{ background:var(--bg-2); }
     .badge-name{ font-weight:600; font-size:14px; color:var(--text); display:flex; align-items:center; }
     .badge-sub{ font-size:12px; color:var(--text-dim); line-height:1.35; }
@@ -163,13 +255,13 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .badge-row .badge-act{ flex:0 0 auto; width:auto; white-space:nowrap;
                            font-size:12.5px; padding:8px 12px; }
     /* My Lists cards */
-    .mylist-title{ font-family:'Fraunces',serif; font-size:17px; color:var(--text); line-height:1.2; }
+    .mylist-title{ font-family:var(--serif); font-size:17px; color:var(--text); line-height:1.2; }
     .mylist-meta{ font-size:12.5px; color:var(--text-dim); margin-top:3px; }
     .mylist-date{ font-size:11.5px; color:var(--text-faint); margin-top:2px; }
     .mylist-star{ background:none; border:none; padding:4px; flex:none; cursor:pointer; }
     .mylist-acts{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
     .mylist-acts .btn{ width:auto; flex:0 0 auto; }
-    .mylist-del{ color:var(--accent); border-color:rgba(224,118,74,0.45); }
+    .mylist-del{ color:var(--accent); border-color:rgba(var(--accent-rgb),0.45); }
 
     .row{display:flex; align-items:center; gap:12px;}
     .between{display:flex; align-items:center; justify-content:space-between; gap:10px;}
@@ -179,7 +271,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .small{font-size:13.5px;}
 
     /* ---- visit / restaurant cards ---- */
-    .place-name{font-family:'Fraunces',serif; font-size:21px; font-weight:500; letter-spacing:-0.01em;}
+    .place-name{font-family:var(--serif); font-size:21px; font-weight:500; letter-spacing:-0.01em;}
     .meta-line{font-size:12.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em;}
 
     .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:9px;}
@@ -192,11 +284,11 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .chip.tag{background:rgba(154,168,119,0.12); border-color:rgba(154,168,119,0.3); color:#bcc79c; font-size:11px; padding:2px 8px;}
     .chip.pick{cursor:pointer;}
     .chip.pick:active{transform:scale(0.94);}
-    .chip.on{background:var(--accent); border-color:var(--accent); color:#1b1714; font-weight:600;}
+    .chip.on{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600;}
     /* ---- per-dish verdict (Loved / Again / Skip) ---- */
     /* verdict chip variants used in read-only displays (history, picks card) */
     .chip.dish.loved{background:rgba(214,73,97,0.22); border-color:#d64961; color:#f3aeba; font-weight:700;}
-    .chip.dish.again{background:rgba(224,118,74,0.22); border-color:var(--accent); color:#f7c9ab; font-weight:600;}
+    .chip.dish.again{background:rgba(var(--accent-rgb),0.22); border-color:var(--accent); color:#f7c9ab; font-weight:600;}
     .chip.dish.skip{opacity:0.5; text-decoration:line-through;}
     /* A dish marked as a special (1.524.0): quiet gold, not a verdict colour. */
     .special-star{color:#e3c48a; margin-right:5px; font-size:12px; vertical-align:1px;}
@@ -209,17 +301,17 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       border:1px solid var(--line); display:flex; align-items:center; justify-content:center;}
     .col-cover img, .col-cover .photo-shell{width:100%; height:100%; object-fit:cover; display:block;}
     .col-cover.col-new{border-style:dashed; background:transparent;}
-    .col-card-name{font-family:'Fraunces',serif; font-size:16px; line-height:1.2; margin-top:8px; color:var(--text);}
+    .col-card-name{font-family:var(--serif); font-size:16px; line-height:1.2; margin-top:8px; color:var(--text);}
     .col-card-sub{font-size:12px; color:var(--text-faint); margin-top:2px;}
     .col-hero{position:relative; margin:0 0 16px; border-radius:16px; overflow:hidden; height:220px;
       background:var(--surface-2); cursor:pointer;}
     .col-hero img, .col-hero .photo-shell{width:100%; height:220px; object-fit:cover; display:block;}
     .col-hero-edit{position:absolute; right:10px; bottom:10px; font-size:12px; padding:5px 11px;
       border-radius:999px; background:rgba(0,0,0,0.55); color:#efe6da;}
-    .col-title{font-family:'Fraunces',serif; font-size:30px; line-height:1.12; text-align:center; color:var(--text);}
+    .col-title{font-family:var(--serif); font-size:30px; line-height:1.12; text-align:center; color:var(--text);}
     .col-meta{text-align:center; font-size:13px; color:var(--text-dim); margin-top:6px; line-height:1.5;}
-    .col-h{font-family:'Fraunces',serif; font-size:17px; color:var(--text); margin:0 0 9px;}
-    .col-day{font-family:'Fraunces',serif; font-size:19px; color:var(--text); margin:24px 2px 4px;}
+    .col-h{font-family:var(--serif); font-size:17px; color:var(--text); margin:0 0 9px;}
+    .col-day{font-family:var(--serif); font-size:19px; color:var(--text); margin:24px 2px 4px;}
     .col-day-n{font-family:inherit; font-size:13px; color:var(--text-faint); margin-left:6px;}
     .col-stars{color:var(--accent); letter-spacing:2px; font-size:13px; flex:none;}
     .col-leave{background:none; border:0; padding:10px 0 0; font-size:12px; color:var(--text-faint); cursor:pointer;}
@@ -246,7 +338,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     .verdict-btn:active{transform:scale(0.92);}
     .verdict-btn.loved.on{background:rgba(214,73,97,0.2); border-color:#d64961; color:#e98aa0; font-weight:700;}
-    .verdict-btn.again.on{background:rgba(224,118,74,0.2); border-color:var(--accent); color:var(--accent); font-weight:600;}
+    .verdict-btn.again.on{background:rgba(var(--accent-rgb),0.2); border-color:var(--accent); color:var(--accent); font-weight:600;}
     .verdict-btn.skip.on{background:rgba(179,165,145,0.16); border-color:var(--text-faint); color:var(--text-dim); font-weight:600;}
     .dish-row-x{flex:none; padding:9px; background:transparent; border:none; cursor:pointer; line-height:0;}
     /* One card per dish (2026-10-15). The outline used to go round the name
@@ -273,16 +365,16 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       display:flex; align-items:center; justify-content:center; padding:24px;}
     .modal{background:var(--surface); border:1px solid var(--line); border-radius:16px;
       padding:20px; max-width:380px; width:100%; box-shadow:0 18px 50px rgba(0,0,0,0.45);}
-    .modal-title{font-family:'Fraunces',serif; font-size:18px; color:var(--text); margin-bottom:9px;}
+    .modal-title{font-family:var(--serif); font-size:18px; color:var(--text); margin-bottom:9px;}
     .modal-body{font-size:14px; line-height:1.5; color:var(--text-dim); margin-bottom:18px;}
     .modal-body strong{color:var(--text); font-weight:600;}
     .modal-actions{display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;}
     /* "your picks here" card on restaurant detail */
-    .card.picks{border:1px solid rgba(224,118,74,0.3);}
+    .card.picks{border:1px solid rgba(var(--accent-rgb),0.3);}
     .picks-head{font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-faint); font-weight:600; margin-bottom:8px;}
     /* ---- help me order (AI menu Q&A) ---- */
-    .card.ask{border:1px solid rgba(224,118,74,0.3); margin-bottom:14px;}
-    .ask-head{display:flex; align-items:center; gap:7px; font-family:'Fraunces',serif; font-size:16px; color:var(--text); margin-bottom:9px;}
+    .card.ask{border:1px solid rgba(var(--accent-rgb),0.3); margin-bottom:14px;}
+    .ask-head{display:flex; align-items:center; gap:7px; font-family:var(--serif); font-size:16px; color:var(--text); margin-bottom:9px;}
     .ask-input{width:100%; resize:none; line-height:1.4; margin-bottom:8px;}
     .ask-egs{margin-bottom:10px; flex-wrap:nowrap; overflow-x:auto;
       -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:2px;}
@@ -290,20 +382,20 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .ask-egs .chip{flex:none;}
     .ask-go{width:auto; padding:8px 16px;}
     .ask-err{margin-top:10px; padding:9px 11px; border-radius:9px; font-size:13px;
-      background:rgba(217,96,78,0.1); border:1px solid rgba(217,96,78,0.4); color:#eab0a6;}
+      background:rgba(var(--danger-rgb),0.1); border:1px solid rgba(var(--danger-rgb),0.4); color:#eab0a6;}
     .ask-answer{position:relative; margin-top:12px; padding:12px 13px; border-radius:10px;
-      background:rgba(224,118,74,0.08); border:1px solid rgba(224,118,74,0.22);
+      background:rgba(var(--accent-rgb),0.08); border:1px solid rgba(var(--accent-rgb),0.22);
       color:var(--text); font-size:14px; line-height:1.5;}
     .ask-answer.closable{padding-right:34px;}
     .ask-answer-x{position:absolute; top:6px; right:6px; width:26px; height:26px;
       display:flex; align-items:center; justify-content:center; border:none;
-      border-radius:8px; background:transparent; color:#80715f; cursor:pointer;
+      border-radius:8px; background:transparent; color:var(--icon-dim); cursor:pointer;
       -webkit-tap-highlight-color:transparent;}
     .ask-answer-x:active{transform:scale(0.9); background:rgba(255,255,255,0.06);}
     /* Rendered AI text (light markdown -> real formatting, no raw ** or ##) */
     .aimd > :first-child{margin-top:0;}
     .aimd p{margin:8px 0 0;}
-    .aimd h4{font-family:'Fraunces',serif; font-size:15px; font-weight:600;
+    .aimd h4{font-family:var(--serif); font-size:15px; font-weight:600;
       color:var(--text); margin:14px 0 4px; line-height:1.3;}
     .aimd ul{margin:6px 0 0; padding:0; list-style:none;}
     .aimd li{position:relative; padding-left:16px; margin:5px 0;}
@@ -315,8 +407,8 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .aimd strong{font-weight:600; color:var(--text);}
     .aimd em{font-style:italic;}
     /* ---- meal-photo nutrition (informative, never alarming) ---- */
-    .card.nutri{border:1px solid rgba(224,118,74,0.22); margin-top:4px;}
-    .nutri-kcal{font-family:'Fraunces',serif; font-size:30px; font-weight:600; color:var(--text); line-height:1;}
+    .card.nutri{border:1px solid rgba(var(--accent-rgb),0.22); margin-top:4px;}
+    .nutri-kcal{font-family:var(--serif); font-size:30px; font-weight:600; color:var(--text); line-height:1;}
     .nutri-kcal-u{font-size:14px; font-weight:400; color:var(--text-faint);}
     .nutri-macros{display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:13px; color:var(--text-dim);}
     .nutri-macros b{color:var(--text); font-weight:600;}
@@ -333,7 +425,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .dish-total .dt-note{font-size:11px; color:var(--text-faint);}
     .iest{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:9px;}
     .iest-btn{display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--accent);
-      background:transparent; border:1px dashed rgba(224,118,74,0.5); border-radius:999px;
+      background:transparent; border:1px dashed rgba(var(--accent-rgb),0.5); border-radius:999px;
       padding:4px 11px; cursor:pointer; -webkit-tap-highlight-color:transparent;}
     .iest-btn:disabled{opacity:0.6;}
     /* Photos under an Explain answer (2026-10-15): one row per dish explained. */
@@ -348,8 +440,8 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .mitem-thumb .photo-img, .mitem-thumb .photo-shell{width:46px; height:46px; border-radius:9px;}
     /* in-app help / user guide */
     .help-body{padding-bottom:40px;}
-    .help-h1{font-family:'Fraunces',serif; font-size:25px; color:var(--text); margin:6px 0 4px;}
-    .help-h2{font-family:'Fraunces',serif; font-size:19px; color:var(--text); margin:24px 0 8px;}
+    .help-h1{font-family:var(--serif); font-size:25px; color:var(--text); margin:6px 0 4px;}
+    .help-h2{font-family:var(--serif); font-size:19px; color:var(--text); margin:24px 0 8px;}
     .help-h3{font-size:14px; font-weight:600; color:var(--text); margin:16px 0 6px; text-transform:uppercase; letter-spacing:0.04em;}
     .help-p{font-size:14.5px; line-height:1.62; color:var(--text-dim); margin:0 0 12px;}
     .help-p strong, .help-ul strong{color:var(--text); font-weight:600;}
@@ -376,7 +468,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .infodot-pop{position:absolute; z-index:75; top:calc(100% + 6px); left:0;
       width:min(290px,82vw); background:var(--surface-2); border:1px solid var(--line);
       border-radius:12px; padding:12px 14px; box-shadow:0 14px 36px rgba(0,0,0,0.45); cursor:default;}
-    .infodot-poptitle{display:block; font-family:'Fraunces',serif; font-size:15px;
+    .infodot-poptitle{display:block; font-family:var(--serif); font-size:15px;
       color:var(--text); margin-bottom:7px;}
     .infodot-popbody{display:block; font-size:12.5px; line-height:1.5; color:var(--text-dim);}
     .infodot-popbody strong{color:var(--text); font-weight:600;}
@@ -401,9 +493,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     .btn:active{transform:scale(0.98);}
     .btn:disabled{opacity:0.45;}
-    .btn.primary{background:var(--accent); color:#1b1714;}
+    .btn.primary{background:var(--accent); color:var(--on-accent);}
     .btn.ghost{background:var(--surface); border:1px solid var(--line); color:var(--text);}
-    .btn.danger{background:rgba(217,96,78,0.14); border:1px solid rgba(217,96,78,0.45); color:#e7a99e;}
+    .btn.danger{background:rgba(var(--danger-rgb),0.14); border:1px solid rgba(var(--danger-rgb),0.45); color:#e7a99e;}
     .btn.sm{padding:9px 13px; font-size:13.5px; width:auto;}
 
     /* ---- forms ---- */
@@ -456,8 +548,8 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
        somebody later has to work out the purpose of. */
     .nav .navicon{width:23px; height:23px;}
     .nav .add{
-      background:var(--accent); color:#1b1714; width:46px; height:46px;
-      border-radius:14px; margin-top:-12px; box-shadow:0 6px 16px rgba(224,118,74,0.4);
+      background:var(--accent); color:var(--on-accent); width:46px; height:46px;
+      border-radius:14px; margin-top:-12px; box-shadow:0 6px 16px rgba(var(--accent-rgb),0.4);
       align-items:center; justify-content:center;
     }
 
@@ -496,7 +588,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .menu-tabs::-webkit-scrollbar{display:none;}
     .menu-tab{flex:none; border:1px solid var(--line); border-radius:999px; padding:7px 15px;
       font:inherit; font-size:14px; color:var(--text-dim); background:none; cursor:pointer; white-space:nowrap;}
-    .menu-tab.on{background:var(--accent); border-color:var(--accent); color:#1b1714; font-weight:600; cursor:default;}
+    .menu-tab.on{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600; cursor:default;}
     .menu-meta{display:flex; align-items:center; gap:10px; margin:0 2px 12px; min-height:28px;}
     .menu-tools{border:1px solid var(--line-soft); border-radius:14px; background:var(--surface);
       margin:0 0 12px; overflow:hidden;}
@@ -512,7 +604,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .price-line{font-size:12.5px; margin-top:3px; line-height:1.45; color:var(--text-dim);}
     .price-line .price-range{color:#C9A06A; font-weight:600;}
     /* Photos from more than one menu, saved apart (1.566.0). */
-    .split-card{border:1px solid rgba(224,118,74,0.40); padding:12px 14px; margin-bottom:12px;}
+    .split-card{border:1px solid rgba(var(--accent-rgb),0.40); padding:12px 14px; margin-bottom:12px;}
     .split-photo{display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--line-soft);}
     .split-thumb{width:44px; height:58px; border-radius:7px; object-fit:cover; flex:none; background:var(--surface);}
     .split-num{display:flex; align-items:center; justify-content:center; font-weight:600; color:var(--text-dim);
@@ -524,7 +616,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     /* The owner's "issue ready" card on Home (1.565.0): the newsletter's gold. */
     .card.issue-ready{border:1px solid rgba(201,160,106,0.55); background:rgba(201,160,106,0.07);}
     .issue-ready-over{font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#C9A06A; font-weight:500;}
-    .issue-ready-title{font-family:'Fraunces',serif; font-size:19px; font-weight:600; margin-top:3px; color:var(--text);}
+    .issue-ready-title{font-family:var(--serif); font-size:19px; font-weight:600; margin-top:3px; color:var(--text);}
     /* A top bar in two rows (1.563.0), on the place page and the menu page: the
        page's own actions and chat + Settings on the first row with Back, the
        name large and full width beneath, so a long name is no longer cut short. */
@@ -594,12 +686,12 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       background:transparent; color:var(--text-dim);
       border:1px solid var(--line-soft);
     }
-    .fold-pill.on{ background:var(--accent); border-color:var(--accent); color:#1b1714; }
+    .fold-pill.on{ background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
     .msec-head{
       display:flex; align-items:center; justify-content:space-between;
       padding:12px 2px; cursor:pointer;
     }
-    .msec-head .nm{font-family:'Fraunces',serif; font-size:16.5px; font-weight:600; letter-spacing:0.01em;}
+    .msec-head .nm{font-family:var(--serif); font-size:16.5px; font-weight:600; letter-spacing:0.01em;}
     .msec-head .ct{font-size:12px; color:var(--text-faint);}
     /* Section header = the fold toggle plus, on your own menus, a split icon. */
     .msec-headrow{display:flex; align-items:center; gap:2px;}
@@ -694,7 +786,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .dc-body{padding:14px 16px 0; display:grid; grid-template-columns:minmax(0,1fr); gap:12px;}
     .dc-body > *{min-width:0;}
     .dc-head{display:flex; justify-content:space-between; gap:12px; align-items:baseline;}
-    .dc-name{font-family:'Fraunces',serif; font-weight:500; font-size:23px; line-height:1.15; margin:0; text-wrap:balance; min-width:0;}
+    .dc-name{font-family:var(--serif); font-weight:500; font-size:23px; line-height:1.15; margin:0; text-wrap:balance; min-width:0;}
     .dc-pr{color:var(--amber); font-size:16px; white-space:nowrap; font-variant-numeric:tabular-nums; flex:none;}
     .dc-desc{font-size:14.5px; color:var(--text-dim); line-height:1.5; margin-top:5px;}
     .dc-en{font-style:italic; color:var(--text); opacity:0.88;}
@@ -714,7 +806,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 
     /* ---- misc ---- */
     .empty{text-align:center; padding:46px 20px; color:var(--text-faint);}
-    .empty .big{font-family:'Fraunces',serif; font-size:20px; color:var(--text-dim); margin-bottom:6px;}
+    .empty .big{font-family:var(--serif); font-size:20px; color:var(--text-dim); margin-bottom:6px;}
     .divider-label{
       font-size:12px; letter-spacing:0.12em; text-transform:uppercase;
       color:var(--text-faint); margin:24px 2px 10px;
@@ -727,7 +819,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       /* Your menus are the thing on a place's page you came for, so they carry
          the accent and everything around them stays neutral. Theme-aware via
          color-mix; the fixed values first are the fallback. */
-      background:rgba(224,118,74,0.09); border:1px solid rgba(224,118,74,0.55);
+      background:rgba(var(--accent-rgb),0.09); border:1px solid rgba(var(--accent-rgb),0.55);
       background:color-mix(in srgb, var(--accent) 9%, var(--surface));
       border-color:color-mix(in srgb, var(--accent) 55%, transparent);
       border-radius:12px;
@@ -737,7 +829,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
          copy/paste callout - that was hijacking the drag. */
       user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
     }
-    .menu-row:active{ background:rgba(224,118,74,0.16);
+    .menu-row:active{ background:rgba(var(--accent-rgb),0.16);
       background:color-mix(in srgb, var(--accent) 16%, var(--surface)); border-color:var(--accent); }
     /* The circle that says "this row is a menu" before the label is read.
        Same accent circle the About page tiles use. */
@@ -748,16 +840,16 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .menu-head{
       display:flex; align-items:center; gap:12px; padding:12px 14px; margin-bottom:10px;
       border-radius:12px;
-      background:rgba(224,118,74,0.09); border:1px solid rgba(224,118,74,0.55);
+      background:rgba(var(--accent-rgb),0.09); border:1px solid rgba(var(--accent-rgb),0.55);
       background:color-mix(in srgb, var(--accent) 9%, var(--surface));
       border-color:color-mix(in srgb, var(--accent) 55%, transparent);
     }
     .menu-head-place{
-      font-family:'Fraunces',serif; font-size:17px; color:var(--text); line-height:1.2;
+      font-family:var(--serif); font-size:17px; color:var(--text); line-height:1.2;
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     }
     .menu-row-label{
-      font-family:'Fraunces',serif; font-size:18px; color:var(--text);
+      font-family:var(--serif); font-size:18px; color:var(--text);
       line-height:1.2;
     }
     /* Section subheader inside the visit-form chip picker, between section's chips */
@@ -810,7 +902,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .reply-msg.mine{align-self:flex-end; align-items:flex-end;}
     .reply-bubble{background:var(--surface-2); border:1px solid var(--line); border-radius:14px 14px 14px 4px;
       padding:8px 12px; font-size:14.5px; line-height:1.45; color:var(--text); overflow-wrap:anywhere;}
-    .reply-msg.mine .reply-bubble{background:rgba(224,118,74,0.16); border-color:rgba(224,118,74,0.45);
+    .reply-msg.mine .reply-bubble{background:rgba(var(--accent-rgb),0.16); border-color:rgba(var(--accent-rgb),0.45);
       border-radius:14px 14px 4px 14px;}
     .reply-bubble.react{font-weight:600; color:var(--accent);}
     .reply-meta{font-size:11px; color:var(--text-faint); margin-top:3px; display:flex; align-items:center; gap:2px;}
@@ -819,7 +911,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .reply-chips{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px;}
     .reply-chip{background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:999px;
       padding:8px 13px; font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;}
-    .reply-chip.on{border-color:var(--accent); color:var(--accent); background:rgba(224,118,74,0.10); cursor:default;}
+    .reply-chip.on{border-color:var(--accent); color:var(--accent); background:rgba(var(--accent-rgb),0.10); cursor:default;}
     .reply-row{display:flex; gap:8px; align-items:center;}
     .reply-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent);
       margin-right:6px; vertical-align:middle;}
@@ -955,7 +1047,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 
     /* Connection-request banner - prominent, tappable, dismissible */
     .req-banner{ display:flex; align-items:center; gap:11px; margin:0 0 13px;
-      padding:11px 13px; border-radius:13px; cursor:pointer; color:#1b1714;
+      padding:11px 13px; border-radius:13px; cursor:pointer; color:var(--on-accent);
       background:linear-gradient(180deg, var(--accent), #b56a26);
       box-shadow:0 2px 10px rgba(0,0,0,0.18); -webkit-tap-highlight-color:transparent; }
     .req-banner-ic{ width:34px; height:34px; border-radius:50%; flex:none;
@@ -1022,25 +1114,32 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     /* ---- Year in Food recap ---- */
     .yif-hero{ text-align:center; padding:14px 0 22px; }
     .yif-hero-kicker{ font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--accent); }
-    .yif-hero-year{ font-family:'Fraunces',Georgia,serif; font-weight:600; font-size:62px; line-height:1; color:var(--text); margin:8px 0 10px; }
+    .yif-hero-year{ font-family:var(--serif); font-weight:600; font-size:62px; line-height:1; color:var(--text); margin:8px 0 10px; }
     .yif-hero-sub{ font-size:14px; color:var(--text-dim); }
     .yif-stat{ background:var(--surface); border:1px solid var(--line-soft); border-radius:16px; padding:18px; margin-bottom:12px; }
-    .yif-big{ font-family:'Fraunces',serif; font-weight:600; font-size:46px; line-height:1; color:var(--accent); }
+    .yif-big{ font-family:var(--serif); font-weight:600; font-size:46px; line-height:1; color:var(--accent); }
     .yif-lbl{ font-size:11.5px; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-faint); }
-    .yif-name{ font-family:'Fraunces',serif; font-weight:500; font-size:24px; color:var(--text); margin-top:3px; letter-spacing:-0.01em; }
+    .yif-name{ font-family:var(--serif); font-weight:500; font-size:24px; color:var(--text); margin-top:3px; letter-spacing:-0.01em; }
     .yif-sub{ font-size:13px; color:var(--text-dim); margin-top:7px; }
     .yif-entry{ display:flex; align-items:center; gap:12px; padding:12px 14px; margin-bottom:14px;
       background:var(--surface); border:1px solid var(--line-soft); border-radius:14px; }
     .yif-entry-ic{ width:30px; height:30px; border-radius:9px; flex:none;
-      display:flex; align-items:center; justify-content:center; background:rgba(224,118,74,0.13); }
+      display:flex; align-items:center; justify-content:center; background:rgba(var(--accent-rgb),0.13); }
     .yif-entry-tx{ display:flex; flex-direction:column; flex:1; min-width:0; }
-    .yif-entry-t{ font-family:'Fraunces',serif; font-size:16px; color:var(--text); }
+    .yif-entry-t{ font-family:var(--serif); font-size:16px; color:var(--text); }
     .yif-entry-s{ font-size:12px; color:var(--text-dim); margin-top:1px; }
     .set-group{ font-size:11px; letter-spacing:0.13em; text-transform:uppercase;
       color:var(--text-faint); margin:24px 4px 9px; }
     /* Home section headings - more prominent than the faint .set-group eyebrow. */
     .home-section{ font-size:13px; letter-spacing:0.08em; text-transform:uppercase;
       color:var(--text-dim); font-weight:700; margin:22px 4px 10px; }
+    /* The new look's preview card in Settings (1.593.0). */
+    .look-card .look-row{ display:flex; align-items:center; gap:12px; }
+    .look-seg{ display:flex; margin:14px 0 6px; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+    .look-seg-b{ flex:1; padding:9px 6px; background:transparent; border:0; border-right:1px solid var(--line);
+      color:var(--text-dim); font:inherit; font-size:14px; cursor:pointer; }
+    .look-seg-b:last-child{ border-right:0; }
+    .look-seg-b.on{ background:var(--text); color:var(--bg); font-weight:600; }
     .theme-row{ display:flex; align-items:center; gap:12px; padding:11px 2px; cursor:pointer; }
     .theme-row + .theme-row{ border-top:1px solid var(--line); }
     .theme-dots{ display:flex; flex:none; }
@@ -1062,7 +1161,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .print-title-sm{ font-size:13px; color:var(--text-dim); }
     .print-sheet{ max-width:680px; margin:0 auto; padding:24px 20px 60px; }
     .print-head{ text-align:center; margin-bottom:22px; }
-    .print-h1{ font-family:'Fraunces',serif; font-size:26px; color:var(--text); }
+    .print-h1{ font-family:var(--serif); font-size:26px; color:var(--text); }
     .print-h2{ font-size:15px; color:var(--text-dim); margin-top:2px; }
     .print-h3{ font-size:12px; color:var(--text-faint); margin-top:6px; }
     .print-visit{ padding:13px 0; border-bottom:1px solid var(--line-soft); }
@@ -1091,14 +1190,14 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     .sortbar{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
     .sortbar-lbl{ font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-faint); margin-right:2px; }
-    .passport-month{ font-family:'Fraunces',serif; font-size:18px; color:var(--text); margin:20px 2px 11px; }
+    .passport-month{ font-family:var(--serif); font-size:18px; color:var(--text); margin:20px 2px 11px; }
     .passport-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px; }
     .passport-tile{ position:relative; aspect-ratio:1 / 1; border-radius:13px; overflow:hidden;
       background:var(--surface-2); cursor:pointer; }
     .passport-tile .pp-photo{ width:100%; height:100%; object-fit:cover; display:block; }
     .pp-cap{ position:absolute; left:0; right:0; bottom:0; padding:18px 11px 9px;
       background:linear-gradient(to top, rgba(0,0,0,0.72), rgba(0,0,0,0)); pointer-events:none; }
-    .pp-cap-r{ font-family:'Fraunces',serif; font-size:14px; color:#fff; line-height:1.2;
+    .pp-cap-r{ font-family:var(--serif); font-size:14px; color:#fff; line-height:1.2;
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .pp-cap-d{ font-size:11px; color:rgba(255,255,255,0.82); margin-top:2px;
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1143,10 +1242,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       display:flex; align-items:center; justify-content:center; margin:0 auto 7px; }
     .ab-mini-t{ color:var(--text-dim); font-size:12.5px; line-height:1.35; }
     .ab-mark{ text-align:center; margin-bottom:10px; }
-    .ab-wm{ text-align:center; font-family:'Fraunces',Georgia,serif; font-weight:600;
+    .ab-wm{ text-align:center; font-family:var(--serif); font-weight:600;
       font-size:clamp(34px,8vw,52px); line-height:1.05; letter-spacing:-0.01em; }
     .ab-wm .b{ color:var(--text); } .ab-wm .a{ color:var(--accent); }
-    .ab-tag{ text-align:center; font-family:'Fraunces',Georgia,serif; font-style:italic;
+    .ab-tag{ text-align:center; font-family:var(--serif); font-style:italic;
       color:var(--text); font-size:clamp(16px,3.4vw,20px); margin-top:4px; }
     .ab-rule{ width:58px; height:2px; background:var(--accent); margin:15px auto 16px; border-radius:2px; }
     .ab-intro{ text-align:center; color:var(--text-dim); font-size:15.5px; line-height:1.6;
@@ -1160,10 +1259,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .ab-h{ color:var(--accent); font-weight:600; font-size:16px; margin-bottom:3px; }
     .ab-d{ color:var(--text-dim); font-size:14.5px; line-height:1.5; }
     .ab-spirit{ border-left:2.5px solid var(--accent); padding-left:14px; margin:26px 2px 0;
-      color:var(--text-dim); font-family:'Fraunces',Georgia,serif; font-style:italic;
+      color:var(--text-dim); font-family:var(--serif); font-style:italic;
       font-size:16px; line-height:1.6; }
     .ab-cta{ text-align:center; margin-top:30px; }
-    .ab-btn{ display:inline-block; background:var(--accent); color:#1b1714; font-weight:600;
+    .ab-btn{ display:inline-block; background:var(--accent); color:var(--on-accent); font-weight:600;
       text-decoration:none; padding:14px 40px; border-radius:26px; font-size:17px; }
     .ab-foot{ color:var(--text-faint); font-size:13px; margin-top:13px; line-height:1.6; }
     /* ---- group order (host overlay + guest screen) ---- */
@@ -1265,7 +1364,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
         linear-gradient(0deg, rgba(8,7,6,0.55), rgba(8,7,6,0) 24%),
         url('/spin-sunset.jpeg') center / cover no-repeat;
       display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-    .pw-cap{ font-family:'Fraunces',serif; font-style:italic; font-size:14px; color:#dcc9a6;
+    .pw-cap{ font-family:var(--serif); font-style:italic; font-size:14px; color:#dcc9a6;
       text-align:center; margin:0 0 2px; text-shadow:0 1px 5px rgba(0,0,0,0.6); }
     .pw-stage{ position:relative; width:100%; max-width:440px; aspect-ratio:1 / 1; margin:56px auto 2px; }
     .pw-rotor{ position:absolute; inset:0; transform-origin:50% 50%; will-change:transform; }
@@ -1307,10 +1406,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .go-split-amt{ color:var(--text); font-variant-numeric:tabular-nums; }
     .go-split-total{ border-top:1px solid var(--line-soft); margin-top:4px; padding-top:9px; font-weight:600; }
     .pub-kicker{ font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--accent); text-align:center; }
-    .pub-title{ font-family:'Fraunces',serif; font-weight:600; font-size:34px; line-height:1.12;
+    .pub-title{ font-family:var(--serif); font-weight:600; font-size:34px; line-height:1.12;
       color:var(--text); text-align:center; margin:8px 0 22px; }
     .pub-cards{ display:flex; flex-direction:column; gap:12px; }
-    .pub-card-n{ font-family:'Fraunces',serif; font-size:20px; color:var(--text); }
+    .pub-card-n{ font-family:var(--serif); font-size:20px; color:var(--text); }
     .pub-card-s{ font-size:13px; color:var(--text-dim); margin-top:3px; }
     .pub-card-addr{ display:flex; align-items:baseline; gap:8px; margin-top:10px; flex-wrap:wrap; }
     .pub-card-addr .addr-text{ font-size:12px; color:var(--text-faint); flex:1 1 auto; min-width:0; }
@@ -1322,7 +1421,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .pub-menu{ display:flex; flex-direction:column; gap:18px; }
     .pub-msec-head{ display:flex; justify-content:space-between; align-items:center; cursor:pointer;
       padding:6px 2px; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:6px; }
-    .pub-msec-head .nm{ font-family:'Fraunces',serif; font-size:17px; color:var(--text); }
+    .pub-msec-head .nm{ font-family:var(--serif); font-size:17px; color:var(--text); }
     .pub-msec-head .ct{ font-size:12px; color:var(--text-faint); }
     .pub-mitem{ display:flex; gap:10px; align-items:flex-start; padding:10px 8px; border-radius:10px;
       border:1px solid transparent; cursor:pointer; transition:background .12s, border-color .12s; }
@@ -1331,7 +1430,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .pub-mitem-tick{ flex:none; width:24px; height:24px; border-radius:50%; display:flex;
       align-items:center; justify-content:center; font-size:15px; line-height:1; color:var(--accent);
       border:1.5px solid rgba(224,123,79,0.55); margin-top:1px; }
-    .pub-mitem.on .pub-mitem-tick{ background:var(--accent); color:#1b1714; border-color:var(--accent); }
+    .pub-mitem.on .pub-mitem-tick{ background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
     .pub-mitem-head{ display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
     .pub-mitem-head .inm{ font-size:15px; color:var(--text); font-weight:500; flex:1 1 auto; min-width:0; }
     .pub-mitem-head .ipr{ font-size:13px; color:var(--text-dim); white-space:nowrap; flex:0 0 auto; }
@@ -1341,7 +1440,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     /* "What makes it special" on a shared visit. */
     .pub-special{ margin:18px 0 6px; padding:14px 15px; border:1px solid var(--line); border-radius:12px;
       background:var(--surface); text-align:left; }
-    .pub-special-h{ font-family:'Fraunces',serif; font-size:17px; margin-bottom:4px; }
+    .pub-special-h{ font-family:var(--serif); font-size:17px; margin-bottom:4px; }
     .pub-special-part{ padding-top:11px; margin-top:11px; border-top:1px solid var(--line-soft); }
     .pub-special-part:first-of-type{ border-top:none; margin-top:4px; padding-top:4px; }
     .pub-special-lbl{ font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase; font-weight:600;
@@ -1354,7 +1453,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .pub-note:focus{ outline:none; border-color:var(--accent); }
     .pub-cta{ margin-top:30px; padding:22px 18px; border-radius:14px; text-align:center;
       background:rgba(224,123,79,0.08); border:1px solid rgba(224,123,79,0.3); }
-    .pub-cta-title{ font-family:'Fraunces',serif; font-size:21px; color:var(--text); }
+    .pub-cta-title{ font-family:var(--serif); font-size:21px; color:var(--text); }
     .pub-cta-sub{ font-size:13px; color:var(--text-dim); margin:8px 0 16px; line-height:1.5; }
     .pick-tray{ position:fixed; left:0; right:0; bottom:0; z-index:50; max-width:560px; margin:0 auto;
       display:flex; align-items:center; gap:12px;
@@ -1373,7 +1472,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 .ask-compact{padding:10px 14px}
 .ask-open{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;padding:4px 0;cursor:pointer;
   color:var(--text);font:inherit;text-align:left}
-.ask-open-title{font-family:'Fraunces',serif;font-size:16px}
+.ask-open-title{font-family:var(--serif);font-size:16px}
 .ask-open-hint{flex:1;min-width:0;color:var(--text-faint);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
   <script>
@@ -1383,6 +1482,14 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       try {
         var t = localStorage.getItem('dininglog_theme');
         if (t && t !== 'brown') document.documentElement.setAttribute('data-theme', t);
+        /* The new look's preview (1.593.0, see getLook): set only by the switch in Settings, which
+           only the preview list sees. Same order as applyLook. */
+        if (localStorage.getItem('mc_look') === 'new'){
+          var de = document.documentElement, cw = localStorage.getItem('mc_look_cw') || 'brass',
+              md = localStorage.getItem('mc_look_mode') || 'match';
+          var dark = md === 'dark' || (md === 'match' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          de.setAttribute('data-look', 'new'); de.setAttribute('data-cw', cw); de.setAttribute('data-mode', dark ? 'dark' : 'light');
+        }
       } catch(e){}
     })();
   </script>
@@ -1397,7 +1504,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.592.0";
+const APP_VERSION   = "1.593.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -9335,7 +9442,7 @@ function WineProfileView({ book, cfg, onSaveProfile, onOpenWine, onNewWine, onBa
               {book.profile.dislikes ? <div className="tiny faint" style={{marginTop:8}}>Not for you: {book.profile.dislikes}</div> : null}
             </div>
             <button className="btn primary" style={{width:"100%", marginBottom:16}} onClick={onNewWine}>
-              <Icon name="camera" size={16} color="#1b1714" />Add a wine</button>
+              <Icon name="camera" size={16} color="var(--on-accent)" />Add a wine</button>
             {toRate.length ? (
               <>
                 <div className="section-subhead" style={{margin:"0 2px 8px"}}>To rate</div>
@@ -9541,7 +9648,7 @@ function WineEditor({ cfg, wine, onSave, onDelete, onClose, onHome }){
         {!isNew && onDelete ? (
           confirmDel ? (
             <div className="small" style={{padding:"10px 12px", marginTop:12, borderRadius:9,
-                 background:"rgba(217,96,78,0.1)", border:"1px solid rgba(217,96,78,0.4)"}}>
+                 background:"rgba(var(--danger-rgb),0.1)", border:"1px solid rgba(var(--danger-rgb),0.4)"}}>
               <div style={{marginBottom:9}}>Delete this wine and its notes? This cannot be undone.</div>
               <div className="row" style={{gap:8}}>
                 <button className="btn ghost sm" onClick={()=> setConfirmDel(false)}>Cancel</button>
@@ -9617,7 +9724,7 @@ function WineForMeSheet({ cfg, restaurant, list, book, onSaveProfile, onHaving, 
       <div className="sheet" onClick={e=> e.stopPropagation()} style={{maxHeight:"88vh", overflowY:"auto"}}>
         <div className="grip" />
         <div className="between" style={{alignItems:"baseline", margin:"0 2px 10px"}}>
-          <span style={{fontFamily:"'Fraunces',serif", fontSize:19, fontWeight:600}}>Wine for me</span>
+          <span style={{fontFamily:"var(--serif)", fontSize:19, fontWeight:600}}>Wine for me</span>
           <button type="button" className="tiny" onClick={onClose}
             style={{background:"none", border:"none", color:"var(--text-dim)", cursor:"pointer"}}>Close</button>
         </div>
@@ -10916,7 +11023,7 @@ function InstallHint({ onClose, force }){
   const step = (n, body)=> (
     <div className="row" style={{gap:8, alignItems:"flex-start", marginBottom:6}}>
       <span style={{flex:"none", width:18, height:18, borderRadius:9, background:"var(--accent)",
-        color:"#1b1714", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
+        color:"var(--on-accent)", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
         justifyContent:"center", marginTop:1}}>{n}</span>
       <span style={{flex:1, lineHeight:1.45}}>{body}</span>
     </div>
@@ -10938,7 +11045,7 @@ function InstallHint({ onClose, force }){
         // Any Chromium browser that fired beforeinstallprompt - Android AND
         // desktop Chrome/Edge - gets the real one-tap install, not manual steps.
         <button className="btn primary" style={{width:"100%"}} onClick={doInstall}>
-          <Icon name="home" size={17} color="#1b1714" />
+          <Icon name="home" size={17} color="var(--on-accent)" />
           {plat === "android" ? " Add to Home Screen" : " Install MenuCaptain"}
         </button>
       ) : plat === "ios" ? (
@@ -11427,7 +11534,7 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
         <div style={{minWidth:0}}>
           <div style={{display:"flex", alignItems:"center", gap:8}}>
             <img src="helm.png" alt="" aria-hidden="true" style={{width:26, height:26, flex:"none", opacity:0.95}} />
-            <div style={{fontFamily:"'Fraunces',serif", fontSize:24, fontWeight:600, color:"var(--text)", lineHeight:1.1}}>MenuCaptain</div>
+            <div style={{fontFamily:"var(--serif)", fontSize:24, fontWeight:600, color:"var(--text)", lineHeight:1.1}}>MenuCaptain</div>
           </div>
           <div className="tiny faint" style={{marginTop:2}}>{greeting}{who ? ", " + who : ""}</div>
         </div>
@@ -11472,7 +11579,7 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
       {herePlace && onAtPlace ? (
         <div style={{marginBottom:12}}>
           <div className="card tap" style={{marginBottom:6, cursor:"pointer", display:"flex", gap:12, alignItems:"center",
-               background:"rgba(224,118,74,0.08)", border:"1px solid rgba(224,118,74,0.30)"}}
+               background:"rgba(var(--accent-rgb),0.08)", border:"1px solid rgba(var(--accent-rgb),0.30)"}}
             onClick={()=> onAtPlace(herePlace.r.id)}>
             <Icon name={hereMenus.length ? "book" : "pin"} size={22} color="var(--accent)" />
             <div style={{flex:1, minWidth:0}}>
@@ -11490,7 +11597,7 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
         </div>
       ) : (onAtRestaurant || onScanMenu) ? (
         <div className="card tap" style={{marginBottom:12, cursor:"pointer", display:"flex", gap:12, alignItems:"center",
-             background:"rgba(224,118,74,0.08)", border:"1px solid rgba(224,118,74,0.30)"}}
+             background:"rgba(var(--accent-rgb),0.08)", border:"1px solid rgba(var(--accent-rgb),0.30)"}}
           onClick={onAtRestaurant || onScanMenu}>
           <Icon name="pin" size={22} color="var(--accent)" />
           <div style={{flex:1, minWidth:0}}>
@@ -12320,6 +12427,9 @@ function App({openShare}){
         try { hydrateVenmoHandles(m.venmo_handles || {}); } catch(_e){}
         // Your own names for connections sync the same way.
         try { hydrateConnNames(m.conn_names || {}); } catch(_e){}
+        // The new look's preview belongs to the preview list only (1.593.0): a device that had it
+        // on and is now signed in as anyone else goes back to today's look.
+        try { if (!canPreviewLook(cfg) && getLook().on) setLook({ on:false }); } catch(_e){}
         // The colour scheme follows the account (1.588.0, see accountThemeKey).
         try {
           const acct = accountThemeKey(m);
@@ -13423,7 +13533,7 @@ function App({openShare}){
         {pendingReqs > 0 && pendingReqs !== reqSeen && (
           <div className="req-banner"
             onClick={()=>{ setReqSeen(pendingReqs); setOverlay({ type:"connections" }); }}>
-            <span className="req-banner-ic"><Icon name="bell" size={18} color="#1b1714" /></span>
+            <span className="req-banner-ic"><Icon name="bell" size={18} color="var(--on-accent)" /></span>
             <div style={{flex:1, minWidth:0}}>
               <div style={{fontWeight:600}}>
                 {pendingReqs} connection request{pendingReqs > 1 ? "s" : ""}
@@ -13432,13 +13542,13 @@ function App({openShare}){
             </div>
             <button className="req-banner-x" aria-label="Dismiss"
               onClick={(e)=>{ e.stopPropagation(); setReqSeen(pendingReqs); }}>
-              <Icon name="close" size={15} color="#1b1714" />
+              <Icon name="close" size={15} color="var(--on-accent)" />
             </button>
           </div>
         )}
         {invite && invite.who && !invite.asked && (
           <div className="req-banner" style={{cursor:"default"}}>
-            <span className="req-banner-ic"><Icon name="people" size={18} color="#1b1714" /></span>
+            <span className="req-banner-ic"><Icon name="people" size={18} color="var(--on-accent)" /></span>
             <div style={{flex:1, minWidth:0}}>
               <div style={{fontWeight:600}}>
                 {/* A plain friend link (?inv=handle, as in the newsletter's
@@ -13459,13 +13569,13 @@ function App({openShare}){
               </button>
             </div>
             <button className="req-banner-x" aria-label="Dismiss" onClick={dismissInvite}>
-              <Icon name="close" size={15} color="#1b1714" />
+              <Icon name="close" size={15} color="var(--on-accent)" />
             </button>
           </div>
         )}
         {invite && invite.who && invite.asked && invite.sv && (
           <div className="req-banner" style={{cursor:"default", opacity:0.9}}>
-            <span className="req-banner-ic"><Icon name="clock" size={18} color="#1b1714" /></span>
+            <span className="req-banner-ic"><Icon name="clock" size={18} color="var(--on-accent)" /></span>
             <div style={{flex:1, minWidth:0}}>
               <div style={{fontWeight:600}}>Waiting on {inviteFirst(invite)}</div>
               <div className="tiny" style={{opacity:0.82}}>
@@ -13473,7 +13583,7 @@ function App({openShare}){
               </div>
             </div>
             <button className="req-banner-x" aria-label="Dismiss" onClick={dismissInvite}>
-              <Icon name="close" size={15} color="#1b1714" />
+              <Icon name="close" size={15} color="var(--on-accent)" />
             </button>
           </div>
         )}
@@ -13484,7 +13594,7 @@ function App({openShare}){
           const owner = supportOwner && supportOwner === config.userId;
           return (
             <div className="req-banner" onClick={()=>{ setSupportSeen(supportUnread); openChat(); }}>
-              <span className="req-banner-ic"><Icon name="chat" size={18} color="#1b1714" /></span>
+              <span className="req-banner-ic"><Icon name="chat" size={18} color="var(--on-accent)" /></span>
               <div style={{flex:1, minWidth:0}}>
                 <div style={{fontWeight:600}}>
                   {owner ? ((t ? replyName(t) : "Someone") + " wrote to you") : ((t ? replyName(t) : "We") + " answered your message")}
@@ -13493,7 +13603,7 @@ function App({openShare}){
               </div>
               <button className="req-banner-x" aria-label="Dismiss"
                 onClick={(e)=>{ e.stopPropagation(); setSupportSeen(supportUnread); }}>
-                <Icon name="close" size={15} color="#1b1714" />
+                <Icon name="close" size={15} color="var(--on-accent)" />
               </button>
             </div>
           );
@@ -13504,7 +13614,7 @@ function App({openShare}){
           return (
             <div className="req-banner"
               onClick={()=>{ setRepliesSeen(friendUnread); setOverlay({ type:"shares" }); }}>
-              <span className="req-banner-ic"><Icon name="reply" size={18} color="#1b1714" /></span>
+              <span className="req-banner-ic"><Icon name="reply" size={18} color="var(--on-accent)" /></span>
               <div style={{flex:1, minWidth:0}}>
                 <div style={{fontWeight:600}}>
                   {one ? replyName(one) + " replied"
@@ -13517,7 +13627,7 @@ function App({openShare}){
               </div>
               <button className="req-banner-x" aria-label="Dismiss"
                 onClick={(e)=>{ e.stopPropagation(); setRepliesSeen(friendUnread); }}>
-                <Icon name="close" size={15} color="#1b1714" />
+                <Icon name="close" size={15} color="var(--on-accent)" />
               </button>
             </div>
           );
@@ -13525,7 +13635,7 @@ function App({openShare}){
         {sharesCount > 0 && sharesCount !== sharesSeen && (
           <div className="req-banner"
             onClick={()=>{ setSharesSeen(sharesCount); setOverlay({ type:"shares" }); }}>
-            <span className="req-banner-ic"><Icon name="share" size={18} color="#1b1714" /></span>
+            <span className="req-banner-ic"><Icon name="share" size={18} color="var(--on-accent)" /></span>
             <div style={{flex:1, minWidth:0}}>
               <div style={{fontWeight:600}}>
                 {sharesCount} thing{sharesCount > 1 ? "s" : ""} shared with you
@@ -13534,7 +13644,7 @@ function App({openShare}){
             </div>
             <button className="req-banner-x" aria-label="Dismiss"
               onClick={(e)=>{ e.stopPropagation(); setSharesSeen(sharesCount); }}>
-              <Icon name="close" size={15} color="#1b1714" />
+              <Icon name="close" size={15} color="var(--on-accent)" />
             </button>
           </div>
         )}
@@ -13570,7 +13680,7 @@ function App({openShare}){
         {tab === "history" && (
           <>
             {profileName(profile) ? (
-              <div style={{margin:"2px 2px 12px", fontFamily:"'Fraunces', serif",
+              <div style={{margin:"2px 2px 12px", fontFamily:"var(--serif)",
                    fontSize:21, fontWeight:600, color:"var(--text)"}}>
                 Hi, {profileName(profile)}
               </div>
@@ -13751,7 +13861,7 @@ function App({openShare}){
           <span className="navicon"><Icon name="plate" size={23} /></span>Places
         </button>
         <button onClick={()=> setSheet(true)} aria-label="Add">
-          <span className="add"><Icon name="plus" size={24} color="#1b1714" /></span>
+          <span className="add"><Icon name="plus" size={24} color="var(--on-accent)" /></span>
         </button>
         <button className={tab==="history" ? "on" : ""} aria-current={tab==="history" ? "page" : undefined} onClick={()=> setTab("history")}>
           <span className="navicon"><Icon name="clock" size={23} /></span>History
@@ -15047,7 +15157,7 @@ function InfoDot({title, label, children}){
       <button className={"infodot" + (label ? " labeled" : "")}
         onClick={(e)=>{ e.stopPropagation(); setOpen(o=>!o); }}
         aria-label={title || "More info"}>
-        <Icon name="info" size={14} color="#80715f" />
+        <Icon name="info" size={14} color="var(--icon-dim)" />
         {label ? <span className="infodot-label">{label}</span> : null}
       </button>
       {open ? (
@@ -15067,13 +15177,13 @@ function InfoDot({title, label, children}){
 function SearchBar({value, onChange, placeholder, autoFocus}){
   return (
     <div className="searchbar">
-      <Icon name="search" size={16} color="#80715f" />
+      <Icon name="search" size={16} color="var(--icon-dim)" />
       <input className="search-input" type="text" value={value} autoFocus={autoFocus || undefined}
         placeholder={placeholder || "Search"}
         onChange={e=> onChange(e.target.value)} />
       {value ? (
         <button className="search-x" onClick={()=> onChange("")} aria-label="Clear search">
-          <Icon name="close" size={14} color="#80715f" />
+          <Icon name="close" size={14} color="var(--icon-dim)" />
         </button>
       ) : null}
     </div>
@@ -15133,7 +15243,7 @@ function PeopleView({ visits, restaurants, onClose, onOpenVisit, onMerge }){
         {/* Merging rewrites saved visits, so it asks first and says exactly what
             moves and in which direction. */}
         {confirmTo ? (
-          <div className="card" style={{border:"1px solid rgba(224,118,74,0.45)", marginBottom:12}}>
+          <div className="card" style={{border:"1px solid rgba(var(--accent-rgb),0.45)", marginBottom:12}}>
             <div className="small" style={{marginBottom:9}}>
               Treat <strong>{confirmTo.from.name}</strong> and <strong>{confirmTo.to.name}</strong> as
               the same person? {confirmTo.from.name}'s {confirmTo.from.count} visit
@@ -15864,7 +15974,7 @@ function CollectionsListView({ collections, visits, cfg, onOpen, onNew, onBack, 
           every meal you log on those days by itself.
         </div>
         <button className="btn primary" style={{width:"100%", marginBottom:16}} onClick={onNew}>
-          <Icon name="plus" size={16} color="#1b1714" />Start a collection</button>
+          <Icon name="plus" size={16} color="var(--on-accent)" />Start a collection</button>
         {list.map(c => {
           const mem = colVisits(c, visits);
           const cover = colCoverPath(c, mem);
@@ -15907,7 +16017,7 @@ function CollectionEditor({ initial, onSave, onDelete, onClose }){
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" onClick={e=> e.stopPropagation()}>
         <div className="grip" />
-        <div style={{fontFamily:"'Fraunces',serif", fontSize:21, marginBottom:12}}>
+        <div style={{fontFamily:"var(--serif)", fontSize:21, marginBottom:12}}>
           {initial ? "Edit collection" : "New collection"}</div>
         <label className="fld"><span className="lbl">Name</span>
           <ClearInput value={name} onChange={e=> setName(e.target.value)} placeholder="Our honeymoon" maxLength={80} />
@@ -15981,7 +16091,7 @@ function CollectionShareSheet({ cfg, collection, members, restaurantById, onClos
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" onClick={e=> e.stopPropagation()} style={{maxHeight:"88vh", overflowY:"auto"}}>
         <div className="grip" />
-        <div style={{fontFamily:"'Fraunces',serif", fontSize:20, marginBottom:2}}>Share this collection</div>
+        <div style={{fontFamily:"var(--serif)", fontSize:20, marginBottom:2}}>Share this collection</div>
         <div className="tiny faint" style={{marginBottom:12}}>{collection.name}</div>
         <label className="fld" style={{marginBottom:10}}>
           <span className="lbl">Say something about it</span>
@@ -16073,7 +16183,7 @@ function CollectionView({ cfg, collection, visits, restaurantById, onBack, onHom
         </div>
         <div className="row" style={{gap:8, flexWrap:"wrap", justifyContent:"center", margin:"16px 0 18px"}}>
           <button className="btn primary sm" disabled={!members.length} onClick={()=> setSheet("share")}>
-            <Icon name="share" size={15} color="#1b1714" />Share</button>
+            <Icon name="share" size={15} color="var(--on-accent)" />Share</button>
           <button className="btn ghost sm" disabled={!placeIds.length} onClick={()=> onShowMap(placeIds)}>
             <Icon name="pin" size={15} color="var(--accent)" />Map</button>
           <button className="btn ghost sm" onClick={()=>{ setAddPick({}); setSheet("add"); }}>
@@ -16169,7 +16279,7 @@ function CollectionView({ cfg, collection, visits, restaurantById, onBack, onHom
         <div className="sheet-bg" onClick={()=> setSheet("")}>
           <div className="sheet" onClick={e=> e.stopPropagation()} style={{maxHeight:"85vh", overflowY:"auto"}}>
             <div className="grip" />
-            <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:12}}>Choose the cover</div>
+            <div style={{fontFamily:"var(--serif)", fontSize:19, marginBottom:12}}>Choose the cover</div>
             <div className="col-grid">
               {colAllPhotos(members).slice(0, 60).map(p => (
                 <div key={p} onClick={()=>{ onChange(Object.assign({}, c, { cover: p, updated_at: Date.now() })); setSheet(""); }}
@@ -16186,7 +16296,7 @@ function CollectionView({ cfg, collection, visits, restaurantById, onBack, onHom
         <div className="sheet-bg" onClick={()=> setSheet("")}>
           <div className="sheet" onClick={e=> e.stopPropagation()} style={{maxHeight:"85vh", overflowY:"auto"}}>
             <div className="grip" />
-            <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:4}}>Add meals</div>
+            <div style={{fontFamily:"var(--serif)", fontSize:19, marginBottom:4}}>Add meals</div>
             <div className="tiny faint" style={{marginBottom:10}}>From your history, newest first.</div>
             {!others.length ? (
               <div className="small faint" style={{padding:"6px 0 10px"}}>Every meal you've logged is already here.</div>
@@ -16243,7 +16353,7 @@ function PublishedCollection({ data, replySlot }){
       <div className="pub-title">{data.n}</div>
       {sub ? <div className="pub-sub">{sub}</div> : null}
       {data.msg ? (
-        <div style={{margin:"14px auto 0", maxWidth:460, textAlign:"center", fontFamily:"'Fraunces',serif",
+        <div style={{margin:"14px auto 0", maxWidth:460, textAlign:"center", fontFamily:"var(--serif)",
              fontSize:18, lineHeight:1.4}}>&ldquo;{data.msg}&rdquo;</div>
       ) : null}
       {data.cov ? (
@@ -16503,7 +16613,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
                   <button title="Share your visit" aria-label="Share your visit"
                     style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
                     onClick={(e)=>{ e.stopPropagation(); onShareVisit(v); }}>
-                    <Icon name="share" size={17} color="#80715f" />
+                    <Icon name="share" size={17} color="var(--icon-dim)" />
                   </button>
                 ) : null}
                 {onToggleLoved ? (
@@ -16511,7 +16621,7 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
                     title={v.loved ? "Loved - tap to remove" : "Mark this visit loved"}
                     style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
                     onClick={(e)=>{ e.stopPropagation(); onToggleLoved(v); }}>
-                    <Icon name="heart" size={18} color={v.loved ? "#d9604e" : "#80715f"} />
+                    <Icon name="heart" size={18} color={v.loved ? "#d9604e" : "var(--icon-dim)"} />
                   </button>
                 ) : (v.loved ? (
                   <span className="fav on" title="Loved" style={{flex:"none"}}>
@@ -16834,7 +16944,7 @@ function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilt
             {onNearMe && (
               <button className="btn primary" onClick={onNearMe}>
                 <span className="row" style={{gap:6, justifyContent:"center"}}>
-                  <Icon name="locate" size={16} color="#1b1714" />Find places near me</span>
+                  <Icon name="locate" size={16} color="var(--on-accent)" />Find places near me</span>
               </button>
             )}
             {onScanMenu && (
@@ -17033,7 +17143,7 @@ function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilt
             </div>
           </div>
           <span className={"fav" + (r.favorite ? " on" : "")}>
-            <Icon name="star" size={20} color={r.favorite ? "var(--accent)" : "#80715f"} />
+            <Icon name="star" size={20} color={r.favorite ? "var(--accent)" : "var(--icon-dim)"} />
           </span>
         </div>
       </div>
@@ -17176,7 +17286,7 @@ function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilt
             style={{display:"inline-flex", alignItems:"center", gap:4, maxWidth:"100%"}}
             onClick={()=> setPicker(key)}>
             <span style={{overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{text}</span>
-            <Icon name="chevd" size={13} color={active ? "#1b1714" : "var(--accent)"} />
+            <Icon name="chevd" size={13} color={active ? "var(--on-accent)" : "var(--accent)"} />
           </button>
         );
         return (
@@ -17925,7 +18035,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
         <BackBtn onClick={onClose} />
         <span className="tworow-acts">
           <button className="x" onClick={onToggleFav} aria-label={r.favorite ? "Loved" : "Mark as loved"}>
-            <span style={{fontSize:23, lineHeight:1, color: r.favorite ? "#d64961" : "#80715f"}}>
+            <span style={{fontSize:23, lineHeight:1, color: r.favorite ? "#d64961" : "var(--icon-dim)"}}>
               {r.favorite ? "♥" : "♡"}
             </span>
           </button>
@@ -17933,7 +18043,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             <button className="x" onClick={()=> onToggleWishlist(r)}
               aria-label={r.wishlist ? "On your Want to try list" : "Add to Want to try"}
               title={r.wishlist ? "On your Want to try list" : "Want to try"}>
-              <Icon name="book" size={19} color={r.wishlist ? "var(--accent)" : "#80715f"} />
+              <Icon name="book" size={19} color={r.wishlist ? "var(--accent)" : "var(--icon-dim)"} />
             </button>
           ) : null}
           <button className="x" onClick={()=> setShareSheet("main")} aria-label="Share" title="Share">
@@ -18109,8 +18219,8 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             {/* No menu yet -> the loud next step is getting the menu. Logging
                 lives once, in the "Done eating?" card at the end of the page. */}
             <button className="btn primary" onClick={onAddMenu} style={{marginTop:4}}>
-              <Icon name="camera" size={18} color="#1b1714" /><span>Scan or</span>
-              <Icon name="link" size={18} color="#1b1714" /><span>Link a menu</span>
+              <Icon name="camera" size={18} color="var(--on-accent)" /><span>Scan or</span>
+              <Icon name="link" size={18} color="var(--on-accent)" /><span>Link a menu</span>
             </button>
             <div className="tiny faint" style={{marginTop:8, textAlign:"center", lineHeight:1.6}}>
               All you need is a menu. Snap or upload a photo, or paste a link to an online menu.
@@ -18320,7 +18430,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             its own section instead of blurring into the place details above. */}
         <div style={{margin:"30px 0 12px", paddingTop:18, borderTop:"2px solid var(--line)"}}>
           <div className="row between" style={{alignItems:"center", gap:8}}>
-            <div style={{fontFamily:"'Fraunces',serif", fontSize:21, fontWeight:600,
+            <div style={{fontFamily:"var(--serif)", fontSize:21, fontWeight:600,
                  color:"var(--text)", lineHeight:1.1, flex:1, minWidth:0}}>
               {/* The accent bar every form section header uses (.sechd). */}
               <span aria-hidden="true" style={{display:"inline-block", width:3, height:19,
@@ -18449,7 +18559,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
               {/* No Refresh in the row (2026-10-16, Chris: "too easy to
                   accidentally hit"): a row opens its menu, and Refresh lives on
                   the menu screen, where it asks first. */}
-              <Icon name="chev" size={18} color="#80715f" />
+              <Icon name="chev" size={18} color="var(--icon-dim)" />
             </div>
           );
           return onDeleteMenuById
@@ -18479,7 +18589,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                 ref={draggable ? (el => { if (el) menuRowRefs.current[m.menu_id] = el; }) : undefined}
                 style={dragging
                   ? {opacity:1, transform:"scale(1.02)", touchAction:"none", position:"relative", zIndex:5,
-                     border:"2px solid var(--accent)", background:"rgba(224,118,74,0.12)",
+                     border:"2px solid var(--accent)", background:"rgba(var(--accent-rgb),0.12)",
                      animation:"mcgrab .18s ease"}
                   : undefined}
                 onClick={()=>{
@@ -18513,7 +18623,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                   </div>
                 </div>
                 {/* No Refresh in the row (2026-10-16): see the row above. */}
-                <Icon name="chev" size={18} color="#80715f" />
+                <Icon name="chev" size={18} color="var(--icon-dim)" />
               </div>
             );
             return onDeleteMenuById
@@ -18535,7 +18645,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
              background:"var(--surface-2)", border:"1px solid var(--accent)"}}>
           <div className="small" style={{fontWeight:600, marginBottom:8}}>Done eating?</div>
           <button className="btn primary" onClick={onLogVisit} style={{width:"100%"}}>
-            <Icon name="plus" size={18} color="#1b1714" />Log this visit
+            <Icon name="plus" size={18} color="var(--on-accent)" />Log this visit
           </button>
           <div className="tiny faint" style={{marginTop:8}}>
             Record what you had, rate the dishes, and split the check.
@@ -18570,7 +18680,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                     title={v.loved ? "Loved - tap to remove" : "Mark this visit loved"}
                     style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
                     onClick={(e)=>{ e.stopPropagation(); onToggleVisitLoved(v); }}>
-                    <Icon name="heart" size={18} color={v.loved ? "#d9604e" : "#80715f"} />
+                    <Icon name="heart" size={18} color={v.loved ? "#d9604e" : "var(--icon-dim)"} />
                   </button>
                 ) : (v.loved ? (
                   <span className="fav on" title="Loved" style={{flex:"none"}}>
@@ -18663,7 +18773,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             <Icon name="trash" size={17} />Delete restaurant
           </button>
         ) : (
-          <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)"}}>
+          <div className="card" style={{border:"1px solid rgba(var(--danger-rgb),0.4)"}}>
             <div className="small" style={{marginBottom:11}}>
               Delete {r.name} and {(menus || []).length === 1 ? "its saved menu"
                 : "its " + (menus || []).length + " saved menus"}?
@@ -18722,7 +18832,7 @@ function AiAnswer({ onClose, children }){
       {onClose && (
         <button type="button" className="ask-answer-x" onClick={onClose}
           title="Close" aria-label="Close answer">
-          <Icon name="close" size={13} color="#80715f" />
+          <Icon name="close" size={13} color="var(--icon-dim)" />
         </button>
       )}
       {children}
@@ -19583,7 +19693,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             tap there used to land you in it. Nothing changes until you save. */}
         {confirmRefresh && (
           <div className="small" style={{padding:"10px 12px", marginBottom:10, borderRadius:9,
-               background:"rgba(224,118,74,0.08)", border:"1px solid rgba(224,118,74,0.35)"}}>
+               background:"rgba(var(--accent-rgb),0.08)", border:"1px solid rgba(var(--accent-rgb),0.35)"}}>
             <div style={{marginBottom:9}}>
               Replace this menu with new photos or a link? The current one stays until you save the new one.
             </div>
@@ -19596,8 +19706,8 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
         {confirmDel && (
           <div className="small" style={{
             padding:"10px 12px",marginBottom:10,borderRadius:9,
-            background:"rgba(217,96,78,0.1)",
-            border:"1px solid rgba(217,96,78,0.4)"
+            background:"rgba(var(--danger-rgb),0.1)",
+            border:"1px solid rgba(var(--danger-rgb),0.4)"
           }}>
             <div style={{marginBottom:9}}>
               Delete the {menu.label || "menu"} menu? This cannot be undone.
@@ -19695,7 +19805,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
           <button className="btn primary sm ask-go"
             disabled={asking || !askInput.trim()}
             onClick={()=> runAsk()}>
-            {asking ? <span className="spin" /> : <Icon name="sparkle" size={16} color="#1b1714" />}
+            {asking ? <span className="spin" /> : <Icon name="sparkle" size={16} color="var(--on-accent)" />}
             {asking ? "Thinking..." : "Ask"}
           </button>
           {!hasKey && (
@@ -19753,7 +19863,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             <button className="btn primary sm ask-go" style={{flex:"none"}}
               disabled={explaining || (explainOpen && !pickedNames.length)}
               onClick={runExplain}>
-              {explaining ? <span className="spin" /> : <Icon name="sparkle" size={16} color="#1b1714" />}
+              {explaining ? <span className="spin" /> : <Icon name="sparkle" size={16} color="var(--on-accent)" />}
               {explaining ? "Reading the menu..."
                 : explainOpen ? ("Explain selected" + (pickedNames.length ? " (" + pickedNames.length + ")" : ""))
                 : "How to order from this menu"}
@@ -20199,7 +20309,7 @@ function IllustrationLibraryCard({ config }){
       <button type="button" className="between" onClick={()=> setOpen(true)}
         style={{width:"100%", background:"none", border:0, padding:0, cursor:"pointer", color:"inherit", font:"inherit", textAlign:"left"}}>
         <div style={{fontWeight:600}}>Food drawings</div>
-        <Chevron open={false} size={17} color="#80715f" />
+        <Chevron open={false} size={17} color="var(--icon-dim)" />
       </button>
       <div className="tiny faint" style={{marginTop:4}}>Approve, redraw or reject the library's drawings, and see what drawing has cost.</div>
       {open ? <IllustrationLibrary config={config} onClose={()=> setOpen(false)} /> : null}
@@ -20315,7 +20425,7 @@ function IllustrationLibrary({ config, onClose }){
   return (
     <div className="illus-lib" role="dialog" aria-modal="true" aria-label="Food drawings">
       <div className="between" style={{alignItems:"center"}}>
-        <div style={{fontFamily:"'Fraunces',serif", fontSize:24}}>Food drawings</div>
+        <div style={{fontFamily:"var(--serif)", fontSize:24}}>Food drawings</div>
         <button type="button" className="btn ghost sm" onClick={onClose}>Done</button>
       </div>
       {data ? (
@@ -20618,7 +20728,7 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
             onClick={()=> setFilter("")}
             style={{position:"absolute", right:8, top:"50%", transform:"translateY(-50%)",
                     background:"none", border:"none", padding:4, cursor:"pointer", display:"flex"}}>
-            <Icon name="close" size={15} color="#80715f" />
+            <Icon name="close" size={15} color="var(--icon-dim)" />
           </button>
         )}
       </div>
@@ -20658,7 +20768,7 @@ function MenuView({menu, cfg, noGroupOrder, restaurantName, cuisine, dishPhotos,
             </span>
             <span className="row" style={{gap:8}}>
               <span className="ct">{items.length}</span>
-              <Chevron open={secOpen} size={16} color="#80715f" />
+              <Chevron open={secOpen} size={16} color="var(--icon-dim)" />
             </span>
           </button>
           {onSplitSection ? (
@@ -21045,7 +21155,7 @@ function AtPlaceMenuStep({ cfg, restaurant, menus, onScan, onImportCommunityMenu
       <div className="ovbody">
         <div style={{maxWidth:440, margin:"0 auto", textAlign:"center"}}>
           <div style={{fontSize:44, marginTop:14}}>{hasMenu ? "📖" : "🍽️"}</div>
-          <div style={{fontFamily:"'Fraunces',serif", fontSize:25, fontWeight:600, lineHeight:1.15, marginTop:10}}>
+          <div style={{fontFamily:"var(--serif)", fontSize:25, fontWeight:600, lineHeight:1.15, marginTop:10}}>
             You're at {r.name}. Now for the good part.
           </div>
           <div className="muted" style={{marginTop:12}}>
@@ -23033,7 +23143,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                 seeing nothing move is the confusing case this exists for. */}
             {overriding && Math.abs(overrideCents - computedGrandCents) >= 1 && computedGrandCents > 0 ? (
               <div className="card" style={{margin:"8px 0 0", padding:"10px 12px",
-                   border:"1px solid rgba(224,118,74,0.35)"}}>
+                   border:"1px solid rgba(var(--accent-rgb),0.35)"}}>
                 <div className="small" style={{marginBottom:8}}>
                   Splitting the total shown. The items, tax and tip add up to{" "}
                   <strong>{money(computedGrandCents)}</strong>.
@@ -23046,7 +23156,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
             ) : null}
             {looksDoubled && (
               <div className="card" style={{margin:"10px 0 0", padding:"10px 12px",
-                   border:"1px solid rgba(217,96,78,0.5)", background:"rgba(217,96,78,0.10)"}}>
+                   border:"1px solid rgba(var(--danger-rgb),0.5)", background:"rgba(var(--danger-rgb),0.10)"}}>
                 <div style={{fontWeight:600, color:"#e7a99e"}}>Items add up to more than the total</div>
                 <div className="tiny faint" style={{marginTop:4, lineHeight:1.4}}>
                   This usually means the same receipt was scanned twice. Remove the
@@ -24312,7 +24422,7 @@ function FeedbackForm({ cfg, onClose }){
               style={{minHeight:130, resize:"vertical"}} />
             {err ? <div className="tiny faint" style={{marginTop:6}}>{err}</div> : null}
             <button className="btn primary" style={{width:"100%", marginTop:12}} disabled={busy || !text.trim()} onClick={send}>
-              {busy ? <span className="spin" /> : <><Icon name="check" size={18} color="#1b1714" />Send feedback</>}
+              {busy ? <span className="spin" /> : <><Icon name="check" size={18} color="var(--on-accent)" />Send feedback</>}
             </button>
             <div className="tiny faint" style={{textAlign:"center", marginTop:8}}>
               We include your app version and email so we can follow up.
@@ -24399,7 +24509,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
     padding:"7px 12px", borderRadius:999, fontSize:13, fontWeight:600,
     border:"1px solid " + (on ? "var(--accent)" : "var(--line)"),
     background: on ? "var(--accent)" : "transparent",
-    color: on ? "#1b1714" : "var(--text-dim)", cursor:"pointer", whiteSpace:"nowrap", flex:"none",
+    color: on ? "var(--on-accent)" : "var(--text-dim)", cursor:"pointer", whiteSpace:"nowrap", flex:"none",
   });
   // favorites pre-ticked (signed-off default); the user adjusts freely
   const [picked, setPicked] = useState(()=>{
@@ -25500,13 +25610,13 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
         <div className="card between" onClick={()=> setWishlist(w=>!w)} style={{cursor:"pointer"}}>
           <span>Want to try (haven't been yet)</span>
           <span className={"fav" + (wishlist?" on":"")}>
-            <Icon name="book" size={22} color={wishlist?"var(--accent)":"#80715f"} />
+            <Icon name="book" size={22} color={wishlist?"var(--accent)":"var(--icon-dim)"} />
           </span>
         </div>
         <div className="card between" onClick={()=> setFav(f=>!f)} style={{cursor:"pointer"}}>
           <span>Mark as favorite</span>
           <span className={"fav" + (fav?" on":"")}>
-            <Icon name="star" size={22} color={fav?"var(--accent)":"#80715f"} />
+            <Icon name="star" size={22} color={fav?"var(--accent)":"var(--icon-dim)"} />
           </span>
         </div>
         {/* A warm, obvious Save for new places (the corner Save is easy to miss on
@@ -25514,7 +25624,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
         {!existing ? (
           <div style={{marginTop:14}}>
             <button className="btn primary" style={{width:"100%"}} onClick={submit} disabled={!name.trim()}>
-              <Icon name="check" size={18} color="#1b1714" />Save {name.trim() ? "“" + name.trim() + "”" : "this place"} to my places
+              <Icon name="check" size={18} color="var(--on-accent)" />Save {name.trim() ? "“" + name.trim() + "”" : "this place"} to my places
             </button>
             <div className="tiny faint" style={{textAlign:"center", marginTop:6}}>
               Then log visits, scan the menu, and rate the dishes.
@@ -26833,7 +26943,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                 <button aria-label="Edit place details" title="Edit place details"
                   style={{flex:"none", background:"none", border:"none", padding:2, cursor:"pointer", display:"flex"}}
                   onClick={(e)=>{ e.stopPropagation(); setEditPlaceOpen(true); }}>
-                  <Icon name="edit" size={16} color="#80715f" />
+                  <Icon name="edit" size={16} color="var(--icon-dim)" />
                 </button>
               ) : null}
               <button className="btn ghost sm" style={{flex:"none"}}
@@ -27010,7 +27120,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
               <div className="photo-slot"
                 onClick={()=> addPhotosFrom("camera")}>
                 <div>
-                  <div className="ic"><Icon name="camera" size={20} color="#80715f" /></div>
+                  <div className="ic"><Icon name="camera" size={20} color="var(--icon-dim)" /></div>
                   <div>Camera</div>
                 </div>
               </div>
@@ -27019,7 +27129,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
               <div className="photo-slot"
                 onClick={()=> addPhotosFrom("photos")}>
                 <div>
-                  <div className="ic"><Icon name="plus" size={20} color="#80715f" /></div>
+                  <div className="ic"><Icon name="plus" size={20} color="var(--icon-dim)" /></div>
                   <div>{photoSlots.length ? "Library" : "Library"}</div>
                 </div>
               </div>
@@ -27131,7 +27241,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
             if (!clash.length) return null;
             return (
               <div className="card" style={{margin:"0 0 10px", padding:"11px 13px",
-                   border:"1px solid rgba(224,118,74,0.35)"}}>
+                   border:"1px solid rgba(var(--accent-rgb),0.35)"}}>
                 <div className="small" style={{marginBottom:8}}>
                   {clash.length === 1
                     ? <span><strong>{clash[0].name}</strong> is listed as a dish and also as
@@ -27348,7 +27458,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                           <span className="row" style={{gap:8, alignItems:"center"}}>
                             {nOn ? <span className="pick-sec-on">{nOn} picked</span>
                                  : <span className="pick-sec-ct">{s.items.length}</span>}
-                            <Chevron open={open} size={14} color="#80715f" />
+                            <Chevron open={open} size={14} color="var(--icon-dim)" />
                           </span>
                         </button>
                       )}
@@ -27424,7 +27534,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                         onClick={()=> setVerdict(d.name, "skip")}>Skip</button>
                     </div>
                     <button className="dish-row-x" aria-label={"Remove " + d.name} onClick={()=> removeDish(d.name)}>
-                      <Icon name="close" size={14} color="#80715f" />
+                      <Icon name="close" size={14} color="var(--icon-dim)" />
                     </button>
                   </div>
                   {d.note && !noteOpen[d.name] && (
@@ -27609,7 +27719,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                   </button>
                   <button className="btn ghost sm" style={{flex:"none",padding:"6px 10px"}}
                     title="Remove" onClick={removeNutrition}>
-                    <Icon name="trash" size={15} color="#80715f" />
+                    <Icon name="trash" size={15} color="var(--icon-dim)" />
                   </button>
                 </div>
               </div>
@@ -27959,7 +28069,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
         <button type="button" className={"btn" + (loved ? " primary" : " ghost")}
           style={{marginBottom:14}} onClick={()=> setLoved(l => !l)}>
           <span className="row" style={{gap:7, justifyContent:"center"}}>
-            <Icon name="heart" size={17} color={loved ? "#1b1714" : "#d9604e"} />
+            <Icon name="heart" size={17} color={loved ? "var(--on-accent)" : "#d9604e"} />
             {loved ? "Loved this visit" : "Mark this visit loved"}
           </span>
         </button>
@@ -27970,7 +28080,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
               <Icon name="trash" size={17} />Delete this visit
             </button>
           ) : (
-            <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)"}}>
+            <div className="card" style={{border:"1px solid rgba(var(--danger-rgb),0.4)"}}>
               <div className="small" style={{marginBottom:11}}>Delete this visit permanently?</div>
               <div className="row" style={{gap:9}}>
                 <button className="btn ghost" onClick={()=> setConfirmDel(false)}>Cancel</button>
@@ -28912,11 +29022,11 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             {/* A link that no app may read. Offered the route that works, with
                 its button, rather than an error after the fact. */}
             {deadEnd ? (
-              <div className="card" style={{border:"1px solid rgba(224,118,74,0.45)", marginBottom:12}}>
+              <div className="card" style={{border:"1px solid rgba(var(--accent-rgb),0.45)", marginBottom:12}}>
                 <div className="small" style={{marginBottom:11}}>{MENU_DEAD_END_WHY[deadEnd]}</div>
                 <button className="btn primary" style={{width:"100%"}}
                   onClick={()=>{ setDeadEnd(null); fileRef.current.click(); }}>
-                  <Icon name="image" size={17} color="#1b1714" />{" "}Choose the screenshot
+                  <Icon name="image" size={17} color="var(--on-accent)" />{" "}Choose the screenshot
                 </button>
                 <button className="btn ghost sm" style={{marginTop:8}}
                   onClick={()=>{ setDeadEnd(null); setUrlInput(""); setShowUrl(true); }}>
@@ -29072,7 +29182,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             <div>{(sendProgress[0] ? sendProgress[0] + " of " + sendProgress[1] + " photos got through. " : "")
               + "The signal is too weak to send the rest right now."}</div>
             <div className="card" style={{margin:"18px auto 0", maxWidth:420, padding:"12px 14px", textAlign:"left",
-                 border:"1px solid rgba(224,118,74,0.45)"}}>
+                 border:"1px solid rgba(var(--accent-rgb),0.45)"}}>
               <div className="small" style={{fontWeight:600}}>Your photos are saved on this phone</div>
               <div className="tiny faint" style={{marginTop:4, lineHeight:1.5}}>
                 They send by themselves as soon as MenuCaptain has signal, then the menu is read as usual
@@ -29100,7 +29210,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
               /* The instructions Chris asked for: you can go, and how you will
                  hear that it is done. */
               <div className="card" style={{margin:"18px auto 0", maxWidth:420, padding:"12px 14px", textAlign:"left",
-                   border:"1px solid rgba(224,118,74,0.45)"}}>
+                   border:"1px solid rgba(var(--accent-rgb),0.45)"}}>
                 <div className="small" style={{fontWeight:600}}>You don't have to wait here</div>
                 <div className="tiny faint" style={{marginTop:4, lineHeight:1.5}}>
                   Switch apps or lock your phone if you like: the menu keeps being read. When it's
@@ -29150,7 +29260,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
 
         {step === "error" && (
           <div>
-            <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)"}}>
+            <div className="card" style={{border:"1px solid rgba(var(--danger-rgb),0.4)"}}>
               <div style={{fontWeight:600,marginBottom:6}}>Something went wrong</div>
               <div className="small muted">
                 {errMsg || "The menu didn't come through, and the app didn't say why. Open Settings, Diagnostics for the last few lines."}
@@ -29269,7 +29379,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 on. Adding is the default; Keep it separate is one tap away. */}
             {contInfo ? (
               <div className="card" style={{padding:"10px 12px", marginTop:4, marginBottom:10,
-                   border:"1px solid rgba(224,118,74,0.35)"}}>
+                   border:"1px solid rgba(var(--accent-rgb),0.35)"}}>
                 <div className="small" style={{marginBottom:8}}>
                   This page carries on another menu: <strong>{tidyShoutedLabel(sectionHeading(contInfo.name))}</strong>.
                 </div>
@@ -29356,7 +29466,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                     before Save rather than quietly leaving two of them. */}
                 {!presetMenu && existingWithLabel(label) ? (
                   <div className="card" style={{marginTop:10, padding:"10px 12px",
-                       border:"1px solid rgba(224,118,74,0.35)"}}>
+                       border:"1px solid rgba(var(--accent-rgb),0.35)"}}>
                     <div className="small" style={{marginBottom:8}}>
                       There is already a menu called <strong>{existingWithLabel(label).label}</strong> here.
                     </div>
@@ -29382,7 +29492,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                 {previewMenus.length > 0 && (
                   <div className="card" style={{
                     padding:"10px 14px",marginTop:4,
-                    border:"1px solid rgba(224,118,74,0.35)"
+                    border:"1px solid rgba(var(--accent-rgb),0.35)"
                   }}>
                     <div className="tiny faint" style={{
                       textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:6
@@ -29415,7 +29525,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                   return (
                     <div key={i} className="card" style={{
                       padding:"12px 14px",marginBottom:8,
-                      borderColor:"rgba(224,118,74,0.25)"
+                      borderColor:"rgba(var(--accent-rgb),0.25)"
                     }}>
                       <div style={{marginBottom:8}}>
                         <div className="small" style={{fontWeight:600}}>
@@ -29476,7 +29586,7 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
             )}
             <button className="btn primary" onClick={save} disabled={!canSave}
               style={{marginTop:8}}>
-              <Icon name="check" size={18} color="#1b1714" />
+              <Icon name="check" size={18} color="var(--on-accent)" />
               {presetMenu
                 ? "Replace " + presetMenu.label + " menu"
                 : splitActive ? "Save " + splitMenus.length + " menus"
@@ -29856,7 +29966,7 @@ function PublishedVisit({data, onSaved, onLogVisit, replySlot, senderId}){
           only part of the page written FOR the person reading it. */}
       {data.msg ? (
         <div style={{margin:"14px auto 0", maxWidth:460, textAlign:"center",
-             fontFamily:"'Fraunces',serif", fontSize:18, lineHeight:1.4}}>
+             fontFamily:"var(--serif)", fontSize:18, lineHeight:1.4}}>
           &ldquo;{data.msg}&rdquo;
         </div>
       ) : null}
@@ -30045,7 +30155,7 @@ function PublishedVisit({data, onSaved, onLogVisit, replySlot, senderId}){
                 disabled={saveState === "saving"} onClick={logMyVisit}>
                 {saveState === "saving"
                   ? <span className="spin" />
-                  : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="plus" size={15} color="#1b1714" />I was there - log my visit</span>}
+                  : <span className="row" style={{gap:6, justifyContent:"center"}}><Icon name="plus" size={15} color="var(--on-accent)" />I was there - log my visit</span>}
               </button>
               <div className="tiny faint" style={{maxWidth:320}}>
                 <strong>Were you there too?</strong> You join this visit rather than start a
@@ -31995,7 +32105,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                        background:"var(--bg)", margin:"0 -16px 12px", padding:"calc(14px + env(safe-area-inset-top)) 16px 12px",
                        borderBottom:"1px solid var(--line-soft)"}}>
                     <button className="x" onClick={()=> setMenuPeek(false)}>Back</button>
-                    <div style={{fontFamily:"'Fraunces',serif", fontSize:19, fontWeight:600}}>
+                    <div style={{fontFamily:"var(--serif)", fontSize:19, fontWeight:600}}>
                       {restaurantName || (data && data.restaurant_name) || "Menu"}
                     </div>
                     <span style={{width:54}} />
@@ -32072,7 +32182,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
               </div>
             )}
             {confirmClose && (
-              <div className="card" style={{border:"1px solid rgba(217,96,78,0.4)", marginBottom:12}}>
+              <div className="card" style={{border:"1px solid rgba(var(--danger-rgb),0.4)", marginBottom:12}}>
                 <div className="small" style={{marginBottom:11}}>
                   Close this order? Guests won't be able to add or change items, and it leaves
                   your Active group orders. To keep collecting, leave it open instead.
@@ -32145,7 +32255,7 @@ function GroupOrderHost({cfg, menu, restaurantName, onClose, resumeCode, allMenu
                   <button className="btn primary" style={{width:"100%", marginTop:10}}
                     onClick={tellTheGroup}>
                     <span className="row" style={{gap:6, justifyContent:"center"}}>
-                      <Icon name="share" size={15} color="#1b1714" />Tell the group
+                      <Icon name="share" size={15} color="var(--on-accent)" />Tell the group
                     </span>
                   </button>
                 ) : null}
@@ -32781,7 +32891,7 @@ function VoteHost({code, shareUrl, cfg, profile, restaurants, onClose, onOpenRes
         <div style={{maxWidth:560, margin:"0 auto"}}>
           <button className="btn primary" style={{width:"100%"}} onClick={share}>
             <span className="row" style={{gap:6, justifyContent:"center"}}>
-              <Icon name="share" size={15} color="#1b1714" />Send the vote to your group
+              <Icon name="share" size={15} color="var(--on-accent)" />Send the vote to your group
             </span>
           </button>
           <div className="tiny faint" style={{marginTop:8, textAlign:"center"}}>
@@ -32915,7 +33025,7 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
         <div className="pub-kicker">
           {data.host_name ? data.host_name + " is asking" : "Where shall we eat?"}
         </div>
-        <div style={{fontFamily:"'Fraunces',serif", fontSize:24, fontWeight:600, lineHeight:1.15, marginTop:6}}>
+        <div style={{fontFamily:"var(--serif)", fontSize:24, fontWeight:600, lineHeight:1.15, marginTop:6}}>
           {isShut ? "The votes are in" : "Where shall we eat?"}
         </div>
         {data.title ? <div className="muted" style={{marginTop:8}}>{data.title}</div> : null}
@@ -32945,14 +33055,14 @@ function GroupVoteView({code, cfg, profile, onClose, onWinner}){
                 onClick={()=> toggle(id)}>
                 {isShut ? (
                   <div style={{position:"absolute", left:0, top:0, bottom:0, width:pct + "%",
-                               background:"rgba(224,118,74,0.13)"}} />
+                               background:"rgba(var(--accent-rgb),0.13)"}} />
                 ) : null}
                 {!isShut ? (
                   <div style={{width:22, height:22, borderRadius:6, flex:"none",
                        border:"1px solid " + (on ? "var(--accent)" : "var(--line)"),
                        background: on ? "var(--accent)" : "transparent",
                        display:"flex", alignItems:"center", justifyContent:"center"}}>
-                    {on ? <Icon name="check" size={14} color="#1b1714" /> : null}
+                    {on ? <Icon name="check" size={14} color="var(--on-accent)" /> : null}
                   </div>
                 ) : null}
                 <div style={{flex:1, minWidth:0, position:"relative"}}>
@@ -33327,7 +33437,7 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken, noNotify
       {hostNote ? (
         <div style={{margin:"0 0 16px", padding:"12px 14px", borderRadius:12,
              textAlign: hostNote.length > 60 || hostNote.indexOf("\n") !== -1 ? "left" : "center",
-             background:"rgba(224,118,74,0.10)", border:"1px solid rgba(224,118,74,0.35)"}}>
+             background:"rgba(var(--accent-rgb),0.10)", border:"1px solid rgba(var(--accent-rgb),0.35)"}}>
           <span className="tiny faint" style={{display:"block", marginBottom:4}}>
             {data.host_name ? "Note from " + data.host_name : "Note from the host"}
           </span>
@@ -33349,7 +33459,7 @@ function GroupOrderGuest({code, cfg, profile, onClose, asName, asToken, noNotify
           between a helpful host and finding out when the food arrives. */}
       {hostEdited && !passed ? (
         <div style={{margin:"0 0 14px", padding:"10px 14px", borderRadius:12,
-             background:"rgba(224,118,74,0.10)", border:"1px solid rgba(224,118,74,0.35)"}}>
+             background:"rgba(var(--accent-rgb),0.10)", border:"1px solid rgba(var(--accent-rgb),0.35)"}}>
           <div className="small" style={{fontWeight:600, marginBottom:2}}>
             The host adjusted your order
           </div>
@@ -34065,7 +34175,7 @@ function PublishedMenu({data, onSaved, onSendPicks, sendToName, replySlot, sende
           <div className="pub-cta-title" style={{textAlign:"left", marginBottom:8}}>A few dishes I love here</div>
           <div className="chips">
             {data.loved.map((n,i)=>(
-              <span key={i} className="chip" style={{background:"rgba(224,118,74,0.13)",
+              <span key={i} className="chip" style={{background:"rgba(var(--accent-rgb),0.13)",
                 color:"var(--accent)", fontWeight:600}}>{"♥ " + n}</span>
             ))}
           </div>
@@ -34473,7 +34583,7 @@ function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose, 
             <div className="row" style={{gap:8,marginTop:10}}>
               <button className="btn sm" onClick={copy}>{copied ? "Copied" : "Copy"}</button>
               <button className="btn primary sm" onClick={share}>
-                <Icon name="share" size={15} color="#1b1714" /> Share
+                <Icon name="share" size={15} color="var(--on-accent)" /> Share
               </button>
               {link.includes("?list=") && (
                 <button className="btn ghost sm" onClick={shorten} disabled={shortBusy}>
@@ -34499,7 +34609,7 @@ function PublishBuilder({restaurants, visits, menus, cfg, onPublished, onClose, 
           </div>
         ) : shown.map(r => (
           <div key={r.id} className={"pub-row" + (sel[r.id] ? " on" : "")} onClick={()=> toggle(r.id)}>
-            <span className="pub-check">{sel[r.id] ? <Icon name="check" size={14} color="#1b1714" /> : null}</span>
+            <span className="pub-check">{sel[r.id] ? <Icon name="check" size={14} color="var(--on-accent)" /> : null}</span>
             <span className="pub-row-tx">
               <span className="pub-row-n">{r.name}{r.favorite ? "  \u2605" : ""}</span>
               <span className="pub-row-s">
@@ -35237,6 +35347,94 @@ function applyTheme(key, setTheme){
   if (setTheme) setTheme(key);
 }
 
+/* THE NEW LOOK, preview only (1.593.0, the redesign's Stage 1). Chris, 2026-11-15, by card: build it
+   inside the real app behind "Try the new look" in Settings, Appearance, which only Chris and Kristin
+   see, so they watch it grow release by release while every member keeps today's look. One release
+   switches it on for everyone when every screen is done (REDESIGN-BUILD-PLAN-2026-11-15.md).
+   RULE: the preview is a per-DEVICE setting (localStorage: mc_look, mc_look_cw, mc_look_mode), not
+   the account's: trying it on the iPhone mustn't change Kristin's laptop mid-dinner, and nothing in
+   the account (meta.theme) is touched, so switching it off is exactly today's app again.
+   The colours themselves are CSS (search "THE NEW LOOK"); this only sets three attributes on <html>.
+   Road not taken: a server flag per account. It would need a backend release to add a tester, and the
+   preview list is two people. */
+const PREVIEW_LOOK_USER_IDS = [
+  "d77f993b-e453-4333-aef8-27503c8e6217",   // Chris (the owner)
+  "dffcef30-a290-4a30-a0a8-c4db959a98d6",   // Kristin (@kristingramlich), read from profiles 2026-11-20
+];
+function canPreviewLook(cfg){ return !!(cfg && PREVIEW_LOOK_USER_IDS.indexOf(cfg.userId) >= 0); }
+// The four colourways of the new look. Dots: the light ground, the dark ground, the accent.
+const LOOK_COLOURWAYS = [
+  { key:"brass", name:"Brass",       dots:["#ffffff","#0b0b0c","#d29a2c"] },
+  { key:"navy",  name:"Navy & Gold", dots:["#ffffff","#121621","#e7b24c"] },
+  { key:"capri", name:"Capri blue",  dots:["#ffffff","#0b0b0c","#55bcf7"] },
+  { key:"slate", name:"Slate",       dots:["#ffffff","#15181c","#6f9fc9"] },
+];
+const LOOK_MODES = [
+  { key:"light", name:"Light" },
+  { key:"dark",  name:"Dark" },
+  { key:"match", name:"Match my phone" },
+];
+// Decided by Chris, 2026-11-15: Navy & Gold stays Navy & Gold, Slate stays Slate, and Warm Brown,
+// Forest and Plum move to Brass. The preview starts from the account's scheme the same way.
+function lookColourwayFor(themeKey){ return themeKey === "navy" ? "navy" : themeKey === "slate" ? "slate" : "brass"; }
+function getLook(){
+  try {
+    const cw = localStorage.getItem("mc_look_cw");
+    const mode = localStorage.getItem("mc_look_mode");
+    return {
+      on: localStorage.getItem("mc_look") === "new",
+      cw: LOOK_COLOURWAYS.some(c => c.key === cw) ? cw : lookColourwayFor(currentTheme()),
+      mode: LOOK_MODES.some(m => m.key === mode) ? mode : "match",
+    };
+  } catch(e){ return { on:false, cw:"brass", mode:"match" }; }
+}
+function lookIsDark(mode){
+  if (mode === "dark") return true;
+  if (mode === "light") return false;
+  try { return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches); } catch(e){ return false; }
+}
+// The browser's own bar colour follows the page (Safari's tab bar, Android's status bar). Today's
+// look keeps its fixed #1b1714, as before.
+function setThemeColorMeta(){
+  try {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) return;
+    const on = document.documentElement.getAttribute("data-look") === "new";
+    const bg = on ? getComputedStyle(document.documentElement).getPropertyValue("--n-bg").trim() : "";
+    meta.setAttribute("content", bg || "#1b1714");
+  } catch(e){}
+}
+function applyLook(look){
+  const el = document.documentElement;
+  if (!look || !look.on){
+    el.removeAttribute("data-look"); el.removeAttribute("data-cw"); el.removeAttribute("data-mode");
+  } else {
+    el.setAttribute("data-look", "new");
+    el.setAttribute("data-cw", look.cw);
+    el.setAttribute("data-mode", lookIsDark(look.mode) ? "dark" : "light");
+  }
+  setThemeColorMeta();
+}
+function setLook(patch){
+  const next = Object.assign({}, getLook(), patch || {});
+  try {
+    if (next.on) localStorage.setItem("mc_look", "new"); else localStorage.removeItem("mc_look");
+    localStorage.setItem("mc_look_cw", next.cw);
+    localStorage.setItem("mc_look_mode", next.mode);
+  } catch(e){}
+  applyLook(next);
+  return next;
+}
+// "Match my phone" follows the phone when it changes (sunset, Control Center), not only at load.
+try {
+  if (window.matchMedia){
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const follow = ()=>{ const l = getLook(); if (l.on && l.mode === "match") applyLook(l); };
+    if (mq.addEventListener) mq.addEventListener("change", follow); else if (mq.addListener) mq.addListener(follow);
+  }
+  setThemeColorMeta();   // the head script set the attributes before paint; the bar colour needs the CSS read
+} catch(e){}
+
 // Which tab the app opens to. User-configurable in Settings; defaults to
 // Places. Stored locally (a per-device UI preference, not synced data).
 const DEFAULT_TABS = [
@@ -35620,12 +35818,12 @@ function ReportSheet({cfg, kind, targetId, targetUser, what, onClose}){
         <div className="grip" />
         {done ? (
           <div style={{textAlign:"center", padding:"14px 0"}}>
-            <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:6}}>Thank you</div>
+            <div style={{fontFamily:"var(--serif)", fontSize:19, marginBottom:6}}>Thank you</div>
             <div className="small muted">We have it, and we will look at it.</div>
           </div>
         ) : (
           <>
-            <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:2}}>Report this</div>
+            <div style={{fontFamily:"var(--serif)", fontSize:19, marginBottom:2}}>Report this</div>
             <div className="tiny faint" style={{marginBottom:12}}>{what || "Tell us what is wrong"}</div>
             {REPORT_REASONS.map(r => (
               <div key={r.id} className="pick-row" style={{display:"flex", alignItems:"center", gap:10}}
@@ -35761,7 +35959,7 @@ function SentBeforeNote({ sentBefore, what }){
   if (!n) return null;
   return (
     <div className="small sent-before-note" style={{margin:"0 0 10px", padding:"8px 10px", borderRadius:10,
-         background:"rgba(224,118,74,0.10)", border:"1px solid rgba(224,118,74,0.35)"}}>
+         background:"rgba(var(--accent-rgb),0.10)", border:"1px solid rgba(var(--accent-rgb),0.35)"}}>
       {"You already sent this " + what + " to " + n + (n === 1 ? " friend" : " friends") +
        ". They're marked below, and only the friends you tick get it."}
     </div>
@@ -36134,7 +36332,7 @@ function ConnRow({c, primaryBtn, onPrimary, secondaryBtn, onSecondary, busy, sub
         <div className="sheet-bg" onClick={()=> setSafety("")}>
           <div className="sheet" onClick={e=> e.stopPropagation()}>
             <div className="grip" />
-            <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:2}}>
+            <div style={{fontFamily:"var(--serif)", fontSize:19, marginBottom:2}}>
               {connLabel(c).primary}
             </div>
             <div className="tiny faint" style={{marginBottom:12}}>
@@ -37255,7 +37453,7 @@ function ReplySheet({cfg, thread, start, onClose, onChanged}){
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" onClick={e=> e.stopPropagation()}>
         <div className="grip" />
-        <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:2}}>{name}</div>
+        <div style={{fontFamily:"var(--serif)", fontSize:19, marginBottom:2}}>{name}</div>
         <div className="tiny faint" style={{marginBottom:12}}>About {subject.title || "something shared"}</div>
         <ReplyThread cfg={cfg} thread={thread} toUserId={thread ? thread.with_user_id : start.toUserId} toName={name}
           subject={subject} canReact={!!(start && start.canReact)}
@@ -37285,7 +37483,7 @@ function VisitShareSheet({cfg, visit, restaurant, menuList, onClose, onLinkShare
     <div className="sheet-bg" onClick={onClose}>
       <div className="sheet" onClick={e=> e.stopPropagation()}>
         <div className="grip" />
-        <div style={{fontFamily:"'Fraunces',serif", fontSize:19, marginBottom:2}}>Share your visit</div>
+        <div style={{fontFamily:"var(--serif)", fontSize:19, marginBottom:2}}>Share your visit</div>
         <div className="tiny faint" style={{marginBottom:12}}>{place}</div>
         <label className="fld" style={{marginBottom:11}}>
           <span className="lbl">Say something about it</span>
@@ -37405,7 +37603,7 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
       style={{width:"100%", display:"flex", alignItems:"center", gap:13, padding:"13px 14px",
               marginBottom:9, textAlign:"left"}}>
       <span style={{width:38, height:38, borderRadius:11, flex:"none", display:"flex",
-            alignItems:"center", justifyContent:"center", background:"rgba(224,118,74,0.12)"}}>
+            alignItems:"center", justifyContent:"center", background:"rgba(var(--accent-rgb),0.12)"}}>
         {busy ? <span className="spin" /> : <Icon name={icon} size={18} color="var(--accent)" />}
       </span>
       <span style={{flex:1, minWidth:0}}>
@@ -37424,7 +37622,7 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
         {view === "main" ? (
           <>
             <div className="pub-kicker" style={{textAlign:"left", margin:"0 0 2px"}}>{restaurant.name || "This place"}</div>
-            <div style={{fontFamily:"'Fraunces',serif", fontSize:22, fontWeight:600, lineHeight:1.1, marginBottom:14}}>
+            <div style={{fontFamily:"var(--serif)", fontSize:22, fontWeight:600, lineHeight:1.1, marginBottom:14}}>
               Share this place
             </div>
             <ShareToConnectionButton cfg={cfg} restaurant={restaurant} menuList={menuList} wide
@@ -37462,7 +37660,7 @@ function ShareSheet({cfg, restaurant, menuList, onClose, onShared, initialView, 
         ) : (
           <>
             <div className="pub-kicker" style={{textAlign:"left", margin:"0 0 2px"}}>{restaurant.name || "This place"}</div>
-            <div style={{fontFamily:"'Fraunces',serif", fontSize:22, fontWeight:600, lineHeight:1.1, marginBottom:8}}>
+            <div style={{fontFamily:"var(--serif)", fontSize:22, fontWeight:600, lineHeight:1.1, marginBottom:8}}>
               Add to the community
             </div>
             <div className="small muted" style={{marginBottom:12}}>
@@ -37602,7 +37800,7 @@ function ShareToConnectionButton({cfg, restaurant, menuList, wide, lovedDishes, 
                   marginBottom:9, textAlign:"left"}}
           title="Send this place to a connection">
           <span style={{width:38, height:38, borderRadius:11, flex:"none", display:"flex",
-                alignItems:"center", justifyContent:"center", background:"rgba(224,118,74,0.12)"}}>
+                alignItems:"center", justifyContent:"center", background:"rgba(var(--accent-rgb),0.12)"}}>
             <Icon name="nodes" size={18} color="var(--accent)" />
           </span>
           <span style={{flex:1, minWidth:0}}>
@@ -38191,7 +38389,7 @@ function ShareInbox({config, onClose, onHome, onLogVisit, onKeepDoor, onOpenVisi
               <SwipeToDelete key={s.id} onDelete={()=> remove(s.id)}>
                 <div className="card" style={{display:"flex", alignItems:"center", gap:10}}>
                   <span style={{width:34, height:34, borderRadius:10, flex:"none", display:"flex",
-                        alignItems:"center", justifyContent:"center", background:"rgba(224,118,74,0.12)"}}>
+                        alignItems:"center", justifyContent:"center", background:"rgba(var(--accent-rgb),0.12)"}}>
                     <Icon name="people" size={17} color="var(--accent)" />
                   </span>
                   <div style={{flex:1, minWidth:0}}>
@@ -38489,6 +38687,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
     return LOG_BUFFER.filter(l => /\[(ERROR|FINDMENU|WEBMENU|SCAN|VISION|SHAREDVISIT|SESSION)\]/.test(l)).slice(-60);
   }
   const [theme,setTheme]     = useState(currentTheme());
+  const [look,setLookUi]     = useState(getLook);        // the new look's preview (1.593.0)
   const [defTab,setDefTab]   = useState(getDefaultTab);   // which tab the app opens to
   const [showPrint,setShowPrint] = useState(false);   // printable-history overlay
   const [expMsg,setExpMsg]       = useState("");      // export error message, if any
@@ -38695,7 +38894,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                         opacity: used > 0 ? 0.4 : 1}}
                         onClick={()=> onDeleteLocation(loc)}
                         title={used > 0 ? "In use - move restaurants first" : "Delete"}>
-                        <Icon name="trash" size={15} color={used>0 ? "#80715f" : "#d9604e"} />
+                        <Icon name="trash" size={15} color={used>0 ? "var(--icon-dim)" : "#d9604e"} />
                       </button>
                     </React.Fragment>
                   )}
@@ -38801,6 +39000,44 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       ) : null}
 
       <div className="set-group">Appearance</div>
+      {canPreviewLook(config) ? (
+        /* The new look's preview (1.593.0): only the preview list sees this card. While it's on, the
+           new colourways replace today's list below; the account's own scheme is left alone. */
+        <div className="card look-card">
+          <div className="look-row">
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontWeight:600}}>Try the new look</div>
+              <div className="tiny faint" style={{marginTop:2, lineHeight:1.5}}>
+                Only you and Kristin see this. It's being built, so some screens still show today's colours.
+              </div>
+            </div>
+            <button type="button" className={"mc-switch" + (look.on ? " on" : "")} role="switch"
+              aria-checked={look.on} aria-label="Try the new look"
+              onClick={()=> setLookUi(setLook({ on: !look.on }))} />
+          </div>
+          {look.on ? (
+            <>
+              <div className="look-seg" role="radiogroup" aria-label="Light or dark">
+                {LOOK_MODES.map(m => (
+                  <button key={m.key} type="button" role="radio" aria-checked={look.mode === m.key}
+                    className={"look-seg-b" + (look.mode === m.key ? " on" : "")}
+                    onClick={()=> setLookUi(setLook({ mode: m.key }))}>{m.name}</button>
+                ))}
+              </div>
+              {LOOK_COLOURWAYS.map(c => (
+                <div key={c.key} className="theme-row" onClick={()=> setLookUi(setLook({ cw: c.key }))}>
+                  <div className="theme-dots">
+                    {c.dots.map((d,i)=> <span key={i} className="theme-dot" style={{background:d}} />)}
+                  </div>
+                  <div className="theme-name">{c.name}</div>
+                  {look.cw === c.key ? <span className="theme-check">{"\u2713"}</span> : null}
+                </div>
+              ))}
+            </>
+          ) : null}
+        </div>
+      ) : null}
+      {!(canPreviewLook(config) && look.on) ? (
       <div className="card">
         {THEMES.map(t => {
           const on = theme === t.key;
@@ -38816,6 +39053,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           );
         })}
       </div>
+      ) : null}
 
       <div className="set-group">Startup</div>
       <div className="card">
@@ -38888,7 +39126,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       <div className="updrow">
         {updateVersion ? (
           <button className="btn primary sm" onClick={onApplyUpdate}>
-            <Icon name="check" size={15} color="#1b1714" />
+            <Icon name="check" size={15} color="var(--on-accent)" />
             Update to v{updateVersion}
           </button>
         ) : (
@@ -38902,7 +39140,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       <div className="card" style={{marginTop:12}}>
         <div className="between" onClick={()=> setShowBlocks(b=>!b)} style={{cursor:"pointer"}}>
           <div style={{fontWeight:600}}>Blocked people</div>
-          <Chevron open={showBlocks} size={17} color="#80715f" />
+          <Chevron open={showBlocks} size={17} color="var(--icon-dim)" />
         </div>
         {showBlocks && (
           <div style={{marginTop:11}}>
@@ -38936,7 +39174,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
         <div className="card" style={{marginTop:12}}>
           <div className="between" onClick={()=> setShowLog(s=>!s)} style={{cursor:"pointer"}}>
             <div style={{fontWeight:600}}>Diagnostics</div>
-            <Chevron open={showLog} size={17} color="#80715f" />
+            <Chevron open={showLog} size={17} color="var(--icon-dim)" />
           </div>
           {showLog && (
             <div style={{marginTop:11}}>
@@ -38977,7 +39215,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       <div className="card" style={{marginTop:12}}>
         <div className="between" onClick={()=> setShowDel(s=>!s)} style={{cursor:"pointer"}}>
           <div style={{fontWeight:600,color:"#e7a99e"}}>Delete account</div>
-          <Chevron open={showDel} size={17} color="#80715f" />
+          <Chevron open={showDel} size={17} color="var(--icon-dim)" />
         </div>
         {showDel && (
           <div style={{marginTop:11}}>
@@ -39130,7 +39368,7 @@ function ResetPasswordScreen({accessToken, refreshToken, expiresIn}){
           </div>
         )}
         <button className="btn primary" disabled={busy} onClick={applyNewPassword}>
-          {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
+          {busy ? <span className="spin" /> : <Icon name="check" size={18} color="var(--on-accent)" />}
           {busy ? "Saving..." : "Set new password"}
         </button>
         {expired && (
@@ -39381,7 +39619,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           place or signed out of their account. They have not: this browser has
           simply never been signed in, and after this once it will be. */}
       {!asOverlay && mode === "signin" && arrivedFor ? (
-        <div className="card" style={{marginBottom:16, border:"1px solid rgba(224,118,74,0.45)"}}>
+        <div className="card" style={{marginBottom:16, border:"1px solid rgba(var(--accent-rgb),0.45)"}}>
           <div style={{fontWeight:600, marginBottom:6}}>
             {arrivedFor === "connections"
               ? "Sign in to see your friend requests"
@@ -39401,7 +39639,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
           and reads it as "it wants me to make a new account". Say what is
           going on, and point at Sign in. */}
       {!asOverlay && mode === "signin" && !arrivedFor && isStandalone() ? (
-        <div className="card" style={{marginBottom:16, border:"1px solid rgba(224,118,74,0.45)"}}>
+        <div className="card" style={{marginBottom:16, border:"1px solid rgba(var(--accent-rgb),0.45)"}}>
           <div style={{fontWeight:600, marginBottom:6}}>Already have an account? Sign in below</div>
           <div className="tiny muted" style={{lineHeight:1.6}}>
             MenuCaptain on your Home Screen keeps its own sign-in, separate from Safari, so it
@@ -39494,7 +39732,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
               </div>
               <button type="button" className="btn primary" style={{marginBottom:8}}
                 onClick={()=> useSuggestedEmail()}>
-                <Icon name="check" size={18} color="#1b1714" />Use {emailDomainSuggestion(email)}
+                <Icon name="check" size={18} color="var(--on-accent)" />Use {emailDomainSuggestion(email)}
               </button>
               <button type="button" className="btn ghost sm" disabled={busy}
                 style={{marginLeft:"auto", marginRight:"auto"}}
@@ -39506,7 +39744,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
             <>
               <button type="button" className="btn primary" disabled={busy}
                 onClick={()=> signUp(true)}>
-                {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
+                {busy ? <span className="spin" /> : <Icon name="check" size={18} color="var(--on-accent)" />}
                 {busy ? "Creating..." : "Yes, create my account"}
               </button>
               <button type="button" className="btn ghost sm"
@@ -39526,7 +39764,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       ) : null}
       {!(mode === "signup" && readBack) ? (
       <button className="btn primary" disabled={busy} onClick={primary.fn}>
-        {busy ? <span className="spin" /> : <Icon name="check" size={18} color="#1b1714" />}
+        {busy ? <span className="spin" /> : <Icon name="check" size={18} color="var(--on-accent)" />}
         {busy ? primary.busyLabel : primary.label}
       </button>
       ) : null}
@@ -39597,12 +39835,12 @@ class ErrorBoundary extends React.Component {
              fontFamily:"system-ui, sans-serif", textAlign:"center"}}>
           <div style={{maxWidth:340}}>
             <div style={{fontSize:40, marginBottom:10}}>{"⚠️"}</div>
-            <div style={{fontFamily:"'Fraunces', serif", fontSize:22, marginBottom:8}}>Something went wrong</div>
+            <div style={{fontFamily:"var(--serif)", fontSize:22, marginBottom:8}}>Something went wrong</div>
             <div style={{fontSize:14, color:"#b3a591", lineHeight:1.5, marginBottom:18}}>
               The app hit an unexpected error. Reloading usually fixes it - your data is safe in your account.
             </div>
             <button onClick={()=> location.reload()}
-              style={{background:"var(--accent)", color:"#1b1714", border:"none", borderRadius:10,
+              style={{background:"var(--accent)", color:"var(--on-accent)", border:"none", borderRadius:10,
                       padding:"12px 22px", fontSize:15, fontWeight:600, cursor:"pointer"}}>Reload</button>
             <div style={{fontSize:12, color:"#80715f", marginTop:16}}>
               If it keeps happening, email support@menucaptain.com
