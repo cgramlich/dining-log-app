@@ -497,6 +497,21 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
     an outlined square +;
   - notices as hairline rows with the icon in a thin accent ring (`--on-accent` is redefined inside
     them so their icons are ink).
+- **Media's check of 1.593.0 (2026-11-21):** `CG Apps/MenuCaptain/Design review 2026-11/stage-1-checks.md`,
+  colours measured from the captures, 11 differences. The base is right (grounds, soft fills, Chris's two
+  values, page titles, notices, tab bar, the selected segment, members unchanged). Confirmed in the code:
+  - second lines read too faint because today's `--text-faint` (124 places, readable on Warm Brown) maps
+    to the new `--n-faint`; the kit puts running text in `--dim` and keeps `--faint` off text;
+  - the "Already at the restaurant?" card is tinted by an inline `rgba(var(--accent-rgb),0.08)` fill;
+    the kit has no tinted surfaces;
+  - links and many icons use `var(--accent)` (389 places), so brass is on text below 4.5:1; the kit keeps
+    brass for rings, the tab dot and the count badge, links and icons in ink, links ending in an arrow;
+  - the switch is a brass pill (kit: solid ink), and headings below the page title are Outfit bold
+    (kit: Instrument Serif).
+  Also: grey capitals where the kit has sentence case, notice second lines near-ink, two tab icons
+  (target, two people) where the kit has a pin and one person. PROPOSED to Chris, not decided: fix these
+  role mappings as 1.593.1 before release 2's shapes; Places controls and the Appearance swatches go
+  with release 2, the Places and Settings header buttons with release 3.
 - **Next (release 2):**
   - the remaining typed-in colours (white overlays meant for dark grounds, about 20, and the rest);
   - square corners, hairline rows instead of boxes inside boxes, underline fields, sheets.
