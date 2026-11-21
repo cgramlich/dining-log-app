@@ -512,6 +512,12 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
   (target, two people) where the kit has a pin and one person. PROPOSED to Chris, not decided: fix these
   role mappings as 1.593.1 before release 2's shapes; Places controls and the Appearance swatches go
   with release 2, the Places and Settings header buttons with release 3.
+  **Home's door, two states** (DESIGN-MOMENTS M1, Chris 2026-11-17 "Type only"; Media confirmed 2026-11-21):
+  with a visit photo of your own, the door is that photo edge to edge with the serif heading and a white
+  "Let's go" (board t01); with none, it is type only, permanently, with no house photo (t01b, `.tdoor`;
+  tn2c on first open). It is NOT the welcome photo, which is only the signed-out welcome screen (tn2,
+  Stage 3). 1.593.1 would show t01b to everyone as a stopgap until the photo door is built; that release
+  sends Media a capture of both states.
 - **Next (release 2):**
   - the remaining typed-in colours (white overlays meant for dark grounds, about 20, and the rest);
   - square corners, hairline rows instead of boxes inside boxes, underline fields, sheets.
