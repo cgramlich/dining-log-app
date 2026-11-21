@@ -24,7 +24,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 |---|---|---|
 | Web app | **1.593.0** | menucaptain.com (GitHub Pages), released 2026-11-21 from the Mac (the new look's preview for Chris and Kristin, the redesign's Stage 1, release 1; members unchanged) |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
-| Native shell | **1.592.0** | rebuilt on the Mac from web 1.592.0 (2026-11-16 UTC, `ab0647f`), iOS fixes since `c022055`, on Chris's iPhone from 1.591.0, **not yet submitted to any store** |
+| Native shell | **1.593.0** | rebuilt on the Mac from web 1.593.0 (2026-11-21, `edbd61f`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
