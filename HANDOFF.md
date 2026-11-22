@@ -24,7 +24,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 |---|---|---|
 | Web app | **1.595.0** | menucaptain.com (GitHub Pages), released 2026-11-22 from the Mac (the new look's preview, Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
-| Native shell | **1.594.0** | rebuilt on the Mac from web 1.594.0 (2026-11-22, `46c9644`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
+| Native shell | **1.595.0** | rebuilt on the Mac from web 1.595.0 (2026-11-22, `b5335a5`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -549,7 +549,8 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 
 ### The new look's preview: Stage 1, release 3 (2026-11-22, app 1.595.0)
 
-Chris, 2026-11-22: "keep going" after release 2. Preview only; members unchanged (`Test harness/test_15950.py`,
+Chris, 2026-11-22: "keep going" after release 2; released 2026-11-22 ("Yes, put it live"): web `b6b038d`,
+confirmed live; native `b5335a5` (without the status-bar package). Preview only; members unchanged (`Test harness/test_15950.py`,
 41 checks, 18 member screens pixel for pixel against 1.594.0).
 
 - **The bar (kit t01b, t03, t17; Media's item 11):** `NewLookBar` draws the wordmark (the kit's ink helm,
