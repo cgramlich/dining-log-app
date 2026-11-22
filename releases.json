@@ -567,5 +567,13 @@
     "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
     "welcome": "n/a: preview only",
     "handoff": "updated: version rows, decision entry (the new look's preview), BRIEFING, Log 2026-11-21a"
+  },
+  "1.593.1": {
+    "what": "Preview only, for Chris and Kristin: the new look now follows the style kit, after Media's check of 1.593.0 (items 1 to 8; Chris: \"Yes, fixes first\"). Second lines in the readable grey, links and icons in ink ending in an arrow, brass only on small details, a solid ink switch, serif headings and sentence case, Home's type-only door, notices under Home's top bar, and a map pin and one person in the tab bar. Members see no change: checked pixel for pixel against 1.593.0.",
+    "guide": "n/a: preview only (Chris and Kristin); the guide changes when the new look is switched on for everyone",
+    "promo": "n/a: preview only, members see nothing new",
+    "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
+    "welcome": "n/a: preview only",
+    "handoff": "updated: version rows, decision entry (the new look's kit fixes), BRIEFING, Log 2026-11-21b"
   }
 }

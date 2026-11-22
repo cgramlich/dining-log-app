@@ -99,13 +99,13 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       --n-brass-metal:linear-gradient(135deg,#4a3109 0%,#b8821f 16%,#f0c04a 30%,#ffe9a0 40%,#c58f26 52%,#5a3b0a 68%,#d29a2c 84%,#7a5210 100%);
       --n-steel:linear-gradient(135deg,#22384f 0%,#4f7fab 16%,#8fb6db 30%,#cfe1f2 40%,#5f8db8 52%,#2a4560 68%,#6f9fc9 84%,#38587a 100%);
       /* Brass (the default): neutral white and near-black, brass details */
-      --nl-bg:#fff; --nl-ink:#000; --nl-dim:#646b78; --nl-faint:#8b929e; --nl-line:#e2e4e8; --nl-soft:#f3f4f6; --nl-solid:#000; --nl-onsolid:#fff; --nl-danger:#b42318; --nl-accent:var(--n-brass-metal); --nl-accent-flat:#a8741a; --nl-onaccent:#000; --nl-accent-rgb:168,116,26; --nl-danger-rgb:180,35,24;
-      --nd-bg:#0b0b0c; --nd-ink:#f4f4f5; --nd-dim:#a1a1aa; --nd-faint:#71717a; --nd-line:#27272a; --nd-soft:#161618; --nd-solid:#f4f4f5; --nd-onsolid:#0b0b0c; --nd-danger:#f97066; --nd-accent:var(--n-brass-metal); --nd-accent-flat:#d29a2c; --nd-onaccent:#0b0b0c; --nd-edge:#3a3a3f; --nd-accent-rgb:210,154,44; --nd-danger-rgb:249,112,102;
+      --nl-bg:#fff; --nl-ink:#000; --nl-dim:#646b78; --nl-faint:#8b929e; --nl-line:#e2e4e8; --nl-soft:#f3f4f6; --nl-solid:#000; --nl-onsolid:#fff; --nl-danger:#b42318; --nl-accent:var(--n-brass-metal); --nl-accent-flat:#a8741a; --nl-onaccent:#000; --nl-accent-rgb:168,116,26; --nl-danger-rgb:180,35,24; --nl-ink-rgb:0,0,0;
+      --nd-bg:#0b0b0c; --nd-ink:#f4f4f5; --nd-dim:#a1a1aa; --nd-faint:#71717a; --nd-line:#27272a; --nd-soft:#161618; --nd-solid:#f4f4f5; --nd-onsolid:#0b0b0c; --nd-danger:#f97066; --nd-accent:var(--n-brass-metal); --nd-accent-flat:#d29a2c; --nd-onaccent:#0b0b0c; --nd-edge:#3a3a3f; --nd-accent-rgb:210,154,44; --nd-danger-rgb:249,112,102; --nd-ink-rgb:244,244,245;
     }
     /* Navy & Gold: today's navy ground at night, navy ink by day, gold (brass) details */
     :root[data-look="new"][data-cw="navy"]{
-      --nl-ink:#131b2e; --nl-dim:#56627a; --nl-faint:#8794a8; --nl-line:#e0e5ee; --nl-soft:#f0f3f8; --nl-solid:#131b2e;
-      --nd-bg:#121621; --nd-ink:#eef2f8; --nd-dim:#aab6c8; --nd-faint:#8291a6; --nd-line:#2b3647; --nd-soft:#1c2433; --nd-solid:#eef2f8; --nd-onsolid:#121621; --nd-edge:#334053; --nd-accent-flat:#e7b24c; --nd-onaccent:#121621; --nd-accent-rgb:231,178,76;
+      --nl-ink:#131b2e; --nl-dim:#56627a; --nl-faint:#8794a8; --nl-line:#e0e5ee; --nl-soft:#f0f3f8; --nl-solid:#131b2e; --nl-ink-rgb:19,27,46;
+      --nd-bg:#121621; --nd-ink:#eef2f8; --nd-dim:#aab6c8; --nd-faint:#8291a6; --nd-line:#2b3647; --nd-soft:#1c2433; --nd-solid:#eef2f8; --nd-onsolid:#121621; --nd-edge:#334053; --nd-accent-flat:#e7b24c; --nd-onaccent:#121621; --nd-accent-rgb:231,178,76; --nd-ink-rgb:238,242,248;
     }
     /* Capri blue (Kristin's Upscale): neutral grounds, flat Capri details; deep Capri by day,
        Capri sky at night (sky is a fill with dark text, never text itself) */
@@ -114,32 +114,42 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     }
     /* Slate: today's slate ground at night, slate ink by day, steel details */
     :root[data-look="new"][data-cw="slate"]{
-      --nl-ink:#1c2229; --nl-dim:#5b6673; --nl-faint:#89939f; --nl-line:#e0e4e9; --nl-soft:#f1f3f5; --nl-solid:#1c2229; --nl-accent:var(--n-steel); --nl-accent-flat:#3f6f9c; --nl-onaccent:#fff; --nl-accent-rgb:63,111,156;
-      --nd-bg:#15181c; --nd-ink:#eef1f4; --nd-dim:#aab2bd; --nd-faint:#828b98; --nd-line:#2c323b; --nd-soft:#20252c; --nd-solid:#eef1f4; --nd-onsolid:#15181c; --nd-edge:#39414c; --nd-accent:var(--n-steel); --nd-accent-flat:#6f9fc9; --nd-onaccent:#15181c; --nd-accent-rgb:111,159,201;
+      --nl-ink:#1c2229; --nl-dim:#5b6673; --nl-faint:#89939f; --nl-line:#e0e4e9; --nl-soft:#f1f3f5; --nl-solid:#1c2229; --nl-accent:var(--n-steel); --nl-accent-flat:#3f6f9c; --nl-onaccent:#fff; --nl-accent-rgb:63,111,156; --nl-ink-rgb:28,34,41;
+      --nd-bg:#15181c; --nd-ink:#eef1f4; --nd-dim:#aab2bd; --nd-faint:#828b98; --nd-line:#2c323b; --nd-soft:#20252c; --nd-solid:#eef1f4; --nd-onsolid:#15181c; --nd-edge:#39414c; --nd-accent:var(--n-steel); --nd-accent-flat:#6f9fc9; --nd-onaccent:#15181c; --nd-accent-rgb:111,159,201; --nd-ink-rgb:238,241,244;
     }
     /* The mode picks a set (light unless data-mode="dark"; "Match my phone" is resolved in
        applyLook, which sets data-mode from the phone's setting and follows it as it changes). */
     :root[data-look="new"]{
-      --n-bg:var(--nl-bg); --n-ink:var(--nl-ink); --n-dim:var(--nl-dim); --n-faint:var(--nl-faint); --n-line:var(--nl-line); --n-soft:var(--nl-soft); --n-solid:var(--nl-solid); --n-onsolid:var(--nl-onsolid); --n-danger:var(--nl-danger); --n-accent:var(--nl-accent); --n-accent-flat:var(--nl-accent-flat); --n-onaccent:var(--nl-onaccent); --n-accent-rgb:var(--nl-accent-rgb); --n-danger-rgb:var(--nl-danger-rgb); --n-sheet:var(--nl-bg); --n-sheet-edge:var(--nl-line);
+      --n-bg:var(--nl-bg); --n-ink:var(--nl-ink); --n-dim:var(--nl-dim); --n-faint:var(--nl-faint); --n-line:var(--nl-line); --n-soft:var(--nl-soft); --n-solid:var(--nl-solid); --n-onsolid:var(--nl-onsolid); --n-danger:var(--nl-danger); --n-accent:var(--nl-accent); --n-accent-flat:var(--nl-accent-flat); --n-onaccent:var(--nl-onaccent); --n-accent-rgb:var(--nl-accent-rgb); --n-danger-rgb:var(--nl-danger-rgb); --n-ink-rgb:var(--nl-ink-rgb); --n-sheet:var(--nl-bg); --n-sheet-edge:var(--nl-line);
       color-scheme:light;
     }
     :root[data-look="new"][data-mode="dark"]{
-      --n-bg:var(--nd-bg); --n-ink:var(--nd-ink); --n-dim:var(--nd-dim); --n-faint:var(--nd-faint); --n-line:var(--nd-line); --n-soft:var(--nd-soft); --n-solid:var(--nd-solid); --n-onsolid:var(--nd-onsolid); --n-danger:var(--nd-danger); --n-accent:var(--nd-accent); --n-accent-flat:var(--nd-accent-flat); --n-onaccent:var(--nd-onaccent); --n-accent-rgb:var(--nd-accent-rgb); --n-danger-rgb:var(--nd-danger-rgb); --n-sheet:var(--nd-soft); --n-sheet-edge:var(--nd-edge);
+      --n-bg:var(--nd-bg); --n-ink:var(--nd-ink); --n-dim:var(--nd-dim); --n-faint:var(--nd-faint); --n-line:var(--nd-line); --n-soft:var(--nd-soft); --n-solid:var(--nd-solid); --n-onsolid:var(--nd-onsolid); --n-danger:var(--nd-danger); --n-accent:var(--nd-accent); --n-accent-flat:var(--nd-accent-flat); --n-onaccent:var(--nd-onaccent); --n-accent-rgb:var(--nd-accent-rgb); --n-danger-rgb:var(--nd-danger-rgb); --n-ink-rgb:var(--nd-ink-rgb); --n-sheet:var(--nd-soft); --n-sheet-edge:var(--nd-edge);
       color-scheme:dark;
     }
     /* Today's names, pointed at the new values. --surface-2 (chips, fields, the second tier of a
-       box) has no drawing of its own yet: a whisker darker than --soft, from the ink. The flat
-       accent stands in for --accent because today's --accent is used as a colour (text, borders),
-       where a gradient can't go. RULE: this block must come AFTER the data-theme palettes above:
-       both are two-attribute rules on :root, so the later one wins when an account's old scheme
-       (data-theme) is still set underneath the preview. */
+       box) has no drawing of its own yet: a whisker darker than --soft, from the ink.
+       Two roles fixed in 1.593.1 after Media checked 1.593.0 against the kit
+       (Design review 2026-11/stage-1-checks.md, items 1 and 3):
+       - --text-faint is --dim, not --faint. Today's app writes nearly every second line in
+         --text-faint (124 places); the kit says second lines are --dim and --faint is never running
+         text, only placeholders and disabled things (those get --n-faint by name below).
+       - --accent is the INK. Today's --accent paints links, icons, ticks and switches (389 places);
+         the kit draws all of those in ink and keeps the colourway's paint for small details only
+         (rings, the tab dot, the count badge), which use --n-accent by name. Road not taken: the
+         flat brass from 1.593.0, which read at 4.06:1 on white, under the 4.5:1 text needs.
+         --on-accent follows: what sits on an ink fill is the page colour. --accent-rgb follows the
+         ink too, so today's light tints become quiet neutral greys rather than cream and sand.
+       RULE: this block must come AFTER the data-theme palettes above: both are two-attribute rules
+       on :root, so the later one wins when an account's old scheme (data-theme) is still set
+       underneath the preview. */
     :root[data-look="new"]{
       --bg:var(--n-bg); --bg-2:var(--n-bg); --surface:var(--n-soft); --surface-2:color-mix(in srgb, var(--n-ink) 7%, var(--n-bg));
       --line:var(--n-line); --line-soft:var(--n-line);
-      --text:var(--n-ink); --text-dim:var(--n-dim); --text-faint:var(--n-faint);
-      --accent:var(--n-accent-flat); --accent-dim:var(--n-accent-flat);
-      --danger:var(--n-danger); --on-accent:var(--n-onaccent); --icon-dim:var(--n-dim);
-      --accent-rgb:var(--n-accent-rgb); --danger-rgb:var(--n-danger-rgb);
+      --text:var(--n-ink); --text-dim:var(--n-dim); --text-faint:var(--n-dim);
+      --accent:var(--n-ink); --accent-dim:var(--n-ink);
+      --danger:var(--n-danger); --on-accent:var(--n-onsolid); --icon-dim:var(--n-dim);
+      --accent-rgb:var(--n-ink-rgb); --danger-rgb:var(--n-danger-rgb);
       --serif:'Instrument Serif',Georgia,serif;
       --shadow:0 6px 24px rgba(0,0,0,0.10);
     }
@@ -162,6 +172,54 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     :root[data-look="new"] .req-banner-ic{ border:1.5px solid transparent;
       background:linear-gradient(var(--n-bg),var(--n-bg)) padding-box, var(--n-accent) border-box; }
     :root[data-look="new"] .req-banner-x{ background:transparent; }
+    /* ---- 1.593.1: the rest of Media's check of 1.593.0 (items 1 to 8). Every rule here is scoped
+       to the new look; members never match them. The few !important marks beat inline styles the
+       shared screens carry today (a font weight, an opacity); release 2 moves those into classes. */
+    /* Placeholders keep --faint: the one text-like thing the kit gives it. */
+    :root[data-look="new"] .search-input::placeholder,
+    :root[data-look="new"] .input::placeholder,
+    :root[data-look="new"] .pub-note::placeholder{ color:var(--n-faint); }
+    /* Fills that set their own text colour (written for a brass fill): now an ink fill, page-colour text. */
+    :root[data-look="new"] .mappop-open,
+    :root[data-look="new"] .amt-seg-b.on,
+    :root[data-look="new"] .rcpt-check.on{ color:var(--n-onsolid); }
+    /* The switch (kit .sw): an ink outline and knob when off, solid ink when on. Square corners: release 2. */
+    :root[data-look="new"] .mc-switch{ background:transparent; border-color:var(--n-ink); }
+    :root[data-look="new"] .mc-switch::after{ background:var(--n-ink); }
+    :root[data-look="new"] .mc-switch.on{ background:var(--n-solid); border-color:var(--n-solid); }
+    :root[data-look="new"] .mc-switch.on::after{ background:var(--n-onsolid); }
+    /* Headings below the page title are Instrument Serif (kit t01, t17, .row .n): Settings' card
+       headings (.card-h) and the names in Home's lists (.nl-row-n), so Home's rows match Places'. */
+    :root[data-look="new"] .card-h{ font-family:var(--serif); font-weight:400 !important; font-size:22px; line-height:1.15; }
+    :root[data-look="new"] .nl-row-n{ font-family:var(--serif); font-weight:400 !important; font-size:20px; line-height:1.15; }
+    /* Sentence case where today has grey capitals: the line under a page title is an italic serif
+       in --dim (kit .psub); section labels are serif headings (kit .sec h3); the Places meta line
+       is two quiet lines, "Vietnamese \00b7 Plano" then the rating and visits (kit t03). */
+    :root[data-look="new"] .topbar .sub{ font-family:var(--serif); font-style:italic; font-size:18px; color:var(--n-dim);
+      text-transform:none; letter-spacing:0; }
+    :root[data-look="new"] .home-section,
+    :root[data-look="new"] .set-group{ font-family:var(--serif); font-weight:400; font-size:26px; line-height:1.15;
+      color:var(--n-ink); text-transform:none; letter-spacing:0; }
+    :root[data-look="new"] .meta-line{ font-size:13.5px; color:var(--n-dim); text-transform:none; letter-spacing:0; }
+    :root[data-look="new"] .meta-line .meta-2{ display:block; margin-top:2px; }
+    /* A notice's second line is --dim (it was near-ink: today's 0.82 opacity, meant for the brass fill). */
+    :root[data-look="new"] .req-banner .tiny{ opacity:1 !important; color:var(--n-dim); }
+    /* "Browse all" on Home: an ink link at the link size, no arrow (kit t01b). */
+    :root[data-look="new"] .home-browse{ font-size:15px; font-weight:500; padding:0; }
+    /* Home's two doors with no visit photo of your own (kit board t01b, .tdoor and .door; Chris
+       2026-11-17, M1): type only, no tint, no box. Only the new look renders these classes. */
+    .nl-tdoor{ padding:20px 0 22px; border-top:1px solid var(--n-ink); border-bottom:1px solid var(--n-line); cursor:pointer; }
+    .nl-tdoor-h{ font-family:var(--serif); font-weight:400; font-size:34px; line-height:1.05; color:var(--n-ink); }
+    .nl-tdoor-p{ font-size:15px; line-height:1.45; color:var(--n-dim); margin:6px 0 14px; }
+    /* No lone last word in these short paragraphs (premium polish; the kit's text-wrap rule). */
+    .nl-tdoor-p, .nl-door-p{ text-wrap:pretty; }
+    .nl-btn{ height:46px; display:inline-flex; align-items:center; gap:8px; padding:0 22px; font-family:'Outfit',sans-serif;
+      font-size:15px; font-weight:500; background:var(--n-solid); color:var(--n-onsolid); border:1px solid var(--n-solid); }
+    .nl-door{ display:flex; gap:14px; padding:20px 0; margin-bottom:6px; border-bottom:1px solid var(--n-line); cursor:pointer; color:var(--n-ink); }
+    .nl-door-h{ font-family:var(--serif); font-weight:400; font-size:24px; line-height:1.1; }
+    .nl-door-p{ font-size:14.5px; line-height:1.45; color:var(--n-dim); margin:4px 0 10px; }
+    .nl-link{ display:inline-flex; gap:6px; align-items:center; font-family:'Outfit',sans-serif; font-size:15px; font-weight:500;
+      color:var(--n-ink); background:none; border:0; padding:0; cursor:pointer; }
     *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
     html,body{margin:0; padding:0; background:var(--bg); color:var(--text);}
     body{
@@ -1504,7 +1562,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.593.0";
+const APP_VERSION   = "1.593.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -10228,6 +10286,7 @@ function Icon({name, size, color, fill}){
     chev:    <path d="M9 6l6 6-6 6"/>,
     chevd:   <path d="M6 9l6 6 6-6"/>,
     pin:     <g><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></g>,
+    user:    <g><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/></g>,
     phone:   <path d="M5 4h4l2 5-3 2a14 14 0 0 0 6 6l2-3 5 2v4a2 2 0 0 1-2 2A18 18 0 0 1 3 6a2 2 0 0 1 2-2Z"/>,
     link:    <g><path d="M9 15l6-6"/><path d="M10.5 6.5l1.8-1.8a4 4 0 0 1 5.7 5.7L16 12.4"/><path d="M13.5 17.5l-1.8 1.8a4 4 0 0 1-5.7-5.7L8 11.6"/></g>,
     book:    <g><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2Z"/><path d="M18 20a2 2 0 0 1-2-2V4"/></g>,
@@ -11295,7 +11354,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
     <div key={key} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor:"pointer"}}
       onClick={()=> onOpenRestaurant(r.id)}>
       <div style={{flex:1, minWidth:0}}>
-        <div className="small" style={{fontWeight:600}}>{r.name}</div>
+        <div className="small nl-row-n" style={{fontWeight:600}}>{r.name}</div>
         {(r.cuisine || r.location) ? <div className="tiny faint">{[r.cuisine, r.location].filter(Boolean).join("  ·  ")}</div> : null}
       </div>
       <Icon name="chev" size={15} color="var(--text-faint)" />
@@ -11461,7 +11520,7 @@ function FindPlaceView({ cfg, restaurants, visits, onOpenRestaurant, onCreateRes
    distinct so they don't read as the same list). A launcher, not a
    wizard - the finding/searching work lives one tap deeper in FindPlaceView.
    ============================================================ */
-function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, onChat, chatDot,
+function HomeView({ profile, notices, restaurants, visits, menus, cfg, onOpenRestaurant, onChat, chatDot,
                     onScanMenu, onAtRestaurant, onAtPlace, onFindPlace, onOpenSettings, onShareApp, onBrowseAll, pendingReqs,
                     newsTick, onReadIssue, onSendIssue,
                     wineBook, onWineVerdict, onWineOpen, onWineLater, onWineDrop }){
@@ -11518,13 +11577,54 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
     <div key={key} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor:"pointer"}}
       onClick={()=> onOpenRestaurant(r.id)}>
       <div style={{flex:1, minWidth:0}}>
-        <div className="small" style={{fontWeight:600}}>{r.name}</div>
+        <div className="small nl-row-n" style={{fontWeight:600}}>{r.name}</div>
         {sub ? <div className="tiny faint">{sub}</div> : null}
       </div>
       <Icon name="chev" size={15} color="var(--text-faint)" />
     </div>
     );
   };
+
+  // The new look's doors (1.593.1, Media's check of 1.593.0, items 2 and 3). Decided (M1, Chris
+  // 2026-11-17): with a visit photo of your own, "Already at the restaurant?" is that photo edge to
+  // edge (board t01); with none, it is type only (t01b), permanently. Until the photo door is built,
+  // the preview shows t01b to everyone. No tinted card and no brass: ink type, a solid ink button,
+  // links in ink ending in an arrow. Today's look keeps its cards (below), untouched.
+  const nl = isNewLook();
+  const nlArrow = <span aria-hidden="true">{"→"}</span>;
+  const homeDoorsNew = nl ? (
+    <>
+      {herePlace && onAtPlace ? (
+        <div className="nl-tdoor" onClick={()=> onAtPlace(herePlace.r.id)}>
+          <div className="nl-tdoor-h">At {herePlace.r.name}?</div>
+          <div className="nl-tdoor-p">{hereMenus.length ? menuFreshLabel(hereMenus) : "No menu here yet. Get it in a minute."}</div>
+          <span className="nl-btn">{hereMenus.length ? "Open the menu" : "Get the menu"} {nlArrow}</span>
+          {onAtRestaurant ? (
+            <div style={{marginTop:14}}>
+              <button type="button" className="nl-link"
+                onClick={(e)=>{ e.stopPropagation(); onAtRestaurant(); }}>Somewhere else? {nlArrow}</button>
+            </div>
+          ) : null}
+        </div>
+      ) : (onAtRestaurant || onScanMenu) ? (
+        <div className="nl-tdoor" onClick={onAtRestaurant || onScanMenu}>
+          <div className="nl-tdoor-h">Already at the restaurant?</div>
+          <div className="nl-tdoor-p">Get the menu, order smarter, save the memory.</div>
+          <span className="nl-btn">Let's go {nlArrow}</span>
+        </div>
+      ) : null}
+      {onFindPlace ? (
+        <div className="nl-door" onClick={onFindPlace}>
+          <Icon name="search" size={22} />
+          <div style={{flex:1, minWidth:0}}>
+            <div className="nl-door-h">Looking for somewhere to eat?</div>
+            <div className="nl-door-p">Search by name, find one near you, or let us pick.</div>
+            <span className="nl-link">Find a place {nlArrow}</span>
+          </div>
+        </div>
+      ) : null}
+    </>
+  ) : null;
 
   return (
     <div style={{paddingTop:8}}>
@@ -11564,6 +11664,7 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
         </div>
       </div>
 
+      {notices}
       {onSendIssue ? <IssueReadyCard cfg={cfg} tick={newsTick} onRead={onReadIssue} onSend={onSendIssue} /> : null}
       {onReadIssue ? <NewsIssueCard cfg={cfg} tick={newsTick} onRead={onReadIssue} /> : null}
       {/* How was the wine? (1.584.0): one card at a time, once the meal is
@@ -11576,7 +11677,7 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
           search + Near me / Still to try / Can't decide). Most sessions start
           on-location, so that card comes first; the search work lives one tap
           deeper so Home stays a calm launcher. */}
-      {herePlace && onAtPlace ? (
+      {nl ? homeDoorsNew : herePlace && onAtPlace ? (
         <div style={{marginBottom:12}}>
           <div className="card tap" style={{marginBottom:6, cursor:"pointer", display:"flex", gap:12, alignItems:"center",
                background:"rgba(var(--accent-rgb),0.08)", border:"1px solid rgba(var(--accent-rgb),0.30)"}}
@@ -11608,7 +11709,7 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
         </div>
       ) : null}
 
-      {onFindPlace ? (
+      {onFindPlace && !nl ? (
         <div className="card tap" style={{marginBottom:20, cursor:"pointer", display:"flex", gap:12, alignItems:"center"}}
           onClick={onFindPlace}>
           <Icon name="search" size={20} color="var(--accent)" />
@@ -11628,8 +11729,8 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
           <div className="between" style={{margin:"6px 2px 6px", alignItems:"baseline"}}>
             <span className="home-section" style={{margin:0}}>Recently added</span>
             {onBrowseAll ? (
-              <button className="tiny" style={{color:"var(--accent)", background:"none", border:"none", cursor:"pointer"}}
-                onClick={onBrowseAll}>Browse all ›</button>
+              <button className="tiny home-browse" style={{color:"var(--accent)", background:"none", border:"none", cursor:"pointer"}}
+                onClick={onBrowseAll}>{nl ? "Browse all" : "Browse all ›"}</button>
             ) : null}
           </div>
           <div className="card" style={{padding:"4px 0"}}>
@@ -11653,7 +11754,7 @@ function HomeView({ profile, restaurants, visits, menus, cfg, onOpenRestaurant, 
                   style={{padding:"10px 14px", display:"flex", gap:8, alignItems:"center", cursor: r ? "pointer" : "default"}}
                   onClick={()=> { if (r) onOpenRestaurant(r.id); }}>
                   <div style={{flex:1, minWidth:0}}>
-                    <div className="small" style={{fontWeight:600}}>{nm}</div>
+                    <div className="small nl-row-n" style={{fontWeight:600}}>{nm}</div>
                     {sub ? <div className="tiny faint">{sub}</div> : null}
                   </div>
                   {r ? <Icon name="chev" size={15} color="var(--text-faint)" /> : null}
@@ -11773,6 +11874,14 @@ function DuplicatesView({ restaurants, visits, menus, onClose, onHome, onMerge }
 
 function App({openShare}){
   const [config, setConfig]     = useState(() => loadConfig());
+  // The new look's preview (1.593.1): App draws again when the switch, colourway or mode changes,
+  // because a few screens are built differently in the new look (see isNewLook).
+  const [, setLookTick] = useState(0);
+  useEffect(()=>{
+    const redraw = ()=> setLookTick(t => t + 1);
+    window.addEventListener("mc-look", redraw);
+    return ()=> window.removeEventListener("mc-look", redraw);
+  }, []);
   const [ready, setReady]       = useState(false);
   const [needSetup, setNeedSetup] = useState(false);
 
@@ -13434,102 +13543,12 @@ function App({openShare}){
     onSettings: ()=>{ setOverlay(null); setTab("settings"); },
     pendingReqs: pendingReqs,
   };
-  return (
-    <NavCtx.Provider value={navValue}>
-    <div id="app-shell">
-      {/* Home owns its own header (wordmark + greeting + Settings gear), so the
-          shared TopBar is hidden there to avoid a duplicate "MenuCaptain". */}
-      {tab !== "home" ? <TopBar tab={tab} onShare={shareApp}
-        onOpenSettings={()=> setTab("settings")} pendingReqs={pendingReqs}
-        onChat={configComplete(config) ? openChat : null} chatDot={supportUnread > 0} /> : null}
-      {/* Home hides the TopBar, so reserve the status-bar (notch) space here, or
-          the update/sync banners ride up under the clock and battery. */}
-      {tab === "home" ? <div aria-hidden="true" style={{height:"env(safe-area-inset-top)"}} /> : null}
-
-      {/* update available - tap to cache-bust reload */}
-      {update && (
-        <div className="syncbar update" onClick={()=> applyUpdate(update.version)}
-          style={{cursor:"pointer"}}>
-          <span className="dot" style={{background:"var(--accent)"}} />
-          <span>Update available (v{update.version})</span>
-          <button onClick={(e)=>{ e.stopPropagation(); applyUpdate(update.version); }}>
-            Refresh
-          </button>
-        </div>
-      )}
-
-      {/* offline: reads come from the saved copy; explain why saves wait */}
-      {offline && (
-        <div className="syncbar warn">
-          <span className="dot" style={{background:"var(--amber)"}} />
-          <span>Offline - showing your saved data{pendingCount > 0 ? "; changes will sync when you're back online" : ""}</span>
-        </div>
-      )}
-
-      {/* Scans saved on this phone, waiting for signal (see sendPendingScan). */}
-      {overlayType !== "scanMenu" && pendingScans.slice(0, 3).map(p => (
-        <div key={p.id} className="syncbar warn scanbar pending-scan">
-          <span className="dot" style={{background:"var(--amber)"}} />
-          <span style={{flex:1, minWidth:0}}>
-            {(p.place ? "Menu for " + p.place : "Your menu scan") + " is waiting for signal"
-              + (p.sent ? " (" + p.sent + " of " + p.n + " photos sent)" : "")}
-          </span>
-          <button onClick={()=> resendPendingScans()}>Try now</button>
-          <button aria-label="Stop sending this menu" style={{marginLeft:2, padding:"0 2px", color:"var(--text-faint)"}}
-            onClick={()=> stopPendingScan(p)}>&#x2715;</button>
-        </div>
-      ))}
-
-      {/* Background menu scans (see startScanJob). Hidden while the scan
-          screen itself is open: it says the same thing, better. */}
-      {overlayType !== "scanMenu" && scanJobs.filter(j => scanJobsHidden.indexOf(j.id) === -1).slice(0, 3).map(j => (
-        j.status === "done" ? (
-          <div key={j.id} className="syncbar update scanbar" style={{cursor:"pointer"}} onClick={()=> reviewScanJob(j)}>
-            <span className="dot" style={{background:"var(--accent)"}} />
-            <span style={{flex:1, minWidth:0}}>{j.place_name ? "Your menu for " + j.place_name + " is ready" : "Your scanned menu is ready"}</span>
-            <button onClick={(e)=>{ e.stopPropagation(); reviewScanJob(j); }}>Review</button>
-            <button aria-label="Not now" style={{marginLeft:2, padding:"0 2px", color:"var(--text-faint)"}}
-              onClick={(e)=>{ e.stopPropagation(); setScanJobsHidden(h => h.concat([j.id])); }}>&#x2715;</button>
-          </div>
-        ) : j.status === "error" ? (
-          <div key={j.id} className="syncbar err scanbar">
-            <span className="dot" style={{background:"var(--danger)"}} />
-            <span style={{flex:1, minWidth:0}}>{"A menu scan didn't finish. " + (j.error || "Please scan it again.")}</span>
-            <button onClick={()=>{ collectScanJob(config, j.id); setScanJobs(list => list.filter(x => x.id !== j.id)); }}>OK</button>
-          </div>
-        ) : (
-          <div key={j.id} className="syncbar busy scanbar"><span className="spin" />
-            {j.place_name ? "Reading the menu for " + j.place_name + "..." : "Reading your menu..."}
-          </div>
-        )
-      ))}
-
-      {usernameNudge && (
-        <UsernameNudge config={config}
-          onClose={()=>{ try{ localStorage.setItem("dininglog_username_nudge","skipped"); }catch(e){} setUsernameNudge(false); }}
-          onClaimed={(r)=>{ try{ localStorage.setItem("dininglog_username_nudge","done"); }catch(e){} setProfile(r); setUsernameNudge(false); flash("Username claimed"); }} />
-      )}
-
-      {/* sync status banner */}
-      {sync.status === "busy" && (
-        <div className="syncbar busy"><span className="spin" />{sync.msg || "Working..."}</div>
-      )}
-      {sync.status === "err" && !offline && (
-        <div className="syncbar err">
-          <span className="dot" style={{background:"var(--danger)"}} />
-          <span>{sync.msg}</span>
-          <button onClick={retrySync}>Retry</button>
-        </div>
-      )}
-      {sync.status === "ok" && pendingCount > 0 && (
-        <div className="syncbar warn">
-          <span className="dot" style={{background:"var(--amber)"}} />
-          <span>{pendingCount} change(s) not yet synced</span>
-          <button onClick={retrySync}>Sync now</button>
-        </div>
-      )}
-
-      <div className="content">
+  // The notices (requests, shares, chat replies, the install hint). Today they sit above Home's own
+  // header; the new look puts Home's top bar first (kit board t01b; Media's check of 1.593.0,
+  // item 7), so on Home they're handed to HomeView to show under its header.
+  const noticesUnderHomeBar = tab === "home" && isNewLook();
+  const notices = (
+      <>
         {pendingReqs > 0 && pendingReqs !== reqSeen && (
           <div className="req-banner"
             onClick={()=>{ setReqSeen(pendingReqs); setOverlay({ type:"connections" }); }}>
@@ -13657,9 +13676,109 @@ function App({openShare}){
             <InstallHint onClose={()=>{ try { localStorage.setItem("mc_a2hs_dismissed", "1"); } catch(e){} setA2hsDismissed(true); }} />
           </div>
         )}
+      </>
+  );
+  return (
+    <NavCtx.Provider value={navValue}>
+    <div id="app-shell">
+      {/* Home owns its own header (wordmark + greeting + Settings gear), so the
+          shared TopBar is hidden there to avoid a duplicate "MenuCaptain". */}
+      {tab !== "home" ? <TopBar tab={tab} onShare={shareApp}
+        onOpenSettings={()=> setTab("settings")} pendingReqs={pendingReqs}
+        onChat={configComplete(config) ? openChat : null} chatDot={supportUnread > 0} /> : null}
+      {/* Home hides the TopBar, so reserve the status-bar (notch) space here, or
+          the update/sync banners ride up under the clock and battery. */}
+      {tab === "home" ? <div aria-hidden="true" style={{height:"env(safe-area-inset-top)"}} /> : null}
+
+      {/* update available - tap to cache-bust reload */}
+      {update && (
+        <div className="syncbar update" onClick={()=> applyUpdate(update.version)}
+          style={{cursor:"pointer"}}>
+          <span className="dot" style={{background:"var(--accent)"}} />
+          <span>Update available (v{update.version})</span>
+          <button onClick={(e)=>{ e.stopPropagation(); applyUpdate(update.version); }}>
+            Refresh
+          </button>
+        </div>
+      )}
+
+      {/* offline: reads come from the saved copy; explain why saves wait */}
+      {offline && (
+        <div className="syncbar warn">
+          <span className="dot" style={{background:"var(--amber)"}} />
+          <span>Offline - showing your saved data{pendingCount > 0 ? "; changes will sync when you're back online" : ""}</span>
+        </div>
+      )}
+
+      {/* Scans saved on this phone, waiting for signal (see sendPendingScan). */}
+      {overlayType !== "scanMenu" && pendingScans.slice(0, 3).map(p => (
+        <div key={p.id} className="syncbar warn scanbar pending-scan">
+          <span className="dot" style={{background:"var(--amber)"}} />
+          <span style={{flex:1, minWidth:0}}>
+            {(p.place ? "Menu for " + p.place : "Your menu scan") + " is waiting for signal"
+              + (p.sent ? " (" + p.sent + " of " + p.n + " photos sent)" : "")}
+          </span>
+          <button onClick={()=> resendPendingScans()}>Try now</button>
+          <button aria-label="Stop sending this menu" style={{marginLeft:2, padding:"0 2px", color:"var(--text-faint)"}}
+            onClick={()=> stopPendingScan(p)}>&#x2715;</button>
+        </div>
+      ))}
+
+      {/* Background menu scans (see startScanJob). Hidden while the scan
+          screen itself is open: it says the same thing, better. */}
+      {overlayType !== "scanMenu" && scanJobs.filter(j => scanJobsHidden.indexOf(j.id) === -1).slice(0, 3).map(j => (
+        j.status === "done" ? (
+          <div key={j.id} className="syncbar update scanbar" style={{cursor:"pointer"}} onClick={()=> reviewScanJob(j)}>
+            <span className="dot" style={{background:"var(--accent)"}} />
+            <span style={{flex:1, minWidth:0}}>{j.place_name ? "Your menu for " + j.place_name + " is ready" : "Your scanned menu is ready"}</span>
+            <button onClick={(e)=>{ e.stopPropagation(); reviewScanJob(j); }}>Review</button>
+            <button aria-label="Not now" style={{marginLeft:2, padding:"0 2px", color:"var(--text-faint)"}}
+              onClick={(e)=>{ e.stopPropagation(); setScanJobsHidden(h => h.concat([j.id])); }}>&#x2715;</button>
+          </div>
+        ) : j.status === "error" ? (
+          <div key={j.id} className="syncbar err scanbar">
+            <span className="dot" style={{background:"var(--danger)"}} />
+            <span style={{flex:1, minWidth:0}}>{"A menu scan didn't finish. " + (j.error || "Please scan it again.")}</span>
+            <button onClick={()=>{ collectScanJob(config, j.id); setScanJobs(list => list.filter(x => x.id !== j.id)); }}>OK</button>
+          </div>
+        ) : (
+          <div key={j.id} className="syncbar busy scanbar"><span className="spin" />
+            {j.place_name ? "Reading the menu for " + j.place_name + "..." : "Reading your menu..."}
+          </div>
+        )
+      ))}
+
+      {usernameNudge && (
+        <UsernameNudge config={config}
+          onClose={()=>{ try{ localStorage.setItem("dininglog_username_nudge","skipped"); }catch(e){} setUsernameNudge(false); }}
+          onClaimed={(r)=>{ try{ localStorage.setItem("dininglog_username_nudge","done"); }catch(e){} setProfile(r); setUsernameNudge(false); flash("Username claimed"); }} />
+      )}
+
+      {/* sync status banner */}
+      {sync.status === "busy" && (
+        <div className="syncbar busy"><span className="spin" />{sync.msg || "Working..."}</div>
+      )}
+      {sync.status === "err" && !offline && (
+        <div className="syncbar err">
+          <span className="dot" style={{background:"var(--danger)"}} />
+          <span>{sync.msg}</span>
+          <button onClick={retrySync}>Retry</button>
+        </div>
+      )}
+      {sync.status === "ok" && pendingCount > 0 && (
+        <div className="syncbar warn">
+          <span className="dot" style={{background:"var(--amber)"}} />
+          <span>{pendingCount} change(s) not yet synced</span>
+          <button onClick={retrySync}>Sync now</button>
+        </div>
+      )}
+
+      <div className="content">
+        {!noticesUnderHomeBar ? notices : null}
         {tab === "home" && (
           <HomeView
             profile={profile}
+            notices={noticesUnderHomeBar ? notices : null}
             onChat={configComplete(config) ? openChat : null} chatDot={supportUnread > 0}
             restaurants={restaurants} visits={visits} menus={menus} cfg={config}
             pendingReqs={pendingReqs}
@@ -13858,7 +13977,7 @@ function App({openShare}){
           <span className="navicon"><Icon name="home" size={23} /></span>Home
         </button>
         <button className={tab==="restaurants" ? "on" : ""} aria-current={tab==="restaurants" ? "page" : undefined} onClick={()=> setTab("restaurants")}>
-          <span className="navicon"><Icon name="plate" size={23} /></span>Places
+          <span className="navicon"><Icon name={isNewLook() ? "pin" : "plate"} size={23} /></span>Places
         </button>
         <button onClick={()=> setSheet(true)} aria-label="Add">
           <span className="add"><Icon name="plus" size={24} color="var(--on-accent)" /></span>
@@ -13867,7 +13986,7 @@ function App({openShare}){
           <span className="navicon"><Icon name="clock" size={23} /></span>History
         </button>
         <button className={tab==="discover" ? "on" : ""} aria-current={tab==="discover" ? "page" : undefined} onClick={()=> setTab("discover")}>
-          <span className="navicon"><Icon name="people" size={23} /></span>You
+          <span className="navicon"><Icon name={isNewLook() ? "user" : "people"} size={23} /></span>You
         </button>
       </nav>
 
@@ -17137,9 +17256,16 @@ function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilt
             <div className="meta-line" style={{marginTop:4}}>
               {r.cuisine || "Restaurant"}
               {r.location ? "  \u00b7  " + r.location : ""}
-              {r.g_rating != null ? "  \u00b7  \u2605 " + Number(r.g_rating).toFixed(1)
-                + (r.g_rating_count ? " (" + Number(r.g_rating_count).toLocaleString() + ")" : "") : ""}
-              {countVisits(r.id) > 0 ? "  \u00b7  " + countLabel(countVisits(r.id), "visit") : ""}
+              {/* The rating and visits ride in their own span so the new look can put them on a
+                  second line (kit board t03, 1.593.1). In today's look the separator stays in the same
+                  text as "1 visit": split across two pieces, the dot moved by a fraction of a pixel. */}
+              {(r.g_rating != null || countVisits(r.id) > 0) ? (
+                <span className="meta-2">{(isNewLook() ? "" : "  \u00b7  ") + [
+                  r.g_rating != null ? "\u2605 " + Number(r.g_rating).toFixed(1)
+                    + (r.g_rating_count ? " (" + Number(r.g_rating_count).toLocaleString() + ")" : "") : "",
+                  countVisits(r.id) > 0 ? countLabel(countVisits(r.id), "visit") : ""
+                ].filter(Boolean).join("  \u00b7  ")}</span>
+              ) : null}
             </div>
           </div>
           <span className={"fav" + (r.favorite ? " on" : "")}>
@@ -21445,7 +21571,7 @@ function AtRestaurantPicker({ cfg, restaurants, visits, menus, mode, atTable, in
                 <div key={r.id} className="pick-row" style={{padding:"10px 14px", display:"flex", gap:10, alignItems:"center", cursor:"pointer"}}
                   onClick={()=> onOpenRestaurant(r.id)}>
                   <div style={{flex:1, minWidth:0}}>
-                    <div className="small" style={{fontWeight:600}}>{r.name}</div>
+                    <div className="small nl-row-n" style={{fontWeight:600}}>{r.name}</div>
                     <div className="tiny faint">
                       {[ms.length ? menuFreshLabel(ms) : "No menu yet", hereLabel(m)].filter(Boolean).join("  ·  ")}
                     </div>
@@ -35070,7 +35196,7 @@ function ProCard({config}){
 
   return (
     <div className="card">
-      <div style={{fontWeight:600, marginBottom:6}}>MenuCaptain Pro</div>
+      <div className="card-h" style={{fontWeight:600, marginBottom:6}}>MenuCaptain Pro</div>
       {body}
       {bill && bill.owner && (
         <div style={{marginTop:12, paddingTop:12, borderTop:"1px solid var(--line-soft)"}}>
@@ -35404,6 +35530,9 @@ function setThemeColorMeta(){
     meta.setAttribute("content", bg || "#1b1714");
   } catch(e){}
 }
+// A few screens BUILD differently in the new look (Home's doors, the tab icons, where Home's notices
+// sit), not just paint differently, so they ask at render time. applyLook tells App to draw again.
+function isNewLook(){ return document.documentElement.getAttribute("data-look") === "new"; }
 function applyLook(look){
   const el = document.documentElement;
   if (!look || !look.on){
@@ -35414,6 +35543,7 @@ function applyLook(look){
     el.setAttribute("data-mode", lookIsDark(look.mode) ? "dark" : "light");
   }
   setThemeColorMeta();
+  try { window.dispatchEvent(new Event("mc-look")); } catch(e){}
 }
 function setLook(patch){
   const next = Object.assign({}, getLook(), patch || {});
@@ -38845,7 +38975,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       </div>
 
       <div className="card">
-        <div style={{fontWeight:600,marginBottom:4}}>Locations</div>
+        <div className="card-h" style={{fontWeight:600,marginBottom:4}}>Locations</div>
         <div className="tiny faint" style={{marginBottom:12}}>
           Cities you visit. Used to tag and filter restaurants.
         </div>
@@ -38941,7 +39071,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
         const dupCount = duplicatePlaceGroups(restaurants).length;
         return (
           <div className="card">
-            <div style={{fontWeight:600, marginBottom:6}}>Find duplicate places</div>
+            <div className="card-h" style={{fontWeight:600, marginBottom:6}}>Find duplicate places</div>
             <div className="small muted" style={{lineHeight:1.7, marginBottom:12}}>
               {dupCount
                 ? "Spotted " + dupCount + " group" + (dupCount>1?"s":"") + " of places that look like the same spot. Merge them so visits and menus end up on one place."
@@ -38957,7 +39087,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
 
       {onSupport ? (
         <div className="card">
-          <div style={{fontWeight:600, marginBottom:6}}>Chat with us</div>
+          <div className="card-h" style={{fontWeight:600, marginBottom:6}}>Chat with us</div>
           <div className="small muted" style={{lineHeight:1.7, marginBottom:12}}>
             A question, or something not working? Write to us here and we answer in the app.
           </div>
@@ -38969,7 +39099,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
 
       {onFeedback ? (
         <div className="card">
-          <div style={{fontWeight:600, marginBottom:6}}>Send feedback</div>
+          <div className="card-h" style={{fontWeight:600, marginBottom:6}}>Send feedback</div>
           <div className="small muted" style={{lineHeight:1.7, marginBottom:12}}>
             Found a bug, want a feature, or have an idea? Tell us - it goes straight to the team.
           </div>
@@ -38980,7 +39110,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       ) : null}
 
       <div className="card">
-        <div style={{fontWeight:600,marginBottom:6}}>Export your history</div>
+        <div className="card-h" style={{fontWeight:600,marginBottom:6}}>Export your history</div>
         <div className="small muted" style={{lineHeight:1.7,marginBottom:12}}>
           Take your dining log with you. The spreadsheet has every visit and
           dish in full detail; the printable is a clean page you can save as a
@@ -39006,7 +39136,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
         <div className="card look-card">
           <div className="look-row">
             <div style={{flex:1, minWidth:0}}>
-              <div style={{fontWeight:600}}>Try the new look</div>
+              <div className="card-h" style={{fontWeight:600}}>Try the new look</div>
               <div className="tiny faint" style={{marginTop:2, lineHeight:1.5}}>
                 Only you and Kristin see this. It's being built, so some screens still show today's colours.
               </div>
@@ -39139,7 +39269,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
 
       <div className="card" style={{marginTop:12}}>
         <div className="between" onClick={()=> setShowBlocks(b=>!b)} style={{cursor:"pointer"}}>
-          <div style={{fontWeight:600}}>Blocked people</div>
+          <div className="card-h" style={{fontWeight:600}}>Blocked people</div>
           <Chevron open={showBlocks} size={17} color="var(--icon-dim)" />
         </div>
         {showBlocks && (
@@ -39173,7 +39303,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
       {isOwner(config) && (
         <div className="card" style={{marginTop:12}}>
           <div className="between" onClick={()=> setShowLog(s=>!s)} style={{cursor:"pointer"}}>
-            <div style={{fontWeight:600}}>Diagnostics</div>
+            <div className="card-h" style={{fontWeight:600}}>Diagnostics</div>
             <Chevron open={showLog} size={17} color="var(--icon-dim)" />
           </div>
           {showLog && (

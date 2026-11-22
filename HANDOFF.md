@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.593.0** | menucaptain.com (GitHub Pages), released 2026-11-21 from the Mac (the new look's preview for Chris and Kristin, the redesign's Stage 1, release 1; members unchanged) |
+| Web app | **1.593.1** | menucaptain.com (GitHub Pages), released 2026-11-21 from the Mac (the new look's preview fixed to match the style kit after Media's check, items 1 to 8; members unchanged, checked pixel for pixel against 1.593.0). Before it: 1.593.0, the preview itself (Stage 1, release 1) |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.593.0** | rebuilt on the Mac from web 1.593.0 (2026-11-21, `edbd61f`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -509,23 +509,67 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
   - the switch is a brass pill (kit: solid ink), and headings below the page title are Outfit bold
     (kit: Instrument Serif).
   Also: grey capitals where the kit has sentence case, notice second lines near-ink, two tab icons
-  (target, two people) where the kit has a pin and one person. PROPOSED to Chris, not decided: fix these
-  role mappings as 1.593.1 before release 2's shapes; Places controls and the Appearance swatches go
-  with release 2, the Places and Settings header buttons with release 3.
+  (target, two people) where the kit has a pin and one person. DECIDED (Chris, 2026-11-21, "Yes, fixes
+  first"): items 1 to 8 as 1.593.1 before release 2's shapes (done, next section); Places controls and the
+  Appearance swatches (items 9, 10) go with release 2, the Places and Settings header buttons (item 11)
+  with release 3.
   **Home's door, two states** (DESIGN-MOMENTS M1, Chris 2026-11-17 "Type only"; Media confirmed 2026-11-21):
   with a visit photo of your own, the door is that photo edge to edge with the serif heading and a white
   "Let's go" (board t01); with none, it is type only, permanently, with no house photo (t01b, `.tdoor`;
   tn2c on first open). It is NOT the welcome photo, which is only the signed-out welcome screen (tn2,
-  Stage 3). 1.593.1 would show t01b to everyone as a stopgap until the photo door is built; that release
-  sends Media a capture of both states.
+  Stage 3). 1.593.1 shows t01b to everyone as a stopgap until the photo door is built; Media gets captures
+  of both states when the photo door is built.
 - **Next (release 2):**
   - the remaining typed-in colours (white overlays meant for dark grounds, about 20, and the rest);
-  - square corners, hairline rows instead of boxes inside boxes, underline fields, sheets.
-  - Release 3: `@capacitor/status-bar` (MIT) so the iPhone's clock turns dark on white, the Home Screen
+  - square corners, hairline rows instead of boxes inside boxes, underline fields, sheets;
+  - Media's items 9 (Places: serif italic filter tabs with a brass underline, Near me and Map as two
+    equal outlined buttons, the filters as a 2 by 2 grid of outlined selects) and 10 (Appearance: four
+    square swatches with names, "Default" under Brass, "Match my phone" on one line).
+  - Release 3 (with Media's item 11, plain ink header icons and a brass-ring badge): `@capacitor/status-bar` (MIT) so the iPhone's clock turns dark on white, the Home Screen
     app's top bar, then an iPhone install.
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### The new look's preview: the kit fixes (2026-11-21, app 1.593.1)
+
+Chris, 2026-11-21, "Yes, fixes first": Media's check of 1.593.0, items 1 to 8, fixed before release 2.
+Everything is scoped to `:root[data-look="new"]` or built only when `isNewLook()` is true, so members
+see no change. `Test harness/test_15931.py` compares members' Home, Places and Settings (and the owner
+with the switch off) with 1.593.0 PIXEL FOR PIXEL, with only the version number blanked; all 8 match.
+
+- **Two roles fixed in the mapping, not on each screen:** `--text-faint` points at `--n-dim` (second
+  lines are `--dim`; placeholders get `--n-faint` by name), and `--accent` points at the INK, with
+  `--on-accent` the page colour and `--accent-rgb` the ink's (new `--nl-ink-rgb` / `--nd-ink-rgb` per
+  colourway). Road not taken: changing the 389 uses of `var(--accent)` one by one. The colourway's paint
+  stays on the details that use `--n-accent` by name (notice rings, the tab dot). Three fills that set
+  their own text colour for a brass fill (`.mappop-open`, `.amt-seg-b.on`, `.rcpt-check.on`) now take the
+  page colour, or they'd be ink on ink.
+- **Home's doors:** in the new look Home builds the type-only door (kit t01b, M1) and the "Looking for
+  somewhere to eat?" door (`.nl-tdoor`, `.nl-door`): serif headings, `--dim` text, a solid ink "Let's
+  go →", ink links ending in →, no tint, no box. Today's cards are untouched for members.
+- **Building differently, not just painting:** `isNewLook()` reads the attribute at render time, and
+  `applyLook` fires `mc-look` so App draws again when the switch, colourway or mode changes. Used for
+  Home's doors, the tab icons (Places a map pin, You one person, new `user` icon), "Browse all" without
+  ›, the Places meta line's separator, and where the notices sit: on Home in the new look they are
+  passed to HomeView (`notices` prop) and sit under its header, as in the kit; elsewhere, as before.
+- **Serif and sentence case by class:** `.card-h` on Settings' card headings (Locations, Find duplicate
+  places, Chat with us, Send feedback, Export your history, Try the new look, Blocked people,
+  Diagnostics, MenuCaptain Pro), `.nl-row-n` on the names in Home's lists and Find a place. The line
+  under a page title is italic serif in `--dim`; `.home-section` and `.set-group` are serif headings;
+  the Places meta line is sentence case in two lines ("Vietnamese · Plano", then rating and visits in
+  `.meta-2`). A few `!important` marks in that block beat inline font weights and one opacity; release 2
+  moves those inline styles into classes.
+- **The switch** is an ink outline and knob when off, solid ink with a page-colour knob when on.
+  Notices' second lines are `--dim`.
+- WARNING for anyone touching the Places meta line: in today's look the separator before the rating
+  must stay in the SAME text as the rating. Split into two pieces, the dot moved by a fraction of a
+  pixel and the members' comparison caught it.
+- Tests: `Test harness/test_15931.py` (pass the folder of a 1.593.0 copy, unpacked with `git archive`),
+  37 checks: the 8 member comparisons, every item in light Brass, dark Brass, dark Capri and light Navy
+  & Gold, switching off and on from Settings. Captures in `Test harness/shots15931/`.
+- Still to come: release 2 (shapes, the remaining typed-in colours, items 9 and 10), release 3 (status
+  bar, Home's top bar with the greeting as drawn, item 11). The photo door (t01) when it's built.
 
 ### Food drawings on a clear background: the trial (2026-11-15, app 1.592.0, server 0.166.0; redone in 0.166.1, 2026-11-17)
 
