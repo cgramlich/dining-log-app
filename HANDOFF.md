@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.594.0** | menucaptain.com (GitHub Pages), released 2026-11-21 from the Mac (the new look's preview, Stage 1 release 2: square corners, flat hairline rows, underline fields, sheets, the remaining typed-in colours, Places controls and the Appearance swatches; members unchanged, 18 screens checked pixel for pixel against 1.593.1). Before it: 1.593.1, the kit fixes (items 1 to 8) |
+| Web app | **1.595.0** | menucaptain.com (GitHub Pages), released 2026-11-22 from the Mac (the new look's preview, Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.594.0** | rebuilt on the Mac from web 1.594.0 (2026-11-22, `46c9644`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -546,6 +546,35 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### The new look's preview: Stage 1, release 3 (2026-11-22, app 1.595.0)
+
+Chris, 2026-11-22: "keep going" after release 2. Preview only; members unchanged (`Test harness/test_15950.py`,
+41 checks, 18 member screens pixel for pixel against 1.594.0).
+
+- **The bar (kit t01b, t03, t17; Media's item 11):** `NewLookBar` draws the wordmark (the kit's ink helm,
+  "MenuCaptain" set in spaced capitals by CSS so screen readers say the name) and share, chat and Settings
+  as plain ink icons, Settings as the kit's sliders with its count in a brass ring (`.nl-badge`). Home
+  shows it at the top of the page; the tab pages (`TopBar`) show it as a sticky bar with the large serif
+  title and italic line scrolling under it. Road not taken: the whole block sticky (about 150 px of the
+  screen) or nothing sticky (Settings one tap away on every screen, nav standard 2026-07-24).
+- **Home in the kit's order:** the bar, the notices, the greeting in 38 px serif (`.nl-hello`), then the
+  type-only door. Today's header (helm picture, "MenuCaptain", small greeting) shows only in today's look.
+- **The + sheet as t02 (Media's check of 1.594.0):** serif row names; rows and hairlines the full sheet
+  width; between the groups a hairline, a 10 px gap and one ink rule (`.sheet-gap`); t02's icons through
+  an `nlIcon` per row (Already at the restaurant a pin, Near me the target, Log a visit a pencil, group
+  order two people, collection a bookmark, Find friends a person with a plus; new `bookmark`, `userplus`,
+  `sliders`, `helm` icons); counts in a brass ring (`.nl-count`).
+- **Places (Chris, 2026-11-22, by card):** "No tile, as drawn": in the new look a place with no photo has
+  no tile and its name starts at the page's edge. "Two sections": ALREADY BUILT since 2026-10-18
+  ("Recent", then "Everything else", from 7 places up, not while searching or under Loved); in the new
+  look their headings are the serif. Also: a favourite's star is filled ink in the new look, as t03.
+- **The status bar:** in the new look's light mode the Home Screen web app asks for the default bar (dark
+  clock) in the head script, since "black-translucent" draws a white clock that vanishes on white; dark
+  keeps it. `setStatusBarForLook` keeps the meta in step and calls `Capacitor.Plugins.StatusBar.setStyle`
+  ("LIGHT" = dark clock), which does nothing until `@capacitor/status-bar` (6.0.3, MIT, about 61 KB) is
+  installed in the iPhone app: that install is a download and waits for Chris's yes. NOT YET SEEN on an
+  iPhone, either way. Stage 1 ends with an iPhone install and both checked on Chris's phone.
 
 ### The new look's preview: Stage 1, release 2 (2026-11-21, app 1.594.0)
 

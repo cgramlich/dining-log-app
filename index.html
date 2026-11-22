@@ -279,6 +279,31 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     :root[data-look="new"] .places-dd{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     :root[data-look="new"] .places-dd .chip{ height:40px; justify-content:space-between; padding:0 10px 0 12px;
       font-size:14px; font-weight:400; }
+    /* ---- 1.595.0, Stage 1 release 3: the top bar (kit t01b, t03, t17) ---- */
+    .nl-topbar-bar{ position:sticky; top:0; z-index:30; background:var(--n-bg); padding:calc(6px + env(safe-area-inset-top)) 20px 0; }
+    .nl-home-bar{ padding:0 0 4px; }
+    .nl-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:46px; }
+    .nl-word{ display:flex; align-items:center; gap:8px; font-family:'Outfit',sans-serif; font-size:11px; font-weight:500;
+      letter-spacing:0.42em; text-transform:uppercase; color:var(--n-ink); }
+    .nl-bar-r{ display:flex; gap:18px; align-items:center; }
+    .nl-ib{ position:relative; background:none; border:0; padding:4px; margin:-4px; line-height:0; color:var(--n-ink); cursor:pointer; }
+    .nl-badge{ position:absolute; top:-3px; right:-5px; width:17px; height:17px; padding:1px; background:var(--n-accent); }
+    .nl-badge > i, .nl-count > i{ display:grid; place-items:center; width:100%; height:100%; font-family:'Outfit',sans-serif;
+      font-style:normal; font-weight:500; color:var(--n-ink); line-height:1; }
+    .nl-badge > i{ background:var(--n-bg); font-size:9px; }
+    .nl-count{ flex:none; width:26px; height:26px; padding:1.5px; background:var(--n-accent); }
+    .nl-count > i{ background:var(--n-sheet); font-size:11px; }
+    .nl-topbar-title{ padding:4px 20px 12px; }
+    .nl-topbar-title h1{ font-family:var(--serif); font-weight:400; font-size:46px; line-height:1.05; letter-spacing:0; margin:0; }
+    .nl-topbar-title .sub{ font-family:var(--serif); font-style:italic; font-size:18px; color:var(--n-dim); margin-top:2px; }
+    .nl-hello{ font-family:var(--serif); font-weight:400; font-size:38px; line-height:1.1; color:var(--n-ink); padding:14px 0 14px; }
+    :root[data-look="new"] :is(.nl-badge, .nl-badge > i, .nl-count, .nl-count > i){ border-radius:50% !important; }
+    /* The + sheet as t02 draws it: serif row names, rows and hairlines the full width of the sheet,
+       and between the two groups a hairline, a gap, then one ink rule. */
+    :root[data-look="new"] .sheet-item{ margin:0 -16px; width:calc(100% + 32px); padding:12px 16px; }
+    :root[data-look="new"] .sheet-item .t1{ font-family:var(--serif); font-weight:400; font-size:20px; line-height:1.15; }
+    :root[data-look="new"] .sheet-item .ic{ width:42px; height:42px; }
+    :root[data-look="new"] .sheet-gap{ border-top:0 !important; height:10px; margin:0 -16px !important; border-bottom:1px solid var(--n-ink); }
     /* "Browse all" on Home: an ink link at the link size, no arrow (kit t01b). */
     :root[data-look="new"] .home-browse{ font-size:15px; font-weight:500; padding:0; }
     /* Home's two doors with no visit photo of your own (kit board t01b, .tdoor and .door; Chris
@@ -1636,6 +1661,11 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
               md = localStorage.getItem('mc_look_mode') || 'match';
           var dark = md === 'dark' || (md === 'match' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
           de.setAttribute('data-look', 'new'); de.setAttribute('data-cw', cw); de.setAttribute('data-mode', dark ? 'dark' : 'light');
+          /* The Home Screen web app reads its status bar style as it opens. "black-translucent" draws
+             a white clock over the page, which vanishes on the new look's white ground, so in light
+             mode it asks for the default bar (dark clock). NOT YET SEEN on an iPhone (1.595.0). */
+          if (!dark){ var sbm = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+            if (sbm) sbm.setAttribute('content', 'default'); }
         }
       } catch(e){}
     })();
@@ -1651,7 +1681,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.594.0";
+const APP_VERSION   = "1.595.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -10377,6 +10407,10 @@ function Icon({name, size, color, fill}){
     pin:     <g><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></g>,
     user:    <g><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/></g>,
     map:     <g><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2zM9 4.5v13M15 6.5v13"/></g>,
+    helm:    <g><circle cx="12" cy="12" r="6.2"/><circle cx="12" cy="12" r="1.8"/><path d="M12 2.5v19M2.5 12h19M5.3 5.3l13.4 13.4M18.7 5.3L5.3 18.7"/></g>,
+    sliders: <g><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></g>,
+    bookmark:<g><path d="M6.5 3.5h11v17l-5.5-4.5-5.5 4.5z"/></g>,
+    userplus:<g><circle cx="10" cy="8" r="3.5"/><path d="M3.5 20c1-4 3.7-6 6.5-6s5.5 2 6.5 6M19 8v6M16 11h6"/></g>,
     phone:   <path d="M5 4h4l2 5-3 2a14 14 0 0 0 6 6l2-3 5 2v4a2 2 0 0 1-2 2A18 18 0 0 1 3 6a2 2 0 0 1 2-2Z"/>,
     link:    <g><path d="M9 15l6-6"/><path d="M10.5 6.5l1.8-1.8a4 4 0 0 1 5.7 5.7L16 12.4"/><path d="M13.5 17.5l-1.8 1.8a4 4 0 0 1-5.7-5.7L8 11.6"/></g>,
     book:    <g><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2Z"/><path d="M18 20a2 2 0 0 1-2-2V4"/></g>,
@@ -11720,41 +11754,49 @@ function HomeView({ profile, notices, restaurants, visits, menus, cfg, onOpenRes
     <div style={{paddingTop:8}}>
       {/* Status-bar clearance is handled by the shell-level spacer on Home (see
           App), so only a small breathing gap is needed here. */}
-      <div className="between" style={{margin:"2px 2px 14px", alignItems:"center"}}>
-        <div style={{minWidth:0}}>
-          <div style={{display:"flex", alignItems:"center", gap:8}}>
-            <img src="helm.png" alt="" aria-hidden="true" style={{width:26, height:26, flex:"none", opacity:0.95}} />
-            <div style={{fontFamily:"var(--serif)", fontSize:24, fontWeight:600, color:"var(--text)", lineHeight:1.1}}>MenuCaptain</div>
+      {nl ? (
+        <div className="nl-home-bar">
+          <NewLookBar onShare={onShareApp} onChat={onChat} chatDot={chatDot}
+            onOpenSettings={onOpenSettings} pendingReqs={pendingReqs} />
+        </div>
+      ) : (
+        <div className="between" style={{margin:"2px 2px 14px", alignItems:"center"}}>
+          <div style={{minWidth:0}}>
+            <div style={{display:"flex", alignItems:"center", gap:8}}>
+              <img src="helm.png" alt="" aria-hidden="true" style={{width:26, height:26, flex:"none", opacity:0.95}} />
+              <div style={{fontFamily:"var(--serif)", fontSize:24, fontWeight:600, color:"var(--text)", lineHeight:1.1}}>MenuCaptain</div>
+            </div>
+            <div className="tiny faint" style={{marginTop:2}}>{greeting}{who ? ", " + who : ""}</div>
           </div>
-          <div className="tiny faint" style={{marginTop:2}}>{greeting}{who ? ", " + who : ""}</div>
-        </div>
-        <div className="row" style={{gap:4, flex:"none", alignItems:"center"}}>
-          {onShareApp ? (
-            <button className="x" aria-label="Share MenuCaptain" title="Share MenuCaptain"
-              onClick={onShareApp} style={{flex:"none"}}>
-              <Icon name="share" size={20} color="var(--accent)" />
-            </button>
-          ) : null}
-          {onChat ? (
-            <button className="x" aria-label="Chat with us" title="Chat with us" onClick={onChat}
-              style={{position:"relative", flex:"none"}}>
-              <Icon name="chat" size={21} />
-              {chatDot ? <span className="chat-dot" aria-label="New message" /> : null}
-            </button>
-          ) : null}
-          <button className="x" aria-label="Settings" title="Settings" onClick={onOpenSettings}
-            style={{position:"relative", flex:"none"}}>
-            <Icon name="gear" size={22} />
-            {pendingReqs > 0 ? (
-              <span className="nl-round" style={{position:"absolute", top:-4, right:-6, minWidth:16, height:16, padding:"0 4px",
-                borderRadius:8, background:"var(--danger)", color:"#fff", fontSize:10, fontWeight:700,
-                display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1}}>{pendingReqs}</span>
+          <div className="row" style={{gap:4, flex:"none", alignItems:"center"}}>
+            {onShareApp ? (
+              <button className="x" aria-label="Share MenuCaptain" title="Share MenuCaptain"
+                onClick={onShareApp} style={{flex:"none"}}>
+                <Icon name="share" size={20} color="var(--accent)" />
+              </button>
             ) : null}
-          </button>
+            {onChat ? (
+              <button className="x" aria-label="Chat with us" title="Chat with us" onClick={onChat}
+                style={{position:"relative", flex:"none"}}>
+                <Icon name="chat" size={21} />
+                {chatDot ? <span className="chat-dot" aria-label="New message" /> : null}
+              </button>
+            ) : null}
+            <button className="x" aria-label="Settings" title="Settings" onClick={onOpenSettings}
+              style={{position:"relative", flex:"none"}}>
+              <Icon name="gear" size={22} />
+              {pendingReqs > 0 ? (
+                <span className="nl-round" style={{position:"absolute", top:-4, right:-6, minWidth:16, height:16, padding:"0 4px",
+                  borderRadius:8, background:"var(--danger)", color:"#fff", fontSize:10, fontWeight:700,
+                  display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1}}>{pendingReqs}</span>
+              ) : null}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {notices}
+      {nl ? <div className="nl-hello">{greeting}{who ? ", " + who : ""}</div> : null}
       {onSendIssue ? <IssueReadyCard cfg={cfg} tick={newsTick} onRead={onReadIssue} onSend={onSendIssue} /> : null}
       {onReadIssue ? <NewsIssueCard cfg={cfg} tick={newsTick} onRead={onReadIssue} /> : null}
       {/* How was the wine? (1.584.0): one card at a time, once the meal is
@@ -15307,6 +15349,36 @@ function App({openShare}){
 /* ============================================================
    TOP BAR
    ============================================================ */
+/* The new look's bar (1.595.0, kit boards t01b, t03, t17): the wordmark (an ink helm and
+   MENUCAPTAIN in spaced capitals) on the left; share, chat and Settings as plain ink icons on the
+   right, Settings as the kit's sliders with a count in a brass ring (Media's item 11). The same
+   three actions as today's header, in the same order, so nothing moves out of reach. */
+function NewLookBar({onShare, onChat, chatDot, onOpenSettings, pendingReqs}){
+  return (
+    <div className="nl-bar">
+      <div className="nl-word"><Icon name="helm" size={22} />MenuCaptain</div>
+      <div className="nl-bar-r">
+        {onShare ? (
+          <button type="button" className="nl-ib" aria-label="Share MenuCaptain" title="Share MenuCaptain" onClick={onShare}>
+            <Icon name="share" size={22} />
+          </button>
+        ) : null}
+        {onChat ? (
+          <button type="button" className="nl-ib" aria-label="Chat with us" title="Chat with us" onClick={onChat}>
+            <Icon name="chat" size={22} />
+            {chatDot ? <span className="chat-dot" aria-label="New message" /> : null}
+          </button>
+        ) : null}
+        {onOpenSettings ? (
+          <button type="button" className="nl-ib" aria-label="Settings" title="Settings" onClick={onOpenSettings}>
+            <Icon name="sliders" size={22} />
+            {pendingReqs > 0 ? <span className="nl-badge" aria-label={pendingReqs + " waiting"}><i>{pendingReqs}</i></span> : null}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 function TopBar({tab, onShare, onOpenSettings, pendingReqs, onChat, chatDot}){
   const titles = {
     history:["MenuCaptain","Where you have been"],
@@ -15315,6 +15387,22 @@ function TopBar({tab, onShare, onOpenSettings, pendingReqs, onChat, chatDot}){
     settings:["Settings","Sync & configuration"],
   };
   const [t,s] = titles[tab] || titles.history;
+  if (isNewLook()){
+    // The bar stays at the top as you scroll (Settings one tap away on every screen, nav standard
+    // 2026-07-24); the large title and its italic line scroll with the page, as the kit draws them.
+    return (
+      <>
+        <div className="nl-topbar-bar">
+          <NewLookBar onShare={onShare} onChat={onChat} chatDot={chatDot} pendingReqs={pendingReqs}
+            onOpenSettings={tab !== "settings" ? onOpenSettings : null} />
+        </div>
+        <div className="nl-topbar-title">
+          <h1>{t}</h1>
+          <div className="sub">{s}</div>
+        </div>
+      </>
+    );
+  }
   return (
     <div className="topbar">
       <div>
@@ -17328,7 +17416,7 @@ function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilt
           <div className="rest-thumb">
             <GooglePhoto cfg={cfg} name={r.google_photo_name} attribution={r.google_photo_attr} thumb={true} />
           </div>
-        ) : (
+        ) : isNewLook() ? null : (
           <div className="rest-thumb photo-shell">
             <Icon name="image" size={18} color="var(--img-icon)" />
           </div>
@@ -17359,7 +17447,8 @@ function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilt
             </div>
           </div>
           <span className={"fav" + (r.favorite ? " on" : "")}>
-            <Icon name="star" size={20} color={r.favorite ? "var(--accent)" : "var(--icon-dim)"} />
+            <Icon name="star" size={20} color={r.favorite ? "var(--accent)" : "var(--icon-dim)"}
+              fill={r.favorite && isNewLook() ? "var(--accent)" : undefined} />
           </span>
         </div>
       </div>
@@ -24651,11 +24740,15 @@ function FeedbackForm({ cfg, onClose }){
 }
 
 function ActionSheet({onClose, onPick, pendingReqs, sharesCount}){
-  const Item = ({what, icon, t1, t2, badge})=> (
+  // The new look draws some rows with the kit's icons (board t02): a pin for "I'm here", the target
+  // for near me, a pencil for logging, two people for a group order, a bookmark for a collection,
+  // a person with a plus for friends. Counts sit in a brass ring there. Today's look is unchanged.
+  const nl = isNewLook();
+  const Item = ({what, icon, nlIcon, t1, t2, badge})=> (
     <button type="button" className="sheet-item" onClick={()=> onPick(what)}>
-      <span className="ic"><Icon name={icon} size={21} color="var(--accent)" /></span>
+      <span className="ic"><Icon name={nl && nlIcon ? nlIcon : icon} size={21} color="var(--accent)" /></span>
       <div style={{flex:1, minWidth:0}}><div className="t1">{t1}</div><div className="t2">{t2}</div></div>
-      {badge ? (
+      {badge && nl ? <span className="nl-count"><i>{badge}</i></span> : badge ? (
         <span className="nl-round" style={{flex:"none", minWidth:20, height:20, padding:"0 6px", borderRadius:10,
           background:"var(--danger)", color:"#fff", fontSize:11.5, fontWeight:700,
           display:"flex", alignItems:"center", justifyContent:"center"}}>{badge}</span>
@@ -24675,16 +24768,16 @@ function ActionSheet({onClose, onPick, pendingReqs, sharesCount}){
             "locate" rather than Home's pin, because the pin below already means
             "near me" in this list and two identical icons for two different
             jobs would be read as one. */}
-        <Item what="atRestaurant" icon="locate" t1="Already at the restaurant"
+        <Item what="atRestaurant" icon="locate" nlIcon="pin" t1="Already at the restaurant"
           t2="Get the menu, order smarter, save the memory" />
-        <Item what="nearMe"     icon="pin"     t1="Find places near me"  t2="Discover spots around you" />
+        <Item what="nearMe"     icon="pin" nlIcon="locate" t1="Find places near me"  t2="Discover spots around you" />
         <Item what="findPlace"  icon="search"  t1="Find a place"         t2="Your places, or anywhere on Google" />
-        <div style={{borderTop:"1px solid var(--line-soft)", margin:"2px 0 6px"}} />
+        <div className="sheet-gap" style={{borderTop:"1px solid var(--line-soft)", margin:"2px 0 6px"}} />
         <Item what="scanMenu"   icon="camera"  t1="Scan or find a menu"  t2="Photo, their website, or a link" />
-        <Item what="logVisit"   icon="plate"   t1="Log a visit"          t2="Record a meal and rate it" />
+        <Item what="logVisit"   icon="plate" nlIcon="edit" t1="Log a visit"          t2="Record a meal and rate it" />
         <Item what="splitCheck" icon="receipt" t1="Split a check"        t2="Snap the receipt, split by who had what" />
-        <Item what="groupStart" icon="nodes"   t1="Start a group order"  t2="Everyone adds what they want" />
-        <Item what="collectionNew" icon="book" t1="Start a collection"   t2="Keep a trip, or any meals you love, together" />
+        <Item what="groupStart" icon="nodes" nlIcon="people" t1="Start a group order"  t2="Everyone adds what they want" />
+        <Item what="collectionNew" icon="book" nlIcon="bookmark" t1="Start a collection"   t2="Keep a trip, or any meals you love, together" />
         <Item what="wine" icon="wine" t1="Add a wine" t2="Snap the label, say how it was" />
         {/* Connections also lives in Settings, but people look for friends
             here - and a pending request is worth surfacing on the + button. */}
@@ -24692,7 +24785,7 @@ function ActionSheet({onClose, onPick, pendingReqs, sharesCount}){
           t2={sharesCount ? ("A friend sent you " + sharesCount + " thing" + (sharesCount > 1 ? "s" : ""))
                           : "What friends sent you, and what you sent"}
           badge={sharesCount || 0} />
-        <Item what="connections" icon="people" t1="Find friends"
+        <Item what="connections" icon="people" nlIcon="userplus" t1="Find friends"
           t2={pendingReqs ? ("You have " + pendingReqs + " request" + (pendingReqs > 1 ? "s" : "") + " waiting")
                           : "Your connections and pending requests"}
           badge={pendingReqs || 0} />
@@ -35633,7 +35726,23 @@ function applyLook(look){
     el.setAttribute("data-mode", lookIsDark(look.mode) ? "dark" : "light");
   }
   setThemeColorMeta();
+  setStatusBarForLook(!!(look && look.on));
   try { window.dispatchEvent(new Event("mc-look")); } catch(e){}
+}
+// The status bar's clock follows the page (1.595.0): dark on the new look's white ground, light on a
+// dark one. In the iPhone app this needs @capacitor/status-bar (MIT); until that is installed the
+// plugin is missing and nothing happens. Members never get here unless a device had the preview on,
+// and then it goes back to today's light clock.
+function setStatusBarForLook(on){
+  const light = on && document.documentElement.getAttribute("data-mode") !== "dark";
+  try {
+    const m = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (m) m.setAttribute("content", light ? "default" : "black-translucent");   // the web app reads it at its next open
+  } catch(e){}
+  try {
+    const sb = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;
+    if (sb && sb.setStyle) sb.setStyle({ style: light ? "LIGHT" : "DARK" });
+  } catch(e){}
 }
 function setLook(patch){
   const next = Object.assign({}, getLook(), patch || {});
@@ -35653,6 +35762,7 @@ try {
     if (mq.addEventListener) mq.addEventListener("change", follow); else if (mq.addListener) mq.addListener(follow);
   }
   setThemeColorMeta();   // the head script set the attributes before paint; the bar colour needs the CSS read
+  if (isNewLook()) setStatusBarForLook(true);
 } catch(e){}
 
 // Which tab the app opens to. User-configurable in Settings; defaults to

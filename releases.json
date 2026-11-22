@@ -583,5 +583,13 @@
     "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
     "welcome": "n/a: preview only",
     "handoff": "updated: version rows, decision entry (Stage 1 release 2), BRIEFING, Log 2026-11-21c"
+  },
+  "1.595.0": {
+    "what": "Preview only, for Chris and Kristin: the redesign's Stage 1, release 3. In the new look, the top bar with the MENUCAPTAIN wordmark and plain ink icons, the count in a brass ring, Home's large greeting under the notices, the + sheet as drawn (serif names, the drawn icons, full-width rows, one ink rule), no empty tile for a place without a photo, a favourite's star filled, and a dark status bar clock on white for the Home Screen app. Members see no change: 18 screens checked pixel for pixel against 1.594.0.",
+    "guide": "n/a: preview only (Chris and Kristin); the guide changes when the new look is switched on for everyone",
+    "promo": "n/a: preview only, members see nothing new",
+    "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
+    "welcome": "n/a: preview only",
+    "handoff": "updated: version rows, decision entry (Stage 1 release 3), BRIEFING, Log 2026-11-22a"
   }
 }
