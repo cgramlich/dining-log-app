@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.593.1** | menucaptain.com (GitHub Pages), released 2026-11-21 from the Mac (the new look's preview fixed to match the style kit after Media's check, items 1 to 8; members unchanged, checked pixel for pixel against 1.593.0). Before it: 1.593.0, the preview itself (Stage 1, release 1) |
+| Web app | **1.594.0** | menucaptain.com (GitHub Pages), released 2026-11-21 from the Mac (the new look's preview, Stage 1 release 2: square corners, flat hairline rows, underline fields, sheets, the remaining typed-in colours, Places controls and the Appearance swatches; members unchanged, 18 screens checked pixel for pixel against 1.593.1). Before it: 1.593.1, the kit fixes (items 1 to 8) |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.593.1** | rebuilt on the Mac from web 1.593.1 (2026-11-21, `8156d6e`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -519,7 +519,7 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
   tn2c on first open). It is NOT the welcome photo, which is only the signed-out welcome screen (tn2,
   Stage 3). 1.593.1 shows t01b to everyone as a stopgap until the photo door is built; Media gets captures
   of both states when the photo door is built.
-- **Next (release 2):**
+- **Release 2 (BUILT as 1.594.0, see "Stage 1, release 2" above; release 3 is next):**
   - the remaining typed-in colours (white overlays meant for dark grounds, about 20, and the rest);
   - square corners, hairline rows instead of boxes inside boxes, underline fields, sheets;
   - Media's items 9 (Places: serif italic filter tabs with a brass underline, Near me and Map as two
@@ -539,6 +539,42 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### The new look's preview: Stage 1, release 2 (2026-11-21, app 1.594.0)
+
+Chris, 2026-11-21: "Yes, start release 2". Preview only; members unchanged (`Test harness/test_15940.py`
+compares nine screens for a member and for Chris with the switch off, 18 in all, against 1.593.1 pixel
+for pixel: Home, the + sheet, Places, a place page, History, You, Settings top, Appearance and end).
+
+- **Square corners, one rule:** in the new look every element's corner is 0 (`!important`, so inline
+  corners square too), and an allowlist keeps the true circles at 50%: inline `border-radius: 50%`,
+  `.dot`, `.spin`, `.chat-dot`, `.reply-dot`, `.dc-x`, `.photo-remove`, `.req-banner-ic`, `.lb-close`,
+  `.lb-nav`, `.theme-dot`, `.ab-mini-c`, `.ab-ic`, `.pw-shadow`, `.pw-pointer::after`, the tab dot and
+  (until release 3) `.topbar-share`. Count badges keep their pill shape through `.nl-round` and
+  `.nav-badge` (999px). Road not taken: squaring ~140 rules by hand. RULE: a new round thing that must
+  stay round gets `className="nl-round"` or joins the allowlist.
+- **Flat rows:** a `.card` in the new look has no fill, edge or corners, only a hairline under it, and
+  rows directly inside a list card line up with the page's text. Buttons are solid ink or an ink
+  outline; `.btn.danger` is a red outline. Fields are an underline (`--faint` at rest, ink while typing);
+  `.fld .lbl` labels sentence case; the search bar an underline. Chips: hairline and `--dim` when you
+  can't tap them, an ink edge when you can, solid when chosen; dish verdicts ink only. Sheets and the
+  dish card: square, `--sheet` with `--sheet-edge`, a `--faint` grab, a 45% scrim. Opened pages' titles
+  are the serif.
+- **Typed-in colours named** (`:root` defaults are today's values, so members see the same colours; the
+  new look repaints them): `--err-text` (#e7a99e, 13 error lines) and `var(--danger)` for the 11
+  #d9604e lines; `--img-icon`, `--hl-06`, `--hl-08`, `--ic-warm` (place page icons), `--heart`,
+  `--star-on`, `--star-off`, `--note-ic`, `--grip-c`. In the new look errors are the kit's red, icons and
+  loved hearts ink (red is for errors and delete only), empty stars `--faint`.
+- **Media's item 9 (Places, board t03):** `.places-two` makes Near me and Map two equal outlined buttons
+  (icons a pin and a folded map, new `map` icon); `.status-tabs` makes All / Want to try / Been serif
+  italic tabs with a brass underline; `.places-dd` makes the filters a 2 by 2 grid of outlined selects.
+- **Media's item 10 (Appearance, t17):** "Light or dark" and "Colourway" labels; the segment in ink with
+  "Match my phone" on one line; the colourways as four square swatches (`.look-cw`) with "Default"
+  under Brass. These show only while the preview is on, so their own rules carry the kit's values.
+- **The no-photo tile:** colour only (`--soft` tile, `--faint` icon); the layout is still Chris's call.
+- Still to come: release 3 (status bar, Home's top bar and the wordmark, header icons and badge);
+  Stage 2's screens. Seen and left for those: History's "Start a collection" box (`.yif-entry`) and its
+  grey capitals, the place page's "LAST TIME" capitals.
 
 ### The new look's preview: the kit fixes (2026-11-21, app 1.593.1)
 

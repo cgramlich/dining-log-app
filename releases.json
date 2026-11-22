@@ -575,5 +575,13 @@
     "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
     "welcome": "n/a: preview only",
     "handoff": "updated: version rows, decision entry (the new look's kit fixes), BRIEFING, Log 2026-11-21b"
+  },
+  "1.594.0": {
+    "what": "Preview only, for Chris and Kristin: the redesign's Stage 1, release 2 (Chris: \"Yes, start release 2\"). In the new look, square corners everywhere with true circles kept, flat rows with hairlines instead of boxes inside boxes, underline fields, square sheets, the remaining typed-in colours named (errors in the kit's red, icons and loved hearts in ink), Places' Near me and Map buttons, serif tabs and 2 by 2 filters, and the colourways as four square swatches. Members see no change: 18 screens checked pixel for pixel against 1.593.1.",
+    "guide": "n/a: preview only (Chris and Kristin); the guide changes when the new look is switched on for everyone",
+    "promo": "n/a: preview only, members see nothing new",
+    "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
+    "welcome": "n/a: preview only",
+    "handoff": "updated: version rows, decision entry (Stage 1 release 2), BRIEFING, Log 2026-11-21c"
   }
 }

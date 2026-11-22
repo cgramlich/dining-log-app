@@ -61,6 +61,9 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       --text:#f3ebdd; --text-dim:#b3a591; --text-faint:#93826d;
       --accent:#e0764a; --accent-dim:#b85f3a;
       --amber:#e7b24c; --sage:#9aa877; --danger:#d9604e; --ok:#7faa6b;
+      /* Named in 1.594.0 so the new look can repaint them; these are today's values. */
+      --err-text:#e7a99e; --img-icon:#5a5045; --hl-06:rgba(255,255,255,0.06); --hl-08:rgba(255,255,255,0.08);
+      --ic-warm:#b3a591; --heart:#d9604e; --star-on:#e7b24c; --star-off:#3a3128; --note-ic:#9aa877; --grip-c:#a08e76;
       --shadow:0 8px 28px rgba(0,0,0,0.45);
       /* 1.593.0: three names for things that were typed in as fixed values, so the new look can
          repaint them. The defaults ARE the old values: today's look doesn't change by a pixel.
@@ -199,11 +202,83 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       text-transform:none; letter-spacing:0; }
     :root[data-look="new"] .home-section,
     :root[data-look="new"] .set-group{ font-family:var(--serif); font-weight:400; font-size:26px; line-height:1.15;
-      color:var(--n-ink); text-transform:none; letter-spacing:0; }
+      color:var(--n-ink); text-transform:none; letter-spacing:0; margin-left:0; margin-right:0; }
     :root[data-look="new"] .meta-line{ font-size:13.5px; color:var(--n-dim); text-transform:none; letter-spacing:0; }
     :root[data-look="new"] .meta-line .meta-2{ display:block; margin-top:2px; }
     /* A notice's second line is --dim (it was near-ink: today's 0.82 opacity, meant for the brass fill). */
     :root[data-look="new"] .req-banner .tiny{ opacity:1 !important; color:var(--n-dim); }
+    /* ---- 1.594.0, Stage 1 release 2: shapes (REDESIGN-BUILD-PLAN-2026-11-15.md, Stage 1). ----
+       Every corner is square in the new look (Chris kept square corners everywhere, 2026-11-20), so
+       one rule squares them all, inline corners included, and a short list keeps the true circles:
+       the notice and badge rings, dots, the spinner, round photo buttons, the wheel. Road not taken:
+       squaring each of the ~140 rounded rules by hand, which would leave strays. */
+    :root[data-look="new"] *, :root[data-look="new"] *::before, :root[data-look="new"] *::after{ border-radius:0 !important; }
+    :root[data-look="new"] :is([style*="border-radius: 50%"], [style*="border-radius:50%"], .dot, .spin, .chat-dot, .reply-dot,
+      .dc-x, .photo-remove, .req-banner-ic, .lb-close, .lb-nav, .theme-dot, .ab-mini-c, .ab-ic, .pw-shadow, .topbar-share),
+    :root[data-look="new"] .pw-pointer::after,
+    :root[data-look="new"] .nav button.on::before{ border-radius:50% !important; }
+    :root[data-look="new"] :is(.nl-round, .nav-badge){ border-radius:999px !important; }
+    /* Boxes inside boxes become hairline rows: a card is the page with a hairline under it. The
+       !important marks beat the inline fills and edges some cards carry (the kit has no tinted
+       surfaces). Rows inside a list card line up with the page's text. */
+    :root[data-look="new"] .card{ background:transparent !important; border:0 !important; border-bottom:1px solid var(--n-line) !important;
+      box-shadow:none !important; padding:16px 0; margin-bottom:0; }
+    :root[data-look="new"] .card > .pick-row{ padding-left:0 !important; padding-right:0 !important; }
+    :root[data-look="new"] .pick-row{ border-bottom-color:var(--n-line); }
+    /* Buttons: solid ink (above) or an ink outline; type at the kit's weight. */
+    :root[data-look="new"] .btn{ font-weight:500; }
+    :root[data-look="new"] .btn.ghost{ background:transparent; border-color:var(--n-ink); color:var(--n-ink); }
+    :root[data-look="new"] .btn.danger,
+    :root[data-look="new"] .menu-tool.danger{ background:transparent; border-color:var(--n-danger); color:var(--n-danger); }
+    /* Fields are an underline (kit .field): --faint at rest, ink while typing; labels sentence case. */
+    :root[data-look="new"] .input, :root[data-look="new"] textarea.input{ background:transparent; border:0;
+      border-bottom:1px solid var(--n-faint); padding:9px 0; }
+    :root[data-look="new"] .input:focus, :root[data-look="new"] textarea.input:focus{ border-bottom-color:var(--n-ink); }
+    :root[data-look="new"] .fld .lbl{ font-size:13px; letter-spacing:0; text-transform:none; color:var(--n-dim); }
+    :root[data-look="new"] .searchbar{ background:transparent; border:0; border-bottom:1px solid var(--n-line); padding:10px 0; }
+    /* Chips: a label you can't tap has a hairline edge in --dim; one you tap has an ink edge; a
+       chosen one is solid; a dish verdict is ink only, never colour (kit .chip, .choice, .vchip). */
+    :root[data-look="new"] .chip{ background:transparent; border-color:var(--n-line); color:var(--n-dim); }
+    :root[data-look="new"] .chip.pick{ border-color:var(--n-ink); color:var(--n-ink); }
+    :root[data-look="new"] .chip.on, :root[data-look="new"] .chip.pick.on{ background:var(--n-solid); border-color:var(--n-solid); color:var(--n-onsolid); }
+    :root[data-look="new"] .chip.tag{ background:transparent; border-color:var(--n-line); color:var(--n-dim); }
+    :root[data-look="new"] .chip.dish.loved,
+    :root[data-look="new"] .chip.dish.again{ background:transparent; border-color:var(--n-ink); color:var(--n-ink); }
+    :root[data-look="new"] .dish-note-line{ color:var(--n-dim); }
+    /* Sheets: square top, the --sheet surface and edge (lifted on --soft in dark), a --faint grab,
+       a 45% scrim (kit .msheet, .scrim, .grab). */
+    :root[data-look="new"] .sheet, :root[data-look="new"] .dish-card{ background:var(--n-sheet); border-top:1px solid var(--n-sheet-edge); }
+    :root[data-look="new"] .sheet .grip{ background:var(--n-faint); opacity:0.6; }
+    :root[data-look="new"] .sheet-bg, :root[data-look="new"] .dish-card-bg{ background:rgba(0,0,0,0.45); }
+    :root[data-look="new"] .sheet-item .ic{ background:var(--n-soft); }
+    :root[data-look="new"] .sheet-item{ border-bottom-color:var(--n-line); }
+    /* An opened page's title is the serif (kit .fhead). */
+    :root[data-look="new"] .ovhead h2{ font-family:var(--serif); font-weight:400; font-size:24px; letter-spacing:0; }
+    /* The remaining typed-in colours meant for a dark ground: */
+    :root[data-look="new"]{ --err-text:var(--n-danger); --img-icon:var(--n-faint); --hl-06:var(--n-line); --hl-08:var(--n-line);
+      /* Icons in ink; hearts and filled stars ink too (red is for errors and delete only, Chris 2026-11-14);
+         an empty star is --faint (kit). */
+      --ic-warm:var(--n-ink); --heart:var(--n-ink); --star-on:var(--n-ink); --star-off:var(--n-faint); --note-ic:var(--n-dim); --grip-c:var(--n-dim); }
+    :root[data-look="new"] .photo-shell{ background:var(--n-soft); border-color:transparent; }
+    :root[data-look="new"] .photo-shell.loading{ background:linear-gradient(90deg, var(--n-soft) 0%, var(--n-line) 50%, var(--n-soft) 100%);
+      background-size:200% 100%; border-color:transparent; }
+    :root[data-look="new"] .spin-pick-row, :root[data-look="new"] .pub-msec-head{ border-bottom-color:var(--n-line); }
+    :root[data-look="new"] .pick-tray{ background:var(--n-bg); border-top-color:var(--n-line); }
+    :root[data-look="new"] .leaflet-control-attribution{ background:rgba(255,255,255,0.8) !important; color:#646b78 !important; }
+    :root[data-look="new"] .leaflet-control-attribution a{ color:#000 !important; }
+    /* Places controls (Media's item 9, kit board t03): Near me and Map as two equal outlined buttons;
+       All / Want to try / Been as serif italic tabs with a brass underline on the current one; the
+       filters as a 2 by 2 grid of outlined selects with ink chevrons. */
+    :root[data-look="new"] .places-two{ flex-wrap:nowrap !important; gap:10px !important; margin-top:6px !important; }
+    :root[data-look="new"] .places-two .btn{ flex:1; height:46px; padding:0 8px; font-size:15px; }
+    :root[data-look="new"] .status-tabs{ gap:20px; padding:4px 0 0; border-bottom:1px solid var(--n-line); margin-bottom:12px !important; }
+    :root[data-look="new"] .status-tabs .chip{ background:none; border:0; padding:0 0 9px; position:relative;
+      font-family:var(--serif); font-style:italic; font-size:19px; font-weight:400; color:var(--n-dim); }
+    :root[data-look="new"] .status-tabs .chip.on{ background:none; color:var(--n-ink); font-weight:400; }
+    :root[data-look="new"] .status-tabs .chip.on::after{ content:""; position:absolute; left:0; right:0; bottom:4px; height:1px; background:var(--n-accent); }
+    :root[data-look="new"] .places-dd{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    :root[data-look="new"] .places-dd .chip{ height:40px; justify-content:space-between; padding:0 10px 0 12px;
+      font-size:14px; font-weight:400; }
     /* "Browse all" on Home: an ink link at the link size, no arrow (kit t01b). */
     :root[data-look="new"] .home-browse{ font-size:15px; font-weight:500; padding:0; }
     /* Home's two doors with no visit photo of your own (kit board t01b, .tdoor and .door; Chris
@@ -1193,11 +1268,25 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       color:var(--text-dim); font-weight:700; margin:22px 4px 10px; }
     /* The new look's preview card in Settings (1.593.0). */
     .look-card .look-row{ display:flex; align-items:center; gap:12px; }
-    .look-seg{ display:flex; margin:14px 0 6px; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-    .look-seg-b{ flex:1; padding:9px 6px; background:transparent; border:0; border-right:1px solid var(--line);
-      color:var(--text-dim); font:inherit; font-size:14px; cursor:pointer; }
+    .look-seg{ display:flex; margin:6px 0 6px; border:1px solid var(--text); overflow:hidden; }
+    .look-seg-b{ flex:1; height:44px; padding:0 4px; background:transparent; border:0; border-right:1px solid var(--text);
+      color:var(--text); font:inherit; font-size:15px; font-weight:500; white-space:nowrap; cursor:pointer; }
+    /* Labels and swatches under "Try the new look" (only shown while it's on): kit board t17. */
+    .look-lbl{ font-size:13px; color:var(--text-dim); margin:16px 0 0; }
+    .look-cw{ display:grid; grid-template-columns:repeat(4,1fr); margin-top:12px; }
+    .look-cw-b{ display:flex; flex-direction:column; align-items:center; background:none; border:0; padding:0;
+      font:inherit; font-size:13.5px; color:var(--text-dim); text-align:center; cursor:pointer; }
+    .look-cw-b.on{ color:var(--text); font-weight:500; }
+    .look-cw-b small{ font-size:12px; color:var(--text-dim); font-weight:300; margin-top:1px; }
+    .look-cw-i{ width:54px; height:54px; display:block; box-shadow:inset 0 0 0 1px var(--line); margin-bottom:10px; }
+    .look-cw-b.on .look-cw-i{ outline:1px solid var(--text); outline-offset:3px; }
+    /* The swatches are pictures of each colourway, so they're the one place colours are typed in. */
+    .look-cw-brass{ background:var(--n-brass-metal); }
+    .look-cw-navy{ background:linear-gradient(135deg,#121621 0 64%,transparent 64%),var(--n-brass-metal); }
+    .look-cw-capri{ background:#0a6fb4; }
+    .look-cw-slate{ background:linear-gradient(135deg,#20252c 0 64%,transparent 64%),var(--n-steel); }
     .look-seg-b:last-child{ border-right:0; }
-    .look-seg-b.on{ background:var(--text); color:var(--bg); font-weight:600; }
+    .look-seg-b.on{ background:var(--text); color:var(--bg); }
     .theme-row{ display:flex; align-items:center; gap:12px; padding:11px 2px; cursor:pointer; }
     .theme-row + .theme-row{ border-top:1px solid var(--line); }
     .theme-dots{ display:flex; flex:none; }
@@ -1562,7 +1651,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.593.1";
+const APP_VERSION   = "1.594.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -9626,7 +9715,7 @@ function WineEditor({ cfg, wine, onSave, onDelete, onClose, onHome }){
         ) : null}
         {reading ? <div className="tiny faint" style={{textAlign:"center", marginBottom:10}}><span className="spin" /> Reading the label&hellip;</div> : null}
         {readMsg ? <div className="tiny" style={{textAlign:"center", marginBottom:10, color:"var(--accent)"}}>{readMsg}</div> : null}
-        {readErr ? <div className="tiny" style={{textAlign:"center", marginBottom:10, color:"#d9604e"}}>{readErr}</div> : null}
+        {readErr ? <div className="tiny" style={{textAlign:"center", marginBottom:10, color:"var(--danger)"}}>{readErr}</div> : null}
 
         <label className="fld">
           <span className="lbl">Wine</span>
@@ -9700,7 +9789,7 @@ function WineEditor({ cfg, wine, onSave, onDelete, onClose, onHome }){
             </div>
           </div>
         </div>
-        {err ? <div className="tiny" style={{color:"#d9604e", margin:"4px 0 10px"}}>{err}</div> : null}
+        {err ? <div className="tiny" style={{color:"var(--danger)", margin:"4px 0 10px"}}>{err}</div> : null}
         <button className="btn primary" style={{width:"100%", marginTop:4}} disabled={saving || reading} onClick={save}>
           {saving ? <span className="spin" /> : "Save"}</button>
         {!isNew && onDelete ? (
@@ -9843,7 +9932,7 @@ function WineForMeSheet({ cfg, restaurant, list, book, onSaveProfile, onHaving, 
                 </div>
               </>
             )}
-            {err ? <div className="tiny" style={{color:"#d9604e", marginTop:8, textAlign:"center"}}>{err}</div> : null}
+            {err ? <div className="tiny" style={{color:"var(--danger)", marginTop:8, textAlign:"center"}}>{err}</div> : null}
           </div>
         )}
       </div>
@@ -10287,6 +10376,7 @@ function Icon({name, size, color, fill}){
     chevd:   <path d="M6 9l6 6 6-6"/>,
     pin:     <g><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></g>,
     user:    <g><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/></g>,
+    map:     <g><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2zM9 4.5v13M15 6.5v13"/></g>,
     phone:   <path d="M5 4h4l2 5-3 2a14 14 0 0 0 6 6l2-3 5 2v4a2 2 0 0 1-2 2A18 18 0 0 1 3 6a2 2 0 0 1 2-2Z"/>,
     link:    <g><path d="M9 15l6-6"/><path d="M10.5 6.5l1.8-1.8a4 4 0 0 1 5.7 5.7L16 12.4"/><path d="M13.5 17.5l-1.8 1.8a4 4 0 0 1-5.7-5.7L8 11.6"/></g>,
     book:    <g><path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2Z"/><path d="M18 20a2 2 0 0 1-2-2V4"/></g>,
@@ -10563,11 +10653,11 @@ function StarRater({value, onChange, size}){
           return (
             <span key={n} style={{position:"relative", display:"inline-block",
                     width:sz, height:sz, lineHeight:0, pointerEvents:"none"}}>
-              <Icon name="star" size={sz} color="#3a3128" />
+              <Icon name="star" size={sz} color="var(--star-off)" />
               {(full || half) && (
                 <span style={{position:"absolute", left:0, top:0, height:"100%",
                         width: full ? "100%" : "50%", overflow:"hidden", display:"inline-block", lineHeight:0}}>
-                  <Icon name="star" size={sz} color="#e7b24c" fill="#e7b24c" />
+                  <Icon name="star" size={sz} color="var(--star-on)" fill="var(--star-on)" />
                 </span>
               )}
             </span>
@@ -10629,12 +10719,12 @@ function Stars({value, size, showNum}){
             <span key={n} className={"star half" + (big ? " big" : "")}
                   style={{position:"relative", display:"inline-block"}}>
               {/* dim base */}
-              <Icon name="star" size={px} color="#3a3128" />
+              <Icon name="star" size={px} color="var(--star-off)" />
               {/* lit overlay, clipped to the left half */}
               <span style={{position:"absolute", left:0, top:0,
                             width:"50%", overflow:"hidden",
                             display:"inline-block", lineHeight:0}}>
-                <Icon name="star" size={px} color="#e7b24c" fill="#e7b24c" />
+                <Icon name="star" size={px} color="var(--star-on)" fill="var(--star-on)" />
               </span>
             </span>
           );
@@ -10740,7 +10830,7 @@ function DishNotes({ dishes }){
     <div style={{marginTop:6}}>
       {withNotes.map((d,i)=>(
         <div key={i} className="dish-note-line" style={{cursor:"default"}}>
-          <Icon name="note" size={12} color="#9aa877" />
+          <Icon name="note" size={12} color="var(--note-ic)" />
           <span><strong>{d.name}:</strong> {d.note}</span>
         </div>
       ))}
@@ -10816,7 +10906,7 @@ function PhotoImg({cfg, path, alt, className, style, onClick}){
     return (
       <div className={"photo-shell err " + (className || "")} style={style}
            onClick={onClick}>
-        <Icon name="image" size={20} color="#5a5045" />
+        <Icon name="image" size={20} color="var(--img-icon)" />
       </div>
     );
   }
@@ -10867,7 +10957,7 @@ function GooglePhoto({cfg, name, attribution, thumb}){
       <div ref={ref} className="photo-shell" style={{width:"100%",height:"100%"}}>
         {url ? <img className="photo-img" src={url} alt=""
                  style={{width:"100%",height:"100%",objectFit:"cover"}} />
-          : (failed ? <Icon name="image" size={20} color="#5a5045" /> : null)}
+          : (failed ? <Icon name="image" size={20} color="var(--img-icon)" /> : null)}
       </div>
     );
   }
@@ -11081,7 +11171,7 @@ function InstallHint({ onClose, force }){
   }
   const step = (n, body)=> (
     <div className="row" style={{gap:8, alignItems:"flex-start", marginBottom:6}}>
-      <span style={{flex:"none", width:18, height:18, borderRadius:9, background:"var(--accent)",
+      <span className="nl-round" style={{flex:"none", width:18, height:18, borderRadius:9, background:"var(--accent)",
         color:"var(--on-accent)", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
         justifyContent:"center", marginTop:1}}>{n}</span>
       <span style={{flex:1, lineHeight:1.45}}>{body}</span>
@@ -11093,7 +11183,7 @@ function InstallHint({ onClose, force }){
         <div style={{fontWeight:700, fontSize:16}}>Add MenuCaptain to your Home Screen</div>
         {onClose ? (
           <button className="x" onClick={onClose} aria-label="Dismiss" style={{flex:"none", margin:"-4px -6px 0 0"}}>
-            <Icon name="close" size={18} color="#b3a591" />
+            <Icon name="close" size={18} color="var(--ic-warm)" />
           </button>
         ) : null}
       </div>
@@ -11656,7 +11746,7 @@ function HomeView({ profile, notices, restaurants, visits, menus, cfg, onOpenRes
             style={{position:"relative", flex:"none"}}>
             <Icon name="gear" size={22} />
             {pendingReqs > 0 ? (
-              <span style={{position:"absolute", top:-4, right:-6, minWidth:16, height:16, padding:"0 4px",
+              <span className="nl-round" style={{position:"absolute", top:-4, right:-6, minWidth:16, height:16, padding:"0 4px",
                 borderRadius:8, background:"var(--danger)", color:"#fff", fontSize:10, fontWeight:700,
                 display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1}}>{pendingReqs}</span>
             ) : null}
@@ -15255,7 +15345,7 @@ function TopBar({tab, onShare, onOpenSettings, pendingReqs, onChat, chatDot}){
             onClick={onOpenSettings} style={{position:"relative"}}>
             <Icon name="gear" size={20} />
             {pendingReqs > 0 ? (
-              <span style={{position:"absolute", top:-4, right:-6, minWidth:16, height:16, padding:"0 4px",
+              <span className="nl-round" style={{position:"absolute", top:-4, right:-6, minWidth:16, height:16, padding:"0 4px",
                 borderRadius:8, background:"var(--danger)", color:"#fff", fontSize:10, fontWeight:700,
                 display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1}}>{pendingReqs}</span>
             ) : null}
@@ -15538,7 +15628,7 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
                 </span>
               </span>
               {pendingReqs > 0 ? (
-                <span style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9, background:"var(--danger)",
+                <span className="nl-round" style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9, background:"var(--danger)",
                   color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
                   justifyContent:"center", flex:"none", marginRight:8}}>{pendingReqs}</span>
               ) : null}
@@ -15555,7 +15645,7 @@ function DiscoverView({ restaurants, visits, menus, lists, meta, splits, cfg,
             <span className="yif-entry-s">What friends sent you, and what you sent</span>
           </span>
           {sharesCount > 0 ? (
-            <span style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9, background:"var(--danger)",
+            <span className="nl-round" style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9, background:"var(--danger)",
               color:"#fff", fontSize:11, fontWeight:700, display:"flex", alignItems:"center",
               justifyContent:"center", flex:"none", marginRight:8}}>{sharesCount}</span>
           ) : null}
@@ -16740,11 +16830,11 @@ function HistoryView({visits, restaurantById, cfg, syncing, onOpen, onOpenYearIn
                     title={v.loved ? "Loved - tap to remove" : "Mark this visit loved"}
                     style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
                     onClick={(e)=>{ e.stopPropagation(); onToggleLoved(v); }}>
-                    <Icon name="heart" size={18} color={v.loved ? "#d9604e" : "var(--icon-dim)"} />
+                    <Icon name="heart" size={18} color={v.loved ? "var(--heart)" : "var(--icon-dim)"} />
                   </button>
                 ) : (v.loved ? (
                   <span className="fav on" title="Loved" style={{flex:"none"}}>
-                    <Icon name="heart" size={18} color="#d9604e" />
+                    <Icon name="heart" size={18} color="var(--heart)" />
                   </span>
                 ) : null)}
               </span>
@@ -17240,7 +17330,7 @@ function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilt
           </div>
         ) : (
           <div className="rest-thumb photo-shell">
-            <Icon name="image" size={18} color="#5a5045" />
+            <Icon name="image" size={18} color="var(--img-icon)" />
           </div>
         )}
         <div className="between" style={{flex:1,minWidth:0}}>
@@ -17374,22 +17464,22 @@ function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilt
         </div>
       )}
       {(onNearMe || onOpenMap) && (
-        <div className="row" style={{margin:"0 0 10px", flexWrap:"wrap", gap:8}}>
+        <div className="row places-two" style={{margin:"0 0 10px", flexWrap:"wrap", gap:8}}>
           {onNearMe ? (
             <button className="btn ghost sm" onClick={onNearMe}>
-              <Icon name="locate" size={15} color="var(--accent)" />
+              <Icon name={isNewLook() ? "pin" : "locate"} size={15} color="var(--accent)" />
               Near me
             </button>
           ) : null}
           {onOpenMap ? (
             <button className="btn ghost sm map-open-btn" onClick={onOpenMap}>
-              <Icon name="pin" size={15} color="var(--accent)" />
+              <Icon name={isNewLook() ? "map" : "pin"} size={15} color="var(--accent)" />
               Map
             </button>
           ) : null}
         </div>
       )}
-      <div className="chips" style={{margin:"2px 0 14px"}}>
+      <div className="chips status-tabs" style={{margin:"2px 0 14px"}}>
         <button type="button" className={"chip pick" + (statusFilter === "all" ? " on" : "")}
           onClick={()=> setStatusFilter("all")}>All</button>
         <button type="button" className={"chip pick" + (statusFilter === "try" ? " on" : "")}
@@ -17416,7 +17506,7 @@ function RestaurantsView({restaurants, visits, menus, locations, cfg, activeFilt
           </button>
         );
         return (
-          <div className="chips" style={{margin:"0 0 12px", flexWrap:"wrap"}}>
+          <div className="chips places-dd" style={{margin:"0 0 12px", flexWrap:"wrap"}}>
             {showChips ? pill("city", cityLabel, filter !== "All") : null}
             {cuisineInUse.length >= 2 ? pill("cuisine", cuisLabel, cuisineFilter !== "All") : null}
             {pill("sort", "Sort: " + (SORT_LABEL[sortBy] || "A\u2013Z"), false)}
@@ -18173,11 +18263,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             </button>
           ) : null}
           <button className="x" onClick={()=> setShareSheet("main")} aria-label="Share" title="Share">
-            {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
+            {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="var(--ic-warm)" />}
           </button>
           {onEdit ? (
             <button className="x" onClick={onEdit} aria-label="Edit place" title="Edit place">
-              <Icon name="edit" size={19} color="#b3a591" />
+              <Icon name="edit" size={19} color="var(--ic-warm)" />
             </button>
           ) : null}
         </span>
@@ -18270,7 +18360,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
           <div className="card" style={{marginTop:12}}>
             {r.address && (
               <div className="row" style={{marginBottom:r.phone||r.website?10:0}}>
-                <Icon name="pin" size={17} color="#b3a591" />
+                <Icon name="pin" size={17} color="var(--ic-warm)" />
                 <span className="small" style={{flex:1, minWidth:0}}>{r.address}</span>
                 <button aria-label="Copy address" className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", cursor:"pointer", padding:"2px 6px", lineHeight:0}}
                   onClick={()=> copyText(r.address, "Address")}><Icon name="copy" size={16} color="var(--accent)" /></button>
@@ -18278,7 +18368,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             )}
             {r.phone && (
               <div className="row" style={{marginBottom:r.website?10:0}}>
-                <Icon name="phone" size={17} color="#b3a591" />
+                <Icon name="phone" size={17} color="var(--ic-warm)" />
                 <a className="small" style={{flex:1, minWidth:0}} href={"tel:" + r.phone.replace(/[^0-9+]/g,"")}>{r.phone}</a>
                 <button aria-label="Copy phone" className="tiny" style={{marginLeft:"auto", flex:"none", background:"none", border:"none", cursor:"pointer", padding:"2px 6px", lineHeight:0}}
                   onClick={()=> copyText(r.phone, "Phone")}><Icon name="copy" size={16} color="var(--accent)" /></button>
@@ -18286,7 +18376,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             )}
             {r.website && (
               <div className="row">
-                <Icon name="link" size={17} color="#b3a591" />
+                <Icon name="link" size={17} color="var(--ic-warm)" />
                 <a className="small" style={{flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}} target="_blank" rel="noreferrer"
                    href={(r.website.indexOf("http")===0 ? r.website : "https://" + r.website)}>
                   {r.website}
@@ -18519,7 +18609,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
             {storyBusy ? "Reading the page..." : "Add their story from a photo"}
           </button>
         ) : null)}
-        {storyErr ? <div className="tiny" style={{color:"#d9604e", marginTop:6}}>{storyErr}</div> : null}
+        {storyErr ? <div className="tiny" style={{color:"var(--danger)", marginTop:6}}>{storyErr}</div> : null}
         {storyDraft ? (
           <div className="card" style={{marginTop:14, padding:"13px 15px"}}>
             <div className="small muted" style={{marginBottom:7}}>Read from your photo. Save it as "In their words"?</div>
@@ -18728,7 +18818,7 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                 onPointerCancel={draggable && canReorderMenus ? cardPressUp : undefined}>
                 {draggable && canReorderMenus && (
                   <span aria-label="Drag to reorder" title="Drag to reorder"
-                    style={{touchAction:"none", cursor:"grab", color:"#a08e76", fontSize:22,
+                    style={{touchAction:"none", cursor:"grab", color:"var(--grip-c)", fontSize:22,
                             lineHeight:1, padding:"14px 16px", margin:"-8px 6px -8px -10px",
                             flex:"none", userSelect:"none", alignSelf:"stretch",
                             display:"flex", alignItems:"center"}}
@@ -18806,11 +18896,11 @@ function RestaurantDetail({restaurant, menus, visits, cfg, onClose, onLogVisit,
                     title={v.loved ? "Loved - tap to remove" : "Mark this visit loved"}
                     style={{flex:"none", background:"none", border:"none", cursor:"pointer", padding:4}}
                     onClick={(e)=>{ e.stopPropagation(); onToggleVisitLoved(v); }}>
-                    <Icon name="heart" size={18} color={v.loved ? "#d9604e" : "var(--icon-dim)"} />
+                    <Icon name="heart" size={18} color={v.loved ? "var(--heart)" : "var(--icon-dim)"} />
                   </button>
                 ) : (v.loved ? (
                   <span className="fav on" title="Loved" style={{flex:"none"}}>
-                    <Icon name="heart" size={18} color="#d9604e" />
+                    <Icon name="heart" size={18} color="var(--heart)" />
                   </span>
                 ) : null)}
               </div>
@@ -19624,7 +19714,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
             ) : null}
             <button type="button" className="menu-tool danger"
               onClick={()=>{ setToolsOpen(false); setConfirmDel(true); }}>
-              <Icon name="trash" size={17} color="#d9604e" />
+              <Icon name="trash" size={17} color="var(--danger)" />
               <span>Delete this menu</span>
             </button>
           </div>
@@ -19681,7 +19771,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
           <div className="fx-row">
             {fxOn ? (
               <div className="fx-note">
-                {fxErr ? <span style={{color:"#d9604e"}}>{fxErr}</span>
+                {fxErr ? <span style={{color:"var(--danger)"}}>{fxErr}</span>
                   : fx ? <span>{fxRateLabel(fx)}{fx.date ? " on " + fxDateLabel(fx.date) : ""}</span>
                   : <span className="faint">Getting the rate</span>}
                 <label className="fx-pick">{fxTo}<span aria-hidden="true">{" \u25be"}</span>
@@ -19755,7 +19845,7 @@ function MenuDetail({restaurant, menu, visits, allVisits, allRestaurants, allMen
               placeholder="New menu name (e.g. Drinks, Brunch)"
               onChange={e=> setSplitText(e.target.value)} />
             {splitReady === false && splitTried ? (
-              <div className="tiny" style={{color:"#d9604e", marginTop:7}}>
+              <div className="tiny" style={{color:"var(--danger)", marginTop:7}}>
                 {splitAll ? "Leave at least one section here, or rename the menu instead."
                           : "Pick at least one section and give the new menu a name."}
               </div>
@@ -23026,7 +23116,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                       {shots.map((u,i)=>(
                         <div key={i} style={{position:"relative"}}>
                           <img src={u} alt="" style={{width:64, height:64, objectFit:"cover", borderRadius:8, border:"1px solid var(--line)"}} />
-                          <button onClick={()=> setShots(s => s.filter((_,j)=> j!==i))}
+                          <button className="nl-round" onClick={()=> setShots(s => s.filter((_,j)=> j!==i))}
                             style={{position:"absolute", top:-6, right:-6, width:20, height:20, borderRadius:10, border:"none", background:"var(--danger)", color:"#fff", fontSize:12, lineHeight:"20px", padding:0, cursor:"pointer"}}>&times;</button>
                         </div>
                       ))}
@@ -23239,7 +23329,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                       style={{background:"none", border:"none", padding:0, color:"var(--accent)", fontWeight:600, cursor:"pointer"}}>
                       {tipRecBusy ? <span className="spin" /> : "Ask again"}</button>
                   </div>
-                  {tipRecErr ? <div className="tiny" style={{color:"#d9604e", marginTop:6}}>{tipRecErr}</div> : null}
+                  {tipRecErr ? <div className="tiny" style={{color:"var(--danger)", marginTop:6}}>{tipRecErr}</div> : null}
                 </div>
               ) : (
                 <div style={{marginTop:10}}>
@@ -23249,7 +23339,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
                   <div className="tiny faint" style={{textAlign:"center", marginTop:5}}>
                     A tip range for this meal, with the total. Uses an AI request.
                   </div>
-                  {tipRecErr ? <div className="tiny" style={{color:"#d9604e", marginTop:6, textAlign:"center"}}>{tipRecErr}</div> : null}
+                  {tipRecErr ? <div className="tiny" style={{color:"var(--danger)", marginTop:6, textAlign:"center"}}>{tipRecErr}</div> : null}
                 </div>
               )
             ) : null}
@@ -23283,7 +23373,7 @@ function SplitCheckFlow({config, restaurants, visits, onSaveToVisit, onApplyDraf
             {looksDoubled && (
               <div className="card" style={{margin:"10px 0 0", padding:"10px 12px",
                    border:"1px solid rgba(var(--danger-rgb),0.5)", background:"rgba(var(--danger-rgb),0.10)"}}>
-                <div style={{fontWeight:600, color:"#e7a99e"}}>Items add up to more than the total</div>
+                <div style={{fontWeight:600, color:"var(--err-text)"}}>Items add up to more than the total</div>
                 <div className="tiny faint" style={{marginTop:4, lineHeight:1.4}}>
                   This usually means the same receipt was scanned twice. Remove the
                   duplicate lines above - or start over and scan just one photo.
@@ -24341,7 +24431,7 @@ function NearMeView({ cfg, restaurants, visits, onOpenRestaurant, onAddPlace, on
                   </div>
                 </>
               )}
-              {pickErr && <div className="tiny" style={{color:"#e7a99e", marginTop:6}}>{pickErr}</div>}
+              {pickErr && <div className="tiny" style={{color:"var(--err-text)", marginTop:6}}>{pickErr}</div>}
               {pick && (
                 <div className="card" style={{padding:"12px 14px"}}>
                   <div className="tiny faint" style={{marginBottom:4}}>
@@ -24566,7 +24656,7 @@ function ActionSheet({onClose, onPick, pendingReqs, sharesCount}){
       <span className="ic"><Icon name={icon} size={21} color="var(--accent)" /></span>
       <div style={{flex:1, minWidth:0}}><div className="t1">{t1}</div><div className="t2">{t2}</div></div>
       {badge ? (
-        <span style={{flex:"none", minWidth:20, height:20, padding:"0 6px", borderRadius:10,
+        <span className="nl-round" style={{flex:"none", minWidth:20, height:20, padding:"0 6px", borderRadius:10,
           background:"var(--danger)", color:"#fff", fontSize:11.5, fontWeight:700,
           display:"flex", alignItems:"center", justifyContent:"center"}}>{badge}</span>
       ) : null}
@@ -24914,7 +25004,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
         </button>
         <h2>Can't decide?</h2>
         <button className="x" onClick={onClose} aria-label="Close">
-          <Icon name="close" size={20} color="#b3a591" />
+          <Icon name="close" size={20} color="var(--ic-warm)" />
         </button>
       </div>
       <div className={"ovbody" + (stage === "wheel" ? " pw-body" : "")}>
@@ -25060,7 +25150,7 @@ function SpinPicker({restaurants, cfg, onOpenRestaurant, onAddPlace, onUpgrade, 
               </button>
             </div>
             {dErr ? (
-              <div className="small" style={{color:"#e7a99e", margin:"8px 2px 0"}}>
+              <div className="small" style={{color:"var(--err-text)", margin:"8px 2px 0"}}>
                 {dErr}
                 {dUpsell && !IS_NATIVE && onUpgrade ? (
                   <button className="btn primary sm" style={{marginTop:8, width:"100%"}}
@@ -25593,7 +25683,7 @@ function RestaurantForm({existing, prefill, enrich, locations, cfg, onClose, onS
           {!hasAnyPhoto && !(seed && seed.google_photo_name) && (
             <div className="photo-shell"
               style={{width:72,height:72,borderRadius:10}}>
-              <Icon name="image" size={24} color="#5a5045" />
+              <Icon name="image" size={24} color="var(--img-icon)" />
             </div>
           )}
           <div style={{flex:1,minWidth:0}}>
@@ -27044,7 +27134,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
       {/* Directly under the header, because that is where you were looking
           when you tapped Save and nothing happened. */}
       {saveWhy ? (
-        <div className="small" style={{color:"#e7a99e", padding:"10px 16px 0", textAlign:"center"}}>
+        <div className="small" style={{color:"var(--err-text)", padding:"10px 16px 0", textAlign:"center"}}>
           {saveWhy}
         </div>
       ) : null}
@@ -27665,7 +27755,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                   </div>
                   {d.note && !noteOpen[d.name] && (
                     <div className="dish-note-line" onClick={()=> toggleNote(d.name)}>
-                      <Icon name="note" size={12} color="#9aa877" />
+                      <Icon name="note" size={12} color="var(--note-ic)" />
                       <span>{d.note}</span>
                     </div>
                   )}
@@ -27957,7 +28047,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
               onClose={()=> setExpOpen(false)} />
           ) : null}
           {receiptErr && (
-            <div className="small" style={{color:"#e7a99e", marginTop:6}}>{receiptErr}</div>
+            <div className="small" style={{color:"var(--err-text)", marginTop:6}}>{receiptErr}</div>
           )}
           <div className="lbl row" style={{marginTop:16, marginBottom:6, gap:8}}>
             Receipts
@@ -28064,7 +28154,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                     onChange={e=> setEditDish(ed => Object.assign({}, ed, {draft:e.target.value, err:""}))}
                     onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); saveDishRename(); } }} />
                   {editDish.err && (
-                    <div className="small" style={{color:"#e7a99e", marginTop:6}}>{editDish.err}</div>
+                    <div className="small" style={{color:"var(--err-text)", marginTop:6}}>{editDish.err}</div>
                   )}
                   <div className="tiny faint" style={{marginTop:6}}>
                     Price, rating, note, photos and any estimate stay with the dish.
@@ -28119,7 +28209,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                       const setSharePct = (p)=>{ setReceiptReview(rr => rr.map(x =>
                         x.rid === it.rid ? Object.assign({}, x, {sharePct: p}) : x)); };
                       return (
-                      <div key={it.rid} style={{borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                      <div key={it.rid} style={{borderBottom:"1px solid var(--hl-06)"}}>
                       <div className="row"
                            style={{gap:9, alignItems:"center", padding:"7px 0"}}>
                         <div className={"rcpt-check" + (count > 0 ? " on" : "")} onClick={toggle}>
@@ -28195,7 +28285,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
         <button type="button" className={"btn" + (loved ? " primary" : " ghost")}
           style={{marginBottom:14}} onClick={()=> setLoved(l => !l)}>
           <span className="row" style={{gap:7, justifyContent:"center"}}>
-            <Icon name="heart" size={17} color={loved ? "var(--on-accent)" : "#d9604e"} />
+            <Icon name="heart" size={17} color={loved ? "var(--on-accent)" : "var(--heart)"} />
             {loved ? "Loved this visit" : "Mark this visit loved"}
           </span>
         </button>
@@ -29492,11 +29582,11 @@ function ScanMenuFlow({config, restaurants, menus, presetRestaurantId, presetMen
                   );
                 })}
                 {!splitActive ? (
-                  <div className="tiny" style={{color:"#d9604e", marginTop:8}}>Put at least one photo with each restaurant, or keep them as one menu.</div>
+                  <div className="tiny" style={{color:"var(--danger)", marginTop:8}}>Put at least one photo with each restaurant, or keep them as one menu.</div>
                 ) : splitEmpty ? (
-                  <div className="tiny" style={{color:"#d9604e", marginTop:8}}>{"No dishes were read for " + split.groups[splitEmpty.gi].title + ". Put a photo with dishes with it, or keep them as one menu."}</div>
+                  <div className="tiny" style={{color:"var(--danger)", marginTop:8}}>{"No dishes were read for " + split.groups[splitEmpty.gi].title + ". Put a photo with dishes with it, or keep them as one menu."}</div>
                 ) : !splitPlacesDistinct ? (
-                  <div className="tiny" style={{color:"#d9604e", marginTop:8}}>Choose a different place for each restaurant.</div>
+                  <div className="tiny" style={{color:"var(--danger)", marginTop:8}}>Choose a different place for each restaurant.</div>
                 ) : null}
               </div>
             ) : null}
@@ -30345,7 +30435,7 @@ function PublishedVisit({data, onSaved, onLogVisit, replySlot, senderId}){
                     <button className="pub-msec-head" aria-expanded={secOpen}
                       onClick={()=> fold.toggle(si)}
                       style={{width:"100%", background:"none", border:0,
-                              borderBottom:"1px solid rgba(255,255,255,0.08)", textAlign:"left"}}>
+                              borderBottom:"1px solid var(--hl-08)", textAlign:"left"}}>
                       <span className="nm">{sectionHeading(s.n)}</span>
                       <span className="row" style={{gap:7, flex:"none"}}>
                         <span className="ct">{(s.i || []).length}</span>
@@ -30627,7 +30717,7 @@ function GuestIdentityPrompt({cfg, unknown, onDone}){
       ) : null}
       <ClearInput value={who} onChange={e=>setWho(e.target.value)}
         placeholder={suggested.length ? "Or type a name" : "Their name"} />
-      {err ? <div className="small" style={{color:"#e7a99e", marginTop:6}}>{err}</div> : null}
+      {err ? <div className="small" style={{color:"var(--err-text)", marginTop:6}}>{err}</div> : null}
       <div className="row" style={{gap:9, marginTop:10}}>
         <button className="btn ghost sm" onClick={next} disabled={busy}>Skip</button>
         <button className="btn primary sm" onClick={save} disabled={busy}>
@@ -30881,7 +30971,7 @@ function GroupNotifyBar({cfg, code}){
   if (!signedIn || push === "checking" || push === "unsupported") return null;
   const box = {margin:"0 0 14px", padding:"10px 14px", borderRadius:12, textAlign:"left",
     background:"var(--surface-2, rgba(255,255,255,0.04))", border:"1px solid var(--line)"};
-  const errLine = err ? <div className="tiny" style={{color:"#e7a99e", marginTop:6}}>{err}</div> : null;
+  const errLine = err ? <div className="tiny" style={{color:"var(--err-text)", marginTop:6}}>{err}</div> : null;
   if (push === "iphone-tab" || push === "blocked") return (
     <div style={box}>
       <div className="tiny faint" style={{lineHeight:1.5}}>
@@ -34854,7 +34944,7 @@ function YearInFood({visits, restaurants, menus, onClose, onHome}){
         <h2>Year in Food</h2>
         <span className="row" style={{gap:2, flex:"none"}}>
           <button className="x" onClick={share} disabled={shareBusy || s.empty} aria-label="Share recap">
-            {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="#b3a591" />}
+            {shareBusy ? <span className="spin" /> : <Icon name="share" size={20} color="var(--ic-warm)" />}
           </button>
           <HomeBtn onHome={onHome} />
         </span>
@@ -35175,7 +35265,7 @@ function ProCard({config}){
                 autoCapitalize="characters" autoComplete="off"
                 placeholder="YOUR-CODE" /></label>
             {codeMsg && (
-              <div className="small" style={{color:"#e7a99e", marginBottom:8}}>{codeMsg}</div>
+              <div className="small" style={{color:"var(--err-text)", marginBottom:8}}>{codeMsg}</div>
             )}
             <button className="btn" style={{width:"100%"}}
               disabled={codeBusy || !codeText.trim()} onClick={redeemCode}>
@@ -36893,7 +36983,7 @@ function WeeklyEmailSetting({ cfg }){
               onClick={(e)=>{ e.stopPropagation(); toggle(); }} />
           )}
         </div>
-        {err ? <div className="tiny" style={{color:"#e7a99e", marginTop:8}}>{err}</div> : null}
+        {err ? <div className="tiny" style={{color:"var(--err-text)", marginTop:8}}>{err}</div> : null}
       </div>
     </>
   );
@@ -36961,7 +37051,7 @@ function NotificationsSetting({ cfg }){
             )}
           </div>
         )}
-        {err ? <div className="tiny" style={{color:"#e7a99e", marginTop:8}}>{err}</div> : null}
+        {err ? <div className="tiny" style={{color:"var(--err-text)", marginTop:8}}>{err}</div> : null}
       </div>
     </>
   );
@@ -38965,7 +39055,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           </div>
           <div className="row" style={{gap:8, alignItems:"center"}}>
             {pendingReqs ? (
-              <span style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9,
+              <span className="nl-round" style={{minWidth:18, height:18, padding:"0 5px", borderRadius:9,
                 background:"var(--danger)", color:"#fff", fontSize:11, fontWeight:700,
                 display:"flex", alignItems:"center", justifyContent:"center"}}>{pendingReqs}</span>
             ) : null}
@@ -39147,6 +39237,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
           </div>
           {look.on ? (
             <>
+              <div className="look-lbl">Light or dark</div>
               <div className="look-seg" role="radiogroup" aria-label="Light or dark">
                 {LOOK_MODES.map(m => (
                   <button key={m.key} type="button" role="radio" aria-checked={look.mode === m.key}
@@ -39154,15 +39245,20 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                     onClick={()=> setLookUi(setLook({ mode: m.key }))}>{m.name}</button>
                 ))}
               </div>
-              {LOOK_COLOURWAYS.map(c => (
-                <div key={c.key} className="theme-row" onClick={()=> setLookUi(setLook({ cw: c.key }))}>
-                  <div className="theme-dots">
-                    {c.dots.map((d,i)=> <span key={i} className="theme-dot" style={{background:d}} />)}
-                  </div>
-                  <div className="theme-name">{c.name}</div>
-                  {look.cw === c.key ? <span className="theme-check">{"\u2713"}</span> : null}
-                </div>
-              ))}
+              {/* The colourways as the kit draws them (board t17, .cw): four square swatches with their
+                  names, "Default" under Brass (1.594.0, Media's item 10). Only the new look shows this. */}
+              <div className="look-lbl">Colourway</div>
+              <div className="look-cw" role="radiogroup" aria-label="Colourway">
+                {LOOK_COLOURWAYS.map(c => (
+                  <button key={c.key} type="button" role="radio" aria-checked={look.cw === c.key}
+                    className={"look-cw-b" + (look.cw === c.key ? " on" : "")}
+                    onClick={()=> setLookUi(setLook({ cw: c.key }))}>
+                    <i className={"look-cw-i look-cw-" + c.key} aria-hidden="true" />
+                    {c.name}
+                    {c.key === "brass" ? <small>Default</small> : null}
+                  </button>
+                ))}
+              </div>
             </>
           ) : null}
         </div>
@@ -39344,7 +39440,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
 
       <div className="card" style={{marginTop:12}}>
         <div className="between" onClick={()=> setShowDel(s=>!s)} style={{cursor:"pointer"}}>
-          <div style={{fontWeight:600,color:"#e7a99e"}}>Delete account</div>
+          <div style={{fontWeight:600,color:"var(--err-text)"}}>Delete account</div>
           <Chevron open={showDel} size={17} color="var(--icon-dim)" />
         </div>
         {showDel && (
@@ -39359,7 +39455,7 @@ function SettingsView({config, profile, onProfileChange, onOpenConnections, pend
                 onChange={e=>{ setDelText(e.target.value); setDelErr(""); }}
                 autoCapitalize="characters" autoComplete="off"
                 placeholder="DELETE" /></label>
-            {delErr && <div className="small" style={{color:"#e7a99e",marginBottom:8}}>{delErr}</div>}
+            {delErr && <div className="small" style={{color:"var(--err-text)",marginBottom:8}}>{delErr}</div>}
             <button className="btn danger" style={{width:"100%"}}
               disabled={delBusy || delText.trim().toUpperCase() !== "DELETE"}
               onClick={doDeleteAccount}>
