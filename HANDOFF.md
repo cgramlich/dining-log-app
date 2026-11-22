@@ -24,7 +24,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 |---|---|---|
 | Web app | **1.593.1** | menucaptain.com (GitHub Pages), released 2026-11-21 from the Mac (the new look's preview fixed to match the style kit after Media's check, items 1 to 8; members unchanged, checked pixel for pixel against 1.593.0). Before it: 1.593.0, the preview itself (Stage 1, release 1) |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
-| Native shell | **1.593.0** | rebuilt on the Mac from web 1.593.0 (2026-11-21, `edbd61f`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
+| Native shell | **1.593.1** | rebuilt on the Mac from web 1.593.1 (2026-11-21, `8156d6e`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -534,6 +534,7 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 ### The new look's preview: the kit fixes (2026-11-21, app 1.593.1)
 
 Chris, 2026-11-21, "Yes, fixes first": Media's check of 1.593.0, items 1 to 8, fixed before release 2.
+Released 2026-11-21 (Chris: "Yes, put it live"): web `9a9561a`, confirmed live; native `8156d6e`.
 Everything is scoped to `:root[data-look="new"]` or built only when `isNewLook()` is true, so members
 see no change. `Test harness/test_15931.py` compares members' Home, Places and Settings (and the owner
 with the switch off) with 1.593.0 PIXEL FOR PIXEL, with only the version number blanked; all 8 match.
