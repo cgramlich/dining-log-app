@@ -304,6 +304,28 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     :root[data-look="new"] .sheet-item .t1{ font-family:var(--serif); font-weight:400; font-size:20px; line-height:1.15; }
     :root[data-look="new"] .sheet-item .ic{ width:42px; height:42px; }
     :root[data-look="new"] .sheet-gap{ border-top:0 !important; height:10px; margin:0 -16px !important; border-bottom:1px solid var(--n-ink); }
+    /* 1.595.1 (Media's check of 1.595.0): on the tab pages, rules run the full screen width and the
+       text stays 20px in (kit .row, .tdoor, .door: 18px there; the app's page margin is 20px). Only
+       inside .content, whose margin is known; a card inside a card keeps to its parent, and .content
+       clips sideways so nothing can scroll the page sideways. Notices and the search underline stay
+       inset, as drawn. */
+    :root[data-look="new"] .content{ overflow-x:clip; }
+    :root[data-look="new"] .content .card{ margin-left:-20px !important; margin-right:-20px !important;
+      padding-left:20px !important; padding-right:20px !important; }
+    :root[data-look="new"] .content .card:has(> .pick-row){ padding-left:0 !important; padding-right:0 !important; }
+    :root[data-look="new"] .content .card > .pick-row{ padding-left:20px !important; padding-right:20px !important; }
+    :root[data-look="new"] .content .card .card{ margin-left:0 !important; margin-right:0 !important;
+      padding-left:0 !important; padding-right:0 !important; }
+    :root[data-look="new"] .content :is(.nl-tdoor, .nl-door, .status-tabs){ margin-left:-20px !important; margin-right:-20px !important;
+      padding-left:20px; padding-right:20px; }
+    /* Places rows at the kit's size (t03 .row): 12px above and below, a 52px picture, the name 20px
+       serif on a 1.15 line, the two quiet lines close under it. */
+    :root[data-look="new"] .content .card.tap{ padding-top:12px; padding-bottom:12px; }
+    :root[data-look="new"] .rest-thumb, :root[data-look="new"] .rest-thumb .photo-img{ width:52px; height:52px; }
+    :root[data-look="new"] .rest-thumb{ margin-right:14px; }
+    :root[data-look="new"] .place-name{ font-size:20px; line-height:1.15; font-weight:400; }
+    :root[data-look="new"] .meta-line{ line-height:1.3; margin-top:2px !important; }
+    :root[data-look="new"] .meta-line .meta-2{ margin-top:0; }
     /* "Browse all" on Home: an ink link at the link size, no arrow (kit t01b). */
     :root[data-look="new"] .home-browse{ font-size:15px; font-weight:500; padding:0; }
     /* Home's two doors with no visit photo of your own (kit board t01b, .tdoor and .door; Chris
@@ -1681,7 +1703,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.595.0";
+const APP_VERSION   = "1.595.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -15381,7 +15403,9 @@ function NewLookBar({onShare, onChat, chatDot, onOpenSettings, pendingReqs}){
 }
 function TopBar({tab, onShare, onOpenSettings, pendingReqs, onChat, chatDot}){
   const titles = {
-    history:["MenuCaptain","Where you have been"],
+    // In the new look the bar already carries the name, so History says what it is (Chris, 2026-11-22,
+    // by card in the Media session: "History"; board t12 redrawn to match). Today's look is unchanged.
+    history:[isNewLook() ? "History" : "MenuCaptain","Where you have been"],
     restaurants:["Places","Your restaurants & menus"],
     discover:["You","Your recaps, people and badges"],
     settings:["Settings","Sync & configuration"],
@@ -35730,9 +35754,10 @@ function applyLook(look){
   try { window.dispatchEvent(new Event("mc-look")); } catch(e){}
 }
 // The status bar's clock follows the page (1.595.0): dark on the new look's white ground, light on a
-// dark one. In the iPhone app this needs @capacitor/status-bar (MIT); until that is installed the
-// plugin is missing and nothing happens. Members never get here unless a device had the preview on,
-// and then it goes back to today's light clock.
+// dark one. In the iPhone app this uses @capacitor/status-bar (MIT, installed 2026-11-22 with Chris's
+// yes); without it nothing happens. Members never get here unless a device had the preview on, and
+// then the iPhone app goes back to the system's own choice ("DEFAULT"), which is what members have
+// always had: the app sets no style of its own (1.595.1; 1.595.0 forced a light clock there).
 function setStatusBarForLook(on){
   const light = on && document.documentElement.getAttribute("data-mode") !== "dark";
   try {
@@ -35741,7 +35766,7 @@ function setStatusBarForLook(on){
   } catch(e){}
   try {
     const sb = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar;
-    if (sb && sb.setStyle) sb.setStyle({ style: light ? "LIGHT" : "DARK" });
+    if (sb && sb.setStyle) sb.setStyle({ style: light ? "LIGHT" : on ? "DARK" : "DEFAULT" });
   } catch(e){}
 }
 function setLook(patch){

@@ -591,5 +591,13 @@
     "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
     "welcome": "n/a: preview only",
     "handoff": "updated: version rows, decision entry (Stage 1 release 3), BRIEFING, Log 2026-11-22a"
+  },
+  "1.595.1": {
+    "what": "Preview only, for Chris and Kristin: Media's check of 1.595.0 fixed (lines run the full screen width with the text kept at the page's edge, Places rows at the drawn size), History titled \"History\" in the new look (Chris's card), and the iPhone app's status bar following the new look, back to the phone's own choice when the preview is off. Members see no change: 18 screens checked pixel for pixel, and the app makes no status bar call for them.",
+    "guide": "n/a: preview only (Chris and Kristin); the guide changes when the new look is switched on for everyone",
+    "promo": "n/a: preview only, members see nothing new",
+    "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
+    "welcome": "n/a: preview only",
+    "handoff": "updated: version rows, decision entry (release 3 fixes and the status bar), BRIEFING, Log 2026-11-22b"
   }
 }
