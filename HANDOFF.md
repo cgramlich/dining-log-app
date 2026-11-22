@@ -24,7 +24,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 |---|---|---|
 | Web app | **1.594.0** | menucaptain.com (GitHub Pages), released 2026-11-21 from the Mac (the new look's preview, Stage 1 release 2: square corners, flat hairline rows, underline fields, sheets, the remaining typed-in colours, Places controls and the Appearance swatches; members unchanged, 18 screens checked pixel for pixel against 1.593.1). Before it: 1.593.1, the kit fixes (items 1 to 8) |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
-| Native shell | **1.593.1** | rebuilt on the Mac from web 1.593.1 (2026-11-21, `8156d6e`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
+| Native shell | **1.594.0** | rebuilt on the Mac from web 1.594.0 (2026-11-22, `46c9644`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -542,7 +542,8 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 
 ### The new look's preview: Stage 1, release 2 (2026-11-21, app 1.594.0)
 
-Chris, 2026-11-21: "Yes, start release 2". Preview only; members unchanged (`Test harness/test_15940.py`
+Chris, 2026-11-21: "Yes, start release 2"; released 2026-11-22 ("Yes, put it live"): web `466fe12`,
+confirmed live; native `46c9644`. Preview only; members unchanged (`Test harness/test_15940.py`
 compares nine screens for a member and for Chris with the switch off, 18 in all, against 1.593.1 pixel
 for pixel: Home, the + sheet, Places, a place page, History, You, Settings top, Appearance and end).
 
