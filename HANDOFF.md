@@ -24,7 +24,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 |---|---|---|
 | Web app | **1.595.1** | menucaptain.com (GitHub Pages), released 2026-11-22 from the Mac (the new look's preview: Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
-| Native shell | **1.595.0** | rebuilt on the Mac from web 1.595.0 (2026-11-22, `b5335a5`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
+| Native shell | **1.595.1** | rebuilt on the Mac from web 1.595.1 with `@capacitor/status-bar` 6.0.3 (2026-11-22, `fe95dcb`, unsigned device build succeeded, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -548,6 +548,11 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
 
 ### The new look's preview: release 3 fixes and the status bar (2026-11-22, app 1.595.1)
+
+Released 2026-11-22 (Chris: "Keep going", in answer to "Put app 1.595.1 live?"): web `f58770f`, confirmed
+live; native `fe95dcb` (the plugin in, iOS pods and Android synced, unsigned iPhone build succeeded).
+NOT YET installed on Chris's iPhone (it showed "unavailable" to the Mac).
+
 
 - **Media's check of 1.595.0:** (1) on the tab pages rules now run the full screen width with the text
   20px in (kit .row, .tdoor, .door): inside `.content` only, `.card` takes margins of -20px and padding
