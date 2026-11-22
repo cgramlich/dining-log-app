@@ -535,6 +535,12 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
     the `recent` list the code already computes) then "Everything else". Not built yet.
   - Release 3 also: the wordmark as the kit draws it, an ink helm (brass today, even in Capri) and
     spaced capitals, MENUCAPTAIN.
+  - From Media's check of 1.594.0 (2026-11-22, release 2 confirmed right): the + sheet against t02.
+    Row titles in Instrument Serif; one ink rule across the full sheet width where "Find a place" has a
+    double hairline; t02's icons (Already at the restaurant a pin, Near me the target, Log a visit a
+    pencil, group order two people, collection a bookmark); row hairlines the full sheet width. Media
+    also asked about the Places row's favourite star (--dim) against the place page's empty rating
+    stars (--faint): t03 draws the row star `.dim` and it is a tap target, so it stays --dim.
   - Release 3 (with Media's item 11, plain ink header icons and a brass-ring badge): `@capacitor/status-bar` (MIT) so the iPhone's clock turns dark on white, the Home Screen
     app's top bar, then an iPhone install.
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
