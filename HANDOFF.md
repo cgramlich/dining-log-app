@@ -527,11 +527,12 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
     square swatches with names, "Default" under Brass, "Match my phone" on one line).
   - From Media's check of 1.593.1 (2026-11-21, items 1 to 8 all confirmed fixed): the no-photo tile
     on Places rows, colour only (icon `--faint`, tile `--soft`; it is a warm brown `#5a5045` at 2.19:1
-    on a `#ededed` / `#1b1b1c` tile today). Do NOT change the layout: t03 draws no tile for a place
-    without a photo, and whether rows with and without photos line up is still Chris's call. The
+    on a `#ededed` / `#1b1b1c` tile today). Recoloured in 1.594.0. DECIDED (Chris, 2026-11-22, by card,
+    "No tile, as drawn"): in the new look a place with no photo has no tile; its name starts at the edge. The
     pills and filters' `#ededed` / `#1b1b1c` fills go with item 9. t03 splits Places under serif
-    headings "Recent" and "Everything else" (the app shows one list): a structure change, so propose
-    it to Chris rather than build it unasked.
+    headings "Recent" and "Everything else" (the app shows one list). DECIDED (Chris, 2026-11-22, by
+    card, "Two sections"): in the new look, Places shows "Recent" (the 3 most recent by visit or add,
+    the `recent` list the code already computes) then "Everything else". Not built yet.
   - Release 3 also: the wordmark as the kit draws it, an ink helm (brass today, even in Capri) and
     spaced capitals, MENUCAPTAIN.
   - Release 3 (with Media's item 11, plain ink header icons and a brass-ring badge): `@capacitor/status-bar` (MIT) so the iPhone's clock turns dark on white, the Home Screen
