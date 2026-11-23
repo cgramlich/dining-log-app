@@ -314,6 +314,11 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       padding-left:20px !important; padding-right:20px !important; }
     :root[data-look="new"] .content .card:has(> .pick-row){ padding-left:0 !important; padding-right:0 !important; }
     :root[data-look="new"] .content .card > .pick-row{ padding-left:20px !important; padding-right:20px !important; }
+    /* A row you can swipe to delete sits in a clipping wrapper (overflow hidden, for the red Delete
+       behind it), which cut the row's full-width line back to the text edge (Media's check of 1.595.1).
+       In the new look the wrapper takes the full width instead, and the row inside keeps its padding. */
+    :root[data-look="new"] .content .swipe-wrap{ margin-left:-20px; margin-right:-20px; }
+    :root[data-look="new"] .content .swipe-wrap .card{ margin-left:0 !important; margin-right:0 !important; }
     :root[data-look="new"] .content .card .card{ margin-left:0 !important; margin-right:0 !important;
       padding-left:0 !important; padding-right:0 !important; }
     :root[data-look="new"] .content :is(.nl-tdoor, .nl-door, .status-tabs){ margin-left:-20px !important; margin-right:-20px !important;
@@ -1703,7 +1708,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.595.1";
+const APP_VERSION   = "1.595.2";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -36573,7 +36578,7 @@ function SwipeToDelete({ onDelete, children }){
   function close(){ openRef.current = false; setSettling(true); setX(0); }
   function confirm(e){ e.stopPropagation(); openRef.current = false; setX(0); if (onDelete) onDelete(); }
   return (
-    <div style={{position:"relative", overflow:"hidden", borderRadius:12}}>
+    <div className="swipe-wrap" style={{position:"relative", overflow:"hidden", borderRadius:12}}>
       {dx < -1 && (
         <button type="button" onClick={confirm} aria-label="Delete"
           style={{position:"absolute", top:0, right:0, bottom:0, width:OPEN,

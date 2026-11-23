@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.595.1** | menucaptain.com (GitHub Pages), released 2026-11-22 from the Mac (the new look's preview: Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
+| Web app | **1.595.2** | menucaptain.com (GitHub Pages), released 2026-11-22 from the Mac (the new look's preview: the lines between Places rows run edge to edge on screen, after Media's check of 1.595.1). Before it: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.595.1** | rebuilt on the Mac from web 1.595.1 with `@capacitor/status-bar` 6.0.3 (2026-11-22, `fe95dcb`, unsigned device build succeeded, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -546,6 +546,16 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### The new look's preview: rows you can swipe, edge to edge (2026-11-22, app 1.595.2)
+
+Media's check of 1.595.1: the lines between Places rows still stopped at the text edge on screen. The rows'
+own boxes were full width, but `SwipeToDelete` wraps each row in a clipping box (overflow hidden, for the red
+Delete behind it), which cut them back. Now the wrapper has `className="swipe-wrap"` (no rules for members),
+and in the new look inside `.content` it takes the full width while the row inside keeps its 20px padding.
+WARNING for tests: measure what is SEEN, the box cut back by every ancestor that clips sideways
+(`VIS` in `Test harness/test_15950.py`), not the element's own box, which is how 1.595.1 passed its own check.
+Tests: `test_15950.py` 51 of 51 (Places, Home's list and History's visits measured as seen).
 
 ### The new look's preview: release 3 fixes and the status bar (2026-11-22, app 1.595.1)
 

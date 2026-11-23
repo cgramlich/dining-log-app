@@ -599,5 +599,13 @@
     "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
     "welcome": "n/a: preview only",
     "handoff": "updated: version rows, decision entry (release 3 fixes and the status bar), BRIEFING, Log 2026-11-22b"
+  },
+  "1.595.2": {
+    "what": "Preview only, for Chris and Kristin: the lines between Places rows run the full screen width, as drawn (a row you can swipe to delete sat in a box that cut them back). Members see no change: 18 screens checked pixel for pixel.",
+    "guide": "n/a: preview only (Chris and Kristin); the guide changes when the new look is switched on for everyone",
+    "promo": "n/a: preview only, members see nothing new",
+    "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
+    "welcome": "n/a: preview only",
+    "handoff": "updated: version rows, decision entry (rows you can swipe, edge to edge), BRIEFING, Log 2026-11-22c"
   }
 }
