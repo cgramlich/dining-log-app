@@ -24,7 +24,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 |---|---|---|
 | Web app | **1.595.3** | menucaptain.com (GitHub Pages), released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
-| Native shell | **1.595.2** | rebuilt on the Mac from web 1.595.2 with `@capacitor/status-bar` 6.0.3 (2026-11-23, `3f0e0ef`; the plugin's unsigned device build succeeded at `fe95dcb`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
+| Native shell | **1.595.3** | rebuilt on the Mac from web 1.595.3 with `@capacitor/status-bar` 6.0.3 (2026-11-25, `3a3fdfe`; the plugin's unsigned device build succeeded at `fe95dcb`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
 All three repos are clean and level with `origin/main`. Backend `/health` reports ai, places,
 stripe and Serper all configured.
@@ -548,6 +548,11 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
 
 ### The new look's preview: the sync bars (2026-11-23, app 1.595.3)
+
+Released 2026-11-25 (Chris: "Yes, put it live"): web `b6eb522`, confirmed live; native `3a3fdfe`. Not yet on
+Chris's iPhone. Media checked the four offline captures against the kit: nothing to fix. Media's copy note,
+parked for Chris: "Offline - showing your saved data" uses a hyphen as a dash (members see it too);
+suggested "You're offline. Showing your saved places and menus."
 
 Media's check of 1.595.2 (Places' row lines right) caught the "Offline - showing your saved data" bar in today's
 look inside the new look: cream fill, sand edge, a gold dot and pale gold text at 1.43:1. All `.syncbar` kinds
