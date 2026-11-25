@@ -547,6 +547,30 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
 
+### The new look: switch on sooner (2026-11-25, Chris by card)
+
+Chris: "can't we release the design now?". By card he chose "Short finish, then on" (recommended) over
+"Switch it on now" and "Keep the plan". The build plan (`REDESIGN-BUILD-PLAN-2026-11-15.md`, section
+"Changed 2026-11-25") now runs:
+1. **The iPhone check** of 1.596.1 (the clock and battery in light and dark, in the iPhone app and the Home
+   Screen web app). That ends Stage 1.
+2. **One pass over every screen**, light and dark: `Test harness/capture_newlook_all.py` writes 34 screens
+   into `Design screens <version> new look/`. The Media session checks them against the style kit,
+   above all the screens never drawn one by one (Year in Food, passport, badges, wine, Pro, help, news,
+   the newsletter list, friends, sharing, splits, group order).
+3. **The fixes** from that check, and **sign-up and first open (N2)** built from Media's drawings
+   (`png/tn2*.png`), with the welcome photo Chris picks from his own (decided 2026-11-20).
+4. **The switch-on release** (what was Stage 4): everyone in Dark, Navy & Gold and Slate keep their names,
+   Warm Brown, Forest and Plum move to Brass; Instrument Serif added to `sw.js`'s precache. The newsletter
+   announces it, benefits first, with real captures.
+5. **Then Stage 2's special layouts** (the photo place page, the printed menu, the dish card, the
+   scorecard, History's photo strip, Can't decide?, what friends see, photos beside rows, the map card)
+   arrive for everyone a few per release, each checked against its drawing. Kristin's notes, when they
+   come, shape these.
+Each release still needs his yes. The capture script is `Test harness/capture_newlook_all.py` (the
+screens_1587 rig, signed in as the owner's id because only preview accounts get the new look, Brass, light
+then dark; signed out it shows the new look too, because the look is per device).
+
 ### The new look's preview: choice chips and greyed-out buttons (2026-11-25, app 1.596.1)
 
 Released 2026-11-25 (Chris: "Yes"): web `a84754c`, confirmed live; native `eade33c`. Media confirmed both fixes in
