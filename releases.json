@@ -607,5 +607,13 @@
     "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
     "welcome": "n/a: preview only",
     "handoff": "updated: version rows, decision entry (rows you can swipe, edge to edge), BRIEFING, Log 2026-11-22c"
+  },
+  "1.595.3": {
+    "what": "Preview only, for Chris and Kristin: in the new look, the offline, not-yet-synced, update and scan bars are quiet rows with thin lines, readable ink text and a small dot in the colourway's colour (red for an error), instead of today's cream bars with pale gold text, and they sit with the other notices: under the top bar on Home, and with one shared line between them on the other pages. Members see no change: 18 screens checked pixel for pixel.",
+    "guide": "n/a: preview only (Chris and Kristin); the guide changes when the new look is switched on for everyone",
+    "promo": "n/a: preview only, members see nothing new",
+    "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
+    "welcome": "n/a: preview only",
+    "handoff": "updated: version rows, decision entry (the sync bars), BRIEFING, Log 2026-11-23a"
   }
 }

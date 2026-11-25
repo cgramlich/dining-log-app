@@ -331,6 +331,19 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     :root[data-look="new"] .place-name{ font-size:20px; line-height:1.15; font-weight:400; }
     :root[data-look="new"] .meta-line{ line-height:1.3; margin-top:2px !important; }
     :root[data-look="new"] .meta-line .meta-2{ margin-top:0; }
+    /* 1.595.3 (Media's check of 1.595.2): the sync bars (offline, not yet synced, an update ready, a
+       scan waiting or failed) kept today's tinted fills and pale text, 1.43:1 on white. The kit has no
+       board for them; its nearest pattern is the notice row: hairlines above and below, no fill, ink
+       text (red only for an error), and a dot in the colourway's paint. Today's look is unchanged. */
+    :root[data-look="new"] .syncbar{ background:transparent !important; border:0; border-top:1px solid var(--n-line);
+      border-bottom:1px solid var(--n-line); padding:10px 2px; color:var(--n-ink) !important; }
+    :root[data-look="new"] .syncbar + .syncbar{ border-top:0; }
+    :root[data-look="new"] .content .syncbar{ margin:0; }
+    :root[data-look="new"] .syncbar + .req-banner{ border-top:0; }
+    :root[data-look="new"] .syncbar.busy{ color:var(--n-dim) !important; }
+    :root[data-look="new"] .syncbar.err{ color:var(--n-danger) !important; }
+    :root[data-look="new"] .syncbar .dot{ background:var(--n-accent) !important; }
+    :root[data-look="new"] .syncbar.err .dot{ background:var(--n-danger) !important; }
     /* "Browse all" on Home: an ink link at the link size, no arrow (kit t01b). */
     :root[data-look="new"] .home-browse{ font-size:15px; font-weight:500; padding:0; }
     /* Home's two doors with no visit photo of your own (kit board t01b, .tdoor and .door; Chris
@@ -1708,7 +1721,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.595.2";
+const APP_VERSION   = "1.595.3";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -13837,6 +13850,24 @@ function App({openShare}){
         )}
       </>
   );
+  // The app's status bars (update ready, offline, scans waiting or done, working, not yet synced).
+  // Today they sit above everything, Home's header included. The new look has no board for them, so
+  // they join the notices as notice rows: under Home's top bar, and at the top of a tab page's
+  // content, sharing one hairline with the notices (Media's check of 1.595.3's captures). The
+  // username nudge stays where it was. Members: the same two blocks, in the same place, unchanged.
+  const barsWithNotices = isNewLook();
+  const barsTop = (
+    <>
+        {/* update available - tap to cache-bust reload */}        {update && (          <div className="syncbar update" onClick={()=> applyUpdate(update.version)}            style={{cursor:"pointer"}}>            <span className="dot" style={{background:"var(--accent)"}} />            <span>Update available (v{update.version})</span>            <button onClick={(e)=>{ e.stopPropagation(); applyUpdate(update.version); }}>              Refresh            </button>          </div>        )}        {/* offline: reads come from the saved copy; explain why saves wait */}        {offline && (          <div className="syncbar warn">            <span className="dot" style={{background:"var(--amber)"}} />            <span>Offline - showing your saved data{pendingCount > 0 ? "; changes will sync when you're back online" : ""}</span>          </div>        )}        {/* Scans saved on this phone, waiting for signal (see sendPendingScan). */}        {overlayType !== "scanMenu" && pendingScans.slice(0, 3).map(p => (          <div key={p.id} className="syncbar warn scanbar pending-scan">            <span className="dot" style={{background:"var(--amber)"}} />            <span style={{flex:1, minWidth:0}}>              {(p.place ? "Menu for " + p.place : "Your menu scan") + " is waiting for signal"                + (p.sent ? " (" + p.sent + " of " + p.n + " photos sent)" : "")}            </span>            <button onClick={()=> resendPendingScans()}>Try now</button>            <button aria-label="Stop sending this menu" style={{marginLeft:2, padding:"0 2px", color:"var(--text-faint)"}}              onClick={()=> stopPendingScan(p)}>&#x2715;</button>          </div>        ))}        {/* Background menu scans (see startScanJob). Hidden while the scan            screen itself is open: it says the same thing, better. */}        {overlayType !== "scanMenu" && scanJobs.filter(j => scanJobsHidden.indexOf(j.id) === -1).slice(0, 3).map(j => (          j.status === "done" ? (            <div key={j.id} className="syncbar update scanbar" style={{cursor:"pointer"}} onClick={()=> reviewScanJob(j)}>              <span className="dot" style={{background:"var(--accent)"}} />              <span style={{flex:1, minWidth:0}}>{j.place_name ? "Your menu for " + j.place_name + " is ready" : "Your scanned menu is ready"}</span>              <button onClick={(e)=>{ e.stopPropagation(); reviewScanJob(j); }}>Review</button>              <button aria-label="Not now" style={{marginLeft:2, padding:"0 2px", color:"var(--text-faint)"}}                onClick={(e)=>{ e.stopPropagation(); setScanJobsHidden(h => h.concat([j.id])); }}>&#x2715;</button>            </div>          ) : j.status === "error" ? (            <div key={j.id} className="syncbar err scanbar">              <span className="dot" style={{background:"var(--danger)"}} />              <span style={{flex:1, minWidth:0}}>{"A menu scan didn't finish. " + (j.error || "Please scan it again.")}</span>              <button onClick={()=>{ collectScanJob(config, j.id); setScanJobs(list => list.filter(x => x.id !== j.id)); }}>OK</button>            </div>          ) : (            <div key={j.id} className="syncbar busy scanbar"><span className="spin" />              {j.place_name ? "Reading the menu for " + j.place_name + "..." : "Reading your menu..."}            </div>          )        ))}
+    </>
+  );
+  const barsSync = (
+    <>
+        {/* sync status banner */}        {sync.status === "busy" && (          <div className="syncbar busy"><span className="spin" />{sync.msg || "Working..."}</div>        )}        {sync.status === "err" && !offline && (          <div className="syncbar err">            <span className="dot" style={{background:"var(--danger)"}} />            <span>{sync.msg}</span>            <button onClick={retrySync}>Retry</button>          </div>        )}        {sync.status === "ok" && pendingCount > 0 && (          <div className="syncbar warn">            <span className="dot" style={{background:"var(--amber)"}} />            <span>{pendingCount} change(s) not yet synced</span>            <button onClick={retrySync}>Sync now</button>          </div>        )}
+    </>
+  );
+  const shownNotices = barsWithNotices ? (<>{barsTop}{barsSync}{notices}</>) : notices;
+
   return (
     <NavCtx.Provider value={navValue}>
     <div id="app-shell">
@@ -13849,63 +13880,7 @@ function App({openShare}){
           the update/sync banners ride up under the clock and battery. */}
       {tab === "home" ? <div aria-hidden="true" style={{height:"env(safe-area-inset-top)"}} /> : null}
 
-      {/* update available - tap to cache-bust reload */}
-      {update && (
-        <div className="syncbar update" onClick={()=> applyUpdate(update.version)}
-          style={{cursor:"pointer"}}>
-          <span className="dot" style={{background:"var(--accent)"}} />
-          <span>Update available (v{update.version})</span>
-          <button onClick={(e)=>{ e.stopPropagation(); applyUpdate(update.version); }}>
-            Refresh
-          </button>
-        </div>
-      )}
-
-      {/* offline: reads come from the saved copy; explain why saves wait */}
-      {offline && (
-        <div className="syncbar warn">
-          <span className="dot" style={{background:"var(--amber)"}} />
-          <span>Offline - showing your saved data{pendingCount > 0 ? "; changes will sync when you're back online" : ""}</span>
-        </div>
-      )}
-
-      {/* Scans saved on this phone, waiting for signal (see sendPendingScan). */}
-      {overlayType !== "scanMenu" && pendingScans.slice(0, 3).map(p => (
-        <div key={p.id} className="syncbar warn scanbar pending-scan">
-          <span className="dot" style={{background:"var(--amber)"}} />
-          <span style={{flex:1, minWidth:0}}>
-            {(p.place ? "Menu for " + p.place : "Your menu scan") + " is waiting for signal"
-              + (p.sent ? " (" + p.sent + " of " + p.n + " photos sent)" : "")}
-          </span>
-          <button onClick={()=> resendPendingScans()}>Try now</button>
-          <button aria-label="Stop sending this menu" style={{marginLeft:2, padding:"0 2px", color:"var(--text-faint)"}}
-            onClick={()=> stopPendingScan(p)}>&#x2715;</button>
-        </div>
-      ))}
-
-      {/* Background menu scans (see startScanJob). Hidden while the scan
-          screen itself is open: it says the same thing, better. */}
-      {overlayType !== "scanMenu" && scanJobs.filter(j => scanJobsHidden.indexOf(j.id) === -1).slice(0, 3).map(j => (
-        j.status === "done" ? (
-          <div key={j.id} className="syncbar update scanbar" style={{cursor:"pointer"}} onClick={()=> reviewScanJob(j)}>
-            <span className="dot" style={{background:"var(--accent)"}} />
-            <span style={{flex:1, minWidth:0}}>{j.place_name ? "Your menu for " + j.place_name + " is ready" : "Your scanned menu is ready"}</span>
-            <button onClick={(e)=>{ e.stopPropagation(); reviewScanJob(j); }}>Review</button>
-            <button aria-label="Not now" style={{marginLeft:2, padding:"0 2px", color:"var(--text-faint)"}}
-              onClick={(e)=>{ e.stopPropagation(); setScanJobsHidden(h => h.concat([j.id])); }}>&#x2715;</button>
-          </div>
-        ) : j.status === "error" ? (
-          <div key={j.id} className="syncbar err scanbar">
-            <span className="dot" style={{background:"var(--danger)"}} />
-            <span style={{flex:1, minWidth:0}}>{"A menu scan didn't finish. " + (j.error || "Please scan it again.")}</span>
-            <button onClick={()=>{ collectScanJob(config, j.id); setScanJobs(list => list.filter(x => x.id !== j.id)); }}>OK</button>
-          </div>
-        ) : (
-          <div key={j.id} className="syncbar busy scanbar"><span className="spin" />
-            {j.place_name ? "Reading the menu for " + j.place_name + "..." : "Reading your menu..."}
-          </div>
-        )
-      ))}
+      {!barsWithNotices ? barsTop : null}
 
       {usernameNudge && (
         <UsernameNudge config={config}
@@ -13913,31 +13888,14 @@ function App({openShare}){
           onClaimed={(r)=>{ try{ localStorage.setItem("dininglog_username_nudge","done"); }catch(e){} setProfile(r); setUsernameNudge(false); flash("Username claimed"); }} />
       )}
 
-      {/* sync status banner */}
-      {sync.status === "busy" && (
-        <div className="syncbar busy"><span className="spin" />{sync.msg || "Working..."}</div>
-      )}
-      {sync.status === "err" && !offline && (
-        <div className="syncbar err">
-          <span className="dot" style={{background:"var(--danger)"}} />
-          <span>{sync.msg}</span>
-          <button onClick={retrySync}>Retry</button>
-        </div>
-      )}
-      {sync.status === "ok" && pendingCount > 0 && (
-        <div className="syncbar warn">
-          <span className="dot" style={{background:"var(--amber)"}} />
-          <span>{pendingCount} change(s) not yet synced</span>
-          <button onClick={retrySync}>Sync now</button>
-        </div>
-      )}
+      {!barsWithNotices ? barsSync : null}
 
       <div className="content">
-        {!noticesUnderHomeBar ? notices : null}
+        {!noticesUnderHomeBar ? shownNotices : null}
         {tab === "home" && (
           <HomeView
             profile={profile}
-            notices={noticesUnderHomeBar ? notices : null}
+            notices={noticesUnderHomeBar ? shownNotices : null}
             onChat={configComplete(config) ? openChat : null} chatDot={supportUnread > 0}
             restaurants={restaurants} visits={visits} menus={menus} cfg={config}
             pendingReqs={pendingReqs}

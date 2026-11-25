@@ -45,7 +45,7 @@ find.
 
 | Figure | Value | As of |
 |---|---|---|
-| Web app | v1.595.2, live | 2026-11-22 |
+| Web app | v1.595.3, live | 2026-11-25 |
 | Backend | v0.166.1, live | 2026-11-17 |
 | Front end | a single HTML file, ~1.41 MB, no build step | 2026-09-25 |
 | Backend | ~7,600 lines of Python (FastAPI) | 2026-09-25 |

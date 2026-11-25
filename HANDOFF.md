@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.595.2** | menucaptain.com (GitHub Pages), released 2026-11-22 from the Mac (the new look's preview: the lines between Places rows run edge to edge on screen, after Media's check of 1.595.1). Before it: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
+| Web app | **1.595.3** | menucaptain.com (GitHub Pages), released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.595.2** | rebuilt on the Mac from web 1.595.2 with `@capacitor/status-bar` 6.0.3 (2026-11-23, `3f0e0ef`; the plugin's unsigned device build succeeded at `fe95dcb`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -546,6 +546,27 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### The new look's preview: the sync bars (2026-11-23, app 1.595.3)
+
+Media's check of 1.595.2 (Places' row lines right) caught the "Offline - showing your saved data" bar in today's
+look inside the new look: cream fill, sand edge, a gold dot and pale gold text at 1.43:1. All `.syncbar` kinds
+(offline and not-yet-synced `warn`, `update`, `err`, `busy`, the scan bars) now, in the new look only, draw as
+the kit's notice row: no fill, hairlines above and below, ink text (`--dim` while busy, red for an error), and
+the dot in the colourway's paint (red for an error). Today's look is unchanged. The kit has no offline board;
+this follows Media's suggestion. Tests: `test_15950.py` 53 of 53 (the bars checked by placing one of each kind
+on the page), and a History capture at the first visit (`shots15950/9b-...`) for Media.
+
+Then, before release, captures of the app's own offline bar (the browser switched offline,
+`Test harness/shots15953/`) showed two strays: on Home the bar sat ABOVE the wordmark bar (the bars are
+drawn before `.content`, and Home's bar lives inside HomeView), and on Places it left a 14px gap and a
+doubled line above the notices. Now App builds the bars as two fragments, `barsTop` (update, offline,
+scans) and `barsSync` (working, error, not yet synced), drawn where they always were when the new look is
+off; in the new look they go in front of the notices (`shownNotices`): under Home's bar, and first in a
+tab page's content, with `.content .syncbar{margin:0}` and `.syncbar + .req-banner{border-top:0}` so the
+run shares single hairlines. The username nudge stays where it was. Tests: `test_15953.py` 5 of 5 (the
+real offline bar: members above the content as before; the new look under the bar, one hairline),
+`test_15950.py` 53 of 53 again (members pixel for pixel against 1.594.0).
 
 ### The new look's preview: rows you can swipe, edge to edge (2026-11-22, app 1.595.2)
 
