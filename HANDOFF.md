@@ -552,8 +552,9 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 Chris: "can't we release the design now?". By card he chose "Short finish, then on" (recommended) over
 "Switch it on now" and "Keep the plan". The build plan (`REDESIGN-BUILD-PLAN-2026-11-15.md`, section
 "Changed 2026-11-25") now runs:
-1. **The iPhone check** of 1.596.1 (the clock and battery in light and dark, in the iPhone app and the Home
-   Screen web app). That ends Stage 1.
+1. **Chris looks at it in the web app first** (his words, 2026-11-25: "I want to see it on the html web app
+   first"): menucaptain.com or the Home Screen app, Settings, Appearance, Try the new look, including the
+   clock and battery in light and dark. The iPhone app install over the Mac's direct connection comes after.
 2. **One pass over every screen**, light and dark: `Test harness/capture_newlook_all.py` writes 34 screens
    into `Design screens <version> new look/`. The Media session checks them against the style kit,
    above all the screens never drawn one by one (Year in Food, passport, badges, wine, Pro, help, news,
