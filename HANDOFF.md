@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.595.3** | menucaptain.com (GitHub Pages), released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
+| Web app | **1.596.0** | menucaptain.com (GitHub Pages), released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.595.3** | rebuilt on the Mac from web 1.595.3 with `@capacitor/status-bar` 6.0.3 (2026-11-25, `3a3fdfe`; the plugin's unsigned device build succeeded at `fe95dcb`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -546,6 +546,24 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### Start a collection while you log a visit (2026-11-25, app 1.596.0)
+
+Chris, with a screenshot of Edit visit: "Need to be able to create a collection during logging a visit". The
+Collections row on Log a visit and Edit visit only appeared once you had a collection, and only offered the
+ones you had. Now it always shows, with `+ New collection` (a dashed accent chip in today's look, the
+ink-edged chip in the new look): a name field ("Like Paris in May"), Add and Cancel; Enter adds, Escape
+closes. A new one is held on the form (`colNew`, [{id, name}], the id made up front with `uid("col")` so
+it can be ticked in `colPicks` like any other) and made only when the visit is saved:
+`applyCollectionPicks(visit, picks, fresh)` builds the ticked new ones already holding the visit and saves
+them with the rest in ONE write of `data/collections.json`, so backing out of the form leaves no empty
+collection and nothing can race. A name you already have (any case, spaces tidied) ticks that collection
+instead of making a twin. Name only: dates and a cover are added later in the collection (the road not
+taken: opening the full New collection sheet from the form would have replaced the form and lost the
+visit being logged). Guide: Collections, "Start one while you log". Tests: `test_15960.py` 19 of 19 (log,
+edit, log and save from a place page, cancel, a name you have, the new look); `test_15950.py` 53 of 53
+(members' other screens pixel for pixel; its version mask now covers 1.596), `test_15953.py` 5 of 5,
+`test_15951.py` 4 of 4.
 
 ### The new look's preview: the sync bars (2026-11-23, app 1.595.3)
 

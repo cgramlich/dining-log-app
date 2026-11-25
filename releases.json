@@ -615,5 +615,13 @@
     "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
     "welcome": "n/a: preview only",
     "handoff": "updated: version rows, decision entry (the sync bars), BRIEFING, Log 2026-11-23a"
+  },
+  "1.596.0": {
+    "what": "Start a collection while you log a visit (Chris, 2026-11-25, with a screenshot of Edit visit: 'Need to be able to create a collection during logging a visit'). The Collections row on Log a visit and Edit visit now always shows, even before your first collection, with + New collection: type a name, tap Add, and it is ticked. Saving the visit makes the collection with that meal already in it; backing out of the form makes nothing. A name you already have ticks that collection instead of making a second one. Dates and a cover can be added later in the collection.",
+    "guide": "updated: Collections (Start one while you log)",
+    "promo": "updated: Collections (start one from the + menu or right from Log a visit)",
+    "email_notes": "added to next-issue-notes.md for the Nov 29 issue",
+    "welcome": "n/a",
+    "handoff": "updated: version row, decision entry (start a collection while logging), Log 2026-11-25a"
   }
 }

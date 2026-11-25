@@ -240,6 +240,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
        chosen one is solid; a dish verdict is ink only, never colour (kit .chip, .choice, .vchip). */
     :root[data-look="new"] .chip{ background:transparent; border-color:var(--n-line); color:var(--n-dim); }
     :root[data-look="new"] .chip.pick{ border-color:var(--n-ink); color:var(--n-ink); }
+    :root[data-look="new"] .chip.col-new{ border-style:solid; }
     :root[data-look="new"] .chip.on, :root[data-look="new"] .chip.pick.on{ background:var(--n-solid); border-color:var(--n-solid); color:var(--n-onsolid); }
     :root[data-look="new"] .chip.tag{ background:transparent; border-color:var(--n-line); color:var(--n-dim); }
     :root[data-look="new"] .chip.dish.loved,
@@ -482,6 +483,10 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .chip.tag{background:rgba(154,168,119,0.12); border-color:rgba(154,168,119,0.3); color:#bcc79c; font-size:11px; padding:2px 8px;}
     .chip.pick{cursor:pointer;}
     .chip.pick:active{transform:scale(0.94);}
+    .chip.col-new{color:var(--accent); border-style:dashed;}
+    .col-new-row{display:flex; gap:8px; align-items:center; margin-top:10px;}
+    .col-new-row .input{flex:1; min-width:0;}
+    .col-new-row .btn{width:auto; flex:none;}
     .chip.on{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600;}
     /* ---- per-dish verdict (Loved / Again / Skip) ---- */
     /* verdict chip variants used in read-only displays (history, picks card) */
@@ -1721,7 +1726,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.595.3";
+const APP_VERSION   = "1.596.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -3666,6 +3671,11 @@ tick **It's a trip, with dates**. Every meal you log between those dates joins
 it by itself, including the ones you log tomorrow; leave the end date empty
 while you're still travelling. A collection without dates is hand-picked: add
 any meals you like with **Add meals**.
+
+**Start one while you log.** In **Log a visit** (or **Edit visit**), go to
+**Collections** and tap **+ New collection**, give it a name and tap **Add**. When
+you save the visit, the collection is made with that meal already in it. Add
+dates or a cover later, from the collection itself.
 
 **Every newsletter.** Open **You**, then **From the Captain's Table**, to read
 every issue of our newsletter: what's new, what we fixed, and places new at the
@@ -13123,11 +13133,18 @@ function App({openShare}){
     flash("Deleted \u201c" + c.name + "\u201d. Your meals are still in History.");
   }
   // The Collections row on Log / Edit visit: applied with the save, when the
-  // visit's id and date are final.
-  function applyCollectionPicks(visit, picks){
-    const next = (collectionsRef.current || []).map(c =>
-      Object.prototype.hasOwnProperty.call(picks, c.id) ? colSetMember(c, visit, !!picks[c.id]) : c);
+  // visit's id and date are final. `fresh` (1.596.0) are collections started on
+  // the form, [{id, name}]: the ones still ticked are made here holding this
+  // visit, in the same save as the rest (one write, so nothing can race).
+  function applyCollectionPicks(visit, picks, fresh){
+    const now = Date.now();
+    const made = (fresh || []).filter(n => n && n.id && n.name && picks[n.id]).map(n =>
+      colSetMember({ id: n.id, name: n.name, include: [], exclude: [], cover: null,
+                     created_at: now, updated_at: now }, visit, true));
+    const next = made.concat((collectionsRef.current || []).map(c =>
+      Object.prototype.hasOwnProperty.call(picks, c.id) ? colSetMember(c, visit, !!picks[c.id]) : c));
     saveCollections(next);
+    if (made.length) logMsg("COLLECTIONS", "Started " + made.length + " collection(s) from a visit");
   }
   // Back online with changes still on this phone: send them.
   useEffect(()=>{
@@ -14942,7 +14959,7 @@ function App({openShare}){
 
             // The Collections row on the form (1.527.0), applied with the save.
             if (extras && extras.collectionPicks && Object.keys(extras.collectionPicks).length){
-              applyCollectionPicks(rec, extras.collectionPicks);
+              applyCollectionPicks(rec, extras.collectionPicks, extras.collectionNew);
             }
             // Wines on the visit (1.584.0): offered on Home, or tied to a wine
             // picked with I'm having this. Nothing joins your wines unasked.
@@ -26276,6 +26293,12 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
   // Collections chosen on this form: {collectionId: true|false}, only the ones
   // touched. Untouched dated collections still gather this visit by its date.
   const [colPicks, setColPicks] = useState({});
+  // Collections started on this form (1.596.0): [{id, name}], ticked in colPicks like any other.
+  // They are made when the visit is saved, already holding it, so backing out of the form leaves
+  // no empty collection behind. Name only: dates and a cover can be added in the collection later.
+  const [colNew, setColNew] = useState([]);
+  const [colAdding, setColAdding] = useState(false);
+  const [colName, setColName] = useState("");
   const [whoPick, setWhoPick] = useState(false);   // "which of these is you?"
   const [whoShown, setWhoShown] = useState(false); // the table's order, expanded
   const [confirmDel,setConfirmDel] = useState(false);
@@ -27148,7 +27171,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
     setSaving(true);
     setSaveStep(pendingUploads.length ? "Photo 1 of " + pendingUploads.length : "");
     try {
-      await onSave(rec, { pendingUploads: pendingUploads, collectionPicks: colPicks,
+      await onSave(rec, { pendingUploads: pendingUploads, collectionPicks: colPicks, collectionNew: colNew,
         onProgress: (i, n, note)=> { setSaveStep("Photo " + i + " of " + n); setSaveNote(note || ""); } });
     } catch(err){
       const why = (err && err.message) || "no reason given";
@@ -28064,10 +28087,22 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
         </div>
         ) : null}
 
-        {(collections || []).length ? (()=>{
+        {(()=>{
           const self = { id: (existing && existing.id) || newVisitIdRef.current || "", date: date };
           const inIt = (c)=> Object.prototype.hasOwnProperty.call(colPicks, c.id) ? !!colPicks[c.id] : colHas(c, self);
           const byDate = (collections || []).filter(c => colCovers(c, date) && inIt(c)).map(c => c.name);
+          const shown = (collections || []).concat(colNew);
+          const closeNew = ()=>{ setColAdding(false); setColName(""); };
+          // A name you already have ticks that collection rather than making a twin.
+          const addNew = ()=>{
+            const name = colName.trim().replace(/\s+/g, " ").slice(0, 60);
+            if (!name) return;
+            const same = shown.find(c => (c.name || "").trim().toLowerCase() === name.toLowerCase());
+            const id = same ? same.id : uid("col");
+            if (!same) setColNew(l => l.concat([{ id: id, name: name }]));
+            setColPicks(p => Object.assign({}, p, { [id]: true }));
+            closeNew();
+          };
           return (
             <div className="fld secpanel">
               <span className="sechd">Collections</span>
@@ -28077,7 +28112,7 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                   : "Keep this meal in a collection, like a trip."}
               </div>
               <div className="chips">
-                {(collections || []).map(c => {
+                {shown.map(c => {
                   const on = inIt(c);
                   return (
                     <button type="button" key={c.id} className={"chip pick" + (on ? " on" : "")} aria-pressed={on}
@@ -28085,10 +28120,25 @@ function VisitForm({restaurants, menus, visits, collections, locations, onSaveRe
                       {(on ? "\u2713 " : "+ ") + c.name}</button>
                   );
                 })}
+                {!colAdding ? (
+                  <button type="button" className="chip pick col-new" onClick={()=> setColAdding(true)}>
+                    + New collection</button>
+                ) : null}
               </div>
+              {colAdding ? (
+                <div className="col-new-row">
+                  <input className="input" autoFocus value={colName} maxLength={60}
+                    aria-label="Name of the new collection" placeholder="Like Paris in May"
+                    onChange={e=> setColName(e.target.value)}
+                    onKeyDown={e=>{ if (e.key === "Enter"){ e.preventDefault(); addNew(); }
+                                    else if (e.key === "Escape"){ e.preventDefault(); closeNew(); } }} />
+                  <button type="button" className="btn primary sm" disabled={!colName.trim()} onClick={addNew}>Add</button>
+                  <button type="button" className="btn ghost sm" onClick={closeNew}>Cancel</button>
+                </div>
+              ) : null}
             </div>
           );
-        })() : null}
+        })()}
 
         <label className="fld"><span className="sechd">Notes</span>
           <textarea className="input" value={notes} onChange={e=>setNotes(e.target.value)}
