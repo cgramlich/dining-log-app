@@ -1254,6 +1254,11 @@ it by itself, including the ones you log tomorrow; leave the end date empty
 while you're still travelling. A collection without dates is hand-picked: add
 any meals you like with **Add meals**.
 
+**Start one while you log.** In **Log a visit** (or **Edit visit**), go to
+**Collections** and tap **+ New collection**, give it a name and tap **Add**. When
+you save the visit, the collection is made with that meal already in it. Add
+dates or a cover later, from the collection itself.
+
 **Every newsletter.** Open **You**, then **From the Captain's Table**, to read
 every issue of our newsletter: what's new, what we fixed, and places new at the
 Table.
