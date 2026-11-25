@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.596.0** | menucaptain.com (GitHub Pages), released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
+| Web app | **1.596.1** | menucaptain.com (GitHub Pages), released 2026-11-25 from the Mac (the new look's preview: choice chips at the kit's 34px and greyed-out buttons in --faint, Media's check of 1.596.0; Log 2026-11-25b). Before it: 1.596.0, released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.596.0** | rebuilt on the Mac from web 1.596.0 with `@capacitor/status-bar` 6.0.3 (2026-11-25, `8d8efc8`; the plugin's unsigned device build succeeded at `fe95dcb`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -546,6 +546,17 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### The new look's preview: choice chips and greyed-out buttons (2026-11-25, app 1.596.1)
+
+Media's check of 1.596.0 (no board draws Log a visit, so against the kit's parts): the collection chips were 26pt
+tall against the kit's 34px `.choice`, and Add with an empty name was a flat #8c8c8c (today's
+`.btn:disabled{opacity:0.45}` over the ink), not the kit's `--faint`, so it would not follow the colourways.
+In the new look only: `.chips .chip.pick` gets `min-height:34px` (inline-flex, centred), except Places'
+`.status-tabs` and `.places-dd`, which are drawn their own way; `.btn.primary:disabled` is solid `--n-faint` with
+`--n-onsolid` text at full opacity, and `.btn.ghost:disabled` takes a `--n-faint` edge and text. Members keep
+today's chips and the 45% fade. Tests: `test_15960.py` 23 of 23 (4 new: members unchanged, the --faint Add, an outlined one,
+34px chips), `test_15950.py` 53 of 53, `test_15953.py` 5 of 5, `test_15951.py` 4 of 4.
 
 ### Start a collection while you log a visit (2026-11-25, app 1.596.0)
 

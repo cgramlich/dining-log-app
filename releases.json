@@ -623,5 +623,13 @@
     "email_notes": "updated: next-issue-notes.md (Start a collection while you log, for the Nov 29 issue) and Log 2026-11-25a",
     "welcome": "n/a: welcome.html's Keep a trip together card still holds (it does not say where to start one)",
     "handoff": "updated: version row, decision entry (start a collection while logging), Log 2026-11-25a"
+  },
+  "1.596.1": {
+    "what": "Preview only, for Chris and Kristin, from Media's check of 1.596.0: in the new look, choice chips (the collections on Log a visit, and the like) are the kit's 34px tall, a fairer tap target than 26, and a button you can't press yet (Add with no name typed) is the kit's faint grey from the colourway instead of a fade of the ink. Members see no change.",
+    "guide": "n/a: preview only (Chris and Kristin); the guide changes when the new look is switched on for everyone",
+    "promo": "n/a: preview only, members see nothing new",
+    "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
+    "welcome": "n/a: preview only",
+    "handoff": "updated: version rows, decision entry (choice chips and greyed-out buttons), Log 2026-11-25b"
   }
 }

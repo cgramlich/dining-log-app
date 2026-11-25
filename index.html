@@ -241,6 +241,15 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     :root[data-look="new"] .chip{ background:transparent; border-color:var(--n-line); color:var(--n-dim); }
     :root[data-look="new"] .chip.pick{ border-color:var(--n-ink); color:var(--n-ink); }
     :root[data-look="new"] .chip.col-new{ border-style:solid; }
+    /* Choice chips at the kit's .choice height, 34px, a fair tap target (Media's check of 1.596.0: they
+       were 26). Not the Places tabs or filters, which are drawn their own way below. */
+    :root[data-look="new"] .chips:not(.status-tabs):not(.places-dd) .chip.pick{ min-height:34px;
+      display:inline-flex; align-items:center; }
+    /* A button you can't press yet is the kit's --faint, from the colourway, not today's 45% fade of
+       the ink (a typed-in looking #8c8c8c on light). Media's check of 1.596.0. */
+    :root[data-look="new"] .btn.primary:disabled{ opacity:1; background:var(--n-faint); border-color:var(--n-faint);
+      color:var(--n-onsolid); }
+    :root[data-look="new"] .btn.ghost:disabled{ opacity:1; border-color:var(--n-faint); color:var(--n-faint); }
     :root[data-look="new"] .chip.on, :root[data-look="new"] .chip.pick.on{ background:var(--n-solid); border-color:var(--n-solid); color:var(--n-onsolid); }
     :root[data-look="new"] .chip.tag{ background:transparent; border-color:var(--n-line); color:var(--n-dim); }
     :root[data-look="new"] .chip.dish.loved,
@@ -1726,7 +1735,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.596.0";
+const APP_VERSION   = "1.596.1";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
