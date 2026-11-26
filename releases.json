@@ -639,5 +639,13 @@
     "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
     "welcome": "n/a: preview only",
     "handoff": "updated: version rows, decision entry (Settings is a gear; Stage 1 checked on the iPhone Duo), Log 2026-11-25c"
+  },
+  "1.596.3": {
+    "what": "For everyone: the app keeps clear of the strips a phone reserves down its sides, on any phone. On the iPhone Duo's outer screen the clock sits in a column down the right edge (the phone reports it as about 84 points), and the top bar's chat and Settings buttons ran under it (Chris, 2026-11-25, with a screenshot). The app used to read only the top and bottom of the phone's safe area; it now reads the sides too. An ordinary iPhone held upright reports nothing on its sides, so nothing moves there.",
+    "guide": "n/a: nothing to learn; the app just fits the screen",
+    "promo": "n/a: a fit-and-finish fix, no new feature to list",
+    "email_notes": "added to next-issue-notes.md as a fix (fixes last), only if released by the day of writing",
+    "welcome": "n/a: nothing on the welcome page changes",
+    "handoff": "updated: version rows, decision entry (the phone's side safe areas), Log 2026-11-25d"
   }
 }

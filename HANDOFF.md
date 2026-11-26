@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.596.2** | menucaptain.com (GitHub Pages), released 2026-11-25 from the Mac (the new look's preview: Settings is a gear again, Chris's card; Log 2026-11-25c). Before it: 1.596.1, released 2026-11-25 from the Mac (the new look's preview: choice chips at the kit's 34px and greyed-out buttons in --faint, Media's check of 1.596.0; Log 2026-11-25b). Before it: 1.596.0, released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
+| Web app | **1.596.3** | menucaptain.com (GitHub Pages), built 2026-11-25 on the Mac, WAITING FOR CHRIS'S YES (for everyone: the app keeps clear of the phone's side safe areas, the iPhone Duo's clock column; Log 2026-11-25d). Before it: 1.596.2, released 2026-11-25 from the Mac (the new look's preview: Settings is a gear again, Chris's card; Log 2026-11-25c). Before it: 1.596.1, released 2026-11-25 from the Mac (the new look's preview: choice chips at the kit's 34px and greyed-out buttons in --faint, Media's check of 1.596.0; Log 2026-11-25b). Before it: 1.596.0, released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.596.2** | rebuilt on the Mac from web 1.596.2 with `@capacitor/status-bar` 6.0.3 (2026-11-25, `176b5a5`; the plugin's unsigned device build succeeded at `fe95dcb`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -546,6 +546,33 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### The phone's side safe areas (2026-11-25, app 1.596.3)
+
+Chris, with a screenshot from his iPhone Duo's outer screen: "you can't get to the upper right", then "will it
+know the phone and adjust it accordingly so it's not just for the duo?".
+- **What the Duo does.** On the outer screen in portrait the clock, battery and Wi-Fi sit in a column down the
+  right edge. Measured on the Duo simulator (Xcode 27.2, iOS 27.2) with a probe page inside the iPhone app:
+  the web view is 466 x 678 points and reports `env(safe-area-inset-right)` about 84pt and `-bottom` about
+  34pt, top and left 0. (Read with a red outline drawn at the safe area; a `getComputedStyle` read at load
+  said 0, because the insets arrive after load.) Safari on the same screen gives pages a 382-point column
+  and reports 0 on every side, so the Home Screen web app may already fit; not checked on a device.
+- **What was wrong.** The app only ever used `env(safe-area-inset-top)` and `-bottom`. Nothing read the sides,
+  so the top bar (and every pinned screen) ran under the clock column.
+- **The fix, for any phone, no device check:** a block at the end of the main stylesheet ("The phone's side
+  safe areas"): the body is padded by the left and right insets; the tab bar, full pages and bars pinned to
+  the screen (`.nav`, `.overlay`, `.illus-lib`, `.print-overlay`, `.go-overlay`, `.pick-tray`) are narrowed to
+  them; dimmed backdrops (`.sheet-bg`, `.dish-card-bg`, `.lightbox`, `.modal-bg`) keep the dim edge to edge and
+  pad what sits on them; the lightbox's close button moves in. The same inline on the pinned screens built in
+  the code (search `safe-area-inset-left`): six full pages, eleven backdrops, two bottom bars. An ordinary
+  iPhone held upright reports 0 on its sides, so it changes nothing there.
+- Road not taken: shrinking the iPhone app's web view natively to the safe area. One change, but only for
+  the iPhone app, and the strip beside it would need its own colour kept in step with the page.
+- Tests: `test_15963.py` 22 of 22. Chromium can't fake a phone's safe areas, so it serves a copy of the app
+  with the right inset at 84px and the bottom at 34px at 466 x 678, and checks that nothing tappable reaches
+  past x = 382 on Home, the + sheet, Places, a place page, a menu, History, You, Settings and Log a visit, in
+  both looks. Run against 1.596.2 it fails from the first screen, so it catches the bug. `test_15950.py`
+  against 1.596.2: 53 of 53, members' screens pixel for pixel. `test_15962.py` 14 of 14.
 
 ### The new look's Settings is a gear; Stage 1 checked on the iPhone Duo (2026-11-25, app 1.596.2)
 
