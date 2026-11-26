@@ -644,7 +644,7 @@
     "what": "For everyone: the app keeps clear of the strips a phone reserves down its sides, on any phone. On the iPhone Duo's outer screen the clock sits in a column down the right edge (the phone reports it as about 84 points), and the top bar's chat and Settings buttons ran under it (Chris, 2026-11-25, with a screenshot). The app used to read only the top and bottom of the phone's safe area; it now reads the sides too. An ordinary iPhone held upright reports nothing on its sides, so nothing moves there. Also: text shows at the app's own sizes. iPhones were enlarging some blocks of text on their own, unevenly (on Chris's Duo the group order screen showed Molly's name bigger than Sam's), so the app now turns that off (-webkit-text-size-adjust:100%).",
     "guide": "n/a: nothing to learn; the app just fits the screen",
     "promo": "n/a: a fit-and-finish fix, no new feature to list",
-    "email_notes": "added to next-issue-notes.md as a fix (fixes last), only if released by the day of writing",
+    "email_notes": "updated: next-issue-notes.md has it as a fix, last in the issue",
     "welcome": "n/a: nothing on the welcome page changes",
     "handoff": "updated: version rows, decision entry (the phone's side safe areas), Log 2026-11-25d"
   }
