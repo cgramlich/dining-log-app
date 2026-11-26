@@ -566,6 +566,13 @@ know the phone and adjust it accordingly so it's not just for the duo?".
   pad what sits on them; the lightbox's close button moves in. The same inline on the pinned screens built in
   the code (search `safe-area-inset-left`): six full pages, eleven backdrops, two bottom bars. An ordinary
   iPhone held upright reports 0 on its sides, so it changes nothing there.
+- **Also in 1.596.3: text at the app's own sizes.** Chris, on the Duo's group order screen: "the name Molly is
+  bigger than the name Sam". Both names are `.go-guest-name`, 14px semi-bold, and no other rule touches them. On
+  his screen Molly's name and "Who's in on the order?" (14px) showed at about 19, and "Also ordered" (12.5px) at
+  about 17.5: the same 1.4x boost on some blocks and not others, the mark of iPhone text autosizing. The app never
+  set `-webkit-text-size-adjust`; it now does (100%, on `html`). Not reproduced: a probe page with those rows in the
+  iPhone app on the Duo simulator showed no boost with or without it, so this is confirmed only once Chris sees
+  the screen on his Duo after release.
 - Road not taken: shrinking the iPhone app's web view natively to the safe area. One change, but only for
   the iPhone app, and the strip beside it would need its own colour kept in step with the page.
 - Tests: `test_15963.py` 22 of 22. Chromium can't fake a phone's safe areas, so it serves a copy of the app

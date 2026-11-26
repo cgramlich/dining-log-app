@@ -372,6 +372,12 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
       color:var(--n-ink); background:none; border:0; padding:0; cursor:pointer; }
     *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
     html,body{margin:0; padding:0; background:var(--bg); color:var(--text);}
+    /* 1.596.3: iPhones enlarge some blocks of text on their own ("text autosizing") when they judge them
+       too small, and they do it unevenly: on Chris's iPhone Duo the group order screen showed Molly's name
+       bigger than Sam's, and the small "Also ordered" label bigger than both, though all share one style.
+       The app sets its own sizes for a phone screen (width=device-width), so the phone's guesses only
+       make rows disagree. Turned off; text shows at the sizes written here. */
+    html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     body{
       font-family:'Outfit',-apple-system,BlinkMacSystemFont,sans-serif;
       font-size:16px; line-height:1.5;
