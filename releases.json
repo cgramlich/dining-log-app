@@ -631,5 +631,13 @@
     "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
     "welcome": "n/a: preview only",
     "handoff": "updated: version rows, decision entry (choice chips and greyed-out buttons), Log 2026-11-25b"
+  },
+  "1.596.2": {
+    "what": "Preview only, for Chris and Kristin: in the new look, Settings at the top right is a gear again instead of the style kit's sliders (Chris, 2026-11-25, by card, after seeing it on his new iPhone): a gear is what people look for, and sliders read as filters. Members see no change; their header already has the gear.",
+    "guide": "n/a: preview only (Chris and Kristin); the guide already calls Settings the gear",
+    "promo": "n/a: preview only, members see nothing new",
+    "email_notes": "n/a: members see nothing new; the new look goes in the issue when it is switched on for everyone",
+    "welcome": "n/a: preview only",
+    "handoff": "updated: version rows, decision entry (Settings is a gear; Stage 1 checked on the iPhone Duo), Log 2026-11-25c"
   }
 }

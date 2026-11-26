@@ -1735,7 +1735,7 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.596.1";
+const APP_VERSION   = "1.596.2";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -15362,8 +15362,10 @@ function App({openShare}){
    ============================================================ */
 /* The new look's bar (1.595.0, kit boards t01b, t03, t17): the wordmark (an ink helm and
    MENUCAPTAIN in spaced capitals) on the left; share, chat and Settings as plain ink icons on the
-   right, Settings as the kit's sliders with a count in a brass ring (Media's item 11). The same
-   three actions as today's header, in the same order, so nothing moves out of reach. */
+   right, Settings as a gear with a count in a brass ring (Media's item 11). The same three actions
+   as today's header, in the same order, so nothing moves out of reach. The kit drew Settings as
+   sliders; Chris chose the gear (2026-11-25, by card, on his new iPhone): a gear is what people look
+   for, and sliders read as "filters", which Places and History also have. */
 function NewLookBar({onShare, onChat, chatDot, onOpenSettings, pendingReqs}){
   return (
     <div className="nl-bar">
@@ -15382,7 +15384,7 @@ function NewLookBar({onShare, onChat, chatDot, onOpenSettings, pendingReqs}){
         ) : null}
         {onOpenSettings ? (
           <button type="button" className="nl-ib" aria-label="Settings" title="Settings" onClick={onOpenSettings}>
-            <Icon name="sliders" size={22} />
+            <Icon name="gear" size={22} />
             {pendingReqs > 0 ? <span className="nl-badge" aria-label={pendingReqs + " waiting"}><i>{pendingReqs}</i></span> : null}
           </button>
         ) : null}

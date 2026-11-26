@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.596.1** | menucaptain.com (GitHub Pages), released 2026-11-25 from the Mac (the new look's preview: choice chips at the kit's 34px and greyed-out buttons in --faint, Media's check of 1.596.0; Log 2026-11-25b). Before it: 1.596.0, released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
+| Web app | **1.596.2** | menucaptain.com (GitHub Pages), built 2026-11-25 on the Mac, WAITING FOR CHRIS'S YES (the new look's preview: Settings is a gear again, Chris's card; Log 2026-11-25c). Before it: 1.596.1, released 2026-11-25 from the Mac (the new look's preview: choice chips at the kit's 34px and greyed-out buttons in --faint, Media's check of 1.596.0; Log 2026-11-25b). Before it: 1.596.0, released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.596.1** | rebuilt on the Mac from web 1.596.1 with `@capacitor/status-bar` 6.0.3 (2026-11-25, `eade33c`; the plugin's unsigned device build succeeded at `fe95dcb`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -546,6 +546,24 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### The new look's Settings is a gear; Stage 1 checked on the iPhone Duo (2026-11-25, app 1.596.2)
+
+- **Stage 1 is done.** Chris's phone is now an iPhone Duo ("Chief's iPhone Duo 512G", iPhone19,4, iOS
+  27.3). On 2026-11-25 it was linked to the Mac by cable, Developer Mode was turned on, and Xcode was signed in
+  to the developer account (it had none, so the Duo couldn't be added to the team's devices; Chris signed in).
+  1.596.1 was installed and opened from `mac-iphone-build-and-install.sh`, which now defaults to the Duo and
+  stops on a failed install (`setopt pipefail`; before, a failed install still printed DONE). Chris turned on
+  the new look and checked it in Light and Dark: "the light and dark mode work". The old iPhone 17 Pro Max
+  (also named "...Duo 512") got 1.596.1 too, by mistake, before we knew about the new phone.
+- **Settings is a gear again in the new look** (Chris by card, "Back to a gear", recommended, over "Keep the
+  sliders"): he noticed the icon had changed. The kit (item 11) drew Settings as sliders; a gear is what
+  people look for, and sliders read as "filters", which Places and History also have. `NewLookBar` now draws
+  `Icon name="gear"` with the count in its brass ring as before. Members already have the gear. Media to be told
+  (its session wasn't running; the note is in `Design review 2026-11/full-pass-request-2026-11-25.md`).
+- Tests: `test_15962.py` 14 of 14 (the gear in light and dark, the count, it opens Settings, members' gear);
+  `test_15950.py` against 1.596.1: members' 18 screens pixel for pixel, no fails. `verify_compile.js`,
+  `verify_names.js` pass.
 
 ### The new look: switch on sooner (2026-11-25, Chris by card)
 
