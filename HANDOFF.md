@@ -550,7 +550,7 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 ### The new look's Settings is a gear; Stage 1 checked on the iPhone Duo (2026-11-25, app 1.596.2)
 
 Released 2026-11-25 (Chris: "Yes, put it live"): web `4bde606`, confirmed live (`sw.js`, `APP_VERSION`, the
-gear in the page); native `176b5a5`. The Duo still has 1.596.1 until the next install.
+gear in the page); native `176b5a5`, installed on Chris's iPhone Duo the same day.
 
 - **Stage 1 is done.** Chris's phone is now an iPhone Duo ("Chief's iPhone Duo 512G", iPhone19,4, iOS
   27.3). On 2026-11-25 it was linked to the Mac by cable, Developer Mode was turned on, and Xcode was signed in
