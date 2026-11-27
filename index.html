@@ -458,6 +458,56 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .go-rm{ margin-top:14px; padding-top:12px; border-top:1px solid var(--n-line); }
     .go-rm-link{ display:block; background:none; border:0; padding:16px 0 2px; color:var(--n-danger);
       font-family:'Outfit',sans-serif; font-size:15px; font-weight:500; cursor:pointer; }
+    /* ---- 1.598.0: sign-up and first open (N2), Media's boards tn2 (welcome), tn2b (create account and the
+       email read-back), tn2c (first open). Only the new look renders these classes. ---- */
+    #app-shell.n2-page{ padding-bottom:env(safe-area-inset-bottom); background:var(--n-bg); }
+    .n2-hero{ position:relative; height:470px; background-color:#111; background-position:center; background-size:cover; color:#fff; }
+    .n2-hero::after{ content:""; position:absolute; inset:0;
+      background:linear-gradient(to top, rgba(0,0,0,.82) 0%, rgba(0,0,0,.2) 55%, rgba(0,0,0,.45) 100%); }
+    .n2-hero > *{ position:relative; z-index:1; }
+    .n2-word{ display:flex; align-items:center; gap:8px; padding:calc(14px + env(safe-area-inset-top)) 20px 0;
+      font-family:'Outfit',sans-serif; font-size:11px; font-weight:500; letter-spacing:0.42em; text-transform:uppercase; color:#fff; }
+    .n2-copy{ position:absolute; left:20px; right:20px; bottom:24px; }
+    .n2-copy h1{ font-family:var(--serif); font-weight:400; font-size:50px; line-height:1.02; margin:0; color:#fff; text-wrap:balance; }
+    .n2-copy p{ font-size:16px; line-height:1.45; opacity:.92; margin:10px 0 0; text-wrap:balance; }
+    .n2-sec{ padding:26px 20px 8px; }
+    .n2-sec h3{ font-family:var(--serif); font-weight:400; font-size:26px; line-height:1.15; margin:0; color:var(--n-ink); }
+    .n2-step{ display:flex; gap:14px; align-items:flex-start; padding:12px 20px; border-top:1px solid var(--n-line); color:var(--n-ink); }
+    .n2-step:last-child{ border-bottom:1px solid var(--n-line); }
+    .n2-step p{ font-size:15.5px; line-height:1.4; margin:0; text-wrap:pretty; }
+    .n2-step b{ font-weight:500; }
+    .n2-step .nl-count{ width:24px; height:24px; }
+    .n2-step .nl-count > i{ background:var(--n-bg); }
+    .n2-body{ padding:0 20px; }
+    .n2-top{ padding-top:calc(8px + env(safe-area-inset-top)); }
+    .n2-seg{ display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--n-ink); margin:28px 0 20px; }
+    .n2-top .n2-seg{ margin-top:8px; }
+    .n2-seg button{ height:46px; background:var(--n-bg); color:var(--n-ink); border:0; font-family:'Outfit',sans-serif;
+      font-size:15px; font-weight:500; cursor:pointer; }
+    .n2-seg button.on{ background:var(--n-solid); color:var(--n-onsolid); }
+    .n2-head{ padding:14px 0 18px; }
+    .n2-head h2{ font-family:var(--serif); font-weight:400; font-size:34px; line-height:1.08; margin:0; color:var(--n-ink); }
+    .n2-head p{ font-size:15px; line-height:1.45; color:var(--n-dim); margin:6px 0 0; text-wrap:pretty; }
+    .n2-note{ font-size:13px; line-height:1.45; color:var(--n-dim); margin:0 0 20px; }
+    .n2-hint{ font-size:13px; line-height:1.45; color:var(--n-dim); margin:-6px 0 18px; }
+    .n2-hint .nl-link{ font-size:13px; text-decoration:underline; text-underline-offset:3px; }
+    .n2-links{ text-align:center; padding:18px 0 0; font-size:14.5px; line-height:2.1; color:var(--n-dim); }
+    .n2-links a{ color:var(--n-ink); text-decoration:underline; text-underline-offset:4px; text-decoration-thickness:1px; }
+    .n2-foot{ text-align:center; font-size:12.5px; line-height:1.9; color:var(--n-dim); padding:26px 0 30px; }
+    .n2-foot a{ color:var(--n-dim); text-decoration:underline; text-underline-offset:3px; }
+    .n2-say{ display:flex; gap:10px; align-items:flex-start; font-size:14px; line-height:1.45; color:var(--n-dim); margin:0 0 14px; }
+    .n2-say::before{ content:""; width:7px; height:7px; border-radius:50% !important; background:var(--n-accent); flex:none; margin-top:6px; }
+    .n2-say.err{ color:var(--n-danger); }
+    .n2-say.err::before{ background:var(--n-danger); }
+    .n2-banner{ display:flex; gap:12px; align-items:flex-start; margin:20px 0 0; padding:10px 0; border-top:1px solid var(--n-line);
+      border-bottom:1px solid var(--n-line); font-size:14px; line-height:1.45; color:var(--n-dim); }
+    .n2-banner b{ display:block; font-weight:500; color:var(--n-ink); margin-bottom:2px; }
+    .n2-sheet h2{ font-family:var(--serif); font-weight:400; font-size:34px; line-height:1.08; margin:4px 0 0; color:var(--n-ink); }
+    .n2-email{ font-family:'Outfit',sans-serif; font-size:23px; line-height:1.3; word-break:break-all; color:var(--n-ink); padding-top:14px; }
+    .n2-sheet .n2-sub{ font-size:15px; line-height:1.45; color:var(--n-dim); padding-top:12px; }
+    .n2-check{ display:flex; flex-direction:column; gap:10px; padding:20px 0 6px; }
+    .n2-check .btn{ margin:0; }
+    .n2-empty{ font-size:14.5px; line-height:1.45; color:var(--n-dim); padding:4px 0 0; }
     *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
     html,body{margin:0; padding:0; background:var(--bg); color:var(--text);}
     /* 1.596.3: iPhones enlarge some blocks of text on their own ("text autosizing") when they judge them
@@ -1848,7 +1898,7 @@ body{ padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-
 const { useState, useEffect, useRef, useCallback } = React;
 
 /* ---- constants ------------------------------------------------ */
-const APP_VERSION   = "1.597.0";
+const APP_VERSION   = "1.598.0";
 // True when running inside the Capacitor store build (the native shell
 // injects window.Capacitor into its webview; browsers never have it). Used to
 // hide PWA-isms - like Add-to-Home-Screen - that make no sense in a real app.
@@ -11968,7 +12018,7 @@ function HomeView({ profile, notices, restaurants, visits, menus, cfg, onOpenRes
       )}
 
       {notices}
-      {nl ? <div className="nl-hello">{greeting}{who ? ", " + who : ""}</div> : null}
+      {nl ? <div className="nl-hello">{greeting}{who ? ", " + who : ", Captain"}</div> : null}
       {onSendIssue ? <IssueReadyCard cfg={cfg} tick={newsTick} onRead={onReadIssue} onSend={onSendIssue} /> : null}
       {onReadIssue ? <NewsIssueCard cfg={cfg} tick={newsTick} onRead={onReadIssue} /> : null}
       {/* How was the wine? (1.584.0): one card at a time, once the meal is
@@ -12039,6 +12089,21 @@ function HomeView({ profile, notices, restaurants, visits, menus, cfg, onOpenRes
           </div>
           <div className="card" style={{padding:"4px 0"}}>
             {recents.map(r => placeRow(r, "recent-" + r.id))}
+          </div>
+        </>
+      ) : (nl && (visits || []).length === 0) ? (
+        <>
+          {/* Nothing logged yet (N2, tn2c): say what will gather here, and the first step. */}
+          <div className="between" style={{margin:"6px 2px 6px", alignItems:"baseline"}}>
+            <span className="home-section" style={{margin:0}}>Your places</span>
+          </div>
+          <div className="n2-empty">
+            The places you add and the meals you log will gather here, with your photos.
+            {onFindPlace ? (
+              <div style={{marginTop:10}}>
+                <button type="button" className="nl-link" onClick={onFindPlace}>Add your first place {nlArrow}</button>
+              </div>
+            ) : null}
           </div>
         </>
       ) : null}
@@ -12898,6 +12963,8 @@ function App({openShare}){
         photos: Array.isArray(seed.photos) ? seed.photos : [], sv: seed.sv || "" } });
   }, [ready, restaurants]);
 
+  // 1.598.0 (N2, tn2c): in the new look the welcome is a one-time notice row on Home, not a toast.
+  const [welcomeRow, setWelcomeRow] = useState(false);
   /* ---- first moment after sign-up ------------------------------------- */
   // No email is sent at sign-up, and people who expect one go looking in spam
   // for a message that does not exist. Tell them once, the moment they are in.
@@ -12905,7 +12972,10 @@ function App({openShare}){
     let fresh = false;
     try { fresh = localStorage.getItem("mc_welcome_new") === "1";
           if (fresh) localStorage.removeItem("mc_welcome_new"); } catch(e){}
-    if (fresh) flash("Welcome! Your account is created and you're signed in.");
+    if (fresh){
+      if (isNewLook()) setWelcomeRow(true);
+      else flash("Welcome! Your account is created and you're signed in.");
+    }
     // eslint-disable-next-line
   }, []);
 
@@ -13860,6 +13930,18 @@ function App({openShare}){
   const noticesUnderHomeBar = tab === "home" && isNewLook();
   const notices = (
       <>
+        {welcomeRow && isNewLook() ? (
+          <div className="req-banner" style={{cursor:"default"}}>
+            <span className="req-banner-ic"><Icon name="check" size={18} color="var(--on-accent)" /></span>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontWeight:600}}>You're in</div>
+              <div className="tiny" style={{opacity:0.82}}>Your account is ready. Nothing to confirm by email.</div>
+            </div>
+            <button className="req-banner-x" aria-label="Dismiss" onClick={()=> setWelcomeRow(false)}>
+              <Icon name="close" size={15} color="var(--on-accent)" />
+            </button>
+          </div>
+        ) : null}
         {pendingReqs > 0 && pendingReqs !== reqSeen && (
           <div className="req-banner"
             onClick={()=>{ setReqSeen(pendingReqs); setOverlay({ type:"connections" }); }}>
@@ -39915,6 +39997,11 @@ function ResetPasswordScreen({accessToken, refreshToken, expiresIn}){
   );
 }
 
+// The welcome screen's photo (N2, tn2). Chris chose on 2026-11-20 "one of your photos", then on 2026-11-27
+// asked to consider professional ones; the Media session is lining up candidates with their licences.
+// Until he picks, it stays empty and the hero is the dark ground with the drawn gradient. The drawing's
+// own picture (img/corkwell.jpg) is a demo, soft at full size and not ours to ship, so it isn't used.
+const N2_WELCOME_PHOTO = "";
 function SetupScreen({initial, onSave, onClose, asOverlay}){
   // Why this reader is here. Two sources, because the order is not guaranteed:
   // if this screen renders before App's ?open= handler has run, the address
@@ -40329,6 +40416,145 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
       <div style={{height:24}} />
     </div>
   );
+
+  // ---- The new look's sign-in, create account and reset (N2, 1.598.0) ----
+  // Same state and handlers as below; the drawn layout (Media's tn2 and tn2b). Members keep today's screen.
+  if (!asOverlay && isNewLook()){
+    const sug = mode === "signup" ? emailDomainSuggestion(email) : "";
+    const link = (label, fn) => <a href="#" onClick={(e)=>{ e.preventDefault(); fn(); }}>{label}</a>;
+    const banners = (
+      <>
+        {deletedNote ? (
+          <div className="n2-banner"><div>Your account was deleted. Thanks for trying MenuCaptain - you are
+            welcome back any time.</div></div>
+        ) : null}
+        {mode === "signin" && arrivedFor ? (
+          <div className="n2-banner"><div>
+            <b>{arrivedFor === "connections" ? "Sign in to see your friend requests" : "Sign in to see what was shared with you"}</b>
+            This link opened in your web browser, which is separate from the MenuCaptain app on your home screen,
+            so it asks you to sign in here once. Use the same email and password - you will go straight to it
+            afterwards. Or close this and open MenuCaptain from your home screen instead.
+          </div></div>
+        ) : null}
+        {mode === "signin" && !arrivedFor && isStandalone() ? (
+          <div className="n2-banner"><div>
+            <b>Already have an account? Sign in below</b>
+            MenuCaptain on your Home Screen keeps its own sign-in, separate from Safari, so it asks once. Use the
+            same email and password: your places, menus and visits are all there. No need to make a new account.
+          </div></div>
+        ) : null}
+      </>
+    );
+    const seg = mode !== "forgot" ? (
+      <div className="n2-seg" role="tablist" aria-label="Sign in or create an account">
+        <button type="button" role="tab" aria-selected={mode === "signin"} className={mode === "signin" ? "on" : ""}
+          onClick={()=> { if (mode !== "signin") switchTo("signin"); }}>Sign in</button>
+        <button type="button" role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "on" : ""}
+          onClick={()=> { if (mode !== "signup") switchTo("signup"); }}>Create account</button>
+      </div>
+    ) : null;
+    return (
+      <div id="app-shell" className="n2-page">
+        {mode === "signin" ? (
+          <>
+            <div className="n2-hero" style={N2_WELCOME_PHOTO ? {backgroundImage:"url(" + N2_WELCOME_PHOTO + ")"} : null}>
+              <div className="n2-word"><Icon name="helm" size={22} color="#fff" />MenuCaptain</div>
+              <div className="n2-copy">
+                <h1>Welcome aboard, Captain</h1>
+                <p>Your places, menus and visits, private to you and with you on every device.</p>
+              </div>
+            </div>
+            {!arrivedFor ? (
+              <>
+                <div className="n2-sec"><h3>How it works</h3></div>
+                <div>
+                  <div className="n2-step"><span className="nl-count"><i>1</i></span><p>Find a place, one of yours or a new one.</p></div>
+                  <div className="n2-step"><span className="nl-count"><i>2</i></span><p>Open it, get the menu, and ask <b>Help me order</b>.</p></div>
+                  <div className="n2-step"><span className="nl-count"><i>3</i></span><p>After the meal, log the visit and split the check.</p></div>
+                </div>
+              </>
+            ) : null}
+          </>
+        ) : null}
+        <div className={"n2-body" + (mode === "signin" ? "" : " n2-top")}>
+          {banners}
+          {seg}
+          {mode !== "signin" ? (
+            <div className="n2-head"><h2>{titles[mode][0]}</h2><p>{titles[mode][1]}</p></div>
+          ) : null}
+          <label className="fld"><span className="lbl">Email</span>
+            <ClearInput type="email" value={email}
+              onChange={e=>{ setEmail(e.target.value); setReadBack(false); }}
+              autoCapitalize="none" autoComplete="email" placeholder="you@example.com" /></label>
+          {sug && !readBack ? (
+            <div className="n2-hint">Did you mean <button type="button" className="nl-link" onClick={()=> useSuggestedEmail()}>{sug}</button>?</div>
+          ) : null}
+          {mode !== "forgot" ? (
+            <label className="fld"><span className="lbl">Password</span>
+              <PwInput value={password} onChange={e=>setPassword(e.target.value)}
+                placeholder={mode === "signup" ? "at least 6 characters" : "your password"} />
+            </label>
+          ) : null}
+          {mode === "signup" ? <div className="n2-hint">At least 6 characters.</div> : null}
+          {mode === "signin" ? (
+            <div className="n2-note">Your sign-in stays on this device and is used only to reach your MenuCaptain account.</div>
+          ) : null}
+          {info ? <div className="n2-say">{info}</div> : null}
+          {err ? <div className="n2-say err">{err}</div> : null}
+          <button className="btn primary" disabled={busy} onClick={primary.fn}>
+            {busy ? <span className="spin" /> : null}
+            {busy ? primary.busyLabel : primary.label}
+          </button>
+          <div className="n2-links">
+            {mode === "signin" ? (<>
+              {link("Forgot password?", ()=> switchTo("forgot"))}<br/>
+              New here? {link("Create an account", ()=> switchTo("signup"))}. No email to confirm.
+            </>) : mode === "signup" ? (<>
+              Have an account? {link("Sign in", ()=> switchTo("signin"))}
+            </>) : link("Back to sign in", ()=> switchTo("signin"))}
+          </div>
+          <div className="n2-foot">
+            <a href="https://menucaptain.com/privacy.html" target="_blank" rel="noopener">Privacy</a>
+            {" \u00b7 "}
+            <a href="https://menucaptain.com/terms.html" target="_blank" rel="noopener">Terms</a>
+            <br/>&copy; 2026 MilSpo Life LLC
+          </div>
+          <InstallHint />
+        </div>
+        {/* The read-back (tn2b): before anything is created, the address large, in Outfit (not the serif) so
+            every letter is unmistakable. Same buttons and wording rules as today's card. */}
+        {mode === "signup" && readBack ? (
+          <div className="sheet-bg" onClick={()=> { if (!busy) setReadBack(false); }}>
+            <div className="sheet n2-sheet" onClick={e=> e.stopPropagation()}>
+              <div className="grip" />
+              <h2>Is this your email?</h2>
+              <div className="n2-email">{email.trim()}</div>
+              {sug ? <div className="n2-sub">Did you mean <b>{sug}</b>?</div> : null}
+              <div className="n2-sub">Check every letter. It's your way back in if you ever forget your password.
+                Say yes and your account is ready at once. Nothing is emailed to you.</div>
+              <div className="n2-check">
+                {sug ? (
+                  <>
+                    <button type="button" className="btn primary" onClick={()=> useSuggestedEmail()}>
+                      <Icon name="check" size={18} color="var(--on-accent)" />Use {sug}</button>
+                    <button type="button" className="btn ghost" disabled={busy} onClick={()=> signUp(true)}>
+                      {busy ? "Creating..." : "No, keep " + email.trim()}</button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" className="btn primary" disabled={busy} onClick={()=> signUp(true)}>
+                      {busy ? <span className="spin" /> : <Icon name="check" size={18} color="var(--on-accent)" />}
+                      {busy ? "Creating..." : "Yes, create my account"}</button>
+                    <button type="button" className="btn ghost" disabled={busy} onClick={()=> setReadBack(false)}>Let me fix it</button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   if (asOverlay){
     return (
