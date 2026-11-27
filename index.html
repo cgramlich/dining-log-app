@@ -508,6 +508,15 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
     .n2-check{ display:flex; flex-direction:column; gap:10px; padding:20px 0 6px; }
     .n2-check .btn{ margin:0; }
     .n2-empty{ font-size:14.5px; line-height:1.45; color:var(--n-dim); padding:4px 0 0; }
+    .n2-install{ display:flex; gap:14px; align-items:center; width:calc(100% + 40px); margin:26px -20px 0; padding:12px 20px;
+      background:none; border:0; border-top:1px solid var(--n-line); border-bottom:1px solid var(--n-line); text-align:left;
+      cursor:pointer; color:var(--n-ink); font:inherit; }
+    .n2-tile{ width:42px; height:42px; background:var(--n-soft); display:grid; place-items:center; flex:none; color:var(--n-ink); }
+    .n2-install-t{ flex:1; min-width:0; display:flex; flex-direction:column; }
+    .n2-install-t .n{ font-family:var(--serif); font-weight:400; font-size:20px; line-height:1.15; }
+    .n2-install-t .s{ font-size:13.5px; color:var(--n-dim); margin-top:2px; }
+    .n2-sheet .n2-steps{ margin:16px -16px 0; }
+    .n2-sheet .n2-step{ padding:12px 16px; }
     *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
     html,body{margin:0; padding:0; background:var(--bg); color:var(--text);}
     /* 1.596.3: iPhones enlarge some blocks of text on their own ("text autosizing") when they judge them
@@ -11404,6 +11413,77 @@ function installPlatform(){
 }
 // The "Add to Home Screen" hint. Renders nothing once installed (standalone).
 // Android/Chrome gets a one-tap button; iOS and others get the manual steps.
+// N2's Add to Home Screen (1.598.0; Media's tn2, 2026-11-27): one quiet row above the welcome's footer, a
+// --soft tile, a serif name and a --dim line; tapping it opens a sheet with the steps for the browser in use,
+// counted in rings like How it works. A browser tab only: never inside the installed app or the phone apps.
+// Same install logic as InstallHint below (the one-tap prompt where the browser offers it, else the steps).
+function InstallRowN2(){
+  const [evt, setEvt] = useState(_installEvent);
+  const [installed, setInstalled] = useState(false);
+  const [open, setOpen] = useState(false);
+  useEffect(()=>{
+    const onReady = ()=> setEvt(_installEvent);
+    const onInstalled = ()=> setInstalled(true);
+    window.addEventListener("mc-install-ready", onReady);
+    window.addEventListener("appinstalled", onInstalled);
+    return ()=>{ window.removeEventListener("mc-install-ready", onReady);
+                 window.removeEventListener("appinstalled", onInstalled); };
+  }, []);
+  if (IS_NATIVE || isStandalone() || installed) return null;
+  const plat = installPlatform();
+  async function doInstall(){
+    if (!evt) return;
+    try { evt.prompt(); await evt.userChoice; } catch(e){}
+    _installEvent = null; setEvt(null); setOpen(false);
+  }
+  const step = (n, body)=> (
+    <div className="n2-step" key={n}><span className="nl-count"><i>{n}</i></span><p>{body}</p></div>
+  );
+  return (
+    <>
+      <button type="button" className="n2-install" onClick={()=> setOpen(true)}>
+        <span className="n2-tile"><Icon name="home" size={20} /></span>
+        <span className="n2-install-t">
+          <span className="n">Add to your Home Screen</span>
+          <span className="s">Opens full screen and works offline</span>
+        </span>
+        <Icon name="chev" size={16} color="var(--n-faint)" />
+      </button>
+      {open ? (
+        <div className="sheet-bg" onClick={()=> setOpen(false)}>
+          <div className="sheet n2-sheet" onClick={e=> e.stopPropagation()}>
+            <div className="grip" />
+            <h2>Add to your Home Screen</h2>
+            <div className="n2-sub">Install it once for a full-screen app, offline access and a faster launch. No app store needed.</div>
+            {evt ? (
+              <div className="n2-check">
+                <button type="button" className="btn primary" onClick={doInstall}>
+                  <Icon name="home" size={17} color="var(--on-accent)" />
+                  {plat === "android" ? "Add to Home Screen" : "Install MenuCaptain"}
+                </button>
+              </div>
+            ) : (
+              <div className="n2-steps">
+                {plat === "ios" ? [
+                  step(1, <span>In Safari, tap <b>Share</b> <span style={{display:"inline-flex", verticalAlign:"-3px"}}><Icon name="share" size={15} /></span>. It is in the bar at the bottom, or behind the <b style={{letterSpacing:"1.5px"}}>{"\u2022\u2022\u2022"}</b> button beside the address.</span>),
+                  step(2, <span>Tap <b>Add to Home Screen</b> (scroll down the list if you need to).</span>),
+                  step(3, <span>Leave <b>Open as Web App</b> on if you see it, then tap <b>Add</b>. MenuCaptain lands on your Home Screen.</span>),
+                ] : [
+                  step(1, <span>Open your browser menu (<b>{"\u22ee"}</b> in Chrome, top-right).</span>),
+                  step(2, <span>Tap <b>Add to Home screen</b> (or <b>Install app</b>).</span>),
+                  step(3, <span>Confirm. MenuCaptain installs like an app.</span>),
+                ]}
+              </div>
+            )}
+            <div className="n2-check">
+              <button type="button" className="btn ghost" onClick={()=> setOpen(false)}>Done</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
 function InstallHint({ onClose, force }){
   const [evt, setEvt] = useState(_installEvent);
   const [installed, setInstalled] = useState(false);
@@ -39997,11 +40077,14 @@ function ResetPasswordScreen({accessToken, refreshToken, expiresIn}){
   );
 }
 
-// The welcome screen's photo (N2, tn2). Chris chose on 2026-11-20 "one of your photos", then on 2026-11-27
-// asked to consider professional ones; the Media session is lining up candidates with their licences.
-// Until he picks, it stays empty and the hero is the dark ground with the drawn gradient. The drawing's
-// own picture (img/corkwell.jpg) is a demo, soft at full size and not ours to ship, so it isn't used.
-const N2_WELCOME_PHOTO = "";
+// The welcome screen's photo (N2, tn2). On 2026-11-20 Chris chose "one of your photos"; on 2026-11-27 he
+// asked to consider professional ones ("somewhere between fine dining and casual ... nice-looking food,
+// but not too fancy") and picked, from the Media session's second round, "Italian meal with pizza, pasta,
+// and caprese salad" by Brelyn Bashrum on Unsplash. Unsplash License (read 2026-11-27): free for
+// commercial use, no credit required; the source, licence and the untouched download are in Dropbox,
+// CG Apps/MenuCaptain/Welcome photo/. This copy is 1600 x 2400 (covers a 430pt phone at 3x), about 0.87 MB,
+// shown with cover and center under the drawn gradient. build.js copies it into the phone apps.
+const N2_WELCOME_PHOTO = "welcome-photo.jpg";
 function SetupScreen({initial, onSave, onClose, asOverlay}){
   // Why this reader is here. Two sources, because the order is not guaranteed:
   // if this screen renders before App's ?open= handler has run, the address
@@ -40469,7 +40552,7 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
                 <div className="n2-sec"><h3>How it works</h3></div>
                 <div>
                   <div className="n2-step"><span className="nl-count"><i>1</i></span><p>Find a place, one of yours or a new one.</p></div>
-                  <div className="n2-step"><span className="nl-count"><i>2</i></span><p>Open it, get the menu, and ask <b>Help me order</b>.</p></div>
+                  <div className="n2-step"><span className="nl-count"><i>2</i></span><p>Open it, get the menu, and ask <b style={{whiteSpace:"nowrap"}}>Help me order</b>.</p></div>
                   <div className="n2-step"><span className="nl-count"><i>3</i></span><p>After the meal, log the visit and split the check.</p></div>
                 </div>
               </>
@@ -40513,13 +40596,13 @@ function SetupScreen({initial, onSave, onClose, asOverlay}){
               Have an account? {link("Sign in", ()=> switchTo("signin"))}
             </>) : link("Back to sign in", ()=> switchTo("signin"))}
           </div>
+          <InstallRowN2 />
           <div className="n2-foot">
             <a href="https://menucaptain.com/privacy.html" target="_blank" rel="noopener">Privacy</a>
             {" \u00b7 "}
             <a href="https://menucaptain.com/terms.html" target="_blank" rel="noopener">Terms</a>
             <br/>&copy; 2026 MilSpo Life LLC
           </div>
-          <InstallHint />
         </div>
         {/* The read-back (tn2b): before anything is created, the address large, in Outfit (not the serif) so
             every letter is unmistakable. Same buttons and wording rules as today's card. */}
