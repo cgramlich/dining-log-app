@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.596.3** | menucaptain.com (GitHub Pages), released 2026-11-25 from the Mac (for everyone: the app keeps clear of the phone's side safe areas, the iPhone Duo's clock column; Log 2026-11-25d). Before it: 1.596.2, released 2026-11-25 from the Mac (the new look's preview: Settings is a gear again, Chris's card; Log 2026-11-25c). Before it: 1.596.1, released 2026-11-25 from the Mac (the new look's preview: choice chips at the kit's 34px and greyed-out buttons in --faint, Media's check of 1.596.0; Log 2026-11-25b). Before it: 1.596.0, released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
+| Web app | **1.597.0** | menucaptain.com (GitHub Pages), built 2026-11-27 on the Mac, WAITING FOR CHRIS'S YES (the new look's preview: Media's full pass, items 2 to 16; group order rows tap to edit; Log 2026-11-27a). Before it: 1.596.3, released 2026-11-25 from the Mac (for everyone: the app keeps clear of the phone's side safe areas, the iPhone Duo's clock column; Log 2026-11-25d). Before it: 1.596.2, released 2026-11-25 from the Mac (the new look's preview: Settings is a gear again, Chris's card; Log 2026-11-25c). Before it: 1.596.1, released 2026-11-25 from the Mac (the new look's preview: choice chips at the kit's 34px and greyed-out buttons in --faint, Media's check of 1.596.0; Log 2026-11-25b). Before it: 1.596.0, released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.596.3** | rebuilt on the Mac from web 1.596.3 with `@capacitor/status-bar` 6.0.3 (2026-11-25, `7c9b2e7`; the plugin's unsigned device build succeeded at `fe95dcb`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -546,6 +546,35 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### Media's full pass before switch-on, items 2 to 16 (2026-11-27, app 1.597.0)
+
+Chris, 2026-11-27, "Ok go" to the next step of the switch-on plan. Media checked all 63 captures of 1.596.1
+plus the extra set (the group order host screen, the plan card) and listed 16 must-fix items
+(`Design review 2026-11/full-pass-checks-2026-11-25.md`, section A). This release does 2 to 16, all in the
+new look (search `1.597.0: Media's full pass` in the stylesheet):
+- **Counts** (A2): the sub-page header gear and You's and Settings' Friends and Sharing rows are brass rings
+  (the paint as a border, the page inside; a gradient can't be a border colour). Red stays for errors and delete.
+- **Colours the kit has no place for** go through variables with today's value as the fallback, so members are
+  untouched: `--fav-heart` (the place page's loved heart, A4), `--star-full`/`--star-empty` (every `Stars`,
+  A12), and the newsletter frame (`.news-frame`, A14). Prices are ink (A3); the dish card's wide price moved
+  from an inline amber to `div.dc-desc.dc-pr-wide`, same colour for members.
+- **Controls**: every plain checkbox is the kit's tick (A5); the app's own tick boxes get an ink edge (A6); a
+  plain `.btn` is an ink outline (A7, A15: "Scan or upload the check" is solid, "$2.99/month" and "Manage
+  subscription" are outlined); chips in a scrolling row keep one line (A8); the leaderboard's On/Off is a
+  switch (A9); Loved, Again and Skip are choices (A10); the dish card's close disc is `--soft` (A11).
+- **You** (A13): rows, not boxes, through a `.you-list` wrapper (`.yif-entry` boxes rows on other screens too).
+- **The group order host screen** (A16, H1 to H7): the kit's form header; serif section heads; one left edge;
+  the notifications note as a `.say` line; the split fold points down (up when open); one hairline above it.
+  **Each person who ordered is one row you tap to edit** (Chris by card, 2026-11-27, "Tap the row to edit",
+  over "Keep both, as plain words"): their order opens in the edit sheet, with "Remove Molly's order" in
+  red inside it, asked once. Was Edit and Remove boxes on every row.
+- **Item 1** (Settings' "Only you and Kristin see this") waits for the switch-on release, where it stops
+  being true.
+- Tests: `test_15970.py` 64 of 64 (light and dark: each item, plus tapping Molly's row, Remove asked once,
+  the sheet closing and Molly back to "Order for them"). `test_15950.py` against 1.596.3: 53 of 53,
+  members' screens pixel for pixel (its version blanking now covers 1.597). Captures in
+  `Design screens 1.597.0 new look/` and `Design screens 1.597.0 extra/`, for Media's re-check.
 
 ### The phone's side safe areas (2026-11-25, app 1.596.3)
 

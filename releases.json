@@ -647,5 +647,13 @@
     "email_notes": "updated: next-issue-notes.md has it as a fix, last in the issue",
     "welcome": "n/a: nothing on the welcome page changes",
     "handoff": "updated: version rows, decision entry (the phone's side safe areas), Log 2026-11-25d"
+  },
+  "1.597.0": {
+    "what": "The new look's preview only (Chris and Kristin): the 15 must-fix items from Media's full pass before switch-on (Design review 2026-11/full-pass-checks-2026-11-25.md, section A, items 2 to 16). Counts are brass rings, not red; prices, the loved heart and stars are ink; the kit's tick box, switch and outlined button where the browser's or bare text stood; You is a list of rows; the newsletter frame is the page's ground; the plan card's money actions are outlined buttons; and the group order host screen's seven points (header, serif section heads, one left edge, no grey note box, the split fold's arrow, one hairline). On that screen each person who ordered is now a row you tap to edit, with Remove inside the edit sheet (Chris by card, 2026-11-27, \"Tap the row to edit\"). Members see no change. Item 1 (the \"Try the new look\" words) waits for the switch-on release.",
+    "guide": "n/a: preview only; the guide changes with the switch-on release",
+    "promo": "n/a: preview only, nothing new for members to list",
+    "email_notes": "n/a: preview only; members see nothing new until the switch-on",
+    "welcome": "n/a: nothing on the welcome page changes (N2 is the next build)",
+    "handoff": "updated: version rows, decision entry (Media's full pass, 1.597.0), Log 2026-11-27a"
   }
 }
