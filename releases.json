@@ -655,5 +655,13 @@
     "email_notes": "n/a: preview only; members see nothing new until the switch-on",
     "welcome": "n/a: nothing on the welcome page changes (N2 is the next build)",
     "handoff": "updated: version rows, decision entry (Media's full pass, 1.597.0), Log 2026-11-27a"
+  },
+  "1.598.0": {
+    "what": "The new look's preview only: sign-up and first open (N2) from Media's boards tn2, tn2b and tn2c. The welcome opens on Chris's chosen photo edge to edge (\"Italian meal with pizza, pasta, and caprese salad\" by Brelyn Bashrum on Unsplash, Unsplash License, no credit required) with \"Welcome aboard, Captain\", How it works in three ringed steps, Sign in and Create account side by side, and the footer. Create account reads the address back on a sheet before anything is created (Outfit, so every letter is clear), with the domain fix offered there. Forgot password is the same page with one field. The web's Add to Home Screen hint is one quiet row above the footer that opens a sheet of ringed steps. After sign-up, Home shows a one-time \"You're in\" row instead of a toast, greets \"Captain\" when there's no name, and with nothing logged says what will gather under Your places with \"Add your first place\". The sign-in and sign-up logic is today's. Members see no change.",
+    "guide": "n/a: preview only; the guide changes with the switch-on release",
+    "promo": "n/a: preview only, nothing new for members to list",
+    "email_notes": "n/a: preview only; members see nothing new until the switch-on",
+    "welcome": "n/a: the in-app welcome is preview only; the site's own welcome page doesn't change",
+    "handoff": "updated: version rows, decision entry (sign-up and first open, N2, 1.598.0), Log 2026-11-27b"
   }
 }

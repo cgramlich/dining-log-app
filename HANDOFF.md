@@ -22,7 +22,7 @@ Live at **menucaptain.com**. Installable as a PWA; a Capacitor shell exists for 
 
 | Piece | Version | Where |
 |---|---|---|
-| Web app | **1.597.0** | menucaptain.com (GitHub Pages), released 2026-11-27 from the Mac (the new look's preview: Media's full pass, items 2 to 16; group order rows tap to edit; Log 2026-11-27a). Before it: 1.596.3, released 2026-11-25 from the Mac (for everyone: the app keeps clear of the phone's side safe areas, the iPhone Duo's clock column; Log 2026-11-25d). Before it: 1.596.2, released 2026-11-25 from the Mac (the new look's preview: Settings is a gear again, Chris's card; Log 2026-11-25c). Before it: 1.596.1, released 2026-11-25 from the Mac (the new look's preview: choice chips at the kit's 34px and greyed-out buttons in --faint, Media's check of 1.596.0; Log 2026-11-25b). Before it: 1.596.0, released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
+| Web app | **1.598.0** | menucaptain.com (GitHub Pages), built 2026-11-27 on the Mac, WAITING FOR CHRIS'S YES (the new look's preview: sign-up and first open, N2, with the chosen welcome photo; Log 2026-11-27b). Before it: 1.597.0, released 2026-11-27 from the Mac (the new look's preview: Media's full pass, items 2 to 16; group order rows tap to edit; Log 2026-11-27a). Before it: 1.596.3, released 2026-11-25 from the Mac (for everyone: the app keeps clear of the phone's side safe areas, the iPhone Duo's clock column; Log 2026-11-25d). Before it: 1.596.2, released 2026-11-25 from the Mac (the new look's preview: Settings is a gear again, Chris's card; Log 2026-11-25c). Before it: 1.596.1, released 2026-11-25 from the Mac (the new look's preview: choice chips at the kit's 34px and greyed-out buttons in --faint, Media's check of 1.596.0; Log 2026-11-25b). Before it: 1.596.0, released 2026-11-25 from the Mac (start a collection while logging or editing a visit, Chris's ask; Log 2026-11-25a). Before it: 1.595.3, released 2026-11-25 from the Mac (the new look's preview: the offline and sync bars as notice rows, after Media's check of 1.595.2). Before it: 1.595.2 (the lines between Places rows edge to edge). Before that: 1.595.1 ( Media's check of 1.595.0 fixed, rules edge to edge, Places rows at the kit's size, History titled "History", the iPhone status bar restored to the system's choice when the preview is off). Before it: 1.595.0 (Stage 1 release 3: the top bar and wordmark, plain header icons with the brass-ring badge, Home's greeting, the + sheet as t02, no empty tile on Places, the status bar; members unchanged, 18 screens checked pixel for pixel against 1.594.0). Before it: 1.594.0, Stage 1 release 2 |
 | Backend | **0.166.1** | Railway, `/health` reports `db connected` and `illustrations: gemini:gemini-nano-banana-2.1` (0.166.1, 2026-11-17, `191306e`: the clear-background style's prompt and cut redone before the trial ran, the cut is now by shape; still on owner trial only, members still get version 1) |
 | Native shell | **1.597.0** | rebuilt on the Mac from web 1.597.0 with `@capacitor/status-bar` 6.0.3 (2026-11-27, `c33ced2`; the plugin's unsigned device build succeeded at `fe95dcb`, built, offline check passed, iOS-synced), iOS fixes since `c022055`; Chris's iPhone still has 1.591.0 until the next install, **not yet submitted to any store** |
 
@@ -546,6 +546,39 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 - Tests: `Test harness/test_15930.py`, 21 checks (members unchanged; the switch only for the preview
   list; light, dark and Match my phone; colourways; the font loads; a reload keeps it before the first
   paint; Kristin; switching off). Captures in `Test harness/shots15930/`.
+
+### Sign-up and first open, N2 (2026-11-27, app 1.598.0)
+
+The first thing a new member sees, built from Media's boards (`Design review 2026-11/moments/round2/screens-n.html`,
+`png/tn2*.png`) as step 3 of the switch-on plan. New look only; members keep today's `SetupScreen` layout.
+- **One component, two layouts.** `SetupScreen` keeps all its state and handlers (sign in, create account with
+  the read-back, forgot password); `if (!asOverlay && isNewLook())` returns the drawn layout from the same state.
+  Road not taken: a separate component, which would have duplicated the account calls.
+- **The welcome photo** (`welcome-photo.jpg`, `N2_WELCOME_PHOTO`): on 2026-11-20 Chris chose "one of your
+  photos"; on 2026-11-27 he asked to consider professional ones and picked, from the Media session's second
+  Unsplash round, "Italian meal with pizza, pasta, and caprese salad" by Brelyn Bashrum. Unsplash License (read
+  2026-11-27): commercial use, no credit required, not to be sold as a photo. Source, licence and the untouched
+  download: Dropbox `CG Apps/MenuCaptain/Welcome photo/` (`LICENCE.md`). The app copy is 1600 x 2400, 0.87 MB;
+  `build.js` copies it into the phone apps (it scans index.html for image names). Not precached by `sw.js`:
+  members never see it before the switch-on.
+- **Wording.** New: "Welcome aboard, Captain" and its line, "How it works" with the board's steps ("get the
+  menu", no spaced hyphens), "Is this your email?", the "You're in" row, the Your places empty line, the Home
+  Screen row ("Add to your Home Screen", "Opens full screen and works offline"). Kept from today: the
+  Create account line, "this device" (the screen also runs on the web and Android), the banners' wording, and
+  the domain fix offering the whole address ("Use alex@gmail.com"), after which the sheet stays up with the
+  fixed address, so the check happens once.
+- **Media's touches after checking it** (2026-11-27): "Help me order" kept on one line; the web's Add to Home
+  Screen hint is one quiet `.row` + `.tile` above the footer (`InstallRowN2`), opening a sheet of ringed steps
+  for the browser in use; browser tab only.
+- **First open (tn2c):** after sign-up, the new look shows a one-time "You're in" row on Home (App's
+  `welcomeRow`) instead of the toast; the greeting says "Captain" when there's no name; with no places and no
+  visits, Home says what will gather under Your places, with "Add your first place".
+- Who sees it before the switch-on: a preview device that is signed out (the look follows the device;
+  it only turns off when someone outside the preview list signs in).
+- Tests: `test_15980.py` 56 of 56 (light and dark: the photo loads at 1600 wide, the hero edge to edge, the
+  read-back and domain fix, forgot password, the Home Screen row and sheet, the "You're in" row and no toast;
+  members still get today's screen and toast). `test_15950.py` against 1.597.0: 53 of 53. `test_15970.py` 64
+  of 64. Captures: `Design screens 1.598.0 N2/`. Media checked N2 against the boards (2026-11-27).
 
 ### Media's full pass before switch-on, items 2 to 16 (2026-11-27, app 1.597.0)
 
