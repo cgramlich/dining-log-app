@@ -551,8 +551,8 @@ comes from the Media session's `Design review 2026-11/moments/round2/shared.css`
 
 Released 2026-11-25 (Chris: "Yes live"): web `1fb0ec2`, confirmed live (`sw.js`, `APP_VERSION`, the
 side-strip rules and the text-size rule in the page); native `7c9b2e7`, installed on the Duo the same day.
-Checked on the Duo by Chris 2026-11-27: "the settings gear fits the duo now". The group order name sizes
-are not yet confirmed on the phone.
+Checked on the Duo by Chris 2026-11-27: "the settings gear fits the duo now". Then "Names fit": the
+group order names show at the same size, so the cause was iPhone text autosizing.
 
 Chris, with a screenshot from his iPhone Duo's outer screen: "you can't get to the upper right", then "will it
 know the phone and adjust it accordingly so it's not just for the duo?".
